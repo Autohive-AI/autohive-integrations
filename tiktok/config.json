@@ -1,0 +1,316 @@
+{
+    "name": "TikTok",
+    "version": "1.0.0",
+    "description": "TikTok integration for video posting and user profile management",
+    "display_name": "TikTok",
+    "supports_connected_account": true,
+    "entry_point": "tiktok.py",
+    "auth": {
+        "type": "platform",
+        "provider": "tiktok",
+        "scopes": [
+            "user.info.basic",
+            "user.info.profile",
+            "user.info.stats",
+            "video.publish",
+            "video.upload",
+            "video.list"
+        ]
+    },
+    "actions": {
+        "get_user_info": {
+            "display_name": "Get User Info",
+            "description": "Get TikTok account profile information including display name, avatar, bio, and statistics like follower count and total likes.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "open_id": {"type": "string", "description": "Unique user identifier for this application"},
+                    "union_id": {"type": "string", "description": "Unique user identifier across applications"},
+                    "avatar_url": {"type": "string", "description": "URL of the user's profile picture"},
+                    "display_name": {"type": "string", "description": "User's display name"},
+                    "bio_description": {"type": "string", "description": "User's bio/description"},
+                    "profile_deep_link": {"type": "string", "description": "Deep link to user's TikTok profile"},
+                    "is_verified": {"type": "boolean", "description": "Whether the user has a verification badge"},
+                    "username": {"type": "string", "description": "User's unique username"},
+                    "follower_count": {"type": "integer", "description": "Number of followers"},
+                    "following_count": {"type": "integer", "description": "Number of accounts the user follows"},
+                    "likes_count": {"type": "integer", "description": "Total likes across all videos"},
+                    "video_count": {"type": "integer", "description": "Total number of public videos"}
+                },
+                "required": ["open_id"]
+            }
+        },
+        "get_creator_info": {
+            "display_name": "Get Creator Info",
+            "description": "Get creator's posting capabilities and limitations including available privacy levels, maximum video duration, and feature restrictions.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "creator_avatar_url": {"type": "string", "description": "Creator's avatar URL"},
+                    "creator_username": {"type": "string", "description": "Creator's username"},
+                    "creator_nickname": {"type": "string", "description": "Creator's display name"},
+                    "privacy_level_options": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Available privacy levels for posting"
+                    },
+                    "comment_disabled": {"type": "boolean", "description": "Whether comments are disabled by default"},
+                    "duet_disabled": {"type": "boolean", "description": "Whether duets are disabled"},
+                    "stitch_disabled": {"type": "boolean", "description": "Whether stitches are disabled"},
+                    "max_video_post_duration_sec": {"type": "integer", "description": "Maximum video duration in seconds"}
+                },
+                "required": ["privacy_level_options"]
+            }
+        },
+        "create_video_post": {
+            "display_name": "Create Video Post",
+            "description": "Post a video directly to TikTok. Supports uploading from a URL or file. You can set caption, hashtags, privacy level, and engagement settings.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "enum": ["PULL_FROM_URL", "FILE_UPLOAD"],
+                        "description": "Video source type: PULL_FROM_URL for hosted videos, FILE_UPLOAD for direct upload"
+                    },
+                    "video_url": {
+                        "type": "string",
+                        "description": "Required if source=PULL_FROM_URL: Public URL of the video file"
+                    },
+                    "video_size": {
+                        "type": "integer",
+                        "description": "Required if source=FILE_UPLOAD: Video file size in bytes"
+                    },
+                    "chunk_size": {
+                        "type": "integer",
+                        "description": "Required if source=FILE_UPLOAD: Upload chunk size in bytes (5MB-64MB)",
+                        "default": 10485760
+                    },
+                    "title": {
+                        "type": "string",
+                        "maxLength": 2200,
+                        "description": "Video caption including hashtags (max 2200 characters)"
+                    },
+                    "privacy_level": {
+                        "type": "string",
+                        "enum": ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"],
+                        "description": "Who can view the video",
+                        "default": "PUBLIC_TO_EVERYONE"
+                    },
+                    "disable_comment": {
+                        "type": "boolean",
+                        "description": "Disable comments on the video",
+                        "default": false
+                    },
+                    "disable_duet": {
+                        "type": "boolean",
+                        "description": "Disable duet feature for this video",
+                        "default": false
+                    },
+                    "disable_stitch": {
+                        "type": "boolean",
+                        "description": "Disable stitch feature for this video",
+                        "default": false
+                    },
+                    "video_cover_timestamp_ms": {
+                        "type": "integer",
+                        "description": "Timestamp in milliseconds for the cover image"
+                    },
+                    "brand_content_toggle": {
+                        "type": "boolean",
+                        "description": "Mark as branded/sponsored content",
+                        "default": false
+                    },
+                    "brand_organic_toggle": {
+                        "type": "boolean",
+                        "description": "Mark as organic branded content",
+                        "default": false
+                    }
+                },
+                "required": ["source"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "publish_id": {"type": "string", "description": "Unique identifier for tracking the post status"},
+                    "upload_url": {"type": "string", "description": "URL for uploading video chunks (if FILE_UPLOAD)"},
+                    "status": {"type": "string", "description": "Initial status of the post"}
+                },
+                "required": ["publish_id"]
+            }
+        },
+        "upload_video_draft": {
+            "display_name": "Upload Video Draft",
+            "description": "Upload a video to TikTok inbox as a draft for later editing and posting through the TikTok app.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "enum": ["PULL_FROM_URL", "FILE_UPLOAD"],
+                        "description": "Video source type"
+                    },
+                    "video_url": {
+                        "type": "string",
+                        "description": "Required if source=PULL_FROM_URL: Public URL of the video file"
+                    },
+                    "video_size": {
+                        "type": "integer",
+                        "description": "Required if source=FILE_UPLOAD: Video file size in bytes"
+                    },
+                    "chunk_size": {
+                        "type": "integer",
+                        "description": "Required if source=FILE_UPLOAD: Upload chunk size in bytes",
+                        "default": 10485760
+                    }
+                },
+                "required": ["source"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "publish_id": {"type": "string", "description": "Unique identifier for tracking upload status"},
+                    "upload_url": {"type": "string", "description": "URL for uploading video chunks (if FILE_UPLOAD)"}
+                },
+                "required": ["publish_id"]
+            }
+        },
+        "get_post_status": {
+            "display_name": "Get Post Status",
+            "description": "Check the processing and publishing status of a video post or draft upload.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "publish_id": {
+                        "type": "string",
+                        "description": "The publish_id returned from create_video_post or upload_video_draft"
+                    }
+                },
+                "required": ["publish_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": ["PROCESSING_UPLOAD", "PROCESSING_DOWNLOAD", "SEND_TO_USER_INBOX", "PUBLISH_COMPLETE", "FAILED"],
+                        "description": "Current status of the post"
+                    },
+                    "fail_reason": {"type": "string", "description": "Reason for failure if status is FAILED"},
+                    "publicaly_available_post_id": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Post IDs if published successfully"
+                    },
+                    "uploaded_bytes": {"type": "integer", "description": "Number of bytes uploaded so far"},
+                    "error_code": {"type": "string", "description": "Error code if failed"}
+                },
+                "required": ["status"]
+            }
+        },
+        "get_videos": {
+            "display_name": "Get Videos",
+            "description": "Retrieve a list of the user's published videos with engagement metrics like views, likes, comments, and shares.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "max_count": {
+                        "type": "integer",
+                        "description": "Maximum number of videos to return (default: 20, max: 20)",
+                        "default": 20
+                    },
+                    "cursor": {
+                        "type": "integer",
+                        "description": "Pagination cursor from previous response"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "videos": {
+                        "type": "array",
+                        "description": "List of videos",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Video ID"},
+                                "title": {"type": "string", "description": "Video caption"},
+                                "cover_image_url": {"type": "string", "description": "URL of video thumbnail"},
+                                "share_url": {"type": "string", "description": "Public URL to share the video"},
+                                "create_time": {"type": "integer", "description": "Unix timestamp of creation"},
+                                "duration": {"type": "integer", "description": "Video duration in seconds"},
+                                "width": {"type": "integer", "description": "Video width in pixels"},
+                                "height": {"type": "integer", "description": "Video height in pixels"},
+                                "like_count": {"type": "integer", "description": "Number of likes"},
+                                "comment_count": {"type": "integer", "description": "Number of comments"},
+                                "share_count": {"type": "integer", "description": "Number of shares"},
+                                "view_count": {"type": "integer", "description": "Number of views"}
+                            }
+                        }
+                    },
+                    "cursor": {"type": "integer", "description": "Cursor for next page"},
+                    "has_more": {"type": "boolean", "description": "Whether more videos are available"}
+                },
+                "required": ["videos"]
+            }
+        },
+        "create_photo_post": {
+            "display_name": "Create Photo Post",
+            "description": "Post photos to TikTok. Photos must be hosted on a verified domain.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "photo_urls": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Array of photo URLs (1-35 photos)",
+                        "minItems": 1,
+                        "maxItems": 35
+                    },
+                    "title": {
+                        "type": "string",
+                        "maxLength": 2200,
+                        "description": "Post caption including hashtags"
+                    },
+                    "privacy_level": {
+                        "type": "string",
+                        "enum": ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"],
+                        "description": "Who can view the post",
+                        "default": "PUBLIC_TO_EVERYONE"
+                    },
+                    "disable_comment": {
+                        "type": "boolean",
+                        "description": "Disable comments",
+                        "default": false
+                    },
+                    "auto_add_music": {
+                        "type": "boolean",
+                        "description": "Automatically add music to photo slideshow",
+                        "default": false
+                    }
+                },
+                "required": ["photo_urls"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "publish_id": {"type": "string", "description": "Unique identifier for tracking post status"},
+                    "status": {"type": "string", "description": "Initial status of the post"}
+                },
+                "required": ["publish_id"]
+            }
+        }
+    }
+}
