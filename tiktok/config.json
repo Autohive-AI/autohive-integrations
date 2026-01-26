@@ -74,27 +74,13 @@
         },
         "create_video_post": {
             "display_name": "Create Video Post",
-            "description": "Post a video directly to TikTok. Supports uploading from a URL or file. You can set caption, hashtags, privacy level, and engagement settings.",
+            "description": "Post a video directly to TikTok. Upload video content as base64 and set caption, hashtags, privacy level, and engagement settings.",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "source": {
+                    "video_content_base64": {
                         "type": "string",
-                        "enum": ["PULL_FROM_URL", "FILE_UPLOAD"],
-                        "description": "Video source type: PULL_FROM_URL for hosted videos, FILE_UPLOAD for direct upload"
-                    },
-                    "video_url": {
-                        "type": "string",
-                        "description": "Required if source=PULL_FROM_URL: Public URL of the video file"
-                    },
-                    "video_size": {
-                        "type": "integer",
-                        "description": "Required if source=FILE_UPLOAD: Video file size in bytes"
-                    },
-                    "chunk_size": {
-                        "type": "integer",
-                        "description": "Required if source=FILE_UPLOAD: Upload chunk size in bytes (5MB-64MB)",
-                        "default": 10485760
+                        "description": "Base64-encoded video file content (max 287 MB decoded)"
                     },
                     "title": {
                         "type": "string",
@@ -137,16 +123,15 @@
                         "default": false
                     }
                 },
-                "required": ["source"]
+                "required": ["video_content_base64"]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
                     "publish_id": {"type": "string", "description": "Unique identifier for tracking the post status"},
-                    "upload_url": {"type": "string", "description": "URL for uploading video chunks (if FILE_UPLOAD)"},
-                    "status": {"type": "string", "description": "Initial status of the post"}
+                    "status": {"type": "string", "description": "Status of the post (PROCESSING_UPLOAD)"}
                 },
-                "required": ["publish_id"]
+                "required": ["publish_id", "status"]
             }
         },
         "upload_video_draft": {
@@ -155,34 +140,20 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "source": {
+                    "video_content_base64": {
                         "type": "string",
-                        "enum": ["PULL_FROM_URL", "FILE_UPLOAD"],
-                        "description": "Video source type"
-                    },
-                    "video_url": {
-                        "type": "string",
-                        "description": "Required if source=PULL_FROM_URL: Public URL of the video file"
-                    },
-                    "video_size": {
-                        "type": "integer",
-                        "description": "Required if source=FILE_UPLOAD: Video file size in bytes"
-                    },
-                    "chunk_size": {
-                        "type": "integer",
-                        "description": "Required if source=FILE_UPLOAD: Upload chunk size in bytes",
-                        "default": 10485760
+                        "description": "Base64-encoded video file content (max 287 MB decoded)"
                     }
                 },
-                "required": ["source"]
+                "required": ["video_content_base64"]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
                     "publish_id": {"type": "string", "description": "Unique identifier for tracking upload status"},
-                    "upload_url": {"type": "string", "description": "URL for uploading video chunks (if FILE_UPLOAD)"}
+                    "status": {"type": "string", "description": "Status of the upload (PROCESSING_UPLOAD)"}
                 },
-                "required": ["publish_id"]
+                "required": ["publish_id", "status"]
             }
         },
         "get_post_status": {

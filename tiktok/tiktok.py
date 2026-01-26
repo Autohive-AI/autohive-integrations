@@ -5,7 +5,10 @@ Enables video posting, user profile management, and content analytics
 via the official TikTok Content Posting API.
 """
 
+import base64
 from typing import Any, Dict, Optional
+
+import aiohttp
 
 from autohive_integrations_sdk import (
     ActionHandler,
@@ -48,9 +51,10 @@ VIDEO_FIELDS = [
 # Chunk size limits (bytes)
 MIN_CHUNK_SIZE = 5 * 1024 * 1024  # 5 MB
 MAX_CHUNK_SIZE = 64 * 1024 * 1024  # 64 MB
+DEFAULT_CHUNK_SIZE = 10 * 1024 * 1024  # 10 MB
 
 # Validation
-VALID_VIDEO_SOURCES = ("PULL_FROM_URL", "FILE_UPLOAD")
+MAX_VIDEO_SIZE = 287 * 1024 * 1024  # 287 MB (TikTok limit)
 MAX_CAPTION_LENGTH = 2200
 
 
@@ -159,14 +163,23 @@ def _build_post_status(data: Dict[str, Any]) -> Dict[str, Any]:
 # Validation Helpers
 # =============================================================================
 
-def _validate_video_source(source: str, video_url: Optional[str], video_size: Optional[int]) -> None:
-    """Validate video source parameters."""
-    if source not in VALID_VIDEO_SOURCES:
-        raise ValueError(f"Invalid source: {source}. Must be one of: {', '.join(VALID_VIDEO_SOURCES)}")
-    if source == "PULL_FROM_URL" and not video_url:
-        raise ValueError("video_url is required when source is PULL_FROM_URL")
-    if source == "FILE_UPLOAD" and not video_size:
-        raise ValueError("video_size is required when source is FILE_UPLOAD")
+def _validate_video_content(video_content_base64: Optional[str]) -> bytes:
+    """Validate and decode base64 video content."""
+    if not video_content_base64:
+        raise ValueError("video_content_base64 is required")
+
+    try:
+        video_data = base64.b64decode(video_content_base64)
+    except Exception as e:
+        raise ValueError(f"Invalid base64 encoding: {e}")
+
+    if len(video_data) == 0:
+        raise ValueError("Video content is empty")
+
+    if len(video_data) > MAX_VIDEO_SIZE:
+        raise ValueError(f"Video size ({len(video_data)} bytes) exceeds maximum allowed ({MAX_VIDEO_SIZE} bytes)")
+
+    return video_data
 
 
 def _validate_chunk_size(chunk_size: int, video_size: int) -> int:
@@ -181,6 +194,55 @@ def _calculate_chunk_count(video_size: int, chunk_size: int) -> int:
     if video_size <= chunk_size:
         return 1
     return (video_size + chunk_size - 1) // chunk_size
+
+
+async def _upload_video_chunks(
+    upload_url: str,
+    video_data: bytes,
+    chunk_size: int,
+    access_token: str,
+) -> None:
+    """
+    Upload video data in chunks to TikTok's upload URL.
+
+    Args:
+        upload_url: TikTok's presigned upload URL
+        video_data: Raw video bytes
+        chunk_size: Size of each chunk in bytes
+        access_token: OAuth access token
+
+    Raises:
+        TikTokAPIError: If upload fails
+    """
+    video_size = len(video_data)
+    total_chunks = _calculate_chunk_count(video_size, chunk_size)
+
+    async with aiohttp.ClientSession() as session:
+        for chunk_index in range(total_chunks):
+            start = chunk_index * chunk_size
+            end = min(start + chunk_size, video_size)
+            chunk_data = video_data[start:end]
+
+            # Content-Range header format: bytes start-end/total
+            content_range = f"bytes {start}-{end - 1}/{video_size}"
+
+            headers = {
+                "Content-Type": "video/mp4",
+                "Content-Length": str(len(chunk_data)),
+                "Content-Range": content_range,
+            }
+
+            async with session.put(
+                upload_url,
+                data=chunk_data,
+                headers=headers,
+            ) as response:
+                if response.status not in (200, 201, 206):
+                    error_text = await response.text()
+                    raise TikTokAPIError(
+                        f"Failed to upload chunk {chunk_index + 1}/{total_chunks}: {error_text}",
+                        error_code="upload_failed",
+                    )
 
 
 def _build_post_info(inputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -269,36 +331,46 @@ class CreateVideoPostHandler(ActionHandler):
     """Post a video directly to TikTok."""
 
     async def execute(self, inputs: dict, context: ExecutionContext) -> ActionResult:
-        source = inputs.get("source", "PULL_FROM_URL")
-        video_url = inputs.get("video_url")
-        video_size = inputs.get("video_size")
+        video_content_base64 = inputs.get("video_content_base64")
 
-        _validate_video_source(source, video_url, video_size)
+        # Validate and decode the video content
+        video_data = _validate_video_content(video_content_base64)
+        video_size = len(video_data)
 
+        # Calculate chunk size
+        chunk_size = _validate_chunk_size(
+            inputs.get("chunk_size", DEFAULT_CHUNK_SIZE),
+            video_size
+        )
+
+        # Initialize the upload with TikTok
         request_body: dict = {
             "post_info": _build_post_info(inputs),
-            "source_info": {"source": source},
+            "source_info": {
+                "source": "FILE_UPLOAD",
+                "video_size": video_size,
+                "chunk_size": chunk_size,
+                "total_chunk_count": _calculate_chunk_count(video_size, chunk_size),
+            },
         }
-
-        if source == "PULL_FROM_URL":
-            request_body["source_info"]["video_url"] = video_url
-        else:
-            chunk_size = _validate_chunk_size(inputs.get("chunk_size", 10 * 1024 * 1024), video_size)
-            request_body["source_info"]["video_size"] = video_size
-            request_body["source_info"]["chunk_size"] = chunk_size
-            request_body["source_info"]["total_chunk_count"] = _calculate_chunk_count(video_size, chunk_size)
 
         response = await context.fetch(VIDEO_INIT_ENDPOINT, method="POST", json=request_body)
         data = _check_api_response(response)
 
-        result = {
-            "publish_id": data.get("publish_id", ""),
-            "status": "PROCESSING_UPLOAD" if source == "FILE_UPLOAD" else "PROCESSING_DOWNLOAD",
-        }
-        if source == "FILE_UPLOAD":
-            result["upload_url"] = data.get("upload_url", "")
+        publish_id = data.get("publish_id", "")
+        upload_url = data.get("upload_url", "")
 
-        return ActionResult(data=result)
+        if not upload_url:
+            raise TikTokAPIError("No upload URL returned from TikTok", error_code="missing_upload_url")
+
+        # Upload the video chunks
+        access_token = context.auth.get("access_token", "")
+        await _upload_video_chunks(upload_url, video_data, chunk_size, access_token)
+
+        return ActionResult(data={
+            "publish_id": publish_id,
+            "status": "PROCESSING_UPLOAD",
+        })
 
 
 @tiktok.action("upload_video_draft")
@@ -306,30 +378,45 @@ class UploadVideoDraftHandler(ActionHandler):
     """Upload a video as a draft to TikTok inbox."""
 
     async def execute(self, inputs: dict, context: ExecutionContext) -> ActionResult:
-        source = inputs.get("source", "PULL_FROM_URL")
-        video_url = inputs.get("video_url")
-        video_size = inputs.get("video_size")
+        video_content_base64 = inputs.get("video_content_base64")
 
-        _validate_video_source(source, video_url, video_size)
+        # Validate and decode the video content
+        video_data = _validate_video_content(video_content_base64)
+        video_size = len(video_data)
 
-        request_body: dict = {"source_info": {"source": source}}
+        # Calculate chunk size
+        chunk_size = _validate_chunk_size(
+            inputs.get("chunk_size", DEFAULT_CHUNK_SIZE),
+            video_size
+        )
 
-        if source == "PULL_FROM_URL":
-            request_body["source_info"]["video_url"] = video_url
-        else:
-            chunk_size = _validate_chunk_size(inputs.get("chunk_size", 10 * 1024 * 1024), video_size)
-            request_body["source_info"]["video_size"] = video_size
-            request_body["source_info"]["chunk_size"] = chunk_size
-            request_body["source_info"]["total_chunk_count"] = _calculate_chunk_count(video_size, chunk_size)
+        # Initialize the upload with TikTok
+        request_body: dict = {
+            "source_info": {
+                "source": "FILE_UPLOAD",
+                "video_size": video_size,
+                "chunk_size": chunk_size,
+                "total_chunk_count": _calculate_chunk_count(video_size, chunk_size),
+            },
+        }
 
         response = await context.fetch(INBOX_VIDEO_INIT_ENDPOINT, method="POST", json=request_body)
         data = _check_api_response(response)
 
-        result = {"publish_id": data.get("publish_id", "")}
-        if source == "FILE_UPLOAD":
-            result["upload_url"] = data.get("upload_url", "")
+        publish_id = data.get("publish_id", "")
+        upload_url = data.get("upload_url", "")
 
-        return ActionResult(data=result)
+        if not upload_url:
+            raise TikTokAPIError("No upload URL returned from TikTok", error_code="missing_upload_url")
+
+        # Upload the video chunks
+        access_token = context.auth.get("access_token", "")
+        await _upload_video_chunks(upload_url, video_data, chunk_size, access_token)
+
+        return ActionResult(data={
+            "publish_id": publish_id,
+            "status": "PROCESSING_UPLOAD",
+        })
 
 
 @tiktok.action("get_post_status")
