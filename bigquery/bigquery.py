@@ -9,6 +9,10 @@ bigquery = Integration.load()
 # Base URL for BigQuery API v2
 BIGQUERY_API_BASE = "https://bigquery.googleapis.com/bigquery/v2"
 
+# Maximum number of rows that can be retrieved in a single request
+# This limit protects infrastructure from excessive memory usage
+MAX_RESULTS_LIMIT = 10000
+
 
 def parse_rows(schema: Dict[str, Any], rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Convert BigQuery row format to list of dictionaries."""
@@ -78,9 +82,12 @@ class RunQueryAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             project_id = inputs["project_id"]
+            # Note: The query is provided by the user and executed as-is. This is
+            # intentional for a data warehouse integration where users need full SQL
+            # capabilities. BigQuery handles query execution securely on their end.
             query = inputs["query"]
             use_legacy_sql = inputs.get("use_legacy_sql", False)
-            max_results = inputs.get("max_results", 1000)
+            max_results = min(inputs.get("max_results", 1000), MAX_RESULTS_LIMIT)
             timeout_ms = inputs.get("timeout_ms", 30000)
             dry_run = inputs.get("dry_run", False)
             location = inputs.get("location")
@@ -164,7 +171,7 @@ class GetQueryResultsAction(ActionHandler):
 
             params = {}
             if max_results:
-                params["maxResults"] = max_results
+                params["maxResults"] = min(max_results, MAX_RESULTS_LIMIT)
             if page_token:
                 params["pageToken"] = page_token
             if start_index is not None:
@@ -631,7 +638,11 @@ class InsertRowsAction(ActionHandler):
             )
 
             insert_errors = response.get("insertErrors", [])
-            inserted_count = len(rows) - len(insert_errors)
+
+            # Count unique failed row indices - a single row can have multiple errors
+            # but should only be counted once as a failed insert
+            failed_row_indices = set(error.get("index") for error in insert_errors)
+            inserted_count = len(rows) - len(failed_row_indices)
 
             # Format errors for output
             formatted_errors = []
@@ -712,6 +723,7 @@ class ListJobsAction(ActionHandler):
                     "start_time": statistics.get("startTime"),
                     "end_time": statistics.get("endTime"),
                     "total_bytes_processed": statistics.get("totalBytesProcessed"),
+                    # Note: user_email is snake_case in BigQuery API (exception to camelCase convention)
                     "user_email": job.get("user_email")
                 })
 
@@ -774,6 +786,7 @@ class GetJobAction(ActionHandler):
                 "total_bytes_billed": statistics.get("query", {}).get("totalBytesBilled"),
                 "cache_hit": statistics.get("query", {}).get("cacheHit"),
                 "configuration": configuration,
+                # Note: user_email is snake_case in BigQuery API (exception to camelCase convention)
                 "user_email": response.get("user_email")
             }
 
