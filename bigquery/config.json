@@ -1,0 +1,794 @@
+{
+    "name": "bigquery",
+    "display_name": "Google BigQuery",
+    "version": "1.0.0",
+    "description": "Google BigQuery integration for serverless data warehouse operations, SQL queries, and dataset management",
+    "entry_point": "bigquery.py",
+    "auth": {
+        "type": "platform",
+        "provider": "Google BigQuery",
+        "scopes": [
+            "https://www.googleapis.com/auth/bigquery"
+        ]
+    },
+    "actions": {
+        "run_query": {
+            "display_name": "Run SQL Query",
+            "description": "Execute a SQL query against BigQuery. Returns results directly for small queries or a job reference for large queries.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "The SQL query to execute"
+                    },
+                    "use_legacy_sql": {
+                        "type": "boolean",
+                        "description": "Whether to use legacy SQL dialect (default: false, uses standard SQL)"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 1000)"
+                    },
+                    "timeout_ms": {
+                        "type": "integer",
+                        "description": "Query timeout in milliseconds (default: 30000)"
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "If true, only validates the query and returns estimated bytes processed without executing"
+                    }
+                },
+                "required": ["project_id", "query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "rows": {
+                        "type": "array",
+                        "description": "Query result rows as array of objects"
+                    },
+                    "total_rows": {
+                        "type": ["integer", "null"],
+                        "description": "Total number of rows in the result"
+                    },
+                    "schema": {
+                        "type": "object",
+                        "description": "Schema of the result set"
+                    },
+                    "job_id": {
+                        "type": ["string", "null"],
+                        "description": "Job ID if query is still running"
+                    },
+                    "job_complete": {
+                        "type": "boolean",
+                        "description": "Whether the query job completed"
+                    },
+                    "total_bytes_processed": {
+                        "type": ["integer", "null"],
+                        "description": "Total bytes processed by the query"
+                    },
+                    "cache_hit": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether the query result was served from cache"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_query_results": {
+            "display_name": "Get Query Results",
+            "description": "Retrieve results from a completed query job",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "job_id": {
+                        "type": "string",
+                        "description": "The job ID returned from run_query"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return"
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Page token for pagination"
+                    },
+                    "start_index": {
+                        "type": "integer",
+                        "description": "Zero-based index of the starting row"
+                    }
+                },
+                "required": ["project_id", "job_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "rows": {
+                        "type": "array",
+                        "description": "Query result rows"
+                    },
+                    "total_rows": {
+                        "type": ["integer", "null"],
+                        "description": "Total number of rows"
+                    },
+                    "schema": {
+                        "type": "object",
+                        "description": "Schema of the result set"
+                    },
+                    "page_token": {
+                        "type": ["string", "null"],
+                        "description": "Token for the next page of results"
+                    },
+                    "job_complete": {
+                        "type": "boolean",
+                        "description": "Whether the job has completed"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_datasets": {
+            "display_name": "List Datasets",
+            "description": "List all datasets in a project",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of datasets to return"
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Page token for pagination"
+                    },
+                    "filter": {
+                        "type": "string",
+                        "description": "Filter expression (e.g., 'labels.key:value')"
+                    },
+                    "all": {
+                        "type": "boolean",
+                        "description": "Whether to list all datasets including hidden ones"
+                    }
+                },
+                "required": ["project_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "datasets": {
+                        "type": "array",
+                        "description": "List of datasets",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "next_page_token": {
+                        "type": ["string", "null"],
+                        "description": "Token for the next page"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_dataset": {
+            "display_name": "Get Dataset",
+            "description": "Get metadata for a specific dataset",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "dataset_id": {
+                        "type": "string",
+                        "description": "The dataset ID"
+                    }
+                },
+                "required": ["project_id", "dataset_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "dataset": {
+                        "type": "object",
+                        "description": "Dataset metadata including location, creation time, labels, etc."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "create_dataset": {
+            "display_name": "Create Dataset",
+            "description": "Create a new dataset in the project",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "dataset_id": {
+                        "type": "string",
+                        "description": "The dataset ID to create"
+                    },
+                    "location": {
+                        "type": "string",
+                        "description": "Geographic location (e.g., 'US', 'EU', 'us-central1')"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description of the dataset"
+                    },
+                    "default_table_expiration_ms": {
+                        "type": "integer",
+                        "description": "Default expiration time for tables in milliseconds"
+                    },
+                    "labels": {
+                        "type": "object",
+                        "description": "Labels to apply to the dataset"
+                    }
+                },
+                "required": ["project_id", "dataset_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "dataset": {
+                        "type": "object",
+                        "description": "Created dataset metadata"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "delete_dataset": {
+            "display_name": "Delete Dataset",
+            "description": "Delete a dataset from the project",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "dataset_id": {
+                        "type": "string",
+                        "description": "The dataset ID to delete"
+                    },
+                    "delete_contents": {
+                        "type": "boolean",
+                        "description": "If true, delete all tables in the dataset (default: false)"
+                    }
+                },
+                "required": ["project_id", "dataset_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "deleted": {
+                        "type": "boolean",
+                        "description": "Whether the dataset was deleted"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_tables": {
+            "display_name": "List Tables",
+            "description": "List all tables in a dataset",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "dataset_id": {
+                        "type": "string",
+                        "description": "The dataset ID"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of tables to return"
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Page token for pagination"
+                    }
+                },
+                "required": ["project_id", "dataset_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tables": {
+                        "type": "array",
+                        "description": "List of tables",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "next_page_token": {
+                        "type": ["string", "null"],
+                        "description": "Token for the next page"
+                    },
+                    "total_items": {
+                        "type": ["integer", "null"],
+                        "description": "Total number of tables in the dataset"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_table": {
+            "display_name": "Get Table",
+            "description": "Get metadata and schema for a specific table",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "dataset_id": {
+                        "type": "string",
+                        "description": "The dataset ID"
+                    },
+                    "table_id": {
+                        "type": "string",
+                        "description": "The table ID"
+                    }
+                },
+                "required": ["project_id", "dataset_id", "table_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "table": {
+                        "type": "object",
+                        "description": "Table metadata including schema, row count, size, etc."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "create_table": {
+            "display_name": "Create Table",
+            "description": "Create a new table in a dataset",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "dataset_id": {
+                        "type": "string",
+                        "description": "The dataset ID"
+                    },
+                    "table_id": {
+                        "type": "string",
+                        "description": "The table ID to create"
+                    },
+                    "schema": {
+                        "type": "object",
+                        "description": "Table schema with fields array",
+                        "properties": {
+                            "fields": {
+                                "type": "array",
+                                "description": "Array of field definitions",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Field name"
+                                        },
+                                        "type": {
+                                            "type": "string",
+                                            "description": "Field type: STRING, INTEGER, FLOAT, BOOLEAN, TIMESTAMP, DATE, DATETIME, RECORD, etc."
+                                        },
+                                        "mode": {
+                                            "type": "string",
+                                            "description": "Field mode: NULLABLE, REQUIRED, or REPEATED"
+                                        },
+                                        "description": {
+                                            "type": "string",
+                                            "description": "Field description"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description of the table"
+                    },
+                    "expiration_time": {
+                        "type": "integer",
+                        "description": "Table expiration time in milliseconds since epoch"
+                    },
+                    "time_partitioning": {
+                        "type": "object",
+                        "description": "Time partitioning configuration",
+                        "properties": {
+                            "type": {
+                                "type": "string",
+                                "description": "Partitioning type: DAY, HOUR, MONTH, YEAR"
+                            },
+                            "field": {
+                                "type": "string",
+                                "description": "Field to partition by (optional, defaults to _PARTITIONTIME)"
+                            },
+                            "expiration_ms": {
+                                "type": "integer",
+                                "description": "Partition expiration in milliseconds"
+                            }
+                        }
+                    },
+                    "clustering": {
+                        "type": "object",
+                        "description": "Clustering configuration",
+                        "properties": {
+                            "fields": {
+                                "type": "array",
+                                "description": "Fields to cluster by (up to 4)",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "labels": {
+                        "type": "object",
+                        "description": "Labels to apply to the table"
+                    }
+                },
+                "required": ["project_id", "dataset_id", "table_id", "schema"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "table": {
+                        "type": "object",
+                        "description": "Created table metadata"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "delete_table": {
+            "display_name": "Delete Table",
+            "description": "Delete a table from a dataset",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "dataset_id": {
+                        "type": "string",
+                        "description": "The dataset ID"
+                    },
+                    "table_id": {
+                        "type": "string",
+                        "description": "The table ID to delete"
+                    }
+                },
+                "required": ["project_id", "dataset_id", "table_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "deleted": {
+                        "type": "boolean",
+                        "description": "Whether the table was deleted"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "insert_rows": {
+            "display_name": "Insert Rows",
+            "description": "Stream rows into a table using the streaming insert API",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "dataset_id": {
+                        "type": "string",
+                        "description": "The dataset ID"
+                    },
+                    "table_id": {
+                        "type": "string",
+                        "description": "The table ID"
+                    },
+                    "rows": {
+                        "type": "array",
+                        "description": "Array of row objects to insert",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "skip_invalid_rows": {
+                        "type": "boolean",
+                        "description": "Insert valid rows even if some are invalid (default: false)"
+                    },
+                    "ignore_unknown_values": {
+                        "type": "boolean",
+                        "description": "Accept rows with values that don't match the schema (default: false)"
+                    }
+                },
+                "required": ["project_id", "dataset_id", "table_id", "rows"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "inserted_count": {
+                        "type": "integer",
+                        "description": "Number of rows successfully inserted"
+                    },
+                    "insert_errors": {
+                        "type": "array",
+                        "description": "Array of errors for failed rows"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_jobs": {
+            "display_name": "List Jobs",
+            "description": "List recent BigQuery jobs in the project",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of jobs to return"
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Page token for pagination"
+                    },
+                    "all_users": {
+                        "type": "boolean",
+                        "description": "Whether to list jobs from all users (requires admin permissions)"
+                    },
+                    "state_filter": {
+                        "type": "string",
+                        "description": "Filter by job state: done, pending, running",
+                        "enum": ["done", "pending", "running"]
+                    },
+                    "min_creation_time": {
+                        "type": "integer",
+                        "description": "Min creation time filter in milliseconds since epoch"
+                    },
+                    "max_creation_time": {
+                        "type": "integer",
+                        "description": "Max creation time filter in milliseconds since epoch"
+                    }
+                },
+                "required": ["project_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "jobs": {
+                        "type": "array",
+                        "description": "List of jobs",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "next_page_token": {
+                        "type": ["string", "null"],
+                        "description": "Token for the next page"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_job": {
+            "display_name": "Get Job",
+            "description": "Get details of a specific job",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The Google Cloud project ID"
+                    },
+                    "job_id": {
+                        "type": "string",
+                        "description": "The job ID"
+                    },
+                    "location": {
+                        "type": "string",
+                        "description": "Job location (required for jobs in specific regions)"
+                    }
+                },
+                "required": ["project_id", "job_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "job": {
+                        "type": "object",
+                        "description": "Job details including status, statistics, and configuration"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_projects": {
+            "display_name": "List Projects",
+            "description": "List all projects the user has access to",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of projects to return"
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Page token for pagination"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "projects": {
+                        "type": "array",
+                        "description": "List of projects",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "next_page_token": {
+                        "type": ["string", "null"],
+                        "description": "Token for the next page"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        }
+    }
+}
