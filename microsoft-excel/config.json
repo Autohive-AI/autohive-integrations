@@ -1,0 +1,627 @@
+{
+  "name": "Microsoft Excel",
+  "display_name": "Microsoft Excel",
+  "version": "0.1.0",
+  "entry_point": "microsoft_excel.py",
+  "description": "Read, write, and manipulate Excel workbooks stored in OneDrive/SharePoint via Microsoft Graph API.",
+  "auth": {
+    "type": "platform",
+    "provider": "Microsoft 365",
+    "scopes": [
+      "Files.Read",
+      "Files.ReadWrite",
+      "offline_access"
+    ]
+  },
+  "actions": {
+    "excel_list_workbooks": {
+      "display_name": "List Excel Workbooks",
+      "description": "Find accessible Excel workbooks in OneDrive/SharePoint. Supports filtering by name.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name_contains": {
+            "type": "string",
+            "description": "Filter workbooks whose name contains this string."
+          },
+          "folder_path": {
+            "type": "string",
+            "description": "Folder path to search in (default: root)."
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Maximum results to return (default: 25, max: 100)."
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Token for pagination."
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "workbooks": { "type": "array", "items": { "type": "object" } },
+          "next_page_token": { "type": "string" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["workbooks", "result"]
+      }
+    },
+    "excel_get_workbook": {
+      "display_name": "Get Workbook Metadata",
+      "description": "Retrieve workbook properties including list of worksheets, named ranges, and tables.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          }
+        },
+        "required": ["workbook_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "workbook": { "type": "object" },
+          "worksheets": { "type": "array", "items": { "type": "object" } },
+          "tables": { "type": "array", "items": { "type": "object" } },
+          "named_ranges": { "type": "array", "items": { "type": "object" } },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_list_worksheets": {
+      "display_name": "List Worksheets",
+      "description": "List all worksheet tabs in a workbook with their properties.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          }
+        },
+        "required": ["workbook_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "worksheets": { "type": "array", "items": { "type": "object" } },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["worksheets", "result"]
+      }
+    },
+    "excel_read_range": {
+      "display_name": "Read Range",
+      "description": "Read cell values from a specified range using A1 notation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "worksheet_name": {
+            "type": "string",
+            "description": "Name of the worksheet."
+          },
+          "range": {
+            "type": "string",
+            "description": "A1 notation range (e.g., 'A1:D10')."
+          },
+          "value_render_option": {
+            "type": "string",
+            "enum": ["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"],
+            "description": "How values should be rendered."
+          }
+        },
+        "required": ["workbook_id", "worksheet_name", "range"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "range": { "type": "string" },
+          "values": { "type": "array", "items": { "type": "array" } },
+          "formulas": { "type": "array", "items": { "type": "array" } },
+          "number_format": { "type": "array", "items": { "type": "array" } },
+          "row_count": { "type": "integer" },
+          "column_count": { "type": "integer" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_write_range": {
+      "display_name": "Write Range",
+      "description": "Write values to a specified cell range.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "worksheet_name": {
+            "type": "string",
+            "description": "Name of the worksheet."
+          },
+          "range": {
+            "type": "string",
+            "description": "A1 notation range for the starting cell/range."
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { "type": ["string", "number", "boolean", "null"] }
+            },
+            "description": "2D array of values to write."
+          }
+        },
+        "required": ["workbook_id", "worksheet_name", "range", "values"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "updated_range": { "type": "string" },
+          "updated_rows": { "type": "integer" },
+          "updated_columns": { "type": "integer" },
+          "updated_cells": { "type": "integer" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_list_tables": {
+      "display_name": "List Tables",
+      "description": "List all tables in a workbook or specific worksheet.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "worksheet_name": {
+            "type": "string",
+            "description": "Filter tables to specific worksheet."
+          }
+        },
+        "required": ["workbook_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tables": { "type": "array", "items": { "type": "object" } },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["tables", "result"]
+      }
+    },
+    "excel_get_table_data": {
+      "display_name": "Get Table Data",
+      "description": "Read all rows from a table including headers.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "table_name": {
+            "type": "string",
+            "description": "Name or ID of the table."
+          },
+          "select_columns": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Specific column names to return."
+          },
+          "top": {
+            "type": "integer",
+            "description": "Maximum rows to return."
+          },
+          "skip": {
+            "type": "integer",
+            "description": "Rows to skip (for pagination)."
+          }
+        },
+        "required": ["workbook_id", "table_name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "headers": { "type": "array", "items": { "type": "string" } },
+          "rows": { "type": "array", "items": { "type": "object" } },
+          "total_rows": { "type": "integer" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_add_table_row": {
+      "display_name": "Add Table Row",
+      "description": "Append one or more rows to an existing table.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "table_name": {
+            "type": "string",
+            "description": "Name or ID of the table."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { "type": ["string", "number", "boolean", "null"] }
+            },
+            "description": "Array of row values to add."
+          },
+          "index": {
+            "type": "integer",
+            "description": "Position to insert (null = end)."
+          }
+        },
+        "required": ["workbook_id", "table_name", "rows"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "added_rows": { "type": "integer" },
+          "table_range": { "type": "string" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_get_used_range": {
+      "display_name": "Get Used Range",
+      "description": "Get the range that contains data in a worksheet.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "worksheet_name": {
+            "type": "string",
+            "description": "Worksheet name."
+          },
+          "values_only": {
+            "type": "boolean",
+            "description": "Only include cells with values (default: false)."
+          }
+        },
+        "required": ["workbook_id", "worksheet_name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "range": { "type": "string" },
+          "row_count": { "type": "integer" },
+          "column_count": { "type": "integer" },
+          "values": { "type": "array", "items": { "type": "array" } },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_create_worksheet": {
+      "display_name": "Create Worksheet",
+      "description": "Add a new worksheet to a workbook.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name for the new worksheet."
+          }
+        },
+        "required": ["workbook_id", "name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "worksheet": { "type": "object" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_delete_worksheet": {
+      "display_name": "Delete Worksheet",
+      "description": "Remove a worksheet from the workbook.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "worksheet_name": {
+            "type": "string",
+            "description": "Name of the worksheet to delete."
+          }
+        },
+        "required": ["workbook_id", "worksheet_name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": { "type": "boolean" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_create_table": {
+      "display_name": "Create Table",
+      "description": "Convert a range to an Excel table with headers.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "worksheet_name": {
+            "type": "string",
+            "description": "Worksheet containing the range."
+          },
+          "range": {
+            "type": "string",
+            "description": "A1 range to convert to table."
+          },
+          "has_headers": {
+            "type": "boolean",
+            "description": "First row contains headers (default: true)."
+          }
+        },
+        "required": ["workbook_id", "worksheet_name", "range"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "table": { "type": "object" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_update_table_row": {
+      "display_name": "Update Table Row",
+      "description": "Update values in an existing table row.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "table_name": {
+            "type": "string",
+            "description": "Name or ID of the table."
+          },
+          "row_index": {
+            "type": "integer",
+            "description": "Zero-based row index to update."
+          },
+          "values": {
+            "type": "array",
+            "items": { "type": ["string", "number", "boolean", "null"] },
+            "description": "New values for the row."
+          }
+        },
+        "required": ["workbook_id", "table_name", "row_index", "values"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "updated_row": { "type": "object" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_delete_table_row": {
+      "display_name": "Delete Table Row",
+      "description": "Remove a row from a table.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "table_name": {
+            "type": "string",
+            "description": "Name or ID of the table."
+          },
+          "row_index": {
+            "type": "integer",
+            "description": "Zero-based row index to delete."
+          }
+        },
+        "required": ["workbook_id", "table_name", "row_index"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": { "type": "boolean" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_sort_range": {
+      "display_name": "Sort Range",
+      "description": "Sort a range by specified columns.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "worksheet_name": {
+            "type": "string",
+            "description": "Worksheet name."
+          },
+          "range": {
+            "type": "string",
+            "description": "Range to sort."
+          },
+          "sort_fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "column_index": { "type": "integer" },
+                "ascending": { "type": "boolean" }
+              }
+            },
+            "description": "Array of sort criteria."
+          },
+          "has_headers": {
+            "type": "boolean",
+            "description": "First row is headers (default: true)."
+          }
+        },
+        "required": ["workbook_id", "worksheet_name", "range", "sort_fields"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "sorted": { "type": "boolean" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_apply_filter": {
+      "display_name": "Apply Filter",
+      "description": "Apply filter to a table column.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "table_name": {
+            "type": "string",
+            "description": "Name of the table."
+          },
+          "column_index": {
+            "type": "integer",
+            "description": "Zero-based column index."
+          },
+          "filter_criteria": {
+            "type": "object",
+            "description": "Filter criteria object."
+          }
+        },
+        "required": ["workbook_id", "table_name", "column_index", "filter_criteria"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "filtered": { "type": "boolean" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_clear_filter": {
+      "display_name": "Clear Filter",
+      "description": "Clear filters from a table.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "table_name": {
+            "type": "string",
+            "description": "Name of the table."
+          }
+        },
+        "required": ["workbook_id", "table_name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "cleared": { "type": "boolean" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "excel_format_range": {
+      "display_name": "Format Range",
+      "description": "Apply formatting to a cell range (font, fill, alignment, number format).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workbook_id": {
+            "type": "string",
+            "description": "The drive item ID of the workbook."
+          },
+          "worksheet_name": {
+            "type": "string",
+            "description": "Worksheet name."
+          },
+          "range": {
+            "type": "string",
+            "description": "A1 range to format."
+          },
+          "format": {
+            "type": "object",
+            "description": "Format specification with font, fill, alignment, numberFormat."
+          }
+        },
+        "required": ["workbook_id", "worksheet_name", "range", "format"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "formatted": { "type": "boolean" },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    }
+  }
+}
