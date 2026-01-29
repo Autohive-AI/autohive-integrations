@@ -83,6 +83,7 @@ class RunQueryAction(ActionHandler):
             max_results = inputs.get("max_results", 1000)
             timeout_ms = inputs.get("timeout_ms", 30000)
             dry_run = inputs.get("dry_run", False)
+            location = inputs.get("location")
 
             url = f"{BIGQUERY_API_BASE}/projects/{project_id}/queries"
 
@@ -93,6 +94,9 @@ class RunQueryAction(ActionHandler):
                 "timeoutMs": timeout_ms,
                 "dryRun": dry_run
             }
+
+            if location:
+                payload["location"] = location
 
             response = await context.fetch(
                 url,
@@ -528,7 +532,15 @@ class CreateTableAction(ActionHandler):
             if expiration_time:
                 payload["expirationTime"] = str(expiration_time)
             if time_partitioning:
-                payload["timePartitioning"] = time_partitioning
+                # Convert snake_case keys to camelCase for BigQuery API
+                tp = {}
+                if "type" in time_partitioning:
+                    tp["type"] = time_partitioning["type"]
+                if "field" in time_partitioning:
+                    tp["field"] = time_partitioning["field"]
+                if "expiration_ms" in time_partitioning:
+                    tp["expirationMs"] = str(time_partitioning["expiration_ms"])
+                payload["timePartitioning"] = tp
             if clustering:
                 payload["clustering"] = clustering
             if labels:

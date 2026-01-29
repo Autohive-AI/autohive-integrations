@@ -41,6 +41,10 @@
                     "dry_run": {
                         "type": "boolean",
                         "description": "If true, only validates the query and returns estimated bytes processed without executing"
+                    },
+                    "location": {
+                        "type": "string",
+                        "description": "Geographic location for the query job (e.g., 'US', 'EU', 'us-central1'). Required for datasets outside the US multi-region."
                     }
                 },
                 "required": ["project_id", "query"]
