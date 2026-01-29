@@ -1,8 +1,7 @@
 from autohive_integrations_sdk import (
     Integration, ExecutionContext, ActionHandler, ActionResult
 )
-from typing import Dict, Any, List, Optional
-from urllib.parse import urlencode
+from typing import Dict, Any, List
 
 # Create the integration using the config.json
 bigquery = Integration.load()

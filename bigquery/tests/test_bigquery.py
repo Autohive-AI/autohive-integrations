@@ -9,7 +9,7 @@ To run these tests:
 """
 
 import asyncio
-from context import *
+import context
 from bigquery import bigquery
 from autohive_integrations_sdk import ExecutionContext
 
