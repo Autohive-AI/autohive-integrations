@@ -44,8 +44,7 @@
                     },
                     "location": {
                         "type": "string",
-                        "description": "Geographic location for the query job (e.g., 'US', 'EU', 'australia-southeast1'). Defaults to 'US' if not specified.",
-                        "default": "US"
+                        "description": "Geographic location for the query job (e.g., 'US', 'EU', 'australia-southeast1'). Only specify if BigQuery cannot auto-detect from the dataset location."
                     }
                 },
                 "required": ["project_id", "query"]

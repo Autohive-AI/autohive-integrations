@@ -83,7 +83,7 @@ class RunQueryAction(ActionHandler):
             max_results = inputs.get("max_results", 1000)
             timeout_ms = inputs.get("timeout_ms", 30000)
             dry_run = inputs.get("dry_run", False)
-            location = inputs.get("location", "US")
+            location = inputs.get("location")
 
             url = f"{BIGQUERY_API_BASE}/projects/{project_id}/queries"
 
@@ -92,9 +92,11 @@ class RunQueryAction(ActionHandler):
                 "useLegacySql": use_legacy_sql,
                 "maxResults": max_results,
                 "timeoutMs": timeout_ms,
-                "dryRun": dry_run,
-                "location": location
+                "dryRun": dry_run
             }
+
+            if location:
+                payload["location"] = location
 
             response = await context.fetch(
                 url,
