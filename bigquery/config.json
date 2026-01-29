@@ -44,7 +44,8 @@
                     },
                     "location": {
                         "type": "string",
-                        "description": "Geographic location for the query job (e.g., 'US', 'EU', 'us-central1'). Required for datasets outside the US multi-region."
+                        "description": "Geographic location for the query job (e.g., 'US', 'EU', 'australia-southeast1'). Defaults to 'US' if not specified.",
+                        "default": "US"
                     }
                 },
                 "required": ["project_id", "query"]
