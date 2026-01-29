@@ -1,0 +1,566 @@
+{
+    "name": "uber",
+    "display_name": "Uber Ride Requests",
+    "version": "1.0.0",
+    "description": "Uber Ride Requests integration for getting ride estimates, booking rides, tracking ride status, and retrieving receipts",
+    "entry_point": "uber.py",
+    "supports_billing": false,
+    "supports_connected_account": true,
+    "auth": {
+        "type": "platform",
+        "provider": "Uber",
+        "scopes": [
+            "profile",
+            "history",
+            "places",
+            "request",
+            "request_receipt",
+            "offline_access"
+        ]
+    },
+    "actions": {
+        "get_products": {
+            "display_name": "Get Products",
+            "description": "Get available Uber products (UberX, UberXL, Black, etc.) at a given location",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "latitude": {
+                        "type": "number",
+                        "description": "Latitude of the location"
+                    },
+                    "longitude": {
+                        "type": "number",
+                        "description": "Longitude of the location"
+                    }
+                },
+                "required": ["latitude", "longitude"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "products": {
+                        "type": "array",
+                        "description": "List of available Uber products"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "description": "Error category: validation_error, auth_error, rate_limited, not_found, api_error",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "get_price_estimate": {
+            "display_name": "Get Price Estimate",
+            "description": "Get price estimates for a trip between two locations",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "start_latitude": {
+                        "type": "number",
+                        "description": "Pickup location latitude"
+                    },
+                    "start_longitude": {
+                        "type": "number",
+                        "description": "Pickup location longitude"
+                    },
+                    "end_latitude": {
+                        "type": "number",
+                        "description": "Destination latitude"
+                    },
+                    "end_longitude": {
+                        "type": "number",
+                        "description": "Destination longitude"
+                    },
+                    "seat_count": {
+                        "type": "integer",
+                        "description": "Number of seats for uberPOOL (default: 2, max: 2)",
+                        "default": 2,
+                        "maximum": 2
+                    }
+                },
+                "required": ["start_latitude", "start_longitude", "end_latitude", "end_longitude"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "prices": {
+                        "type": "array",
+                        "description": "Price estimates for each product"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "description": "Error category",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "get_time_estimate": {
+            "display_name": "Get Time Estimate",
+            "description": "Get ETA estimates for available products at a location",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "start_latitude": {
+                        "type": "number",
+                        "description": "Pickup location latitude"
+                    },
+                    "start_longitude": {
+                        "type": "number",
+                        "description": "Pickup location longitude"
+                    },
+                    "product_id": {
+                        "type": "string",
+                        "description": "Optional: Filter by specific product ID"
+                    }
+                },
+                "required": ["start_latitude", "start_longitude"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "times": {
+                        "type": "array",
+                        "description": "ETA estimates for each product"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "get_ride_estimate": {
+            "display_name": "Get Ride Estimate",
+            "description": "Get a detailed fare estimate for a specific ride request before booking",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "product_id": {
+                        "type": "string",
+                        "description": "The product ID (e.g., UberX product_id)"
+                    },
+                    "start_latitude": {
+                        "type": "number",
+                        "description": "Pickup latitude"
+                    },
+                    "start_longitude": {
+                        "type": "number",
+                        "description": "Pickup longitude"
+                    },
+                    "end_latitude": {
+                        "type": "number",
+                        "description": "Destination latitude"
+                    },
+                    "end_longitude": {
+                        "type": "number",
+                        "description": "Destination longitude"
+                    },
+                    "seat_count": {
+                        "type": "integer",
+                        "description": "Number of seats for POOL products",
+                        "default": 2
+                    }
+                },
+                "required": ["product_id", "start_latitude", "start_longitude", "end_latitude", "end_longitude"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "estimate": {
+                        "type": "object",
+                        "description": "Detailed fare estimate"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "request_ride": {
+            "display_name": "Request Ride",
+            "description": "Request an Uber ride on behalf of the user",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "product_id": {
+                        "type": "string",
+                        "description": "The product ID for the ride type"
+                    },
+                    "start_latitude": {
+                        "type": "number",
+                        "description": "Pickup latitude"
+                    },
+                    "start_longitude": {
+                        "type": "number",
+                        "description": "Pickup longitude"
+                    },
+                    "end_latitude": {
+                        "type": "number",
+                        "description": "Destination latitude"
+                    },
+                    "end_longitude": {
+                        "type": "number",
+                        "description": "Destination longitude"
+                    },
+                    "start_address": {
+                        "type": "string",
+                        "description": "Optional: Pickup address display string"
+                    },
+                    "start_nickname": {
+                        "type": "string",
+                        "description": "Optional: Pickup location nickname (e.g., 'Home')"
+                    },
+                    "end_address": {
+                        "type": "string",
+                        "description": "Optional: Destination address display string"
+                    },
+                    "end_nickname": {
+                        "type": "string",
+                        "description": "Optional: Destination nickname"
+                    },
+                    "fare_id": {
+                        "type": "string",
+                        "description": "Optional: Fare ID from ride estimate for upfront pricing"
+                    },
+                    "seat_count": {
+                        "type": "integer",
+                        "description": "Number of seats for POOL products",
+                        "default": 2
+                    },
+                    "surge_confirmation_id": {
+                        "type": "string",
+                        "description": "Optional: Surge confirmation ID if surge pricing accepted"
+                    },
+                    "payment_method_id": {
+                        "type": "string",
+                        "description": "Optional: Payment method ID"
+                    }
+                },
+                "required": ["product_id", "start_latitude", "start_longitude", "end_latitude", "end_longitude"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "request_id": {
+                        "type": "string",
+                        "description": "Unique ride request ID"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Current ride status"
+                    },
+                    "eta": {
+                        "type": "integer",
+                        "description": "ETA in minutes"
+                    },
+                    "surge_multiplier": {
+                        "type": "number",
+                        "description": "Surge pricing multiplier"
+                    },
+                    "driver": {
+                        "type": "object",
+                        "description": "Driver details when assigned"
+                    },
+                    "vehicle": {
+                        "type": "object",
+                        "description": "Vehicle details when assigned"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "get_ride_status": {
+            "display_name": "Get Ride Status",
+            "description": "Get the current status and details of an active ride request",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "request_id": {
+                        "type": "string",
+                        "description": "The ride request ID"
+                    }
+                },
+                "required": ["request_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "ride": {
+                        "type": "object",
+                        "description": "Ride details including status, driver, vehicle, location"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "get_ride_map": {
+            "display_name": "Get Ride Map",
+            "description": "Get a map URL showing the real-time location of an active ride",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "request_id": {
+                        "type": "string",
+                        "description": "The ride request ID"
+                    }
+                },
+                "required": ["request_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "href": {
+                        "type": "string",
+                        "description": "URL to the ride tracking map"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "cancel_ride": {
+            "display_name": "Cancel Ride",
+            "description": "Cancel an active ride request",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "request_id": {
+                        "type": "string",
+                        "description": "The ride request ID to cancel"
+                    }
+                },
+                "required": ["request_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "get_ride_receipt": {
+            "display_name": "Get Ride Receipt",
+            "description": "Get the receipt for a completed ride",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "request_id": {
+                        "type": "string",
+                        "description": "The completed ride request ID"
+                    }
+                },
+                "required": ["request_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "receipt": {
+                        "type": "object",
+                        "description": "Receipt details including charges, distance, duration"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "get_user_profile": {
+            "display_name": "Get User Profile",
+            "description": "Get the authenticated user's Uber profile information",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "object",
+                        "description": "User profile information"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "get_ride_history": {
+            "display_name": "Get Ride History",
+            "description": "Get the user's ride history",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of rides to return (max: 50)",
+                        "default": 10,
+                        "maximum": 50
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Offset for pagination",
+                        "default": 0
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "history": {
+                        "type": "array",
+                        "description": "List of past rides"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Total number of rides"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "get_payment_methods": {
+            "display_name": "Get Payment Methods",
+            "description": "Get the user's available payment methods",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "payment_methods": {
+                        "type": "array",
+                        "description": "List of payment methods"
+                    },
+                    "last_used": {
+                        "type": "string",
+                        "description": "ID of last used payment method"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        }
+    }
+}
