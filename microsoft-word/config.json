@@ -1,0 +1,412 @@
+{
+  "name": "Microsoft Word",
+  "display_name": "Microsoft Word",
+  "version": "1.0.0",
+  "entry_point": "microsoft_word.py",
+  "description": "Read, create, and manipulate Word documents (.docx) stored in OneDrive for Business, SharePoint, or Group drives via Microsoft Graph API.",
+  "auth": {
+    "type": "platform",
+    "provider": "Microsoft 365",
+    "scopes": [
+      "Files.Read",
+      "Files.ReadWrite",
+      "offline_access"
+    ]
+  },
+  "actions": {
+    "word_list_documents": {
+      "display_name": "List Word Documents",
+      "description": "Find accessible Word documents (.docx) in OneDrive/SharePoint. Supports filtering by name and folder path.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name_contains": {
+            "type": "string",
+            "description": "Filter documents whose name contains this string."
+          },
+          "folder_path": {
+            "type": "string",
+            "description": "Folder path to search in (default: root). Example: 'Documents/Reports'."
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Maximum results to return (default: 25, max: 100)."
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Token for pagination (from previous response's next_page_token)."
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "webUrl": { "type": "string" },
+                "lastModifiedDateTime": { "type": "string" },
+                "size": { "type": "integer" },
+                "createdBy": { "type": "object" }
+              }
+            },
+            "description": "List of Word document objects."
+          },
+          "next_page_token": { "type": "string", "description": "Token for next page if more results exist." },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "word_get_document": {
+      "display_name": "Get Document Metadata",
+      "description": "Retrieve document properties including metadata, permissions, and file details.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "The drive item ID of the document."
+          }
+        },
+        "required": ["document_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "document": { "type": "object", "description": "Document properties object." },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "word_get_content": {
+      "display_name": "Get Document Content",
+      "description": "Read the text content from a Word document. Returns plain text, HTML, or markdown format.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "The drive item ID of the document."
+          },
+          "format": {
+            "type": "string",
+            "enum": ["text", "html", "markdown"],
+            "description": "Output format: 'text' (default), 'html', or 'markdown'."
+          },
+          "include_metadata": {
+            "type": "boolean",
+            "description": "Include document properties (default: false)."
+          }
+        },
+        "required": ["document_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "content": { "type": "string", "description": "Document text content in requested format." },
+          "word_count": { "type": "integer", "description": "Total word count." },
+          "character_count": { "type": "integer", "description": "Total character count." },
+          "paragraph_count": { "type": "integer", "description": "Number of paragraphs." },
+          "metadata": { "type": "object", "description": "Document properties if requested." },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "word_create_document": {
+      "display_name": "Create Document",
+      "description": "Create a new Word document with optional initial content.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Document name (with or without .docx extension)."
+          },
+          "folder_path": {
+            "type": "string",
+            "description": "Folder path to create in (default: root). Example: 'Documents/Reports'."
+          },
+          "content": {
+            "type": "string",
+            "description": "Initial text content for the document."
+          },
+          "template_id": {
+            "type": "string",
+            "description": "ID of template document to copy from."
+          }
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": { "type": "string", "description": "The drive item ID of the created document." },
+          "name": { "type": "string", "description": "Final document name." },
+          "webUrl": { "type": "string", "description": "URL to view in browser." },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "word_update_content": {
+      "display_name": "Update Document Content",
+      "description": "Replace the entire content of a Word document with new content.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "The drive item ID of the document."
+          },
+          "content": {
+            "type": "string",
+            "description": "New text content for the document."
+          },
+          "preserve_formatting": {
+            "type": "boolean",
+            "description": "Try to preserve existing formatting (default: false)."
+          }
+        },
+        "required": ["document_id", "content"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "updated": { "type": "boolean", "description": "Whether content was updated." },
+          "document_id": { "type": "string", "description": "The document ID." },
+          "word_count": { "type": "integer", "description": "New word count." },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "word_insert_text": {
+      "display_name": "Insert Text",
+      "description": "Insert text at a specific location in the document (start, end, or relative to a paragraph).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "The drive item ID of the document."
+          },
+          "text": {
+            "type": "string",
+            "description": "Text to insert."
+          },
+          "location": {
+            "type": "string",
+            "enum": ["start", "end", "after_paragraph", "before_paragraph"],
+            "description": "Where to insert: 'start', 'end', 'after_paragraph', 'before_paragraph'."
+          },
+          "paragraph_index": {
+            "type": "integer",
+            "description": "Paragraph index (required for after_paragraph/before_paragraph)."
+          }
+        },
+        "required": ["document_id", "text", "location"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "inserted": { "type": "boolean", "description": "Whether text was inserted." },
+          "document_id": { "type": "string", "description": "The document ID." },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "word_get_paragraphs": {
+      "display_name": "Get Paragraphs",
+      "description": "Get all paragraphs from a document with their content and optional formatting information.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "The drive item ID of the document."
+          },
+          "start_index": {
+            "type": "integer",
+            "description": "Start paragraph index (default: 0)."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Maximum paragraphs to return (default: all)."
+          },
+          "include_formatting": {
+            "type": "boolean",
+            "description": "Include paragraph formatting info (default: false)."
+          }
+        },
+        "required": ["document_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "paragraphs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": { "type": "integer" },
+                "text": { "type": "string" },
+                "style": { "type": "string" },
+                "formatting": { "type": "object" }
+              }
+            },
+            "description": "List of paragraph objects."
+          },
+          "total_count": { "type": "integer", "description": "Total number of paragraphs." },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "word_search_replace": {
+      "display_name": "Search and Replace",
+      "description": "Find and replace text throughout the document.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "The drive item ID of the document."
+          },
+          "search_text": {
+            "type": "string",
+            "description": "Text to find."
+          },
+          "replace_text": {
+            "type": "string",
+            "description": "Text to replace with."
+          },
+          "match_case": {
+            "type": "boolean",
+            "description": "Case-sensitive search (default: false)."
+          },
+          "match_whole_word": {
+            "type": "boolean",
+            "description": "Match whole words only (default: false)."
+          },
+          "replace_all": {
+            "type": "boolean",
+            "description": "Replace all occurrences (default: true)."
+          }
+        },
+        "required": ["document_id", "search_text", "replace_text"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "replaced": { "type": "boolean", "description": "Whether any replacements were made." },
+          "replacement_count": { "type": "integer", "description": "Number of replacements made." },
+          "document_id": { "type": "string", "description": "The document ID." },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "word_export_pdf": {
+      "display_name": "Export to PDF",
+      "description": "Export the Word document to PDF format. Returns base64-encoded PDF content or saves to OneDrive.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "The drive item ID of the document."
+          },
+          "output_name": {
+            "type": "string",
+            "description": "Name for the PDF file (default: same as document)."
+          },
+          "save_to_drive": {
+            "type": "boolean",
+            "description": "Save PDF to OneDrive (default: false, returns base64 content)."
+          },
+          "folder_path": {
+            "type": "string",
+            "description": "Folder path if saving to drive."
+          }
+        },
+        "required": ["document_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "pdf_content": { "type": "string", "description": "Base64-encoded PDF content (when save_to_drive is false)." },
+          "pdf_size": { "type": "integer", "description": "PDF file size in bytes." },
+          "content_type": { "type": "string", "description": "MIME type (application/pdf)." },
+          "encoding": { "type": "string", "description": "Content encoding (base64)." },
+          "pdf_url": { "type": "string", "description": "URL to access PDF (when save_to_drive is true)." },
+          "pdf_id": { "type": "string", "description": "Drive item ID if saved to drive." },
+          "size": { "type": "integer", "description": "PDF file size in bytes (when saved to drive)." },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    },
+    "word_get_tables": {
+      "display_name": "Get Tables",
+      "description": "Extract tables from a Word document as structured data.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "The drive item ID of the document."
+          },
+          "table_index": {
+            "type": "integer",
+            "description": "Specific table index to retrieve (default: all tables)."
+          },
+          "include_formatting": {
+            "type": "boolean",
+            "description": "Include cell formatting (default: false)."
+          }
+        },
+        "required": ["document_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": { "type": "integer" },
+                "rows": { "type": "integer" },
+                "columns": { "type": "integer" },
+                "data": { "type": "array" },
+                "hasHeaderRow": { "type": "boolean" }
+              }
+            },
+            "description": "List of table objects."
+          },
+          "table_count": { "type": "integer", "description": "Total number of tables in document." },
+          "result": { "type": "boolean" },
+          "error": { "type": "string" }
+        },
+        "required": ["result"]
+      }
+    }
+  }
+}
