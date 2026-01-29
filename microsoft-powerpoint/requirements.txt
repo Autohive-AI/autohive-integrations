@@ -1,0 +1,2 @@
+autohive-integrations-sdk~=1.0.2
+python-pptx>=0.6.21

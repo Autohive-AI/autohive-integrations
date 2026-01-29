@@ -1,0 +1,551 @@
+{
+    "name": "Microsoft PowerPoint",
+    "display_name": "Microsoft PowerPoint",
+    "version": "1.0.0",
+    "description": "Microsoft PowerPoint integration for reading, creating, and manipulating presentations in OneDrive/SharePoint via Microsoft Graph API",
+    "entry_point": "microsoft_powerpoint.py",
+    "auth": {
+        "type": "platform",
+        "provider": "Microsoft 365",
+        "scopes": [
+            "Files.Read",
+            "Files.ReadWrite",
+            "User.Read",
+            "offline_access"
+        ]
+    },
+    "actions": {
+        "powerpoint_list_presentations": {
+            "display_name": "List PowerPoint Presentations",
+            "description": "Find accessible PowerPoint presentations (.pptx) in OneDrive/SharePoint. Supports filtering by name.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name_contains": {
+                        "type": "string",
+                        "description": "Filter presentations whose name contains this string"
+                    },
+                    "folder_path": {
+                        "type": "string",
+                        "description": "Folder path to search in (default: root)"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Maximum results to return (default: 25, max: 100)",
+                        "default": 25
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Token for pagination"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "presentations": {
+                        "type": "array",
+                        "description": "List of presentation objects with id, name, webUrl, lastModifiedDateTime, size"
+                    },
+                    "next_page_token": {
+                        "type": "string",
+                        "description": "Token for next page if more results exist"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["presentations", "result"]
+            }
+        },
+        "powerpoint_get_presentation": {
+            "display_name": "Get Presentation Metadata",
+            "description": "Retrieve presentation properties including file info, author, and last modified details.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "presentation_id": {
+                        "type": "string",
+                        "description": "The drive item ID of the presentation"
+                    }
+                },
+                "required": ["presentation_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Drive item ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "File name"
+                    },
+                    "size": {
+                        "type": "integer",
+                        "description": "File size in bytes"
+                    },
+                    "webUrl": {
+                        "type": "string",
+                        "description": "URL to open in browser"
+                    },
+                    "createdDateTime": {
+                        "type": "string",
+                        "description": "Creation timestamp"
+                    },
+                    "lastModifiedDateTime": {
+                        "type": "string",
+                        "description": "Last modified timestamp"
+                    },
+                    "createdBy": {
+                        "type": "object",
+                        "description": "User who created the file"
+                    },
+                    "lastModifiedBy": {
+                        "type": "object",
+                        "description": "User who last modified the file"
+                    },
+                    "parentReference": {
+                        "type": "object",
+                        "description": "Parent folder information"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "powerpoint_get_slides": {
+            "display_name": "Get All Slides",
+            "description": "List all slides in a presentation with their thumbnails and basic metadata.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "presentation_id": {
+                        "type": "string",
+                        "description": "The drive item ID of the presentation"
+                    },
+                    "include_thumbnails": {
+                        "type": "boolean",
+                        "description": "Include thumbnail URLs (default: true)",
+                        "default": true
+                    },
+                    "thumbnail_size": {
+                        "type": "string",
+                        "description": "Thumbnail size: small, medium, large (default: medium)",
+                        "default": "medium"
+                    }
+                },
+                "required": ["presentation_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "slides": {
+                        "type": "array",
+                        "description": "List of slide objects"
+                    },
+                    "slide_count": {
+                        "type": "integer",
+                        "description": "Total number of slides"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["slides", "slide_count", "result"]
+            }
+        },
+        "powerpoint_get_slide": {
+            "display_name": "Get Slide",
+            "description": "Get details for a specific slide by its index (1-based).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "presentation_id": {
+                        "type": "string",
+                        "description": "The drive item ID of the presentation"
+                    },
+                    "slide_index": {
+                        "type": "integer",
+                        "description": "Slide index (1-based)"
+                    },
+                    "include_thumbnail": {
+                        "type": "boolean",
+                        "description": "Include thumbnail URL (default: true)",
+                        "default": true
+                    },
+                    "thumbnail_size": {
+                        "type": "string",
+                        "description": "Thumbnail size: small, medium, large (default: large)",
+                        "default": "large"
+                    }
+                },
+                "required": ["presentation_id", "slide_index"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "index": {
+                        "type": "integer",
+                        "description": "Slide index (1-based)"
+                    },
+                    "id": {
+                        "type": "string",
+                        "description": "Slide identifier"
+                    },
+                    "thumbnailUrl": {
+                        "type": "string",
+                        "description": "URL to slide thumbnail image"
+                    },
+                    "thumbnailWidth": {
+                        "type": "integer",
+                        "description": "Thumbnail width in pixels"
+                    },
+                    "thumbnailHeight": {
+                        "type": "integer",
+                        "description": "Thumbnail height in pixels"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "powerpoint_create_presentation": {
+            "display_name": "Create Presentation",
+            "description": "Create a new PowerPoint presentation in the specified folder.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name for the new presentation (without extension)"
+                    },
+                    "folder_path": {
+                        "type": "string",
+                        "description": "Folder path to create in (default: root)"
+                    },
+                    "template_id": {
+                        "type": "string",
+                        "description": "Drive item ID of template presentation to copy"
+                    }
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Drive item ID of created presentation"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Full file name (with .pptx extension)"
+                    },
+                    "webUrl": {
+                        "type": "string",
+                        "description": "URL to open in browser"
+                    },
+                    "createdDateTime": {
+                        "type": "string",
+                        "description": "Creation timestamp"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "powerpoint_add_slide": {
+            "display_name": "Add Slide",
+            "description": "Add a new slide to an existing presentation.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "presentation_id": {
+                        "type": "string",
+                        "description": "The drive item ID of the presentation"
+                    },
+                    "position": {
+                        "type": "integer",
+                        "description": "Position to insert slide (1-based, null = end)"
+                    },
+                    "layout": {
+                        "type": "string",
+                        "description": "Slide layout: blank, title, titleContent, twoContent, comparison, titleOnly, contentCaption, pictureCaption (default: blank)",
+                        "default": "blank"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Title text for the slide"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Body content text for the slide"
+                    }
+                },
+                "required": ["presentation_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "slide_index": {
+                        "type": "integer",
+                        "description": "Index of the new slide (1-based)"
+                    },
+                    "slide_count": {
+                        "type": "integer",
+                        "description": "Total slides after addition"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "powerpoint_update_slide": {
+            "display_name": "Update Slide",
+            "description": "Update the content of an existing slide.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "presentation_id": {
+                        "type": "string",
+                        "description": "The drive item ID of the presentation"
+                    },
+                    "slide_index": {
+                        "type": "integer",
+                        "description": "Slide index to update (1-based)"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "New title text"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "New body content text"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Speaker notes for the slide"
+                    }
+                },
+                "required": ["presentation_id", "slide_index"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "updated": {
+                        "type": "boolean",
+                        "description": "Whether slide was updated"
+                    },
+                    "slide_index": {
+                        "type": "integer",
+                        "description": "Index of updated slide"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "powerpoint_delete_slide": {
+            "display_name": "Delete Slide",
+            "description": "Delete a slide from the presentation.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "presentation_id": {
+                        "type": "string",
+                        "description": "The drive item ID of the presentation"
+                    },
+                    "slide_index": {
+                        "type": "integer",
+                        "description": "Slide index to delete (1-based)"
+                    }
+                },
+                "required": ["presentation_id", "slide_index"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "deleted": {
+                        "type": "boolean",
+                        "description": "Whether slide was deleted"
+                    },
+                    "slide_count": {
+                        "type": "integer",
+                        "description": "Remaining slide count"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "powerpoint_export_pdf": {
+            "display_name": "Export to PDF",
+            "description": "Export the presentation to PDF format.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "presentation_id": {
+                        "type": "string",
+                        "description": "The drive item ID of the presentation"
+                    },
+                    "output_folder": {
+                        "type": "string",
+                        "description": "Folder path for output file (default: same as source)"
+                    },
+                    "output_name": {
+                        "type": "string",
+                        "description": "Name for PDF file (default: same as presentation name)"
+                    }
+                },
+                "required": ["presentation_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "pdf_id": {
+                        "type": "string",
+                        "description": "Drive item ID of created PDF"
+                    },
+                    "pdf_name": {
+                        "type": "string",
+                        "description": "PDF file name"
+                    },
+                    "pdf_webUrl": {
+                        "type": "string",
+                        "description": "URL to PDF file"
+                    },
+                    "pdf_size": {
+                        "type": "integer",
+                        "description": "PDF file size in bytes"
+                    },
+                    "download_url": {
+                        "type": "string",
+                        "description": "Direct download URL (temporary)"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "powerpoint_get_slide_image": {
+            "display_name": "Get Slide Image",
+            "description": "Get a slide as an image (PNG/JPEG thumbnail).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "presentation_id": {
+                        "type": "string",
+                        "description": "The drive item ID of the presentation"
+                    },
+                    "slide_index": {
+                        "type": "integer",
+                        "description": "Slide index to export (1-based)"
+                    },
+                    "size": {
+                        "type": "string",
+                        "description": "Image size: small (176x144), medium (800x600), large (1600x1200) (default: large)",
+                        "default": "large"
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Image format: png, jpeg (default: png)",
+                        "default": "png"
+                    }
+                },
+                "required": ["presentation_id", "slide_index"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "image_url": {
+                        "type": "string",
+                        "description": "URL to slide image (temporary)"
+                    },
+                    "width": {
+                        "type": "integer",
+                        "description": "Image width in pixels"
+                    },
+                    "height": {
+                        "type": "integer",
+                        "description": "Image height in pixels"
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Image format"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        }
+    }
+}
