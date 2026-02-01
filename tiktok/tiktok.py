@@ -85,15 +85,16 @@ def _check_api_response(response: Dict[str, Any]) -> Dict[str, Any]:
         error = response["error"]
         if isinstance(error, dict):
             code = error.get("code", "unknown_error")
-            message = error.get("message", "Unknown error occurred")
+            message = error.get("message") or error.get("description") or str(error)
+            log_id = error.get("log_id", "")
             if code == "access_token_invalid":
                 raise TikTokAPIError("Access token is invalid or expired.", error_code=code, response=response)
             elif code == "rate_limit_exceeded":
                 raise TikTokAPIError("Rate limit exceeded.", error_code=code, response=response)
             elif code == "scope_not_authorized":
-                raise TikTokAPIError("Required scope not authorized.", error_code=code, response=response)
+                raise TikTokAPIError(f"Required scope not authorized. Code: {code}, Log ID: {log_id}", error_code=code, response=response)
             else:
-                raise TikTokAPIError(f"TikTok API error: {message}", error_code=code, response=response)
+                raise TikTokAPIError(f"TikTok API error: {message} (code: {code}, log_id: {log_id})", error_code=code, response=response)
         else:
             raise TikTokAPIError(f"TikTok API error: {error}", response=response)
     return response.get("data", response)
