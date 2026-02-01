@@ -9,6 +9,10 @@ typeform = Integration.load()
 # Base URL for Typeform API
 TYPEFORM_API_BASE_URL = "https://api.typeform.com"
 
+# Read-only fields that cannot be sent back to the API on form updates
+# These are returned by GET but must be removed before PUT
+FORM_READONLY_FIELDS = {"id", "_links", "created_at", "last_updated_at", "published_at", "self"}
+
 # Note: Authentication is handled automatically by the platform OAuth integration.
 # The context.fetch method automatically includes the OAuth token in requests.
 #
@@ -16,6 +20,8 @@ TYPEFORM_API_BASE_URL = "https://api.typeform.com"
 # - accounts:read, forms:read/write, responses:read/write
 # - workspaces:read/write, themes:read/write, images:read/write
 # - webhooks:read/write, offline
+#
+# Rate Limiting: Typeform API has rate limits that vary by plan.
 
 
 # ---- User/Account Handlers ----
@@ -56,9 +62,9 @@ class ListFormsAction(ActionHandler):
                 params["workspace_id"] = inputs["workspace_id"]
             if inputs.get("search"):
                 params["search"] = inputs["search"]
-            if inputs.get("page"):
+            if inputs.get("page") is not None:
                 params["page"] = inputs["page"]
-            if inputs.get("page_size"):
+            if inputs.get("page_size") is not None:
                 params["page_size"] = inputs["page_size"]
 
             response = await context.fetch(
@@ -148,7 +154,13 @@ class CreateFormAction(ActionHandler):
 
 @typeform.action("update_form")
 class UpdateFormAction(ActionHandler):
-    """Update an existing form. Uses PUT which replaces the entire form."""
+    """Update an existing form. Uses PUT which replaces the entire form.
+
+    Note: Typeform API only supports limited PATCH operations (title, settings,
+    workspace, theme). To update fields/questions, PUT with full form definition
+    is required. This action fetches the existing form first to preserve all
+    properties and prevent data loss.
+    """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
@@ -160,28 +172,11 @@ class UpdateFormAction(ActionHandler):
                 method="GET"
             )
 
-            # Start with existing form and merge updates
-            # Remove read-only fields that can't be sent back
-            body = {
-                "title": existing_form.get("title"),
-                "fields": existing_form.get("fields", []),
-            }
+            # Start with full existing form and remove only read-only fields
+            # This prevents data loss when updating specific fields
+            body = {k: v for k, v in existing_form.items() if k not in FORM_READONLY_FIELDS}
 
-            # Include optional existing fields if present
-            if existing_form.get("settings"):
-                body["settings"] = existing_form["settings"]
-            if existing_form.get("theme"):
-                body["theme"] = existing_form["theme"]
-            if existing_form.get("welcome_screens"):
-                body["welcome_screens"] = existing_form["welcome_screens"]
-            if existing_form.get("thankyou_screens"):
-                body["thankyou_screens"] = existing_form["thankyou_screens"]
-            if existing_form.get("logic"):
-                body["logic"] = existing_form["logic"]
-            if existing_form.get("hidden"):
-                body["hidden"] = existing_form["hidden"]
-
-            # Apply updates from inputs
+            # Apply updates from inputs (only if provided)
             if inputs.get("title"):
                 body["title"] = inputs["title"]
             if inputs.get("fields"):
@@ -323,9 +318,9 @@ class ListWorkspacesAction(ActionHandler):
             params = {}
             if inputs.get("search"):
                 params["search"] = inputs["search"]
-            if inputs.get("page"):
+            if inputs.get("page") is not None:
                 params["page"] = inputs["page"]
-            if inputs.get("page_size"):
+            if inputs.get("page_size") is not None:
                 params["page_size"] = inputs["page_size"]
 
             response = await context.fetch(
@@ -477,9 +472,9 @@ class ListThemesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            if inputs.get("page"):
+            if inputs.get("page") is not None:
                 params["page"] = inputs["page"]
-            if inputs.get("page_size"):
+            if inputs.get("page_size") is not None:
                 params["page_size"] = inputs["page_size"]
 
             response = await context.fetch(
@@ -597,9 +592,9 @@ class ListImagesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            if inputs.get("page"):
+            if inputs.get("page") is not None:
                 params["page"] = inputs["page"]
-            if inputs.get("page_size"):
+            if inputs.get("page_size") is not None:
                 params["page_size"] = inputs["page_size"]
 
             response = await context.fetch(
