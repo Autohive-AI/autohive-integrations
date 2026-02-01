@@ -341,26 +341,43 @@ class GetCreatorInfoHandler(ActionHandler):
         return ActionResult(data=_build_creator_info(data))
 
 
+def _get_video_content(inputs: dict) -> bytes:
+    """Extract video content from file or files input."""
+    # Try single file first
+    file_obj = inputs.get("file")
+    if not file_obj:
+        # Try files array (take first video)
+        files = inputs.get("files", [])
+        if files:
+            file_obj = files[0]
+
+    if not file_obj:
+        raise ValueError("A video file is required. Provide 'file' or 'files' with video content.")
+
+    content_base64 = file_obj.get("content", "")
+    if not content_base64:
+        raise ValueError("File content is empty")
+
+    return _validate_video_content(content_base64)
+
+
 @tiktok.action("create_video_post")
 class CreateVideoPostHandler(ActionHandler):
     """Post a video directly to TikTok."""
 
     async def execute(self, inputs: dict, context: ExecutionContext) -> ActionResult:
-        video_content_base64 = inputs.get("video_content_base64")
-
-        # Validate and decode the video content
-        video_data = _validate_video_content(video_content_base64)
+        # Get video content from file object
+        video_data = _get_video_content(inputs)
         video_size = len(video_data)
+        post_info = _build_post_info(inputs)
 
-        # Calculate chunk size
         chunk_size = _validate_chunk_size(
             inputs.get("chunk_size", DEFAULT_CHUNK_SIZE),
             video_size
         )
 
-        # Initialize the upload with TikTok
-        request_body: dict = {
-            "post_info": _build_post_info(inputs),
+        request_body = {
+            "post_info": post_info,
             "source_info": {
                 "source": "FILE_UPLOAD",
                 "video_size": video_size,
@@ -378,7 +395,6 @@ class CreateVideoPostHandler(ActionHandler):
         if not upload_url:
             raise TikTokAPIError("No upload URL returned from TikTok", error_code="missing_upload_url")
 
-        # Upload the video chunks
         access_token = context.auth.get("access_token", "")
         await _upload_video_chunks(upload_url, video_data, chunk_size, access_token)
 
@@ -393,10 +409,8 @@ class UploadVideoDraftHandler(ActionHandler):
     """Upload a video as a draft to TikTok inbox."""
 
     async def execute(self, inputs: dict, context: ExecutionContext) -> ActionResult:
-        video_content_base64 = inputs.get("video_content_base64")
-
-        # Validate and decode the video content
-        video_data = _validate_video_content(video_content_base64)
+        # Get video content from file object
+        video_data = _get_video_content(inputs)
         video_size = len(video_data)
 
         # Calculate chunk size
