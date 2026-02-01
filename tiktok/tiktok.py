@@ -34,12 +34,16 @@ PHOTO_INIT_ENDPOINT = f"{TIKTOK_API_BASE}/post/publish/content/init/"
 STATUS_FETCH_ENDPOINT = f"{TIKTOK_API_BASE}/post/publish/status/fetch/"
 VIDEO_LIST_ENDPOINT = f"{TIKTOK_API_BASE}/video/list/"
 
-# User info fields
-ALL_USER_INFO_FIELDS = [
-    "open_id", "union_id", "avatar_url", "avatar_url_100", "avatar_large_url",
-    "display_name", "bio_description", "profile_deep_link", "is_verified",
-    "username", "follower_count", "following_count", "likes_count", "video_count"
+# User info fields by scope
+# user.info.basic: open_id, union_id, avatar_url, avatar_url_100, avatar_large_url, display_name
+# user.info.profile: bio_description, profile_deep_link, profile_web_link, is_verified
+# user.info.stats: follower_count, following_count, likes_count, video_count
+BASIC_USER_INFO_FIELDS = [
+    "open_id", "union_id", "avatar_url", "avatar_url_100", "avatar_large_url", "display_name"
 ]
+PROFILE_USER_INFO_FIELDS = ["bio_description", "profile_deep_link", "is_verified"]
+STATS_USER_INFO_FIELDS = ["follower_count", "following_count", "likes_count", "video_count"]
+ALL_USER_INFO_FIELDS = BASIC_USER_INFO_FIELDS + PROFILE_USER_INFO_FIELDS + STATS_USER_INFO_FIELDS
 
 # Video list fields
 VIDEO_FIELDS = [
@@ -99,16 +103,18 @@ def _build_user_info(data: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize user info API response."""
     user = data.get("user", data)
     return {
+        # Basic fields (user.info.basic)
         "open_id": user.get("open_id", ""),
         "union_id": user.get("union_id", ""),
         "avatar_url": user.get("avatar_url", ""),
         "avatar_url_100": user.get("avatar_url_100", ""),
         "avatar_large_url": user.get("avatar_large_url", ""),
         "display_name": user.get("display_name", ""),
+        # Profile fields (user.info.profile)
         "bio_description": user.get("bio_description", ""),
         "profile_deep_link": user.get("profile_deep_link", ""),
         "is_verified": user.get("is_verified", False),
-        "username": user.get("username", ""),
+        # Stats fields (user.info.stats)
         "follower_count": user.get("follower_count", 0),
         "following_count": user.get("following_count", 0),
         "likes_count": user.get("likes_count", 0),
@@ -282,16 +288,17 @@ class TikTokConnectedAccountHandler(ConnectedAccountHandler):
 
     async def get_account_info(self, context: ExecutionContext) -> ConnectedAccountInfo:
         """Fetch and return the connected TikTok account information."""
+        # Only request fields from user.info.basic scope
         response = await context.fetch(
             USER_INFO_ENDPOINT,
             method="GET",
-            params={"fields": "open_id,union_id,avatar_url,display_name,username"},
+            params={"fields": ",".join(BASIC_USER_INFO_FIELDS)},
         )
         data = _check_api_response(response)
         user = data.get("user", data)
         return ConnectedAccountInfo(
             user_id=user.get("open_id", ""),
-            username=user.get("username", user.get("display_name", "")),
+            username=user.get("display_name", ""),  # TikTok doesn't have username field
             first_name=user.get("display_name", ""),
             last_name="",
             avatar_url=user.get("avatar_url", ""),
