@@ -26,6 +26,9 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 ### Bitly
 
 [bitly](bitly): URL shortening and link management integration with Bitly API v4 for creating, managing, and tracking shortened links. Supports quick URL shortening, advanced bitlink creation with custom back-halves and tags, link retrieval and updates, expanding bitlinks to original URLs, and listing bitlinks by group. Features click analytics (detailed counts by time unit and summaries), group management, and organization access. Uses OAuth 2.0 platform authentication with automatic token handling. Includes 12 actions covering user info, link management (6 actions), click analytics (2 actions), and groups/organizations (3 actions). Ideal for marketing automation, link tracking, campaign analytics, and URL management workflows.
+### Google BigQuery
+
+[bigquery](bigquery): Google BigQuery integration for serverless data warehouse operations, SQL queries, and dataset management. Supports query execution with standard and legacy SQL dialects, dry run for cost estimation, dataset lifecycle management (create, list, get, delete), table operations with schema management, time partitioning, and clustering, streaming data inserts, and job monitoring. Features OAuth2 platform authentication, automatic row parsing from BigQuery's nested response format, pagination for large result sets, and support for all BigQuery data types including RECORD, JSON, and GEOGRAPHY. Includes 14 actions covering queries, datasets, tables, jobs, and project discovery. Ideal for data warehousing, analytics automation, ETL pipelines, and business intelligence workflows.
 
 ### Box
 

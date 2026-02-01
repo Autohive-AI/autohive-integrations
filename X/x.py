@@ -181,20 +181,35 @@ async def _upload_media(context: ExecutionContext, file_data: Dict[str, Any]) ->
 
 @x.action("create_tweet")
 class CreateTweetAction(ActionHandler):
-    """Create a new post on X."""
+    """Create a new post on X, optionally with media."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             data = {"text": inputs['text']}
+            media_id = None
+
+            # Handle file upload if provided
+            file_data = None
+            if 'file' in inputs and inputs['file']:
+                file_data = inputs['file']
+            elif 'files' in inputs and inputs['files'] and len(inputs['files']) > 0:
+                file_data = inputs['files'][0]
+
+            if file_data:
+                upload_result = await _upload_media(context, file_data)
+                if "error" in upload_result:
+                    return ActionResult(
+                        data={"post": {}, "result": False, "error": upload_result["error"]},
+                        cost_usd=0.0
+                    )
+                media_id = upload_result["media_id"]
+                data['media'] = {"media_ids": [media_id]}
 
             if 'reply_to' in inputs and inputs['reply_to']:
                 data['reply'] = {"in_reply_to_tweet_id": inputs['reply_to']}
 
             if 'quote_tweet_id' in inputs and inputs['quote_tweet_id']:
                 data['quote_tweet_id'] = inputs['quote_tweet_id']
-
-            if 'media_ids' in inputs and inputs['media_ids']:
-                data['media'] = {"media_ids": inputs['media_ids']}
 
             if 'poll_options' in inputs and inputs['poll_options']:
                 data['poll'] = {
@@ -208,61 +223,6 @@ class CreateTweetAction(ActionHandler):
                 json=data
             )
 
-            return ActionResult(
-                data={"post": response.get('data', {}), "result": True},
-                cost_usd=0.0
-            )
-
-        except Exception as e:
-            return ActionResult(
-                data={"post": {}, "result": False, "error": str(e)},
-                cost_usd=0.0
-            )
-
-
-@x.action("post_with_media")
-class PostWithMediaAction(ActionHandler):
-    """Create a post with media in a single action. Uploads the media first, then creates the tweet."""
-
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            text = inputs.get('text', '')
-
-            file_data = None
-            if 'file' in inputs and inputs['file']:
-                file_data = inputs['file']
-            elif 'files' in inputs and inputs['files'] and len(inputs['files']) > 0:
-                file_data = inputs['files'][0]
-
-            if not file_data:
-                return ActionResult(
-                    data={"post": {}, "result": False, "error": "No file provided"},
-                    cost_usd=0.0
-                )
-
-            # Upload media
-            upload_result = await _upload_media(context, file_data)
-
-            if "error" in upload_result:
-                return ActionResult(
-                    data={"post": {}, "result": False, "error": upload_result["error"]},
-                    cost_usd=0.0
-                )
-
-            media_id = upload_result["media_id"]
-
-            # Create tweet with media
-            tweet_data = {"text": text, "media": {"media_ids": [media_id]}}
-
-            if 'reply_to' in inputs and inputs['reply_to']:
-                tweet_data['reply'] = {"in_reply_to_tweet_id": inputs['reply_to']}
-
-            response = await context.fetch(
-                f"{X_API_BASE_URL}/tweets",
-                method="POST",
-                json=tweet_data
-            )
-
             if isinstance(response, dict) and "errors" in response:
                 error_msg = response.get("errors", [{}])[0].get("message", str(response))
                 return ActionResult(
@@ -270,14 +230,15 @@ class PostWithMediaAction(ActionHandler):
                     cost_usd=0.0
                 )
 
-            return ActionResult(
-                data={"post": response.get('data', {}), "media_id": media_id, "result": True},
-                cost_usd=0.0
-            )
+            result_data = {"post": response.get('data', {}), "result": True}
+            if media_id:
+                result_data["media_id"] = media_id
+
+            return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
-                data={"post": {}, "result": False, "error": f"Post with media failed: {str(e)}"},
+                data={"post": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
             )
 

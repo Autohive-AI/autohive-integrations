@@ -1,10 +1,9 @@
 from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler
+    Integration, ExecutionContext, ActionHandler, ActionResult
 )
 from typing import Dict, Any, List, Optional
 import mistune
 
-# Create the integration using the config.json
 circle = Integration.load()
 
 # Circle Admin API Base URL - v2
@@ -319,10 +318,10 @@ def build_search_params(inputs: Dict[str, Any], allowed_params: List[str]) -> Di
     return params
 
 
-def handle_api_response(response: Dict[str, Any], default_return: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def handle_api_response(response: Dict[str, Any], default_return: Dict[str, Any]) -> Optional[ActionResult]:
     """
     Check API response for errors and handle HTML responses.
-    Returns error dict if there's an error, None if response is valid.
+    Returns ActionResult if there's an error, None if response is valid.
     """
     if "error" in response:
         error_msg = response.get('error', 'Unknown error')
@@ -330,11 +329,10 @@ def handle_api_response(response: Dict[str, Any], default_return: Dict[str, Any]
         if isinstance(error_msg, str) and len(error_msg) > 500:
             error_msg = "API request failed. Received HTML error page instead of JSON. Check endpoint URL and authentication."
         
-        return {
-            **default_return,
-            "result": False,
-            "error": f"API request failed: {error_msg}"
-        }
+        data = default_return.copy()
+        data["result"] = False
+        data["error"] = f"API request failed: {error_msg}"
+        return ActionResult(data=data, cost_usd=0.0)
     return None
 
 
@@ -369,19 +367,25 @@ class SearchPostsAction(ActionHandler):
             posts = response.get("records", [])
             count = response.get("count", 0)
 
-            return {
-                "posts": posts,
-                "count": count,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "posts": posts,
+                    "count": count,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "posts": [],
-                "count": 0,
-                "result": False,
-                "error": f"Error searching posts: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "posts": [],
+                    "count": 0,
+                    "result": False,
+                    "error": f"Error searching posts: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("get_post")
@@ -403,17 +407,23 @@ class GetPostAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return {
-                "post": response,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "post": response,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "post": {},
-                "result": False,
-                "error": f"Error getting post: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "post": {},
+                    "result": False,
+                    "error": f"Error getting post: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("create_post")
@@ -454,17 +464,23 @@ class CreatePostAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return {
-                "post": response,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "post": response,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "post": {},
-                "result": False,
-                "error": f"Error creating post: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "post": {},
+                    "result": False,
+                    "error": f"Error creating post: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("update_post")
@@ -499,17 +515,23 @@ class UpdatePostAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return {
-                "post": response,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "post": response,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "post": {},
-                "result": False,
-                "error": f"Error updating post: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "post": {},
+                    "result": False,
+                    "error": f"Error updating post: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 # ---- Member Actions ----
@@ -535,17 +557,23 @@ class SearchMemberByEmailAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return {
-                "member": response,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "member": response,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "member": {},
-                "result": False,
-                "error": f"Error searching member by email: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "member": {},
+                    "result": False,
+                    "error": f"Error searching member by email: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("list_members")
@@ -577,19 +605,25 @@ class ListMembersAction(ActionHandler):
             members = response.get("records", [])
             count = response.get("count", 0)
 
-            return {
-                "members": members,
-                "count": count,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "members": members,
+                    "count": count,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "members": [],
-                "count": 0,
-                "result": False,
-                "error": f"Error listing members: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "members": [],
+                    "count": 0,
+                    "result": False,
+                    "error": f"Error listing members: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("get_member")
@@ -611,17 +645,23 @@ class GetMemberAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return {
-                "member": response,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "member": response,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "member": {},
-                "result": False,
-                "error": f"Error getting member: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "member": {},
+                    "result": False,
+                    "error": f"Error getting member: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 # ---- Space Actions ----
@@ -655,19 +695,25 @@ class SearchSpacesAction(ActionHandler):
             spaces = response.get("records", [])
             count = response.get("count", 0)
 
-            return {
-                "spaces": spaces,
-                "count": count,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "spaces": spaces,
+                    "count": count,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "spaces": [],
-                "count": 0,
-                "result": False,
-                "error": f"Error searching spaces: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "spaces": [],
+                    "count": 0,
+                    "result": False,
+                    "error": f"Error searching spaces: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("get_space")
@@ -689,17 +735,23 @@ class GetSpaceAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return {
-                "space": response,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "space": response,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "space": {},
-                "result": False,
-                "error": f"Error getting space: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "space": {},
+                    "result": False,
+                    "error": f"Error getting space: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 # ---- Event Actions ----
@@ -733,19 +785,25 @@ class SearchEventsAction(ActionHandler):
             events = response.get("records", [])
             count = response.get("count", 0)
 
-            return {
-                "events": events,
-                "count": count,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "events": events,
+                    "count": count,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "events": [],
-                "count": 0,
-                "result": False,
-                "error": f"Error searching events: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "events": [],
+                    "count": 0,
+                    "result": False,
+                    "error": f"Error searching events: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("get_event")
@@ -767,17 +825,23 @@ class GetEventAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return {
-                "event": response,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "event": response,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "event": {},
-                "result": False,
-                "error": f"Error getting event: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "event": {},
+                    "result": False,
+                    "error": f"Error getting event: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 # ---- Comment Actions ----
@@ -792,12 +856,13 @@ class CreateCommentAction(ActionHandler):
             
             # Build comment payload
             comment_data = {
+                "post_id": post_id,
                 "body": inputs["body"]
             }
 
             # Make API call
             response = await context.fetch(
-                f"{CIRCLE_API_BASE}/posts/{post_id}/comments",
+                f"{CIRCLE_API_BASE}/comments",
                 headers=headers,
                 method="POST",
                 json=comment_data
@@ -808,17 +873,23 @@ class CreateCommentAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return {
-                "comment": response,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "comment": response,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "comment": {},
-                "result": False,
-                "error": f"Error creating comment: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "comment": {},
+                    "result": False,
+                    "error": f"Error creating comment: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("get_post_comments")
@@ -832,9 +903,12 @@ class GetPostCommentsAction(ActionHandler):
 
             # Make API call
             response = await context.fetch(
-                f"{CIRCLE_API_BASE}/posts/{post_id}/comments",
+                f"{CIRCLE_API_BASE}/comments",
                 headers=headers,
-                params={"per_page": per_page}
+                params={
+                    "post_id": post_id,
+                    "per_page": per_page
+                }
             )
 
             # Check for API errors or HTML responses
@@ -846,19 +920,25 @@ class GetPostCommentsAction(ActionHandler):
             comments = response.get("records", [])
             count = response.get("count", 0)
 
-            return {
-                "comments": comments,
-                "count": count,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "comments": comments,
+                    "count": count,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "comments": [],
-                "count": 0,
-                "result": False,
-                "error": f"Error getting post comments: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "comments": [],
+                    "count": 0,
+                    "result": False,
+                    "error": f"Error getting post comments: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 # ---- Community Actions ----
@@ -880,17 +960,23 @@ class GetCommunityInfoAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return {
-                "community": response,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "community": response,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "community": {},
-                "result": False,
-                "error": f"Error getting community info: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "community": {},
+                    "result": False,
+                    "error": f"Error getting community info: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 # ---- Member Tag Actions ----
@@ -923,18 +1009,24 @@ class AddMemberTagsAction(ActionHandler):
                 
                 results.append(response)
 
-            return {
-                "member": results[0] if results else {},
-                "tags_added": len(results),
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "member": results[0] if results else {},
+                    "tags_added": len(results),
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "member": {},
-                "result": False,
-                "error": f"Error adding member tags: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "member": {},
+                    "result": False,
+                    "error": f"Error adding member tags: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("remove_member_tags")
@@ -963,16 +1055,22 @@ class RemoveMemberTagsAction(ActionHandler):
                 if response or response == {}:
                     removed_count += 1
 
-            return {
-                "tags_removed": removed_count,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "tags_removed": removed_count,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "result": False,
-                "error": f"Error removing member tags: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": f"Error removing member tags: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 # ---- Member Space Group Actions ----
@@ -1005,18 +1103,24 @@ class AddMemberToSpaceGroupsAction(ActionHandler):
                 
                 results.append(response)
 
-            return {
-                "member": results[0] if results else {},
-                "groups_added": len(results),
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "member": results[0] if results else {},
+                    "groups_added": len(results),
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "member": {},
-                "result": False,
-                "error": f"Error adding member to space groups: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "member": {},
+                    "result": False,
+                    "error": f"Error adding member to space groups: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("remove_member_from_space_groups")
@@ -1045,16 +1149,22 @@ class RemoveMemberFromSpaceGroupsAction(ActionHandler):
                 if response or response == {}:
                     removed_count += 1
 
-            return {
-                "groups_removed": removed_count,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "groups_removed": removed_count,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "result": False,
-                "error": f"Error removing member from space groups: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": f"Error removing member from space groups: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 # ---- Tag and Space Group Listing Actions ----
@@ -1088,19 +1198,25 @@ class ListTagsAction(ActionHandler):
             tags = response.get("records", [])
             count = response.get("count", 0)
 
-            return {
-                "tags": tags,
-                "count": count,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "tags": tags,
+                    "count": count,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "tags": [],
-                "count": 0,
-                "result": False,
-                "error": f"Error listing tags: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "tags": [],
+                    "count": 0,
+                    "result": False,
+                    "error": f"Error listing tags: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("list_space_groups")
@@ -1132,19 +1248,25 @@ class ListSpaceGroupsAction(ActionHandler):
             space_groups = response.get("records", [])
             count = response.get("count", 0)
 
-            return {
-                "space_groups": space_groups,
-                "count": count,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "space_groups": space_groups,
+                    "count": count,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "space_groups": [],
-                "count": 0,
-                "result": False,
-                "error": f"Error listing space groups: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "space_groups": [],
+                    "count": 0,
+                    "result": False,
+                    "error": f"Error listing space groups: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("list_access_groups")
@@ -1176,19 +1298,25 @@ class ListAccessGroupsAction(ActionHandler):
             access_groups = response.get("records", [])
             count = response.get("count", 0)
 
-            return {
-                "access_groups": access_groups,
-                "count": count,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "access_groups": access_groups,
+                    "count": count,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "access_groups": [],
-                "count": 0,
-                "result": False,
-                "error": f"Error listing access groups: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "access_groups": [],
+                    "count": 0,
+                    "result": False,
+                    "error": f"Error listing access groups: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("add_member_to_access_groups")
@@ -1216,18 +1344,24 @@ class AddMemberToAccessGroupsAction(ActionHandler):
                 
                 results.append(response)
 
-            return {
-                "member": results[0] if results else {},
-                "groups_added": len(results),
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "member": results[0] if results else {},
+                    "groups_added": len(results),
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "member": {},
-                "result": False,
-                "error": f"Error adding member to access groups: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "member": {},
+                    "result": False,
+                    "error": f"Error adding member to access groups: {str(e)}"
+                },
+                cost_usd=0.0
+            )
 
 
 @circle.action("remove_member_from_access_groups")
@@ -1253,13 +1387,19 @@ class RemoveMemberFromAccessGroupsAction(ActionHandler):
                 if response or response == {}:
                     removed_count += 1
 
-            return {
-                "groups_removed": removed_count,
-                "result": True
-            }
+            return ActionResult(
+                data={
+                    "groups_removed": removed_count,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return {
-                "result": False,
-                "error": f"Error removing member from access groups: {str(e)}"
-            }
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": f"Error removing member from access groups: {str(e)}"
+                },
+                cost_usd=0.0
+            )

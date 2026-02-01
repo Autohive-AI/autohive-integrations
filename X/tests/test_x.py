@@ -63,8 +63,8 @@ async def test_create_tweet():
             return None
 
 
-async def test_post_with_media():
-    """Test posting with media in single action."""
+async def test_create_tweet_with_media():
+    """Test creating a post with media."""
     import base64
 
     auth = {
@@ -96,14 +96,14 @@ async def test_post_with_media():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await x.execute_action("post_with_media", inputs, context)
-            print(f"Post With Media Result: {result}")
+            result = await x.execute_action("create_tweet", inputs, context)
+            print(f"Create Post With Media Result: {result}")
             assert result.get('result') == True
             assert 'post' in result
             assert 'media_id' in result
             return result
         except Exception as e:
-            print(f"Error testing post_with_media: {e}")
+            print(f"Error testing create_tweet with media: {e}")
             return None
 
 
@@ -177,8 +177,8 @@ async def run_all_tests():
     test_functions = [
         ("Get Authenticated User", test_get_me),
         ("Get User by Username", test_get_user),
-        ("Post With Media", test_post_with_media),
         ("Create Post", test_create_tweet),
+        ("Create Post With Media", test_create_tweet_with_media),
         ("Get Post", test_get_tweet),
         ("Search Posts", test_search_tweets),
         ("Delete Post", test_delete_tweet),
