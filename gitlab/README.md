@@ -467,7 +467,7 @@ GitLab accepts project identifiers in two formats:
 - This integration provides **read-only** access - no create, update, or delete operations
 - GitLab uses `iid` (internal ID) for issues and merge requests within projects
 - Pagination defaults to 20 results per page, max 100
-- Self-hosted GitLab instances may require different base URLs
+- This integration only supports gitlab.com - self-hosted GitLab instances are not supported
 
 ## Common Use Cases
 

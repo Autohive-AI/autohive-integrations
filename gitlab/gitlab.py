@@ -7,7 +7,7 @@ from urllib.parse import quote
 # Create the integration
 gitlab = Integration.load()
 
-# Base URL for GitLab API (gitlab.com - can be customized for self-hosted)
+# Base URL for GitLab API (gitlab.com only - self-hosted GitLab is not supported)
 GITLAB_API_BASE_URL = "https://gitlab.com/api/v4"
 
 # Note: Authentication is handled automatically by the platform OAuth integration.
@@ -425,7 +425,7 @@ class GetCommitAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             project_id = encode_project_id(inputs["project_id"])
-            sha = inputs["sha"]
+            sha = quote(inputs["sha"], safe="")
 
             params = {}
             if inputs.get("stats"):
@@ -456,7 +456,7 @@ class GetCommitDiffAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             project_id = encode_project_id(inputs["project_id"])
-            sha = inputs["sha"]
+            sha = quote(inputs["sha"], safe="")
 
             params = {}
             for key in ["per_page", "page"]:
@@ -660,7 +660,12 @@ class GetFileRawAction(ActionHandler):
             )
 
             # Response may be string or bytes depending on content type
-            content = response if isinstance(response, str) else str(response)
+            if isinstance(response, bytes):
+                content = response.decode("utf-8", errors="replace")
+            elif isinstance(response, str):
+                content = response
+            else:
+                content = str(response)
 
             return ActionResult(
                 data={"content": content, "result": True},
@@ -687,7 +692,7 @@ class CompareBranchesAction(ActionHandler):
                 "to": inputs["to"]
             }
             if inputs.get("straight") is not None:
-                params["straight"] = inputs["straight"]
+                params["straight"] = "true" if inputs["straight"] else "false"
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/compare",
@@ -816,7 +821,7 @@ class GetContainerRegistryTagAction(ActionHandler):
         try:
             project_id = encode_project_id(inputs["project_id"])
             repository_id = inputs["repository_id"]
-            tag_name = inputs["tag_name"]
+            tag_name = quote(inputs["tag_name"], safe="")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/registry/repositories/{repository_id}/tags/{tag_name}",
