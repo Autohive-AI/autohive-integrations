@@ -81,10 +81,17 @@ class TikTokAPIError(Exception):
 
 def _check_api_response(response: Dict[str, Any]) -> Dict[str, Any]:
     """Check API response for errors and extract data."""
-    if "error" in response and response["error"]:
+    # TikTok API returns error object even for successful responses
+    # Success: {"data": {...}, "error": {"code": "ok", "message": "", "log_id": "..."}}
+    # Error: {"data": {}, "error": {"code": "error_code", "message": "...", "log_id": "..."}}
+    if "error" in response:
         error = response["error"]
         if isinstance(error, dict):
             code = error.get("code", "unknown_error")
+            # "ok" means success - not an error!
+            if code == "ok":
+                return response.get("data", response)
+
             message = error.get("message") or error.get("description") or str(error)
             log_id = error.get("log_id", "")
             if code == "access_token_invalid":
@@ -95,7 +102,7 @@ def _check_api_response(response: Dict[str, Any]) -> Dict[str, Any]:
                 raise TikTokAPIError(f"Required scope not authorized. Code: {code}, Log ID: {log_id}", error_code=code, response=response)
             else:
                 raise TikTokAPIError(f"TikTok API error: {message} (code: {code}, log_id: {log_id})", error_code=code, response=response)
-        else:
+        elif error:  # Non-empty non-dict error
             raise TikTokAPIError(f"TikTok API error: {error}", response=response)
     return response.get("data", response)
 
