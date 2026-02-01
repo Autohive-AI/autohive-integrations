@@ -329,6 +329,26 @@
             "type": "array",
             "description": "List of bitlinks"
           },
+          "total": {
+            "type": ["integer", "null"],
+            "description": "Total number of bitlinks"
+          },
+          "page": {
+            "type": ["integer", "null"],
+            "description": "Current page number"
+          },
+          "size": {
+            "type": ["integer", "null"],
+            "description": "Number of results per page"
+          },
+          "next": {
+            "type": ["string", "null"],
+            "description": "URL for next page of results"
+          },
+          "prev": {
+            "type": ["string", "null"],
+            "description": "URL for previous page of results"
+          },
           "result": {
             "type": "boolean",
             "description": "Operation success status"

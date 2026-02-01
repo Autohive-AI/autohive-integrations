@@ -1,8 +1,8 @@
 from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler, ActionResult
+    Integration, ActionHandler, ActionResult
 )
 from typing import Dict, Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 # Create the integration
 bitly = Integration.load()
@@ -15,14 +15,19 @@ BITLY_API_BASE_URL = "https://api-ssl.bitly.com/v4"
 
 
 def normalize_bitlink(bitlink: str) -> str:
-    """Normalize bitlink to include domain if missing."""
-    if not bitlink.startswith("http") and "/" not in bitlink:
-        return f"bit.ly/{bitlink}"
-    if bitlink.startswith("http://"):
-        return bitlink[7:]
-    if bitlink.startswith("https://"):
-        return bitlink[8:]
-    return bitlink
+    """Normalize a bitlink to domain/path format (e.g., 'bit.ly/abc123')."""
+    # If it's a full URL, parse it properly
+    if bitlink.startswith(("http://", "https://")):
+        parsed = urlparse(bitlink)
+        # Return domain + path (e.g., "bit.ly/abc123")
+        return f"{parsed.netloc}{parsed.path}"
+
+    # If it already contains a slash, assume it's in domain/path format
+    if "/" in bitlink:
+        return bitlink
+
+    # Otherwise, it's just a hash - prepend default domain
+    return f"bit.ly/{bitlink}"
 
 
 def encode_bitlink_for_url(bitlink: str) -> str:
@@ -36,7 +41,7 @@ def encode_bitlink_for_url(bitlink: str) -> str:
 class GetUserAction(ActionHandler):
     """Get information about the currently authenticated user."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context):
         try:
             response = await context.fetch(
                 f"{BITLY_API_BASE_URL}/user",
@@ -61,7 +66,7 @@ class GetUserAction(ActionHandler):
 class ShortenUrlAction(ActionHandler):
     """Shorten a long URL to a Bitly link."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context):
         try:
             body = {
                 "long_url": inputs["long_url"]
@@ -94,7 +99,7 @@ class ShortenUrlAction(ActionHandler):
 class CreateBitlinkAction(ActionHandler):
     """Create a bitlink with advanced options."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context):
         try:
             body = {
                 "long_url": inputs["long_url"]
@@ -133,7 +138,7 @@ class CreateBitlinkAction(ActionHandler):
 class GetBitlinkAction(ActionHandler):
     """Get information about a specific bitlink."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context):
         try:
             bitlink = normalize_bitlink(inputs["bitlink"])
             encoded_bitlink = encode_bitlink_for_url(bitlink)
@@ -159,7 +164,7 @@ class GetBitlinkAction(ActionHandler):
 class UpdateBitlinkAction(ActionHandler):
     """Update an existing bitlink."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context):
         try:
             bitlink = normalize_bitlink(inputs["bitlink"])
             encoded_bitlink = encode_bitlink_for_url(bitlink)
@@ -194,7 +199,7 @@ class UpdateBitlinkAction(ActionHandler):
 class ExpandBitlinkAction(ActionHandler):
     """Get the original long URL from a bitlink."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context):
         try:
             bitlink = normalize_bitlink(inputs["bitlink"])
 
@@ -225,20 +230,15 @@ class ExpandBitlinkAction(ActionHandler):
 class GetClicksAction(ActionHandler):
     """Get click counts for a bitlink by time unit."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context):
         try:
             bitlink = normalize_bitlink(inputs["bitlink"])
             encoded_bitlink = encode_bitlink_for_url(bitlink)
 
-            params = {}
-            if inputs.get("unit"):
-                params["unit"] = inputs["unit"]
-            else:
-                params["unit"] = "day"
-            if inputs.get("units"):
-                params["units"] = inputs["units"]
-            else:
-                params["units"] = -1
+            params = {
+                "unit": inputs.get("unit", "day"),
+                "units": inputs["units"] if inputs.get("units") is not None else -1
+            }
 
             response = await context.fetch(
                 f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}/clicks",
@@ -264,20 +264,15 @@ class GetClicksAction(ActionHandler):
 class GetClicksSummaryAction(ActionHandler):
     """Get a summary of total clicks for a bitlink."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context):
         try:
             bitlink = normalize_bitlink(inputs["bitlink"])
             encoded_bitlink = encode_bitlink_for_url(bitlink)
 
-            params = {}
-            if inputs.get("unit"):
-                params["unit"] = inputs["unit"]
-            else:
-                params["unit"] = "day"
-            if inputs.get("units"):
-                params["units"] = inputs["units"]
-            else:
-                params["units"] = -1
+            params = {
+                "unit": inputs.get("unit", "day"),
+                "units": inputs["units"] if inputs.get("units") is not None else -1
+            }
 
             response = await context.fetch(
                 f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}/clicks/summary",
@@ -312,7 +307,7 @@ class GetClicksSummaryAction(ActionHandler):
 class ListBitlinksAction(ActionHandler):
     """List bitlinks for a group."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context):
         try:
             # Get group_guid from input or fetch default group
             group_guid = inputs.get("group_guid")
@@ -323,11 +318,19 @@ class ListBitlinksAction(ActionHandler):
                     method="GET"
                 )
                 group_guid = user_response.get("default_group_guid")
+                if not group_guid:
+                    return ActionResult(
+                        data={"bitlinks": [], "result": False, "error": "No default_group_guid found for user"},
+                        cost_usd=0.0
+                    )
+
+            # URL encode group_guid for safe path insertion
+            encoded_group_guid = quote(group_guid, safe="")
 
             params = {}
-            if inputs.get("size"):
+            if inputs.get("size") is not None:
                 params["size"] = inputs["size"]
-            if inputs.get("page"):
+            if inputs.get("page") is not None:
                 params["page"] = inputs["page"]
             if inputs.get("keyword"):
                 params["keyword"] = inputs["keyword"]
@@ -335,15 +338,24 @@ class ListBitlinksAction(ActionHandler):
                 params["archived"] = inputs["archived"]
 
             response = await context.fetch(
-                f"{BITLY_API_BASE_URL}/groups/{group_guid}/bitlinks",
+                f"{BITLY_API_BASE_URL}/groups/{encoded_group_guid}/bitlinks",
                 method="GET",
                 params=params if params else None
             )
 
             bitlinks = response.get("links", [])
+            pagination = response.get("pagination", {})
 
             return ActionResult(
-                data={"bitlinks": bitlinks, "result": True},
+                data={
+                    "bitlinks": bitlinks,
+                    "total": pagination.get("total"),
+                    "page": pagination.get("page"),
+                    "size": pagination.get("size"),
+                    "next": pagination.get("next"),
+                    "prev": pagination.get("prev"),
+                    "result": True
+                },
                 cost_usd=0.0
             )
 
@@ -360,7 +372,7 @@ class ListBitlinksAction(ActionHandler):
 class ListGroupsAction(ActionHandler):
     """List all groups the user belongs to."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context):
         try:
             response = await context.fetch(
                 f"{BITLY_API_BASE_URL}/groups",
@@ -385,9 +397,9 @@ class ListGroupsAction(ActionHandler):
 class GetGroupAction(ActionHandler):
     """Get information about a specific group."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context):
         try:
-            group_guid = inputs["group_guid"]
+            group_guid = quote(inputs["group_guid"], safe="")
 
             response = await context.fetch(
                 f"{BITLY_API_BASE_URL}/groups/{group_guid}",
@@ -412,7 +424,7 @@ class GetGroupAction(ActionHandler):
 class ListOrganizationsAction(ActionHandler):
     """List all organizations the user belongs to."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context):
         try:
             response = await context.fetch(
                 f"{BITLY_API_BASE_URL}/organizations",

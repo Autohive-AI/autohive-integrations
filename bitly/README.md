@@ -132,6 +132,11 @@ List bitlinks for a group.
 
 **Outputs:**
 - `bitlinks`: List of bitlinks
+- `total`: Total number of bitlinks
+- `page`: Current page number
+- `size`: Number of results per page
+- `next`: URL for next page of results
+- `prev`: URL for previous page of results
 - `result`: Success status
 
 ---
