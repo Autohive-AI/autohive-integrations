@@ -237,7 +237,8 @@ class GetCallDetailsAction(ActionHandler):
                                 "parties": True,
                                 "content": {
                                     "callOutcome": True
-                                }
+                                },
+                                "crmData": True
                             }
                         }
                     }
