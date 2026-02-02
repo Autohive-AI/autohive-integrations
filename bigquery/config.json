@@ -1,5 +1,5 @@
 {
-    "name": "bigquery",
+    "name": "Google BigQuery",
     "display_name": "Google BigQuery",
     "version": "1.0.0",
     "description": "Google BigQuery integration for serverless data warehouse operations, SQL queries, and dataset management",
