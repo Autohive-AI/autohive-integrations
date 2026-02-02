@@ -19,7 +19,8 @@ async def test_send_message():
         try:
             result = await whatsapp.execute_action("send_message", inputs, context)
             print(f"Send message result: {result}")
-            assert result["success"] or "error" in result
+            data = result.result.data
+            assert data["success"] or "error" in data
         except Exception as e:
             print(f"Error testing send_message: {e}")
 
@@ -41,7 +42,8 @@ async def test_send_template_message():
         try:
             result = await whatsapp.execute_action("send_template_message", inputs, context)
             print(f"Send template message result: {result}")
-            assert result["success"] or "error" in result
+            data = result.result.data
+            assert data["success"] or "error" in data
         except Exception as e:
             print(f"Error testing send_template_message: {e}")
 
@@ -63,7 +65,8 @@ async def test_send_media_message():
         try:
             result = await whatsapp.execute_action("send_media_message", inputs, context)
             print(f"Send media message result: {result}")
-            assert result["success"] or "error" in result
+            data = result.result.data
+            assert data["success"] or "error" in data
         except Exception as e:
             print(f"Error testing send_media_message: {e}")
 
@@ -82,9 +85,10 @@ async def test_get_contact_info():
         try:
             result = await whatsapp.execute_action("get_contact_info", inputs, context)
             print(f"Get contact info result: {result}")
-            assert "phone_number" in result
-            assert "is_whatsapp_user" in result
-            assert result["success"] or "error" in result
+            data = result.result.data
+            assert "phone_number" in data
+            assert "is_whatsapp_user" in data
+            assert data["success"] or "error" in data
         except Exception as e:
             print(f"Error testing get_contact_info: {e}")
 
@@ -106,8 +110,9 @@ async def test_phone_validation():
             try:
                 result = await whatsapp.execute_action("send_message", inputs, context)
                 print(f"Phone {phone}: {result}")
-                assert not result["success"]
-                assert "Invalid phone number format" in result["error"]
+                data = result.result.data
+                assert not data["success"]
+                assert "Invalid phone number format" in data["error"]
             except Exception as e:
                 print(f"Error testing phone validation for {phone}: {e}")
 

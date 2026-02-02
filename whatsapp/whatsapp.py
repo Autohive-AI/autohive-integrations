@@ -1,5 +1,5 @@
 from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler
+    Integration, ExecutionContext, ActionHandler, ActionResult
 )
 from typing import Dict, Any, List, Optional
 import json
@@ -23,11 +23,11 @@ class SendMessageAction(ActionHandler):
         
         # Validate phone number format
         if not self._validate_phone_number(to):
-            return {
+            return ActionResult(data={
                 "message_id": "",
                 "success": False,
                 "error": "Invalid phone number format. Use format: +1234567890"
-            }
+            })
         
         try:
             # WhatsApp Business API endpoint for sending messages
@@ -48,23 +48,23 @@ class SendMessageAction(ActionHandler):
             
             if "messages" in response and response["messages"]:
                 message_id = response["messages"][0]["id"]
-                return {
+                return ActionResult(data={
                     "message_id": message_id,
                     "success": True
-                }
+                })
             else:
-                return {
+                return ActionResult(data={
                     "message_id": "",
                     "success": False,
                     "error": response.get("error", {}).get("message", "Unknown error")
-                }
+                })
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "message_id": "",
                 "success": False,
                 "error": f"Failed to send message: {str(e)}"
-            }
+            })
     
     def _validate_phone_number(self, phone: str) -> bool:
         pattern = r'^\+[1-9]\d{1,14}$'
@@ -81,11 +81,11 @@ class SendTemplateMessageAction(ActionHandler):
         
         # Validate phone number format
         if not self._validate_phone_number(to):
-            return {
+            return ActionResult(data={
                 "message_id": "",
                 "success": False,
                 "error": "Invalid phone number format. Use format: +1234567890"
-            }
+            })
         
         try:
             # Build template message payload
@@ -118,23 +118,23 @@ class SendTemplateMessageAction(ActionHandler):
             
             if "messages" in response and response["messages"]:
                 message_id = response["messages"][0]["id"]
-                return {
+                return ActionResult(data={
                     "message_id": message_id,
                     "success": True
-                }
+                })
             else:
-                return {
+                return ActionResult(data={
                     "message_id": "",
                     "success": False,
                     "error": response.get("error", {}).get("message", "Unknown error")
-                }
+                })
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "message_id": "",
                 "success": False,
                 "error": f"Failed to send template message: {str(e)}"
-            }
+            })
     
     def _validate_phone_number(self, phone: str) -> bool:
         pattern = r'^\+[1-9]\d{1,14}$'
@@ -152,11 +152,11 @@ class SendMediaMessageAction(ActionHandler):
         
         # Validate phone number format
         if not self._validate_phone_number(to):
-            return {
+            return ActionResult(data={
                 "message_id": "",
                 "success": False,
                 "error": "Invalid phone number format. Use format: +1234567890"
-            }
+            })
         
         try:
             # Build media message payload
@@ -189,23 +189,23 @@ class SendMediaMessageAction(ActionHandler):
             
             if "messages" in response and response["messages"]:
                 message_id = response["messages"][0]["id"]
-                return {
+                return ActionResult(data={
                     "message_id": message_id,
                     "success": True
-                }
+                })
             else:
-                return {
+                return ActionResult(data={
                     "message_id": "",
                     "success": False,
                     "error": response.get("error", {}).get("message", "Unknown error")
-                }
+                })
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "message_id": "",
                 "success": False,
                 "error": f"Failed to send media message: {str(e)}"
-            }
+            })
     
     def _validate_phone_number(self, phone: str) -> bool:
         pattern = r'^\+[1-9]\d{1,14}$'
@@ -219,14 +219,14 @@ class GetContactInfoAction(ActionHandler):
         
         # Validate phone number format
         if not self._validate_phone_number(phone_number):
-            return {
+            return ActionResult(data={
                 "phone_number": phone_number,
                 "display_name": "",
                 "profile_picture_url": "",
                 "is_whatsapp_user": False,
                 "success": False,
                 "error": "Invalid phone number format. Use format: +1234567890"
-            }
+            })
         
         try:
             # Check if the contact is a WhatsApp user
@@ -245,31 +245,31 @@ class GetContactInfoAction(ActionHandler):
             
             if "contacts" in response and response["contacts"]:
                 contact = response["contacts"][0]
-                return {
+                return ActionResult(data={
                     "phone_number": phone_number,
                     "display_name": contact.get("profile", {}).get("name", ""),
                     "profile_picture_url": "",
                     "is_whatsapp_user": contact.get("status") == "valid",
                     "success": True
-                }
+                })
             else:
-                return {
+                return ActionResult(data={
                     "phone_number": phone_number,
                     "display_name": "",
                     "profile_picture_url": "",
                     "is_whatsapp_user": False,
                     "success": True
-                }
+                })
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "phone_number": phone_number,
                 "display_name": "",
                 "profile_picture_url": "",
                 "is_whatsapp_user": False,
                 "success": False,
                 "error": f"Failed to get contact info: {str(e)}"
-            }
+            })
     
     def _validate_phone_number(self, phone: str) -> bool:
         pattern = r'^\+[1-9]\d{1,14}$'
