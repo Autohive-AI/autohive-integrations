@@ -1,0 +1,738 @@
+{
+    "name": "Doc Maker",
+    "version": "1.0.0",
+    "description": "Word document automation integration using python-docx with markdown-first content creation. AI agents should use markdown syntax for most content creation - headings (#), paragraphs, lists (- or 1.), formatting (**bold**, *italic*), tables, blockquotes (>), and code blocks. Only use non-markdown actions for images, page breaks, or when you need direct table creation with structured data arrays.",
+    "entry_point": "doc_maker.py",
+    "actions": {
+        "create_document": {
+            "display_name": "Create Word Document",
+            "description": "Create a new Word document with markdown content. This is the primary action for document creation. Use standard markdown syntax: # for headings (# H1, ## H2, ### H3, etc.), plain text for paragraphs, - for bullet lists, 1. for numbered lists, **bold**, *italic*, `code`, > for blockquotes, and markdown tables (| col1 | col2 |). The markdown is automatically converted to properly formatted Word elements with appropriate styles. Returns a unique document_id for use with other actions and the complete document file for stateless operation.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "markdown_content": {
+                        "type": "string",
+                        "description": "Markdown content to convert to Word document format. Use standard markdown: # for headings, **bold**, *italic*, - for bullets, 1. for numbers, | tables |, > blockquotes, ```code blocks```"
+                    },
+                    "custom_filename": {
+                        "type": "string",
+                        "description": "Custom filename for the returned document file (optional, will auto-add .docx extension if missing)"
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "Optional template Word files to use as base",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name of the file"
+                                },
+                                "contentType": {
+                                    "type": "string",
+                                    "description": "The MIME type of the file"
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "The file content encoded as base64"
+                                }
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "Unique identifier for the created document"
+                    },
+                    "paragraph_count": {
+                        "type": "integer",
+                        "description": "Number of paragraphs in the document"
+                    },
+                    "markdown_processed": {
+                        "type": "boolean",
+                        "description": "Whether markdown content was processed"
+                    },
+                    "saved": {
+                        "type": "boolean",
+                        "description": "Whether the document was successfully saved"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path where the document was saved"
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "The saved document file for streaming",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "The file content encoded as base64"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the file"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "The content type of the file"
+                            }
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if file streaming failed"
+                    }
+                },
+                "required": ["document_id", "paragraph_count", "markdown_processed", "saved", "file_path", "file"]
+            }
+        },
+        "add_markdown_content": {
+            "display_name": "Add Markdown Content",
+            "description": "Parse and add markdown content to an existing Word document. Requires the current document file in the 'files' parameter. Use this to append additional content to documents created with create_document. All markdown syntax is supported: headings (#), formatting (**bold**, *italic*), lists (- bullets, 1. numbers), tables, blockquotes (>), code blocks (```), etc. Content is appended to the end of the document. Returns the updated document file.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "ID of the document to modify"
+                    },
+                    "markdown_content": {
+                        "type": "string",
+                        "description": "Markdown content to parse and add to the document. Use standard markdown syntax: # headings, **bold**, *italic*, - bullets, 1. numbers, | tables |, > blockquotes"
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files including the current document file",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name of the file"
+                                },
+                                "contentType": {
+                                    "type": "string",
+                                    "description": "The MIME type of the file"
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "The file content encoded as base64"
+                                }
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": ["document_id", "markdown_content"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "markdown_processed": {
+                        "type": "boolean",
+                        "description": "Whether markdown was successfully processed"
+                    },
+                    "elements_added": {
+                        "type": "integer",
+                        "description": "Number of elements added from markdown"
+                    },
+                    "saved": {
+                        "type": "boolean",
+                        "description": "Whether the document was successfully saved"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path where the document was saved"
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "The saved document file for streaming",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "The file content encoded as base64"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the file"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "The content type of the file"
+                            }
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if file streaming failed"
+                    }
+                },
+                "required": ["markdown_processed", "elements_added", "saved", "file_path", "file"]
+            }
+        },
+        "add_table": {
+            "display_name": "Add Structured Table",
+            "description": "Create a table in the document using structured data arrays. Requires the current document file in the 'files' parameter. Use this as an alternative to markdown tables when you have structured data in array format or need precise control over table dimensions. The data parameter should be a 2D array where each sub-array represents a row. First row is typically headers. Returns the updated document file.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "ID of the document to modify"
+                    },
+                    "rows": {
+                        "type": "integer",
+                        "description": "Number of table rows",
+                        "minimum": 1
+                    },
+                    "cols": {
+                        "type": "integer",
+                        "description": "Number of table columns",
+                        "minimum": 1
+                    },
+                    "data": {
+                        "type": "array",
+                        "description": "2D array of table data where each sub-array is a row",
+                        "items": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        }
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files including the current document file",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "contentType": {"type": "string"},
+                                "content": {"type": "string"}
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": ["document_id", "rows", "cols"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "table_rows": {
+                        "type": "integer",
+                        "description": "Number of rows in the created table"
+                    },
+                    "table_cols": {
+                        "type": "integer",
+                        "description": "Number of columns in the created table"
+                    },
+                    "saved": {
+                        "type": "boolean",
+                        "description": "Whether the document was successfully saved"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path where the document was saved"
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "The saved document file for streaming",
+                        "properties": {
+                            "content": {"type": "string", "description": "The file content encoded as base64"},
+                            "name": {"type": "string", "description": "The name of the file"},
+                            "contentType": {"type": "string", "description": "The content type of the file"}
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if file streaming failed"
+                    }
+                },
+                "required": ["table_rows", "table_cols", "saved", "file_path", "file"]
+            }
+        },
+        "add_image": {
+            "display_name": "Add Image",
+            "description": "Insert an image into the document from uploaded files. Requires the current document file and image file in the 'files' parameter. The first image file found will be used. Supports PNG, JPG, JPEG, GIF, BMP, and WebP formats. Images cannot be added via markdown, so use this action for any image insertion. Specify width and/or height in inches to control sizing, or omit both for original size.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "ID of the document to modify"
+                    },
+                    "width": {
+                        "type": "number",
+                        "description": "Image width in inches (optional)"
+                    },
+                    "height": {
+                        "type": "number",
+                        "description": "Image height in inches (optional)"
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files including the current document file and image file to add",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name of the file"
+                                },
+                                "contentType": {
+                                    "type": "string",
+                                    "description": "The MIME type of the file"
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "The file content encoded as base64"
+                                }
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": ["document_id", "files"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "image_added": {
+                        "type": "boolean",
+                        "description": "Whether image was successfully added"
+                    },
+                    "saved": {
+                        "type": "boolean",
+                        "description": "Whether the document was successfully saved"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path where the document was saved"
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "The saved document file for streaming",
+                        "properties": {
+                            "content": {"type": "string", "description": "The file content encoded as base64"},
+                            "name": {"type": "string", "description": "The name of the file"},
+                            "contentType": {"type": "string", "description": "The content type of the file"}
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if file streaming failed"
+                    }
+                },
+                "required": ["image_added", "saved", "file_path", "file"]
+            }
+        },
+        "add_page_break": {
+            "display_name": "Add Page Break",
+            "description": "Insert a page break into the document to force content onto the next page. Requires the current document file in the 'files' parameter. Page breaks cannot be represented in standard markdown, so use this action when you need to control page layout. Returns the updated document file.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "ID of the document to modify"
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files including the current document file",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "contentType": {"type": "string"},
+                                "content": {"type": "string"}
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": ["document_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "page_break_added": {
+                        "type": "boolean",
+                        "description": "Whether page break was successfully added"
+                    },
+                    "saved": {
+                        "type": "boolean",
+                        "description": "Whether the document was successfully saved"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path where the document was saved"
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "The saved document file for streaming",
+                        "properties": {
+                            "content": {"type": "string", "description": "The file content encoded as base64"},
+                            "name": {"type": "string", "description": "The name of the file"},
+                            "contentType": {"type": "string", "description": "The content type of the file"}
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if file streaming failed"
+                    }
+                },
+                "required": ["page_break_added", "saved", "file_path", "file"]
+            }
+        },
+        "get_document_elements": {
+            "display_name": "Analyze Document Structure",
+            "description": "Scan a document template and return all modifiable elements with their content and position indices. Use this to analyze templates before filling them. Automatically detects fillable elements like placeholders ({{field}}, [field], 'data here', etc.) and empty cells. Returns paragraph and table structure for precise template filling.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "ID of the document to analyze"
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files including the document to analyze",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "contentType": {"type": "string"},
+                                "content": {"type": "string"}
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": ["document_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "template_summary": {
+                        "type": "object",
+                        "description": "High-level template overview (LLM-optimized)",
+                        "properties": {
+                            "structure": {"type": "string", "description": "Document structure (e.g., '15p,1t')"},
+                            "fillable_total": {"type": "integer", "description": "Total fillable elements"},
+                            "content_elements_hidden": {"type": "integer", "description": "Non-fillable elements hidden for LLM efficiency"}
+                        }
+                    },
+                    "fillable_paragraphs": {
+                        "type": "array",
+                        "description": "Only paragraphs that need filling (LLM-optimized - content paragraphs hidden)",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Short element ID (e.g., 'p5')"},
+                                "content": {"type": "string", "description": "Placeholder text content"},
+                                "pattern": {"type": "string", "description": "Detected pattern type for strategy guidance"},
+                                "style": {"type": "string", "description": "Word style name"}
+                            }
+                        }
+                    },
+                    "fillable_cells": {
+                        "type": "array",
+                        "description": "Only table cells that need filling (LLM-optimized)",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Short cell ID (e.g., 't0r1c2')"},
+                                "content": {"type": "string", "description": "Placeholder text content"},
+                                "pattern": {"type": "string", "description": "Detected pattern type"},
+                                "location": {"type": "string", "description": "Human-readable location"}
+                            }
+                        }
+                    },
+                    "pattern_distribution": {
+                        "type": "object",
+                        "description": "Count of each placeholder pattern type for strategy guidance"
+                    },
+                    "recommended_strategy": {"type": "string", "description": "Suggested filling approach based on detected patterns"},
+                    "template_ready": {"type": "boolean", "description": "Whether template is ready for filling"}
+                },
+                "required": ["template_summary", "fillable_paragraphs", "fillable_cells", "pattern_distribution", "recommended_strategy", "template_ready"]
+            }
+        },
+        "update_by_position": {
+            "display_name": "Update Elements by Position",
+            "description": "Modify specific document elements by their position indices. Use get_document_elements first to find element positions. Supports updating paragraphs by index and table cells by table index + coordinates. Preserves original formatting while updating content.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "ID of the document to modify"
+                    },
+                    "updates": {
+                        "type": "array",
+                        "description": "List of position-based updates to apply",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": {"type": "string", "enum": ["paragraph", "table_cell"]},
+                                "index": {"type": "integer", "description": "Paragraph index (for paragraph type)"},
+                                "table_index": {"type": "integer", "description": "Table index (for table_cell type)"},
+                                "row": {"type": "integer", "description": "Row index (for table_cell type)"},
+                                "col": {"type": "integer", "description": "Column index (for table_cell type)"},
+                                "content": {"type": "string", "description": "New content"}
+                            }
+                        }
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files including the document to modify",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "contentType": {"type": "string"},
+                                "content": {"type": "string"}
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": ["document_id", "updates"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether any updates were successful"},
+                    "applied": {"type": "integer", "description": "Number of successful updates"},
+                    "failed": {"type": "integer", "description": "Number of failed updates"},
+                    "summary": {"type": "string", "description": "Brief operation summary"},
+                    "failures": {"type": "array", "items": {"type": "string"}, "description": "First few failure messages (LLM-optimized)"},
+                    "saved": {"type": "boolean"},
+                    "file_path": {"type": "string"},
+                    "file": {"type": "object"}
+                },
+                "required": ["success", "applied", "failed", "summary", "saved", "file_path", "file"]
+            }
+        },
+        "find_and_replace": {
+            "display_name": "Find and Replace Text",
+            "description": "Search for exact text phrases and replace them throughout the document with advanced safety features and spacing control. CRITICAL SAFETY RULE: Always provide sufficient context in your find phrases to avoid unintended replacements. SAFE EXAMPLES: 'Date: ___' → 'Date: January 15, 2025', 'Project Name: placeholder text' → 'Project Name: Q4 Integration'. UNSAFE EXAMPLES: 'date' → 'January 15' (will corrupt 'the update date'). SPACING CONTROL: Use remove_paragraph=true to eliminate gaps when deleting instruction paragraphs like '(Note: Delete this instruction)' → ' '. Use remove_paragraph=false (default) to preserve intentional document spacing. System prevents multiple unintended matches by showing all match locations when replace_all=false.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "ID of the document to modify"
+                    },
+                    "replacements": {
+                        "type": "array",
+                        "description": "List of find/replace operations",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "find": {"type": "string", "description": "Exact text phrase to find (include context for safety: 'Date: ___' not just 'date')"},
+                                "replace": {"type": "string", "description": "Text to replace the entire found phrase with (use single space ' ' to delete text while avoiding empty string)", "minLength": 1},
+                                "replace_all": {
+                                    "type": "boolean",
+                                    "description": "Replace all matches (default: false). If false and multiple matches found, operation will be skipped with warning showing all match locations"
+                                },
+                                "remove_paragraph": {
+                                    "type": "boolean",
+                                    "description": "Remove entire paragraph if it becomes empty after replacement (default: false). Use this to eliminate gaps when deleting instruction text or placeholder paragraphs. Preserves intentional spacing when false."
+                                }
+                            },
+                            "required": ["find", "replace"]
+                        }
+                    },
+                    "case_sensitive": {
+                        "type": "boolean",
+                        "description": "Whether matching should be case-sensitive (default: false)"
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files including the document to modify",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "contentType": {"type": "string"},
+                                "content": {"type": "string"}
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": ["document_id", "replacements"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether operation completed successfully"},
+                    "replaced": {"type": "integer", "description": "Number of successful replacements"},
+                    "processed": {"type": "integer", "description": "Number of replacement operations processed"},
+                    "blocked": {
+                        "type": "array",
+                        "description": "LLM-optimized info about blocked replacements",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "phrase": {"type": "string", "description": "The blocked phrase"},
+                                "matches": {"type": "integer", "description": "Number of matches found"},
+                                "locations": {"type": "array", "items": {"type": "string"}, "description": "Compressed location previews"},
+                                "fix": {"type": "string", "description": "Suggested solution"}
+                            }
+                        }
+                    },
+                    "alerts": {"type": "array", "items": {"type": "string"}, "description": "Important warnings (limited for LLM efficiency)"},
+                    "safety_active": {"type": "boolean", "description": "Whether safety checks were performed"},
+                    "saved": {"type": "boolean"},
+                    "file_path": {"type": "string"},
+                    "file": {"type": "object"}
+                },
+                "required": ["success", "replaced", "processed", "blocked", "safety_active", "saved", "file_path", "file"]
+            }
+        },
+        "fill_template_fields": {
+            "display_name": "Fill Template Fields",
+            "description": "Comprehensive template filling with multiple safe approaches. SAFETY FIRST: Use context-specific phrases to avoid corrupting content text. Supports: 1) Exact placeholder replacement ({{FIELD}} → value), 2) Position-based updates (safer for complex templates), 3) Context-aware search/replace (include surrounding words). EXAMPLES: Use 'Project Name: placeholder' not 'name', 'Total Amount: $amount' not 'amount'. For critical documents, use get_document_elements first to analyze structure, then use position-based updates for maximum safety.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "ID of the document to fill"
+                    },
+                    "template_data": {
+                        "type": "object",
+                        "description": "Template data in various formats",
+                        "properties": {
+                            "placeholder_data": {
+                                "type": "object",
+                                "description": "Key-value pairs for exact placeholder replacement ({{field}} → value)"
+                            },
+                            "position_data": {
+                                "type": "object",
+                                "description": "Position-based updates (paragraph_0 → content, table_0_row_1_col_2 → content)"
+                            },
+                            "search_replace": {
+                                "type": "array",
+                                "description": "Context-aware find and replace operations. CRITICAL: Include surrounding context for safety",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "find": {"type": "string", "description": "Exact phrase with context (e.g., 'Project Name: data here', 'Total Amount: $amount', 'Date: date placeholder')"},
+                                        "replace": {"type": "string", "description": "Complete replacement text for the entire found phrase"}
+                                    },
+                                    "required": ["find", "replace"]
+                                }
+                            }
+                        }
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files including the template document",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "contentType": {"type": "string"},
+                                "content": {"type": "string"}
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": ["document_id", "template_data"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "SAFETY_STATUS": {"type": "string", "enum": ["OK", "CRITICAL_ISSUES_DETECTED"], "description": "Prominent safety status indicator"},
+                    "success": {"type": "boolean", "description": "Whether template filling completed without safety blocks"},
+                    "completed_operations": {"type": "integer", "description": "Number of operations that completed successfully"},
+                    "blocked_operations": {"type": "integer", "description": "Number of operations blocked for safety"},
+                    "safety_warnings": {
+                        "type": "array",
+                        "description": "Detailed safety analysis and guidance",
+                        "items": {
+                            "type": "object",
+                            "description": "Safety warning with context-specific guidance"
+                        }
+                    },
+                    "filled_summary": {"type": "object", "description": "Summary of successful operations by type"},
+                    "template_status": {"type": "string", "enum": ["complete", "partially_complete"], "description": "Overall template completion status"},
+                    "action_required": {"type": "string", "description": "What the agent should do next"},
+                    "saved": {"type": "boolean"},
+                    "file_path": {"type": "string"},
+                    "file": {"type": "object"}
+                },
+                "required": ["SAFETY_STATUS", "success", "completed_operations", "blocked_operations", "safety_warnings", "template_status", "action_required", "saved", "file_path", "file"]
+            }
+        },
+        "save_document": {
+            "display_name": "Save Document",
+            "description": "Save a document and return it as a base64-encoded file for download. The document is saved to memory and returned as streaming content - no physical file is created on the server. This is typically called automatically by other actions, but can be used standalone if needed.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "ID of the document to save"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path where to save the document"
+                    }
+                },
+                "required": ["document_id", "file_path"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "saved": {
+                        "type": "boolean",
+                        "description": "Whether the document was successfully saved"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path where the document was saved"
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "The saved document file for streaming",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "The file content encoded as base64"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the file"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "The content type of the file"
+                            }
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if save failed"
+                    }
+                },
+                "required": ["saved", "file_path", "file"]
+            }
+        }
+    }
+}

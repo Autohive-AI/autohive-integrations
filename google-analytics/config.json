@@ -1,0 +1,366 @@
+{
+    "name": "Google Analytics",
+    "display_name": "Google Analytics",
+    "version": "0.1.0",
+    "description": "Access and analyze Google Analytics 4 data with reports, metrics, and real-time insights.",
+    "entry_point": "google_analytics.py",
+    "auth": {
+        "type": "platform",
+        "provider": "google_analytics",
+        "scopes": [
+            "https://www.googleapis.com/auth/analytics.readonly"
+        ]
+    },
+    "actions": {
+        "run_report": {
+            "display_name": "Run Analytics Report",
+            "description": "Generate a customized report of Google Analytics event data with dimensions and metrics",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "property_id": {
+                        "type": "string",
+                        "description": "The Google Analytics 4 property ID (e.g., '123456789')"
+                    },
+                    "date_ranges": {
+                        "type": "array",
+                        "description": "Date ranges for the report. Use 'today', 'yesterday', '7daysAgo', '30daysAgo', or specific dates in YYYY-MM-DD format",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "start_date": {
+                                    "type": "string",
+                                    "description": "Start date (e.g., '2025-01-01', 'today', '7daysAgo')"
+                                },
+                                "end_date": {
+                                    "type": "string",
+                                    "description": "End date (e.g., '2025-01-31', 'today', 'yesterday')"
+                                }
+                            },
+                            "required": ["start_date", "end_date"]
+                        }
+                    },
+                    "dimensions": {
+                        "type": "array",
+                        "description": "Dimensions to include in the report (e.g., 'date', 'country', 'deviceCategory', 'pagePath')",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Dimension name (e.g., 'date', 'country', 'city', 'browser')"
+                                }
+                            },
+                            "required": ["name"]
+                        }
+                    },
+                    "metrics": {
+                        "type": "array",
+                        "description": "Metrics to include in the report (e.g., 'activeUsers', 'sessions', 'screenPageViews')",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Metric name (e.g., 'activeUsers', 'sessions', 'totalUsers', 'bounceRate')"
+                                }
+                            },
+                            "required": ["name"]
+                        }
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of rows to return (default: 10000)",
+                        "default": 10000
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Number of rows to skip (for pagination)",
+                        "default": 0
+                    }
+                },
+                "required": [
+                    "property_id",
+                    "date_ranges",
+                    "metrics"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "rows": {
+                        "type": "array",
+                        "description": "Report data rows",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "row_count": {
+                        "type": "integer",
+                        "description": "Number of rows returned"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "rows",
+                    "row_count",
+                    "result"
+                ]
+            }
+        },
+
+        "run_realtime_report": {
+            "display_name": "Run Real-time Report",
+            "description": "Get real-time Google Analytics data for the last 30 minutes",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "property_id": {
+                        "type": "string",
+                        "description": "The Google Analytics 4 property ID (e.g., '123456789')"
+                    },
+                    "dimensions": {
+                        "type": "array",
+                        "description": "Dimensions for real-time data (e.g., 'country', 'deviceCategory', 'unifiedScreenName')",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Dimension name"
+                                }
+                            },
+                            "required": ["name"]
+                        }
+                    },
+                    "metrics": {
+                        "type": "array",
+                        "description": "Metrics for real-time data (e.g., 'activeUsers', 'screenPageViews')",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Metric name"
+                                }
+                            },
+                            "required": ["name"]
+                        }
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of rows to return",
+                        "default": 10000
+                    }
+                },
+                "required": [
+                    "property_id",
+                    "metrics"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "rows": {
+                        "type": "array",
+                        "description": "Real-time data rows",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "row_count": {
+                        "type": "integer",
+                        "description": "Number of rows returned"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "rows",
+                    "row_count",
+                    "result"
+                ]
+            }
+        },
+
+        "get_metadata": {
+            "display_name": "Get Analytics Metadata",
+            "description": "Retrieve available dimensions and metrics for a Google Analytics property",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "property_id": {
+                        "type": "string",
+                        "description": "The Google Analytics 4 property ID (e.g., '123456789')"
+                    }
+                },
+                "required": [
+                    "property_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "dimensions": {
+                        "type": "array",
+                        "description": "Available dimensions",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "api_name": {
+                                    "type": "string"
+                                },
+                                "ui_name": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "metrics": {
+                        "type": "array",
+                        "description": "Available metrics",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "api_name": {
+                                    "type": "string"
+                                },
+                                "ui_name": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "dimensions",
+                    "metrics",
+                    "result"
+                ]
+            }
+        },
+
+        "batch_run_reports": {
+            "display_name": "Batch Run Reports",
+            "description": "Run multiple reports in a single API call for efficiency",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "property_id": {
+                        "type": "string",
+                        "description": "The Google Analytics 4 property ID (e.g., '123456789')"
+                    },
+                    "requests": {
+                        "type": "array",
+                        "description": "Array of report requests to execute",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "date_ranges": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "start_date": {
+                                                "type": "string"
+                                            },
+                                            "end_date": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                },
+                                "dimensions": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                },
+                                "metrics": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "required": ["date_ranges", "metrics"]
+                        }
+                    }
+                },
+                "required": [
+                    "property_id",
+                    "requests"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "reports": {
+                        "type": "array",
+                        "description": "Array of report results",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "rows": {
+                                    "type": "array"
+                                },
+                                "row_count": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "reports",
+                    "result"
+                ]
+            }
+        }
+    }
+}

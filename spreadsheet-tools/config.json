@@ -1,0 +1,62 @@
+{
+    "name": "Spreadsheet Tools",
+    "version": "1.0.0",
+    "description": "Tools for working with spreadsheet files, including conversion to JSON format",
+    "entry_point": "spreadsheet_tools.py",
+    "actions": {
+        "convert_to_json": {
+            "display_name": "Convert Spreadsheet to JSON",
+            "description": "Converts a spreadsheet file (Excel .xlsx/.xls, CSV) to JSON format. Returns an array where each object represents a row, with properties named after the sanitized headers.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "description": "The spreadsheet file to convert",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "The file content encoded as base64"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the file"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "The content type of the file"
+                            }
+                        },
+                        "required": ["content", "name", "contentType"]
+                    }
+                },
+                "required": ["file"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "description": "The JSON file containing the converted spreadsheet data",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "The JSON file content encoded as base64"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the JSON file"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "The content type of the file (application/json)"
+                            }
+                        },
+                        "required": ["content", "name", "contentType"]
+                    }
+                },
+                "required": ["file"]
+            }
+        }
+    }
+}

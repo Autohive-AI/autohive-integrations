@@ -1,0 +1,2472 @@
+{
+    "name": "Float",
+    "version": "1.0.0",
+    "description": "Comprehensive Float API integration for resource management, project scheduling, time tracking, and team management. Supports people, projects, tasks/allocations, time off, logged time, clients, departments, and roles.",
+    "entry_point": "float.py",
+    "supports_billing": false,
+    "supports_connected_account": true,
+    "auth": {
+        "type": "custom",
+        "title": "Float API Configuration",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Float API Key",
+                    "help_text": "Your Float API key can be accessed at https://{your-company-name}.float.com/admin/api (Account Settings > Integrations)"
+                },
+                "application_name": {
+                    "type": "string",
+                    "label": "Application Name",
+                    "help_text": "The name of your application or integration (e.g., 'Acme Corp Float Integration')",
+                    "default": "Autohive Float Integration"
+                },
+                "contact_email": {
+                    "type": "string",
+                    "format": "email",
+                    "label": "Contact Email",
+                    "help_text": "Your contact email address for Float API support (required by Float API)"
+                }
+            }
+        }
+    },
+    "actions": {
+        "list_people": {
+            "display_name": "List People",
+            "description": "List all people/team members in Float with optional filtering and pagination",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "active": {
+                        "type": "boolean",
+                        "description": "Filter by active status (true for active only, false for inactive only)"
+                    },
+                    "department_id": {
+                        "type": "integer",
+                        "description": "Filter by department ID"
+                    },
+                    "modified_since": {
+                        "type": "string",
+                        "description": "Only return people modified since this date (format: YYYY-MM-DD)"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Number of results per page (default: 50, max: 200)",
+                        "minimum": 1,
+                        "maximum": 200
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Comma-separated list of fields to return"
+                    },
+                    "sort": {
+                        "type": "string",
+                        "description": "Field to sort by (prefix with '-' for descending, e.g., '-name')"
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "people_id": {
+                            "type": "integer",
+                            "description": "Person ID"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Person name"
+                        },
+                        "email": {
+                            "type": ["string", "null"],
+                            "description": "Email address"
+                        },
+                        "active": {
+                            "type": "integer",
+                            "description": "Active status (1 = active, 0 = inactive)"
+                        }
+                    }
+                },
+                "description": "Array of people objects"
+            }
+        },
+        "get_person": {
+            "display_name": "Get Person",
+            "description": "Get details of a specific person by ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "people_id": {
+                        "type": "integer",
+                        "description": "The ID of the person to retrieve"
+                    },
+                    "expand": {
+                        "type": "string",
+                        "description": "Comma-separated list of related resources to expand (e.g., 'contracts')"
+                    }
+                },
+                "required": ["people_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Person ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Person name"
+                    },
+                    "email": {
+                        "type": ["string", "null"],
+                        "description": "Email address"
+                    },
+                    "job_title": {
+                        "type": ["string", "null"],
+                        "description": "Job title"
+                    },
+                    "department_id": {
+                        "type": ["integer", "null"],
+                        "description": "Department ID"
+                    },
+                    "role_id": {
+                        "type": ["integer", "null"],
+                        "description": "Role ID"
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "description": "Active status"
+                    }
+                }
+            }
+        },
+        "create_person": {
+            "display_name": "Create Person",
+            "description": "Create a new person/team member in Float",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Full name of the person (required)"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "description": "Email address"
+                    },
+                    "job_title": {
+                        "type": ["string", "null"],
+                        "description": "Job title"
+                    },
+                    "department_id": {
+                        "type": ["integer", "null"],
+                        "description": "Department ID"
+                    },
+                    "role_id": {
+                        "type": ["integer", "null"],
+                        "description": "Role ID"
+                    },
+                    "people_type_id": {
+                        "type": "integer",
+                        "description": "People type ID"
+                    },
+                    "active": {
+                        "type": "integer",
+                        "description": "Whether the person is active (1 = active, 0 = inactive, default: 1)",
+                        "enum": [0, 1]
+                    },
+                    "employee_type": {
+                        "type": "integer",
+                        "description": "Employee type (1 = Full-time, 2 = Part-time, 3 = Contractor)"
+                    },
+                    "work_days_hours": {
+                        "type": "object",
+                        "description": "Work days and hours configuration"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date (format: YYYY-MM-DD)"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date (format: YYYY-MM-DD)"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notes about the person"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Tags/labels for the person"
+                    },
+                    "cost_rate": {
+                        "type": "number",
+                        "description": "Cost rate per hour"
+                    },
+                    "default_hourly_rate": {
+                        "type": "number",
+                        "description": "Default hourly rate"
+                    }
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Created person ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Person name"
+                    },
+                    "email": {
+                        "type": ["string", "null"],
+                        "description": "Email address"
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "description": "Active status"
+                    }
+                }
+            }
+        },
+        "update_person": {
+            "display_name": "Update Person",
+            "description": "Update an existing person's information",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "people_id": {
+                        "type": "integer",
+                        "description": "The ID of the person to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Full name"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "description": "Email address"
+                    },
+                    "job_title": {
+                        "type": ["string", "null"],
+                        "description": "Job title"
+                    },
+                    "department_id": {
+                        "type": ["integer", "null"],
+                        "description": "Department ID"
+                    },
+                    "role_id": {
+                        "type": ["integer", "null"],
+                        "description": "Role ID"
+                    },
+                    "active": {
+                        "type": "integer",
+                        "description": "Whether the person is active (1 = active, 0 = inactive)",
+                        "enum": [0, 1]
+                    },
+                    "cost_rate": {
+                        "type": "number",
+                        "description": "Cost rate per hour"
+                    },
+                    "default_hourly_rate": {
+                        "type": "number",
+                        "description": "Default hourly rate"
+                    },
+                    "effective_date": {
+                        "type": "string",
+                        "description": "Effective date for rate changes (format: YYYY-MM-DD)"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Tags/labels"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notes"
+                    },
+                    "expand": {
+                        "type": "string",
+                        "description": "Comma-separated list of related resources to expand in response"
+                    }
+                },
+                "required": ["people_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Person ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Person name"
+                    },
+                    "email": {
+                        "type": ["string", "null"],
+                        "description": "Email address"
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "description": "Active status"
+                    }
+                }
+            }
+        },
+        "delete_person": {
+            "display_name": "Delete Person",
+            "description": "Delete a person from Float",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "people_id": {
+                        "type": "integer",
+                        "description": "The ID of the person to delete"
+                    }
+                },
+                "required": ["people_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether the deletion was successful"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Success message"
+                    }
+                }
+            }
+        },
+        "list_projects": {
+            "display_name": "List Projects",
+            "description": "List all projects with optional filtering and pagination",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "active": {
+                        "type": "boolean",
+                        "description": "Filter by active status"
+                    },
+                    "client_id": {
+                        "type": "integer",
+                        "description": "Filter by client ID"
+                    },
+                    "project_manager": {
+                        "type": "integer",
+                        "description": "Filter by project manager ID"
+                    },
+                    "modified_since": {
+                        "type": "string",
+                        "description": "Only return projects modified since this date (format: YYYY-MM-DD)"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Filter by start date (format: YYYY-MM-DD)"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "Filter by end date (format: YYYY-MM-DD)"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Results per page (max: 200)",
+                        "minimum": 1,
+                        "maximum": 200
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Fields to return"
+                    },
+                    "sort": {
+                        "type": "string",
+                        "description": "Sort field"
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "project_id": {
+                            "type": "integer",
+                            "description": "Project ID"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Project name"
+                        },
+                        "client_id": {
+                            "type": ["integer", "null"],
+                            "description": "Client ID"
+                        },
+                        "active": {
+                            "type": "integer",
+                            "description": "Active status"
+                        }
+                    }
+                },
+                "description": "Array of project objects"
+            }
+        },
+        "get_project": {
+            "display_name": "Get Project",
+            "description": "Get details of a specific project by ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "The ID of the project to retrieve"
+                    }
+                },
+                "required": ["project_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Project name"
+                    },
+                    "client_id": {
+                        "type": "integer",
+                        "description": "Client ID"
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "description": "Active status"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Project start date"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "Project end date"
+                    }
+                }
+            }
+        },
+        "create_project": {
+            "display_name": "Create Project",
+            "description": "Create a new project in Float",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Project name (required)"
+                    },
+                    "client_id": {
+                        "type": "integer",
+                        "description": "Client ID"
+                    },
+                    "color": {
+                        "type": "string",
+                        "description": "Project color (hex code, e.g., 'FF2D00')"
+                    },
+                    "project_code": {
+                        "type": "string",
+                        "description": "Unique project code for external systems (max 32 characters)"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Project tags"
+                    },
+                    "project_team": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Array of people IDs for project team"
+                    },
+                    "project_manager": {
+                        "type": "integer",
+                        "description": "Project manager ID"
+                    },
+                    "all_pms_schedule": {
+                        "type": "boolean",
+                        "description": "Allow all PMs to schedule"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Project status"
+                    },
+                    "budget_type": {
+                        "type": "integer",
+                        "description": "Budget type (0 = none, 1 = total, 2 = per phase)"
+                    },
+                    "budget_total": {
+                        "type": "number",
+                        "description": "Total budget"
+                    },
+                    "non_billable": {
+                        "type": "boolean",
+                        "description": "Whether project is non-billable"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Project start date (format: YYYY-MM-DD)"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "Project end date (format: YYYY-MM-DD)"
+                    },
+                    "active": {
+                        "type": "integer",
+                        "description": "Whether project is active (1 = active, 0 = inactive)",
+                        "enum": [0, 1]
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Project notes"
+                    }
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Created project ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Project name"
+                    },
+                    "client_id": {
+                        "type": "integer",
+                        "description": "Client ID"
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "description": "Active status"
+                    }
+                }
+            }
+        },
+        "update_project": {
+            "display_name": "Update Project",
+            "description": "Update an existing project's information",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "The ID of the project to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Project name"
+                    },
+                    "client_id": {
+                        "type": "integer",
+                        "description": "Client ID"
+                    },
+                    "color": {
+                        "type": "string",
+                        "description": "Project color (hex code)"
+                    },
+                    "active": {
+                        "type": "integer",
+                        "description": "Active status (1 = active, 0 = inactive)",
+                        "enum": [0, 1]
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Project tags"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Project notes"
+                    }
+                },
+                "required": ["project_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Project name"
+                    },
+                    "client_id": {
+                        "type": "integer",
+                        "description": "Client ID"
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "description": "Active status"
+                    }
+                }
+            }
+        },
+        "delete_project": {
+            "display_name": "Delete Project",
+            "description": "Delete a project from Float",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "The ID of the project to delete"
+                    }
+                },
+                "required": ["project_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "list_tasks": {
+            "display_name": "List Tasks/Allocations",
+            "description": "List all tasks/allocations with optional filtering and pagination",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Filter by person ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Filter by project ID"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Filter by start date (format: YYYY-MM-DD)"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "Filter by end date (format: YYYY-MM-DD)"
+                    },
+                    "modified_since": {
+                        "type": "string",
+                        "description": "Only return tasks modified since this date"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "task_id": {
+                            "type": "integer",
+                            "description": "Task ID"
+                        },
+                        "people_id": {
+                            "type": "integer",
+                            "description": "Person ID"
+                        },
+                        "project_id": {
+                            "type": "integer",
+                            "description": "Project ID"
+                        }
+                    }
+                },
+                "description": "Array of task/allocation objects"
+            }
+        },
+        "get_task": {
+            "display_name": "Get Task/Allocation",
+            "description": "Get details of a specific task/allocation by ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "description": "The ID of the task to retrieve"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "description": "Task ID"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Assigned person ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours per day"
+                    }
+                }
+            }
+        },
+        "create_task": {
+            "display_name": "Create Task/Allocation",
+            "description": "Create a new task/allocation in Float",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Person ID (required)"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID (required)"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date (format: YYYY-MM-DD, required)"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date (format: YYYY-MM-DD, required)"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours per day (required)"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Task name"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Task notes"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Task status"
+                    },
+                    "billable": {
+                        "type": "boolean",
+                        "description": "Whether task is billable"
+                    },
+                    "repeat_state": {
+                        "type": "integer",
+                        "description": "Repeat state (0=none, 1=weekly, 2=monthly, 3=bi-weekly)"
+                    },
+                    "repeat_end_date": {
+                        "type": "string",
+                        "description": "Repeat end date"
+                    }
+                },
+                "required": ["people_id", "project_id", "start_date", "end_date", "hours"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "description": "Created task ID"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Assigned person ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours per day"
+                    }
+                }
+            }
+        },
+        "update_task": {
+            "display_name": "Update Task/Allocation",
+            "description": "Update an existing task/allocation",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "description": "The ID of the task to update"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Person ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours per day"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Task notes"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Task status"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "description": "Task ID"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Assigned person ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours per day"
+                    }
+                }
+            }
+        },
+        "delete_task": {
+            "display_name": "Delete Task/Allocation",
+            "description": "Delete a task/allocation from Float",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "description": "The ID of the task to delete"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "list_time_off": {
+            "display_name": "List Time Off",
+            "description": "List all time off entries with optional filtering",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Filter by person ID"
+                    },
+                    "timeoff_type_id": {
+                        "type": "integer",
+                        "description": "Filter by time off type ID"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Filter by start date"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "Filter by end date"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "timeoff_id": {
+                            "type": "integer",
+                            "description": "Time off ID"
+                        },
+                        "people_id": {
+                            "type": "integer",
+                            "description": "Person ID"
+                        },
+                        "timeoff_type_id": {
+                            "type": "integer",
+                            "description": "Time off type ID"
+                        }
+                    }
+                },
+                "description": "Array of time off objects"
+            }
+        },
+        "get_time_off": {
+            "display_name": "Get Time Off",
+            "description": "Get details of a specific time off entry",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "timeoff_id": {
+                        "type": "integer",
+                        "description": "The ID of the time off entry"
+                    }
+                },
+                "required": ["timeoff_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "timeoff_id": {
+                        "type": "integer",
+                        "description": "Time off ID"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Person ID"
+                    },
+                    "timeoff_type_id": {
+                        "type": "integer",
+                        "description": "Time off type ID"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours per day"
+                    }
+                }
+            }
+        },
+        "create_time_off": {
+            "display_name": "Create Time Off",
+            "description": "Create a new time off entry",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Person ID (required)"
+                    },
+                    "timeoff_type_id": {
+                        "type": "integer",
+                        "description": "Time off type ID (required)"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date (format: YYYY-MM-DD, required)"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date (format: YYYY-MM-DD, required)"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours per day (required)"
+                    },
+                    "full_day": {
+                        "type": "boolean",
+                        "description": "Whether this is a full day time off"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notes about the time off"
+                    }
+                },
+                "required": ["people_id", "timeoff_type_id", "start_date", "end_date", "hours"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "timeoff_id": {
+                        "type": "integer",
+                        "description": "Created time off ID"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Person ID"
+                    },
+                    "timeoff_type_id": {
+                        "type": "integer",
+                        "description": "Time off type ID"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours per day"
+                    }
+                }
+            }
+        },
+        "update_time_off": {
+            "display_name": "Update Time Off",
+            "description": "Update an existing time off entry",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "timeoff_id": {
+                        "type": "integer",
+                        "description": "The ID of the time off entry to update"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours per day"
+                    },
+                    "full_day": {
+                        "type": "boolean",
+                        "description": "Full day flag"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notes"
+                    }
+                },
+                "required": ["timeoff_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "timeoff_id": {
+                        "type": "integer",
+                        "description": "Time off ID"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Person ID"
+                    },
+                    "timeoff_type_id": {
+                        "type": "integer",
+                        "description": "Time off type ID"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours per day"
+                    }
+                }
+            }
+        },
+        "delete_time_off": {
+            "display_name": "Delete Time Off",
+            "description": "Delete a time off entry",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "timeoff_id": {
+                        "type": "integer",
+                        "description": "The ID of the time off entry to delete"
+                    }
+                },
+                "required": ["timeoff_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "list_logged_time": {
+            "display_name": "List Logged Time",
+            "description": "List all logged time entries with optional filtering",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Filter by person ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Filter by project ID"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Filter by start date"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "Filter by end date"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "logged_time_id": {
+                            "type": "string",
+                            "description": "Logged time ID"
+                        },
+                        "people_id": {
+                            "type": "integer",
+                            "description": "Person ID"
+                        },
+                        "project_id": {
+                            "type": "integer",
+                            "description": "Project ID"
+                        }
+                    }
+                },
+                "description": "Array of logged time objects"
+            }
+        },
+        "get_logged_time": {
+            "display_name": "Get Logged Time",
+            "description": "Get details of a specific logged time entry",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "logged_time_id": {
+                        "type": "string",
+                        "description": "The ID of the logged time entry (hexadecimal)"
+                    }
+                },
+                "required": ["logged_time_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "logged_time_id": {
+                        "type": "string",
+                        "description": "Logged time ID"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Person ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Date"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours logged"
+                    },
+                    "billable": {
+                        "type": "boolean",
+                        "description": "Billable flag"
+                    }
+                }
+            }
+        },
+        "create_logged_time": {
+            "display_name": "Create Logged Time",
+            "description": "Create a new logged time entry",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Person ID (required)"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID (required)"
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Date (format: YYYY-MM-DD, required)"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours logged (required)"
+                    },
+                    "task_id": {
+                        "type": "integer",
+                        "description": "Task ID"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notes about the logged time"
+                    },
+                    "billable": {
+                        "type": "boolean",
+                        "description": "Whether the time is billable"
+                    }
+                },
+                "required": ["people_id", "project_id", "date", "hours"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "logged_time_id": {
+                        "type": "string",
+                        "description": "Created logged time ID"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Person ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Date"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours logged"
+                    }
+                }
+            }
+        },
+        "update_logged_time": {
+            "display_name": "Update Logged Time",
+            "description": "Update an existing logged time entry",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "logged_time_id": {
+                        "type": "string",
+                        "description": "The ID of the logged time entry to update"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours logged"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notes"
+                    },
+                    "billable": {
+                        "type": "boolean",
+                        "description": "Billable flag"
+                    }
+                },
+                "required": ["logged_time_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "logged_time_id": {
+                        "type": "string",
+                        "description": "Logged time ID"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Person ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Date"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Hours logged"
+                    }
+                }
+            }
+        },
+        "delete_logged_time": {
+            "display_name": "Delete Logged Time",
+            "description": "Delete a logged time entry",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "logged_time_id": {
+                        "type": "string",
+                        "description": "The ID of the logged time entry to delete"
+                    }
+                },
+                "required": ["logged_time_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "list_clients": {
+            "display_name": "List Clients",
+            "description": "List all clients with optional filtering",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "active": {
+                        "type": "boolean",
+                        "description": "Filter by active status"
+                    },
+                    "modified_since": {
+                        "type": "string",
+                        "description": "Only return clients modified since this date"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "client_id": {
+                            "type": ["integer", "null"],
+                            "description": "Client ID"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Client name"
+                        },
+                        "active": {
+                            "type": "integer",
+                            "description": "Active status"
+                        }
+                    }
+                },
+                "description": "Array of client objects"
+            }
+        },
+        "get_client": {
+            "display_name": "Get Client",
+            "description": "Get details of a specific client",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "client_id": {
+                        "type": "integer",
+                        "description": "The ID of the client"
+                    }
+                },
+                "required": ["client_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "client_id": {
+                        "type": "integer",
+                        "description": "Client ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Client name"
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "description": "Active status"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notes"
+                    }
+                }
+            }
+        },
+        "create_client": {
+            "display_name": "Create Client",
+            "description": "Create a new client",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Client name (required)"
+                    },
+                    "active": {
+                        "type": "integer",
+                        "description": "Whether client is active (1 = active, 0 = inactive)",
+                        "enum": [0, 1]
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notes about the client"
+                    }
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "client_id": {
+                        "type": "integer",
+                        "description": "Created client ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Client name"
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "description": "Active status"
+                    }
+                }
+            }
+        },
+        "update_client": {
+            "display_name": "Update Client",
+            "description": "Update an existing client",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "client_id": {
+                        "type": "integer",
+                        "description": "The ID of the client to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Client name"
+                    },
+                    "active": {
+                        "type": "integer",
+                        "description": "Active status (1 = active, 0 = inactive)",
+                        "enum": [0, 1]
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notes"
+                    }
+                },
+                "required": ["client_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "client_id": {
+                        "type": "integer",
+                        "description": "Client ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Client name"
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "description": "Active status"
+                    }
+                }
+            }
+        },
+        "delete_client": {
+            "display_name": "Delete Client",
+            "description": "Delete a client",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "client_id": {
+                        "type": "integer",
+                        "description": "The ID of the client to delete"
+                    }
+                },
+                "required": ["client_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "list_departments": {
+            "display_name": "List Departments",
+            "description": "List all departments",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "department_id": {
+                            "type": "integer",
+                            "description": "Department ID"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Department name"
+                        }
+                    }
+                },
+                "description": "Array of department objects"
+            }
+        },
+        "get_department": {
+            "display_name": "Get Department",
+            "description": "Get details of a specific department",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "department_id": {
+                        "type": "integer",
+                        "description": "The ID of the department"
+                    }
+                },
+                "required": ["department_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "department_id": {
+                        "type": ["integer", "null"],
+                        "description": "Department ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Department name"
+                    }
+                }
+            }
+        },
+        "list_roles": {
+            "display_name": "List Roles",
+            "description": "List all roles",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "role_id": {
+                            "type": "integer",
+                            "description": "Role ID"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Role name"
+                        }
+                    }
+                },
+                "description": "Array of role objects"
+            }
+        },
+        "get_role": {
+            "display_name": "Get Role",
+            "description": "Get details of a specific role",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "role_id": {
+                        "type": "integer",
+                        "description": "The ID of the role"
+                    }
+                },
+                "required": ["role_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "role_id": {
+                        "type": ["integer", "null"],
+                        "description": "Role ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Role name"
+                    }
+                }
+            }
+        },
+        "list_time_off_types": {
+            "display_name": "List Time Off Types",
+            "description": "List all time off types",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "timeoff_type_id": {
+                            "type": "integer",
+                            "description": "Time off type ID"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Time off type name"
+                        }
+                    }
+                },
+                "description": "Array of time off type objects"
+            }
+        },
+        "get_time_off_type": {
+            "display_name": "Get Time Off Type",
+            "description": "Get details of a specific time off type",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "timeoff_type_id": {
+                        "type": "integer",
+                        "description": "The ID of the time off type"
+                    }
+                },
+                "required": ["timeoff_type_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "timeoff_type_id": {
+                        "type": "integer",
+                        "description": "Time off type ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Time off type name"
+                    }
+                }
+            }
+        },
+        "list_accounts": {
+            "display_name": "List Accounts",
+            "description": "List all accounts",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object"
+                },
+                "description": "Array of account objects"
+            }
+        },
+        "get_account": {
+            "display_name": "Get Account",
+            "description": "Get details of a specific account",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_id": {
+                        "type": "integer",
+                        "description": "The ID of the account"
+                    }
+                },
+                "required": ["account_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "account_id": {
+                        "type": "integer",
+                        "description": "Account ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Account name"
+                    }
+                }
+            }
+        },
+        "list_statuses": {
+            "display_name": "List Statuses",
+            "description": "List all statuses",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object"
+                },
+                "description": "Array of status objects"
+            }
+        },
+        "get_status": {
+            "display_name": "Get Status",
+            "description": "Get details of a specific status",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "status_id": {
+                        "type": "integer",
+                        "description": "The ID of the status"
+                    }
+                },
+                "required": ["status_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "status_id": {
+                        "type": "integer",
+                        "description": "Status ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Status name"
+                    }
+                }
+            }
+        },
+        "list_public_holidays": {
+            "display_name": "List Public Holidays",
+            "description": "List all public holidays",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object"
+                },
+                "description": "Array of public holiday objects"
+            }
+        },
+        "get_public_holiday": {
+            "display_name": "Get Public Holiday",
+            "description": "Get details of a specific public holiday",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "public_holiday_id": {
+                        "type": "integer",
+                        "description": "The ID of the public holiday"
+                    }
+                },
+                "required": ["public_holiday_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "public_holiday_id": {
+                        "type": "integer",
+                        "description": "Public holiday ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Holiday name"
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Holiday date"
+                    }
+                }
+            }
+        },
+        "list_team_holidays": {
+            "display_name": "List Team Holidays",
+            "description": "List all team holidays",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object"
+                },
+                "description": "Array of team holiday objects"
+            }
+        },
+        "get_team_holiday": {
+            "display_name": "Get Team Holiday",
+            "description": "Get details of a specific team holiday",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "holiday_id": {
+                        "type": "integer",
+                        "description": "The ID of the team holiday"
+                    }
+                },
+                "required": ["holiday_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "holiday_id": {
+                        "type": "integer",
+                        "description": "Holiday ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Holiday name"
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Holiday date"
+                    }
+                }
+            }
+        },
+        "list_project_stages": {
+            "display_name": "List Project Stages",
+            "description": "List all project stages",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object"
+                },
+                "description": "Array of project stage objects"
+            }
+        },
+        "get_project_stage": {
+            "display_name": "Get Project Stage",
+            "description": "Get details of a specific project stage",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_stage_id": {
+                        "type": "integer",
+                        "description": "The ID of the project stage"
+                    }
+                },
+                "required": ["project_stage_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "project_stage_id": {
+                        "type": "integer",
+                        "description": "Project stage ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Stage name"
+                    }
+                }
+            }
+        },
+        "list_project_expenses": {
+            "display_name": "List Project Expenses",
+            "description": "List all project expenses",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Filter by project ID"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object"
+                },
+                "description": "Array of project expense objects"
+            }
+        },
+        "get_project_expense": {
+            "display_name": "Get Project Expense",
+            "description": "Get details of a specific project expense",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_expense_id": {
+                        "type": "integer",
+                        "description": "The ID of the project expense"
+                    }
+                },
+                "required": ["project_expense_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "project_expense_id": {
+                        "type": "integer",
+                        "description": "Expense ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "amount": {
+                        "type": "number",
+                        "description": "Expense amount"
+                    }
+                }
+            }
+        },
+        "list_phases": {
+            "display_name": "List Phases",
+            "description": "List all project phases",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Filter by project ID"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object"
+                },
+                "description": "Array of phase objects"
+            }
+        },
+        "get_phase": {
+            "display_name": "Get Phase",
+            "description": "Get details of a specific phase",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "phase_id": {
+                        "type": "integer",
+                        "description": "The ID of the phase"
+                    }
+                },
+                "required": ["phase_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "phase_id": {
+                        "type": "integer",
+                        "description": "Phase ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Phase name"
+                    }
+                }
+            }
+        },
+        "list_project_tasks": {
+            "display_name": "List Project Tasks",
+            "description": "List all project tasks (default task names)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Filter by project ID"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object"
+                },
+                "description": "Array of project task objects"
+            }
+        },
+        "get_project_task": {
+            "display_name": "Get Project Task",
+            "description": "Get details of a specific project task",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_task_id": {
+                        "type": "integer",
+                        "description": "The ID of the project task"
+                    }
+                },
+                "required": ["project_task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "project_task_id": {
+                        "type": "integer",
+                        "description": "Project task ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Task name"
+                    }
+                }
+            }
+        },
+        "merge_project_tasks": {
+            "display_name": "Merge Project Tasks",
+            "description": "Merge multiple project tasks into one",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "source_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Array of source project task IDs to merge"
+                    },
+                    "target_id": {
+                        "type": "integer",
+                        "description": "Target project task ID to merge into"
+                    }
+                },
+                "required": ["source_ids", "target_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether merge was successful"
+                    }
+                }
+            }
+        },
+        "list_milestones": {
+            "display_name": "List Milestones",
+            "description": "List all milestones",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Filter by project ID"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object"
+                },
+                "description": "Array of milestone objects"
+            }
+        },
+        "get_milestone": {
+            "display_name": "Get Milestone",
+            "description": "Get details of a specific milestone",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "milestone_id": {
+                        "type": "integer",
+                        "description": "The ID of the milestone"
+                    }
+                },
+                "required": ["milestone_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "milestone_id": {
+                        "type": "integer",
+                        "description": "Milestone ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Milestone name"
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Milestone date"
+                    }
+                }
+            }
+        },
+        "get_people_report": {
+            "display_name": "Get People Report",
+            "description": "Generate a people report with optional filtering",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date for report (format: YYYY-MM-DD)"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date for report (format: YYYY-MM-DD)"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "Filter by specific person ID"
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "people": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "people_id": {
+                                    "type": "integer",
+                                    "description": "Person ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Person name"
+                                },
+                                "department_id": {
+                                    "type": "integer",
+                                    "description": "Department ID"
+                                },
+                                "department": {
+                                    "type": "string",
+                                    "description": "Department name"
+                                },
+                                "scheduled_hours": {
+                                    "type": "number",
+                                    "description": "Total scheduled hours"
+                                }
+                            }
+                        },
+                        "description": "List of people report data"
+                    }
+                },
+                "description": "People report data"
+            }
+        },
+        "get_projects_report": {
+            "display_name": "Get Projects Report",
+            "description": "Generate a projects report with optional filtering",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date for report (format: YYYY-MM-DD)"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date for report (format: YYYY-MM-DD)"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Filter by specific project ID"
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "projects": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "project_id": {
+                                    "type": "integer",
+                                    "description": "Project ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Project name"
+                                },
+                                "client_id": {
+                                    "type": "integer",
+                                    "description": "Client ID"
+                                },
+                                "client": {
+                                    "type": "string",
+                                    "description": "Client name"
+                                },
+                                "scheduled_hours": {
+                                    "type": "number",
+                                    "description": "Total scheduled hours"
+                                }
+                            }
+                        },
+                        "description": "List of projects report data"
+                    }
+                },
+                "description": "Projects report data"
+            }
+        }
+    }
+}

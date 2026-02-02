@@ -1,0 +1,404 @@
+{
+    "name": "NZBN",
+    "display_name": "NZBN (New Zealand Business Number)",
+    "version": "1.0.0",
+    "description": "Integration with the New Zealand Business Number (NZBN) API for searching and retrieving business entity information from the NZBN Register.",
+    "entry_point": "nzbn.py",
+    "auth": {
+        "type": "custom",
+        "title": "NZBN API Configuration",
+        "fields": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    "actions": {
+        "search_entities": {
+            "display_name": "Search Entities",
+            "description": "Search the NZBN directory by name, trading name, NZBN, or company number. Returns a paginated list of matching business entities with details including entity name, status, type, and trading names.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "search_term": {
+                        "type": "string",
+                        "description": "The text to search for. Searches across current and past entity names, trading names, NZBN and legacy numbers (e.g., company number)."
+                    },
+                    "entity_status": {
+                        "type": "string",
+                        "description": "Filter by entity status. Options: Registered, VoluntaryAdministration, InReceivership, InLiquidation, InStatutoryAdministration, Inactive, RemovedClosed"
+                    },
+                    "entity_type": {
+                        "type": "string",
+                        "description": "Filter by entity type. Options: NZCompany, OverseasCompany, SoleTrader, Partnership, Trust, LTD, ULTD, COOP, etc."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination (zero-indexed). Default is 0.",
+                        "default": 0,
+                        "minimum": 0
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of results per page. Default is 25, maximum is 100.",
+                        "default": 25,
+                        "minimum": 1,
+                        "maximum": 100
+                    }
+                },
+                "required": ["search_term"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "description": "List of matching entities",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "nzbn": {
+                                    "type": "string",
+                                    "description": "The 13-digit NZBN identifier"
+                                },
+                                "entityName": {
+                                    "type": "string",
+                                    "description": "Current registered name of the entity"
+                                },
+                                "entityStatusCode": {
+                                    "type": "string",
+                                    "description": "Status code (e.g., 50 for Registered)"
+                                },
+                                "entityStatusDescription": {
+                                    "type": "string",
+                                    "description": "Human-readable status"
+                                },
+                                "entityTypeCode": {
+                                    "type": "string",
+                                    "description": "Entity type code"
+                                },
+                                "entityTypeDescription": {
+                                    "type": "string",
+                                    "description": "Entity type description"
+                                },
+                                "tradingNames": {
+                                    "type": "array",
+                                    "description": "List of trading names"
+                                },
+                                "registrationDate": {
+                                    "type": "string",
+                                    "description": "Date of registration"
+                                }
+                            }
+                        }
+                    },
+                    "totalItems": {
+                        "type": "integer",
+                        "description": "Total number of matching entities"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Current page number"
+                    },
+                    "pageSize": {
+                        "type": "integer",
+                        "description": "Number of results per page"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "get_entity": {
+            "display_name": "Get Entity Details",
+            "description": "Retrieve detailed information about a specific business entity using its NZBN. Returns comprehensive data including addresses, contact information, roles, trading names, and more.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "nzbn": {
+                        "type": "string",
+                        "description": "The 13-digit NZBN identifier of the entity to retrieve"
+                    }
+                },
+                "required": ["nzbn"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "entity": {
+                        "type": "object",
+                        "description": "Full entity details",
+                        "properties": {
+                            "nzbn": {
+                                "type": "string"
+                            },
+                            "entityName": {
+                                "type": "string"
+                            },
+                            "entityStatusCode": {
+                                "type": "string"
+                            },
+                            "entityStatusDescription": {
+                                "type": "string"
+                            },
+                            "entityTypeCode": {
+                                "type": "string"
+                            },
+                            "entityTypeDescription": {
+                                "type": "string"
+                            },
+                            "registrationDate": {
+                                "type": "string"
+                            },
+                            "sourceRegister": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "get_entity_addresses": {
+            "display_name": "Get Entity Addresses",
+            "description": "Retrieve all addresses associated with a business entity including registered office, physical address, and postal address.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "nzbn": {
+                        "type": "string",
+                        "description": "The 13-digit NZBN identifier"
+                    },
+                    "address_type": {
+                        "type": "string",
+                        "description": "Filter by address type. Options: RegisteredOffice, AddressForService, Physical, Postal"
+                    }
+                },
+                "required": ["nzbn"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "addresses": {
+                        "type": "array",
+                        "description": "List of addresses"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "get_entity_roles": {
+            "display_name": "Get Entity Roles",
+            "description": "Retrieve roles/officers associated with an entity (directors, shareholders, etc.).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "nzbn": {
+                        "type": "string",
+                        "description": "The 13-digit NZBN identifier"
+                    }
+                },
+                "required": ["nzbn"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "roles": {
+                        "type": "array",
+                        "description": "List of roles/officers"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "get_entity_trading_names": {
+            "display_name": "Get Trading Names",
+            "description": "Retrieve all trading names associated with a business entity.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "nzbn": {
+                        "type": "string",
+                        "description": "The 13-digit NZBN identifier"
+                    }
+                },
+                "required": ["nzbn"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tradingNames": {
+                        "type": "array",
+                        "description": "List of trading names with start/end dates"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "get_company_details": {
+            "display_name": "Get Company Details",
+            "description": "Retrieve company-specific details for NZ companies including constitution details, annual return filing dates, and company number.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "nzbn": {
+                        "type": "string",
+                        "description": "The 13-digit NZBN identifier of a NZ company"
+                    }
+                },
+                "required": ["nzbn"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "companyDetails": {
+                        "type": "object",
+                        "description": "Company-specific details"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "get_entity_gst_numbers": {
+            "display_name": "Get GST Numbers",
+            "description": "Retrieve GST numbers registered to a business entity.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "nzbn": {
+                        "type": "string",
+                        "description": "The 13-digit NZBN identifier"
+                    }
+                },
+                "required": ["nzbn"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "gstNumbers": {
+                        "type": "array",
+                        "description": "List of GST numbers"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "get_entity_industry_classifications": {
+            "display_name": "Get Industry Classifications",
+            "description": "Retrieve industry classification codes (ANZSIC) for a business entity.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "nzbn": {
+                        "type": "string",
+                        "description": "The 13-digit NZBN identifier"
+                    }
+                },
+                "required": ["nzbn"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "industryClassifications": {
+                        "type": "array",
+                        "description": "List of industry classifications with codes and descriptions"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "get_changes": {
+            "display_name": "Get Recent Changes",
+            "description": "Search for entities that have changed within a specified time period. Useful for keeping data in sync.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "change_event_type": {
+                        "type": "string",
+                        "description": "Type of change to filter by. Options include: NewRegistration, NameChange, StatusChange, AddressChange, etc."
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date for change search (ISO format: YYYY-MM-DD)"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date for change search (ISO format: YYYY-MM-DD)"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination (zero-indexed)",
+                        "default": 0
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of results per page (max 100)",
+                        "default": 25,
+                        "maximum": 100
+                    }
+                },
+                "required": ["change_event_type"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "changes": {
+                        "type": "array",
+                        "description": "List of change events"
+                    },
+                    "totalItems": {
+                        "type": "integer"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

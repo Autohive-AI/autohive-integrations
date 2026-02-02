@@ -1,0 +1,4 @@
+autohive_integrations_sdk
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib

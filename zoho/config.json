@@ -194,15 +194,15 @@
                                 "description": "Full name of the contact"
                             },
                             "Email": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Email address"
                             },
                             "Phone": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Phone number"
                             },
                             "Mobile": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Mobile number"
                             },
                             "Account_Name": {
@@ -488,15 +488,15 @@
                                     "description": "Full name"
                                 },
                                 "Email": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Email address"
                                 },
                                 "Phone": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Phone number"
                                 },
                                 "Account_Name": {
-                                    "type": "object",
+                                    "type": ["object", "null"],
                                     "description": "Associated account"
                                 },
                                 "Created_Time": {
@@ -656,11 +656,11 @@
                                     "description": "First name"
                                 },
                                 "Email": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Email address"
                                 },
                                 "Phone": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Phone number"
                                 }
                             }
@@ -904,11 +904,11 @@
                                 "description": "Annual revenue"
                             },
                             "Phone": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Phone number"
                             },
                             "Website": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Website URL"
                             },
                             "Owner": {
@@ -5311,6 +5311,261 @@
                     }
                 },
                 "required": ["updated_record", "result"]
+            }
+        },
+
+        "create_note": {
+            "display_name": "Create Note",
+            "description": "Create a note for a record (Lead, Contact, Account, Deal, etc.) in Zoho CRM",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "module": {
+                        "type": "string",
+                        "description": "Module name (e.g., Leads, Contacts, Accounts, Deals)",
+                        "label": "Module",
+                        "enum": ["Contacts", "Accounts", "Deals", "Leads", "Tasks", "Events", "Calls"]
+                    },
+                    "record_id": {
+                        "type": "string",
+                        "description": "ID of the record to attach the note to",
+                        "label": "Record ID"
+                    },
+                    "Note_Content": {
+                        "type": "string",
+                        "description": "Content of the note",
+                        "label": "Note Content"
+                    },
+                    "Note_Title": {
+                        "type": "string",
+                        "description": "Title of the note (optional)",
+                        "label": "Note Title"
+                    }
+                },
+                "required": ["module", "record_id", "Note_Content"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "note": {
+                        "type": "object",
+                        "description": "Created note details",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Note ID"
+                            },
+                            "details": {
+                                "type": "object",
+                                "description": "Additional note details"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status of the operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["note", "result"]
+            }
+        },
+
+        "get_contact_notes": {
+            "display_name": "Get Record Notes",
+            "description": "Retrieve all notes for a specific record (Lead, Contact, Account, Deal, etc.)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "module": {
+                        "type": "string",
+                        "description": "Module name (e.g., Leads, Contacts, Accounts, Deals)",
+                        "label": "Module",
+                        "enum": ["Contacts", "Accounts", "Deals", "Leads", "Tasks", "Events", "Calls"]
+                    },
+                    "record_id": {
+                        "type": "string",
+                        "description": "ID of the record",
+                        "label": "Record ID"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination",
+                        "label": "Page"
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Number of records per page (max 200)",
+                        "label": "Per Page"
+                    },
+                    "fields": {
+                        "type": "array",
+                        "description": "Specific fields to retrieve",
+                        "label": "Fields",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["module", "record_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "notes": {
+                        "type": "array",
+                        "description": "List of notes",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "info": {
+                        "type": "object",
+                        "description": "Pagination information"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status of the operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["notes", "info", "result"]
+            }
+        },
+
+        "get_note": {
+            "display_name": "Get Note",
+            "description": "Retrieve a specific note by ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "note_id": {
+                        "type": "string",
+                        "description": "ID of the note to retrieve",
+                        "label": "Note ID"
+                    },
+                    "fields": {
+                        "type": "array",
+                        "description": "Specific fields to retrieve",
+                        "label": "Fields",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["note_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "note": {
+                        "type": "object",
+                        "description": "Note details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status of the operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["note", "result"]
+            }
+        },
+
+        "update_note": {
+            "display_name": "Update Note",
+            "description": "Update a note's title or content",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "note_id": {
+                        "type": "string",
+                        "description": "ID of the note to update",
+                        "label": "Note ID"
+                    },
+                    "Note_Title": {
+                        "type": "string",
+                        "description": "New title for the note",
+                        "label": "Note Title"
+                    },
+                    "Note_Content": {
+                        "type": "string",
+                        "description": "New content for the note",
+                        "label": "Note Content"
+                    }
+                },
+                "required": ["note_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "note": {
+                        "type": "object",
+                        "description": "Updated note details",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Note ID"
+                            },
+                            "details": {
+                                "type": "object",
+                                "description": "Additional note details"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status of the operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["note", "result"]
+            }
+        },
+
+        "delete_note": {
+            "display_name": "Delete Note",
+            "description": "Delete a note by ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "note_id": {
+                        "type": "string",
+                        "description": "ID of the note to delete",
+                        "label": "Note ID"
+                    }
+                },
+                "required": ["note_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status of the operation"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Success message"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
             }
         }
     }

@@ -1,0 +1,262 @@
+{
+    "name": "Google Business Profile",
+    "version": "1.0.0",
+    "description": "Manage Google Business Profile reviews using official Google API - read reviews and reply to customers",
+    "entry_point": "reviews.py",
+    "auth": {
+        "type": "platform",
+        "provider": "Google Business Profile",
+        "scopes": [
+            "https://www.googleapis.com/auth/business.manage"
+        ]
+    },
+    "actions": {
+        "list_accounts": {
+            "display_name": "List Business Accounts",
+            "description": "List all Google Business Profile accounts accessible to the authenticated user",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "accounts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Account resource name (e.g., 'accounts/12345')"
+                                },
+                                "accountName": {
+                                    "type": "string",
+                                    "description": "Display name of the account"
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "description": "Account type (PERSONAL or ORGANIZATION)"
+                                }
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["accounts", "result"]
+            }
+        },
+        "list_locations": {
+            "display_name": "List Business Locations",
+            "description": "List all business locations for a specific account",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_name": {
+                        "type": "string",
+                        "description": "Account resource name from list_accounts (e.g., 'accounts/12345')"
+                    }
+                },
+                "required": ["account_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "locations": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Location resource name (e.g., 'accounts/12345/locations/67890')"
+                                },
+                                "title": {
+                                    "type": "string",
+                                    "description": "Business name"
+                                },
+                                "address": {
+                                    "type": "string",
+                                    "description": "Business address"
+                                },
+                                "primaryPhone": {
+                                    "type": "string",
+                                    "description": "Business phone number"
+                                }
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["locations", "result"]
+            }
+        },
+        "list_reviews": {
+            "display_name": "List Reviews",
+            "description": "List all reviews for a specific business location",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "location_name": {
+                        "type": "string",
+                        "description": "Location resource name from list_locations (e.g., 'accounts/12345/locations/67890')"
+                    }
+                },
+                "required": ["location_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "reviews": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Review resource name (e.g., 'accounts/12345/locations/67890/reviews/abc123')"
+                                },
+                                "reviewId": {
+                                    "type": "string",
+                                    "description": "Unique review identifier"
+                                },
+                                "reviewer": {
+                                    "type": "object",
+                                    "properties": {
+                                        "displayName": {
+                                            "type": "string",
+                                            "description": "Reviewer's display name"
+                                        }
+                                    }
+                                },
+                                "starRating": {
+                                    "type": "string",
+                                    "enum": ["ONE", "TWO", "THREE", "FOUR", "FIVE"],
+                                    "description": "Star rating value"
+                                },
+                                "comment": {
+                                    "type": "string",
+                                    "description": "Review comment text"
+                                },
+                                "createTime": {
+                                    "type": "string",
+                                    "description": "Review creation timestamp"
+                                },
+                                "reviewReply": {
+                                    "type": "object",
+                                    "properties": {
+                                        "comment": {
+                                            "type": "string",
+                                            "description": "Business owner's reply"
+                                        },
+                                        "updateTime": {
+                                            "type": "string",
+                                            "description": "Reply timestamp"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["reviews", "result"]
+            }
+        },
+        "reply_to_review": {
+            "display_name": "Reply to Review",
+            "description": "Reply to a customer review on behalf of the business owner",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "review_name": {
+                        "type": "string",
+                        "description": "Full review resource name (e.g., 'accounts/12345/locations/67890/reviews/abc123')"
+                    },
+                    "reply_comment": {
+                        "type": "string",
+                        "description": "The reply message to post"
+                    }
+                },
+                "required": ["review_name", "reply_comment"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "reviewReply": {
+                        "type": "object",
+                        "properties": {
+                            "comment": {
+                                "type": "string",
+                                "description": "The reply comment that was posted"
+                            },
+                            "updateTime": {
+                                "type": "string",
+                                "description": "When the reply was posted"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "delete_review_reply": {
+            "display_name": "Delete Review Reply",
+            "description": "Delete a previously posted reply to a review",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "review_name": {
+                        "type": "string",
+                        "description": "Full review resource name (e.g., 'accounts/12345/locations/67890/reviews/abc123')"
+                    }
+                },
+                "required": ["review_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        }
+    }
+}

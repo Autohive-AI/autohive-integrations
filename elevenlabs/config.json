@@ -1,0 +1,339 @@
+{
+    "name": "ElevenLabs",
+    "display_name": "ElevenLabs",
+    "version": "1.0.0",
+    "description": "ElevenLabs integration for AI voice generation, text-to-speech, voice cloning, and audio management",
+    "entry_point": "elevenlabs.py",
+    "auth": {
+        "type": "custom",
+        "title": "ElevenLabs API Key",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Key",
+                    "help_text": "Your ElevenLabs API key. Create one in Profile > Developers > API Keys. Free tier: 10,000 credits/month."
+                }
+            }
+        }
+    },
+    "actions": {
+        "list_voices": {
+            "display_name": "List Voices",
+            "description": "Returns a list of all available voices with search, filtering, and pagination. Free action (no credits used).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of voices to return (default: 30, max: 100)",
+                        "minimum": 1,
+                        "maximum": 100
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "Filter by category",
+                        "enum": ["premade", "cloned", "generated", "professional"]
+                    },
+                    "use_cases": {
+                        "type": "array",
+                        "description": "Filter by use cases",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "search": {
+                        "type": "string",
+                        "description": "Search term to filter voices by name or description"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "voices": {
+                        "type": "array",
+                        "description": "List of voices"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["voices", "result"]
+            }
+        },
+        "get_voice": {
+            "display_name": "Get Voice",
+            "description": "Returns metadata about a specific voice. Free action (no credits used).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "voice_id": {
+                        "type": "string",
+                        "description": "The ID of the voice to retrieve"
+                    },
+                    "with_settings": {
+                        "type": "boolean",
+                        "description": "Include voice settings in response"
+                    }
+                },
+                "required": ["voice_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "voice": {
+                        "type": "object",
+                        "description": "Voice details and metadata"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["voice", "result"]
+            }
+        },
+        "get_voice_settings": {
+            "display_name": "Get Voice Settings",
+            "description": "Returns voice settings for a specific voice. Free action (no credits used).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "voice_id": {
+                        "type": "string",
+                        "description": "The ID of the voice"
+                    }
+                },
+                "required": ["voice_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "settings": {
+                        "type": "object",
+                        "description": "Voice settings (stability, similarity_boost, style, use_speaker_boost)"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["settings", "result"]
+            }
+        },
+        "list_history": {
+            "display_name": "List History",
+            "description": "Returns a list of all generated audio items. Free action (no credits used).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of history items to return (max: 1000)",
+                        "maximum": 1000
+                    },
+                    "voice_id": {
+                        "type": "string",
+                        "description": "Filter by voice ID"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "history": {
+                        "type": "array",
+                        "description": "List of generation history items"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["history", "result"]
+            }
+        },
+        "download_history_audio": {
+            "display_name": "Download History Audio",
+            "description": "Downloads the audio file from a history item. Free action (no new credits used).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "history_item_id": {
+                        "type": "string",
+                        "description": "The ID of the history item"
+                    }
+                },
+                "required": ["history_item_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "description": "Downloaded audio file",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "The file content encoded as base64"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the file"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "The content type of the file"
+                            }
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["file", "result"]
+            }
+        },
+        "get_user_subscription": {
+            "display_name": "Get User Subscription",
+            "description": "Returns subscription information including character quota and usage. Free action (no credits used).",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "subscription": {
+                        "type": "object",
+                        "description": "Subscription details (tier, character_count, character_limit, etc.)"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["subscription", "result"]
+            }
+        },
+        "text_to_speech": {
+            "display_name": "Text to Speech",
+            "description": "Converts text to speech using a selected voice. Cost: 1 credit per character (standard models) or 0.5 credits (Turbo models).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "The text to convert to speech (max 2,500 characters on free tier)"
+                    },
+                    "voice_id": {
+                        "type": "string",
+                        "description": "The ID of the voice to use"
+                    },
+                    "model_id": {
+                        "type": "string",
+                        "description": "Model ID to use (e.g., 'eleven_multilingual_v2', 'eleven_turbo_v2_5')"
+                    },
+                    "output_format": {
+                        "type": "string",
+                        "description": "Audio format (e.g., 'mp3_44100_128', 'pcm_16000', 'mp3_22050_32')",
+                        "enum": ["mp3_44100_128", "mp3_44100_64", "mp3_22050_32", "pcm_16000", "pcm_22050", "pcm_24000", "pcm_44100"]
+                    },
+                    "voice_settings": {
+                        "type": "object",
+                        "description": "Voice settings override",
+                        "properties": {
+                            "stability": {
+                                "type": "number",
+                                "description": "Voice stability (0.0-1.0)"
+                            },
+                            "similarity_boost": {
+                                "type": "number",
+                                "description": "Similarity boost (0.0-1.0)"
+                            },
+                            "style": {
+                                "type": "number",
+                                "description": "Style exaggeration (0.0-1.0)"
+                            },
+                            "use_speaker_boost": {
+                                "type": "boolean",
+                                "description": "Enable speaker boost"
+                            },
+                            "speed": {
+                                "type": "number",
+                                "description": "Playback speed/rate (0.25-4.0, default: 1.0)"
+                            }
+                        }
+                    }
+                },
+                "required": ["text", "voice_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "description": "Generated audio file",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "The file content encoded as base64"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the file"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "The content type of the file"
+                            }
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        }
+    }
+}

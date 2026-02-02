@@ -1,0 +1,5 @@
+autohive-integrations-sdk
+python-docx
+pillow
+markdown
+beautifulsoup4

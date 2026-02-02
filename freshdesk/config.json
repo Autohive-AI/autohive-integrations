@@ -1,0 +1,1038 @@
+{
+    "name": "Freshdesk",
+    "display_name": "Freshdesk",
+    "version": "1.0.0",
+    "description": "Freshdesk integration for managing tickets, contacts, companies, and customer support operations",
+    "entry_point": "freshdesk.py",
+    "auth": {
+        "type": "custom",
+        "title": "Freshdesk API Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Key",
+                    "help_text": "Your Freshdesk API key. Find it in Profile Settings > View API key. Requires Blossom plan or higher."
+                },
+                "domain": {
+                    "type": "string",
+                    "label": "Freshdesk Domain",
+                    "help_text": "Your Freshdesk subdomain (e.g., 'yourcompany' from yourcompany.freshdesk.com)"
+                }
+            }
+        }
+    },
+    "actions": {
+        "list_companies": {
+            "display_name": "List Companies",
+            "description": "Returns a list of all companies in your Freshdesk account. Results are paginated with 30 companies per page by default.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Number of companies per page (default: 30, max: 100)",
+                        "minimum": 1,
+                        "maximum": 100
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "companies": {
+                        "type": "array",
+                        "description": "List of companies",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Unique company ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Company name"
+                                },
+                                "description": {
+                                    "type": "string",
+                                    "description": "Company description"
+                                },
+                                "domains": {
+                                    "type": "array",
+                                    "description": "Email domains associated with company",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "note": {
+                                    "type": "string",
+                                    "description": "Additional notes about the company"
+                                },
+                                "created_at": {
+                                    "type": "string",
+                                    "description": "Company creation timestamp"
+                                },
+                                "updated_at": {
+                                    "type": "string",
+                                    "description": "Company last update timestamp"
+                                }
+                            }
+                        }
+                    },
+                    "total": {
+                        "type": "integer",
+                        "description": "Total number of companies"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["companies", "result"]
+            }
+        },
+        "create_company": {
+            "display_name": "Create Company",
+            "description": "Creates a new company in your Freshdesk account. Company name is required. You can optionally add domains, description, and other details.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Company name (required)"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description of the company"
+                    },
+                    "domains": {
+                        "type": "array",
+                        "description": "Email domains associated with the company (e.g., ['example.com', 'example.org'])",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "Additional notes about the company"
+                    },
+                    "custom_fields": {
+                        "type": "object",
+                        "description": "Custom fields for the company (key-value pairs)"
+                    }
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "company": {
+                        "type": "object",
+                        "description": "Created company details",
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "description": "Unique company ID"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Company name"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Company description"
+                            },
+                            "domains": {
+                                "type": "array",
+                                "description": "Email domains associated with company",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "note": {
+                                "type": "string",
+                                "description": "Additional notes about the company"
+                            },
+                            "created_at": {
+                                "type": "string",
+                                "description": "Company creation timestamp"
+                            },
+                            "updated_at": {
+                                "type": "string",
+                                "description": "Company last update timestamp"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["company", "result"]
+            }
+        },
+        "get_company": {
+            "display_name": "Get Company",
+            "description": "Retrieves details of a specific company by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "company_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the company to retrieve"
+                    }
+                },
+                "required": ["company_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "company": {
+                        "type": "object",
+                        "description": "Company details",
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "description": "Unique company ID"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Company name"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Company description"
+                            },
+                            "domains": {
+                                "type": "array",
+                                "description": "Email domains associated with company",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "note": {
+                                "type": "string",
+                                "description": "Additional notes about the company"
+                            },
+                            "created_at": {
+                                "type": "string",
+                                "description": "Company creation timestamp"
+                            },
+                            "updated_at": {
+                                "type": "string",
+                                "description": "Company last update timestamp"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["company", "result"]
+            }
+        },
+        "update_company": {
+            "display_name": "Update Company",
+            "description": "Updates an existing company's information. Provide the company ID and the fields you want to update.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "company_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the company to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated company name"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Updated company description"
+                    },
+                    "domains": {
+                        "type": "array",
+                        "description": "Updated email domains for the company",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "Updated notes about the company"
+                    },
+                    "custom_fields": {
+                        "type": "object",
+                        "description": "Updated custom fields (key-value pairs)"
+                    }
+                },
+                "required": ["company_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "company": {
+                        "type": "object",
+                        "description": "Updated company details",
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "description": "Unique company ID"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Company name"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Company description"
+                            },
+                            "domains": {
+                                "type": "array",
+                                "description": "Email domains associated with company",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "note": {
+                                "type": "string",
+                                "description": "Additional notes about the company"
+                            },
+                            "created_at": {
+                                "type": "string",
+                                "description": "Company creation timestamp"
+                            },
+                            "updated_at": {
+                                "type": "string",
+                                "description": "Company last update timestamp"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["company", "result"]
+            }
+        },
+        "delete_company": {
+            "display_name": "Delete Company",
+            "description": "Deletes a company from your Freshdesk account. This action cannot be undone.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "company_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the company to delete"
+                    }
+                },
+                "required": ["company_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "search_companies": {
+            "display_name": "Search Companies",
+            "description": "Search for companies by name using autocomplete. The search is case insensitive but requires complete words (no substring matching). For example, 'Acme Corporation' can be found with 'acme', 'Ac', 'Corporation', or 'Co', but not 'cme' or 'orporation'.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Company name or keyword to search for (case insensitive, requires word prefix matching)"
+                    }
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "companies": {
+                        "type": "array",
+                        "description": "List of matching companies",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Unique company ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Company name"
+                                }
+                            }
+                        }
+                    },
+                    "total": {
+                        "type": "integer",
+                        "description": "Total number of companies found"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["companies", "result"]
+            }
+        },
+        "create_ticket": {
+            "display_name": "Create Ticket",
+            "description": "Creates a new support ticket in Freshdesk. Email and subject are required, along with either description or priority and status.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "subject": {
+                        "type": "string",
+                        "description": "Subject of the ticket"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "HTML content of the ticket"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Email address of the requester"
+                    },
+                    "priority": {
+                        "type": "integer",
+                        "description": "Priority: 1-Low, 2-Medium, 3-High, 4-Urgent",
+                        "enum": [1, 2, 3, 4]
+                    },
+                    "status": {
+                        "type": "integer",
+                        "description": "Status: 2-Open, 3-Pending, 4-Resolved, 5-Closed",
+                        "enum": [2, 3, 4, 5]
+                    },
+                    "source": {
+                        "type": "integer",
+                        "description": "Source: 1-Email, 2-Portal, 3-Phone, 7-Chat, 9-Feedback, 10-Outbound Email",
+                        "enum": [1, 2, 3, 7, 9, 10]
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the requester"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "description": "Company ID of the requester"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "description": "Tags to associate with the ticket",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["subject", "email"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket": {
+                        "type": "object",
+                        "description": "Created ticket details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["ticket", "result"]
+            }
+        },
+        "list_tickets": {
+            "display_name": "List Tickets",
+            "description": "Returns a list of all tickets. Results are paginated with 30 tickets per page by default.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Number of tickets per page (default: 30, max: 100)",
+                        "minimum": 1,
+                        "maximum": 100
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tickets": {
+                        "type": "array",
+                        "description": "List of tickets"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "description": "Total number of tickets returned"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["tickets", "result"]
+            }
+        },
+        "get_ticket": {
+            "display_name": "Get Ticket",
+            "description": "Retrieves details of a specific ticket by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the ticket to retrieve"
+                    }
+                },
+                "required": ["ticket_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket": {
+                        "type": "object",
+                        "description": "Ticket details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["ticket", "result"]
+            }
+        },
+        "update_ticket": {
+            "display_name": "Update Ticket",
+            "description": "Updates an existing ticket. Provide the ticket ID and the fields you want to update.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the ticket to update"
+                    },
+                    "subject": {
+                        "type": "string",
+                        "description": "Updated ticket subject"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Updated ticket description (HTML)"
+                    },
+                    "priority": {
+                        "type": "integer",
+                        "description": "Priority: 1-Low, 2-Medium, 3-High, 4-Urgent",
+                        "enum": [1, 2, 3, 4]
+                    },
+                    "status": {
+                        "type": "integer",
+                        "description": "Status: 2-Open, 3-Pending, 4-Resolved, 5-Closed",
+                        "enum": [2, 3, 4, 5]
+                    },
+                    "tags": {
+                        "type": "array",
+                        "description": "Tags to associate with the ticket",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["ticket_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket": {
+                        "type": "object",
+                        "description": "Updated ticket details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["ticket", "result"]
+            }
+        },
+        "delete_ticket": {
+            "display_name": "Delete Ticket",
+            "description": "Deletes a ticket. Deleted tickets can be restored within 30 days.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the ticket to delete"
+                    }
+                },
+                "required": ["ticket_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "create_contact": {
+            "display_name": "Create Contact",
+            "description": "Creates a new contact in Freshdesk. Name and email are required.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Full name of the contact"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Email address of the contact"
+                    },
+                    "phone": {
+                        "type": "string",
+                        "description": "Phone number of the contact"
+                    },
+                    "mobile": {
+                        "type": "string",
+                        "description": "Mobile number of the contact"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "description": "ID of the company this contact belongs to"
+                    },
+                    "job_title": {
+                        "type": "string",
+                        "description": "Job title of the contact"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description about the contact"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "description": "Tags to associate with the contact",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["name", "email"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "contact": {
+                        "type": "object",
+                        "description": "Created contact details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["contact", "result"]
+            }
+        },
+        "list_contacts": {
+            "display_name": "List Contacts",
+            "description": "Returns a list of all contacts. Results are paginated with 30 contacts per page by default.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)",
+                        "minimum": 1
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Number of contacts per page (default: 30, max: 100)",
+                        "minimum": 1,
+                        "maximum": 100
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "contacts": {
+                        "type": "array",
+                        "description": "List of contacts"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "description": "Total number of contacts returned"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["contacts", "result"]
+            }
+        },
+        "get_contact": {
+            "display_name": "Get Contact",
+            "description": "Retrieves details of a specific contact by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "contact_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the contact to retrieve"
+                    }
+                },
+                "required": ["contact_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "contact": {
+                        "type": "object",
+                        "description": "Contact details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["contact", "result"]
+            }
+        },
+        "update_contact": {
+            "display_name": "Update Contact",
+            "description": "Updates an existing contact's information.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "contact_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the contact to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated full name"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Updated email address"
+                    },
+                    "phone": {
+                        "type": "string",
+                        "description": "Updated phone number"
+                    },
+                    "mobile": {
+                        "type": "string",
+                        "description": "Updated mobile number"
+                    },
+                    "job_title": {
+                        "type": "string",
+                        "description": "Updated job title"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Updated description"
+                    }
+                },
+                "required": ["contact_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "contact": {
+                        "type": "object",
+                        "description": "Updated contact details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["contact", "result"]
+            }
+        },
+        "delete_contact": {
+            "display_name": "Delete Contact",
+            "description": "Soft deletes a contact. Can be restored later.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "contact_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the contact to delete"
+                    }
+                },
+                "required": ["contact_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "search_contacts": {
+            "display_name": "Search Contacts",
+            "description": "Search for contacts by name using autocomplete. The search is case insensitive but requires complete words (no substring matching). For example, 'John Jonz' can be found with 'john', 'Joh', 'Jonz', or 'jon', but not 'hn' or 'nz'.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "term": {
+                        "type": "string",
+                        "description": "Contact name or keyword to search for (case insensitive, requires word prefix matching)"
+                    }
+                },
+                "required": ["term"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "contacts": {
+                        "type": "array",
+                        "description": "List of matching contacts",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Unique contact ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Contact name"
+                                }
+                            }
+                        }
+                    },
+                    "total": {
+                        "type": "integer",
+                        "description": "Total number of contacts found"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["contacts", "result"]
+            }
+        },
+        "list_conversations": {
+            "display_name": "List Conversations",
+            "description": "Retrieves all conversations (notes and replies) for a specific ticket.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the ticket"
+                    }
+                },
+                "required": ["ticket_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "conversations": {
+                        "type": "array",
+                        "description": "List of conversations"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["conversations", "result"]
+            }
+        },
+        "create_note": {
+            "display_name": "Create Note",
+            "description": "Adds a private note to a ticket. Private notes are only visible to agents.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the ticket"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "Content of the note (HTML supported)"
+                    },
+                    "notify_emails": {
+                        "type": "array",
+                        "description": "Email addresses to notify about this note",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["ticket_id", "body"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "conversation": {
+                        "type": "object",
+                        "description": "Created note details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["conversation", "result"]
+            }
+        },
+        "create_reply": {
+            "display_name": "Create Reply",
+            "description": "Adds a public reply to a ticket. Public replies are visible to the customer.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the ticket"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "Content of the reply (HTML supported)"
+                    },
+                    "from_email": {
+                        "type": "string",
+                        "description": "Email address from which the reply is sent"
+                    }
+                },
+                "required": ["ticket_id", "body"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "conversation": {
+                        "type": "object",
+                        "description": "Created reply details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["conversation", "result"]
+            }
+        }
+    }
+}

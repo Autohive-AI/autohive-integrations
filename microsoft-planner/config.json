@@ -1,0 +1,1334 @@
+{
+    "name": "Microsoft Planner",
+    "display_name": "Microsoft Planner",
+    "version": "1.0.0",
+    "description": "Microsoft Planner integration for managing plans, tasks, and buckets in Microsoft 365",
+    "entry_point": "microsoft_planner.py",
+    "auth": {
+        "type": "platform",
+        "provider": "Microsoft Planner",
+        "scopes": [
+            "Tasks.ReadWrite",
+            "Group.ReadWrite.All",
+            "User.Read",
+            "offline_access"
+        ]
+    },
+    "actions": {
+        "list_groups": {
+            "display_name": "List Groups",
+            "description": "List all Microsoft 365 groups the authenticated user is a member of",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of groups to return (default: 100)",
+                        "default": 100
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "groups": {
+                        "type": "array",
+                        "description": "List of groups"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["groups", "result"]
+            }
+        },
+        "get_user_by_email": {
+            "display_name": "Get User by Email",
+            "description": "Get user information by email address to retrieve their user ID. Use this action when someone says 'assign to john@company.com' or mentions a specific email - you'll need the user_id from this response to use in task assignments.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "description": "The email address of the user to look up"
+                    }
+                },
+                "required": ["email"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "object",
+                        "description": "Full user object from Microsoft Graph"
+                    },
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's unique identifier"
+                    },
+                    "display_name": {
+                        "type": "string",
+                        "description": "The user's display name"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "The user's email address"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "search_users": {
+            "display_name": "Search Users",
+            "description": "Search for users by display name or email to find their user IDs. Use this action when someone says 'assign to Sarah' or 'find user John Smith' - you'll need the user_id from the results to use in task assignments.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query (name or email)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of users to return (default: 10)",
+                        "default": 10
+                    }
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "users": {
+                        "type": "array",
+                        "description": "List of matching users with their IDs, names, and emails"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["users", "result"]
+            }
+        },
+        "get_current_user": {
+            "display_name": "Get Current User",
+            "description": "Get the currently authenticated user's information including their user_id. Use this action when someone says 'assign to me' or 'create task for me' - you'll need the user_id from this response to use in assignments.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "object",
+                        "description": "Full user object from Microsoft Graph"
+                    },
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's unique identifier"
+                    },
+                    "display_name": {
+                        "type": "string",
+                        "description": "The user's display name"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "The user's email address"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_user_tasks": {
+            "display_name": "List User Tasks",
+            "description": "List all tasks assigned to a user. By default, returns tasks for the currently authenticated user - no user_id needed!",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "Optional: The ID of a specific user to get tasks for. If not provided, returns tasks for the currently authenticated user. You can also use 'me' explicitly for current user."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tasks": {
+                        "type": "array",
+                        "description": "List of tasks assigned to the user"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["tasks", "result"]
+            }
+        },
+        "list_user_plans": {
+            "display_name": "List User Plans",
+            "description": "List all plans shared with a user. By default, returns plans for the currently authenticated user - no user_id needed!",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "Optional: The ID of a specific user to get plans for. If not provided, returns plans for the currently authenticated user. You can also use 'me' explicitly for current user."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "plans": {
+                        "type": "array",
+                        "description": "List of plans shared with the user"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["plans", "result"]
+            }
+        },
+        "list_plans": {
+            "display_name": "List Plans",
+            "description": "List all plans owned by a specific group",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "group_id": {
+                        "type": "string",
+                        "description": "The ID of the group that owns the plans"
+                    }
+                },
+                "required": ["group_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "plans": {
+                        "type": "array",
+                        "description": "List of plans"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["plans", "result"]
+            }
+        },
+        "get_plan": {
+            "display_name": "Get Plan",
+            "description": "Get details of a specific plan by its ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "plan_id": {
+                        "type": "string",
+                        "description": "The ID of the plan to retrieve"
+                    }
+                },
+                "required": ["plan_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "plan": {
+                        "type": "object",
+                        "description": "Plan details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["plan", "result"]
+            }
+        },
+        "create_plan": {
+            "display_name": "Create Plan",
+            "description": "Create a new plan in a Microsoft 365 group",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "The title of the plan"
+                    },
+                    "group_id": {
+                        "type": "string",
+                        "description": "The ID of the Microsoft 365 group that will own the plan"
+                    },
+                    "container": {
+                        "type": "object",
+                        "description": "Optional container object. If not provided, will be built from group_id. Example: {'containerId': 'group-id', 'type': 'group'}"
+                    }
+                },
+                "required": ["title"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "plan": {
+                        "type": "object",
+                        "description": "Created plan details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["plan", "result"]
+            }
+        },
+        "update_plan": {
+            "display_name": "Update Plan",
+            "description": "Update a plan's title",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "plan_id": {
+                        "type": "string",
+                        "description": "The ID of the plan to update"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "The new title for the plan"
+                    }
+                },
+                "required": ["plan_id", "title"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "plan": {
+                        "type": "object",
+                        "description": "Updated plan details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["plan", "result"]
+            }
+        },
+        "delete_plan": {
+            "display_name": "Delete Plan",
+            "description": "Delete a plan",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "plan_id": {
+                        "type": "string",
+                        "description": "The ID of the plan to delete"
+                    }
+                },
+                "required": ["plan_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_plan_details": {
+            "display_name": "Get Plan Details",
+            "description": "Get plan details including category descriptions and sharing information",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "plan_id": {
+                        "type": "string",
+                        "description": "The ID of the plan to get details for"
+                    }
+                },
+                "required": ["plan_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "plan_details": {
+                        "type": "object",
+                        "description": "Plan details including category descriptions and sharing info"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["plan_details", "result"]
+            }
+        },
+        "update_plan_details": {
+            "display_name": "Update Plan Details",
+            "description": "Update plan details including category descriptions and sharing information",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "plan_id": {
+                        "type": "string",
+                        "description": "The ID of the plan to update details for"
+                    },
+                    "category_descriptions": {
+                        "type": "object",
+                        "description": "Object mapping category names (category1-25) to description strings"
+                    },
+                    "shared_with": {
+                        "type": "object",
+                        "description": "Object mapping user IDs to sharing detail objects"
+                    }
+                },
+                "required": ["plan_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "plan_details": {
+                        "type": "object",
+                        "description": "Updated plan details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["plan_details", "result"]
+            }
+        },
+        "list_buckets": {
+            "display_name": "List Buckets",
+            "description": "List all buckets in a specific plan",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "plan_id": {
+                        "type": "string",
+                        "description": "The ID of the plan to get buckets from"
+                    }
+                },
+                "required": ["plan_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "buckets": {
+                        "type": "array",
+                        "description": "List of buckets"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["buckets", "result"]
+            }
+        },
+        "get_bucket": {
+            "display_name": "Get Bucket",
+            "description": "Get details of a specific bucket by its ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "bucket_id": {
+                        "type": "string",
+                        "description": "The ID of the bucket to retrieve"
+                    }
+                },
+                "required": ["bucket_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "bucket": {
+                        "type": "object",
+                        "description": "Bucket details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["bucket", "result"]
+            }
+        },
+        "create_bucket": {
+            "display_name": "Create Bucket",
+            "description": "Create a new bucket in a plan",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the bucket"
+                    },
+                    "plan_id": {
+                        "type": "string",
+                        "description": "The ID of the plan to create the bucket in"
+                    },
+                    "order_hint": {
+                        "type": "string",
+                        "description": "Hint for ordering the bucket in the list. Use ' !' for default ordering"
+                    }
+                },
+                "required": ["name", "plan_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "bucket": {
+                        "type": "object",
+                        "description": "Created bucket details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["bucket", "result"]
+            }
+        },
+        "update_bucket": {
+            "display_name": "Update Bucket",
+            "description": "Update a bucket's name",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "bucket_id": {
+                        "type": "string",
+                        "description": "The ID of the bucket to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The new name for the bucket"
+                    }
+                },
+                "required": ["bucket_id", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "bucket": {
+                        "type": "object",
+                        "description": "Updated bucket details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["bucket", "result"]
+            }
+        },
+        "delete_bucket": {
+            "display_name": "Delete Bucket",
+            "description": "Delete a bucket from a plan",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "bucket_id": {
+                        "type": "string",
+                        "description": "The ID of the bucket to delete"
+                    }
+                },
+                "required": ["bucket_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_bucket_tasks": {
+            "display_name": "List Bucket Tasks",
+            "description": "List all tasks in a specific bucket",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "bucket_id": {
+                        "type": "string",
+                        "description": "The ID of the bucket to get tasks from"
+                    }
+                },
+                "required": ["bucket_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tasks": {
+                        "type": "array",
+                        "description": "List of tasks in the bucket"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["tasks", "result"]
+            }
+        },
+        "list_tasks": {
+            "display_name": "List Tasks",
+            "description": "List all tasks in a specific plan",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "plan_id": {
+                        "type": "string",
+                        "description": "The ID of the plan to get tasks from"
+                    }
+                },
+                "required": ["plan_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tasks": {
+                        "type": "array",
+                        "description": "List of tasks"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["tasks", "result"]
+            }
+        },
+        "get_task": {
+            "display_name": "Get Task",
+            "description": "Get details of a specific task by its ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task to retrieve"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        },
+        "create_task": {
+            "display_name": "Create Task",
+            "description": "Create a new task in a plan. To assign the task during creation, you must use actual Microsoft user IDs (GUIDs). First call get_current_user, get_user_by_email, or search_users to get user IDs before creating the task.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "plan_id": {
+                        "type": "string",
+                        "description": "The ID of the plan to create the task in"
+                    },
+                    "bucket_id": {
+                        "type": "string",
+                        "description": "The ID of the bucket to create the task in"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "The title of the task"
+                    },
+                    "assignments": {
+                        "type": "object",
+                        "description": "Object mapping Microsoft user IDs (GUIDs) to assignment objects. Example to assign to one user: {'be0e8cbe-6963-4c70-9daf-95518008ca51': {}} or with order hint: {'user-guid': {'orderHint': ' !'}}. Example for multiple users: {'user-guid-1': {}, 'user-guid-2': {}}. The @odata.type will be added automatically. IMPORTANT: Must use actual user IDs (get them via get_current_user, get_user_by_email, or search_users first), NOT email addresses or 'me'."
+                    },
+                    "due_date_time": {
+                        "type": "string",
+                        "description": "Due date and time in ISO 8601 format (e.g., '2024-12-31T17:00:00Z')"
+                    },
+                    "start_date_time": {
+                        "type": "string",
+                        "description": "Start date and time in ISO 8601 format"
+                    },
+                    "percent_complete": {
+                        "type": "integer",
+                        "description": "Percentage of task completion (0-100)",
+                        "minimum": 0,
+                        "maximum": 100
+                    },
+                    "priority": {
+                        "type": "integer",
+                        "description": "Priority of the task (0-10, where 0 is urgent and 10 is low)"
+                    },
+                    "applied_categories": {
+                        "type": "object",
+                        "description": "Object mapping category names (category1-25) to boolean values indicating if the category is applied"
+                    }
+                },
+                "required": ["plan_id", "bucket_id", "title"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Created task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        },
+        "update_task": {
+            "display_name": "Update Task",
+            "description": "Update an existing task. IMPORTANT: To assign tasks, you must use actual Microsoft user IDs (GUIDs), not email addresses or 'me'. First call get_current_user (for 'me'), get_user_by_email, or search_users to get the user_id, then use that ID in the assignments field.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task to update"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "The new title of the task"
+                    },
+                    "bucket_id": {
+                        "type": "string",
+                        "description": "The ID of the bucket to move the task to"
+                    },
+                    "assignments": {
+                        "type": "object",
+                        "description": "Updated assignments object mapping Microsoft user IDs (GUIDs) to assignment objects or null to remove. Example to assign: {'user-guid-here': {'orderHint': ' !'}} or simply {'user-guid-here': {}}. Example to unassign: {'user-guid-here': null}. The @odata.type will be added automatically. IMPORTANT: You must use actual user IDs (get them via get_current_user, get_user_by_email, or search_users actions first), NOT email addresses or 'me'."
+                    },
+                    "due_date_time": {
+                        "type": "string",
+                        "description": "Updated due date and time in ISO 8601 format"
+                    },
+                    "start_date_time": {
+                        "type": "string",
+                        "description": "Updated start date and time in ISO 8601 format"
+                    },
+                    "percent_complete": {
+                        "type": "integer",
+                        "description": "Updated percentage of task completion (0-100)",
+                        "minimum": 0,
+                        "maximum": 100
+                    },
+                    "priority": {
+                        "type": "integer",
+                        "description": "Updated priority of the task (0-10)"
+                    },
+                    "applied_categories": {
+                        "type": "object",
+                        "description": "Object mapping category names (category1-25) to boolean values"
+                    },
+                    "assignee_priority": {
+                        "type": "string",
+                        "description": "Order hint for ordering tasks in assignee view"
+                    },
+                    "conversation_thread_id": {
+                        "type": "string",
+                        "description": "ID of the conversation thread associated with the task"
+                    },
+                    "order_hint": {
+                        "type": "string",
+                        "description": "Order hint for ordering tasks in list views"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Updated task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        },
+        "delete_task": {
+            "display_name": "Delete Task",
+            "description": "Delete a task from a plan",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task to delete"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_task_details": {
+            "display_name": "Get Task Details",
+            "description": "Get details of a task including description, checklist, and references",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task to get details for"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task_details": {
+                        "type": "object",
+                        "description": "Task details including description, checklist, and references"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task_details", "result"]
+            }
+        },
+        "update_task_details": {
+            "display_name": "Update Task Details",
+            "description": "Update task details including description, checklist, references, and preview type",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task to update details for"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "The description of the task"
+                    },
+                    "preview_type": {
+                        "type": "string",
+                        "description": "Preview type: 'automatic', 'noPreview', 'checklist', 'description', or 'reference'"
+                    },
+                    "checklist": {
+                        "type": "object",
+                        "description": "Object mapping item IDs to checklist item objects. Each item should have: {'@odata.type': '#microsoft.graph.plannerChecklistItem', 'title': 'string', 'isChecked': boolean, 'orderHint': 'string'}"
+                    },
+                    "references": {
+                        "type": "object",
+                        "description": "Object mapping reference URLs to reference objects"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task_details": {
+                        "type": "object",
+                        "description": "Updated task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task_details", "result"]
+            }
+        },
+        "add_checklist_item": {
+            "display_name": "Add Checklist Item",
+            "description": "Add a new item to a task's checklist",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task to add a checklist item to"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "The title/text of the checklist item"
+                    },
+                    "is_checked": {
+                        "type": "boolean",
+                        "description": "Whether the checklist item is checked (default: false)",
+                        "default": false
+                    },
+                    "order_hint": {
+                        "type": "string",
+                        "description": "Hint for ordering the item in the checklist (default: ' !')",
+                        "default": " !"
+                    }
+                },
+                "required": ["task_id", "title"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task_details": {
+                        "type": "object",
+                        "description": "Updated task details"
+                    },
+                    "item_id": {
+                        "type": "string",
+                        "description": "The ID of the newly created checklist item"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "update_checklist_item": {
+            "display_name": "Update Checklist Item",
+            "description": "Update an existing checklist item (title, checked status, or order)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task containing the checklist item"
+                    },
+                    "item_id": {
+                        "type": "string",
+                        "description": "The ID of the checklist item to update"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "The new title/text for the checklist item"
+                    },
+                    "is_checked": {
+                        "type": "boolean",
+                        "description": "Whether the checklist item is checked"
+                    },
+                    "order_hint": {
+                        "type": "string",
+                        "description": "Hint for ordering the item in the checklist"
+                    }
+                },
+                "required": ["task_id", "item_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task_details": {
+                        "type": "object",
+                        "description": "Updated task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "remove_checklist_item": {
+            "display_name": "Remove Checklist Item",
+            "description": "Remove an item from a task's checklist",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task containing the checklist item"
+                    },
+                    "item_id": {
+                        "type": "string",
+                        "description": "The ID of the checklist item to remove"
+                    }
+                },
+                "required": ["task_id", "item_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task_details": {
+                        "type": "object",
+                        "description": "Updated task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_task_assigned_to_board_format": {
+            "display_name": "Get Task Assigned To Board Format",
+            "description": "Get the assigned-to task board format for a task (ordering by assignee)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "board_format": {
+                        "type": "object",
+                        "description": "Task board format details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["board_format", "result"]
+            }
+        },
+        "update_task_assigned_to_board_format": {
+            "display_name": "Update Task Assigned To Board Format",
+            "description": "Update the assigned-to task board format for a task",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task"
+                    },
+                    "unassigned_order_hint": {
+                        "type": "string",
+                        "description": "Order hint for unassigned tasks"
+                    },
+                    "order_hints_by_assignee": {
+                        "type": "object",
+                        "description": "Object mapping user IDs to order hint strings"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "board_format": {
+                        "type": "object",
+                        "description": "Updated task board format details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["board_format", "result"]
+            }
+        },
+        "get_task_bucket_board_format": {
+            "display_name": "Get Task Bucket Board Format",
+            "description": "Get the bucket task board format for a task (ordering within buckets)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "board_format": {
+                        "type": "object",
+                        "description": "Task board format details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["board_format", "result"]
+            }
+        },
+        "update_task_bucket_board_format": {
+            "display_name": "Update Task Bucket Board Format",
+            "description": "Update the bucket task board format for a task",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task"
+                    },
+                    "order_hint": {
+                        "type": "string",
+                        "description": "Order hint for the task within its bucket"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "board_format": {
+                        "type": "object",
+                        "description": "Updated task board format details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["board_format", "result"]
+            }
+        },
+        "get_task_progress_board_format": {
+            "display_name": "Get Task Progress Board Format",
+            "description": "Get the progress task board format for a task (ordering by progress state)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "board_format": {
+                        "type": "object",
+                        "description": "Task board format details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["board_format", "result"]
+            }
+        },
+        "update_task_progress_board_format": {
+            "display_name": "Update Task Progress Board Format",
+            "description": "Update the progress task board format for a task",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task"
+                    },
+                    "order_hint": {
+                        "type": "string",
+                        "description": "Order hint for the task in progress view"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "board_format": {
+                        "type": "object",
+                        "description": "Updated task board format details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["board_format", "result"]
+            }
+        }
+    }
+}

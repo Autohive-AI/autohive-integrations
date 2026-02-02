@@ -1,5 +1,5 @@
 from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler
+    Integration, ExecutionContext, ActionHandler, ActionResult
 )
 from typing import Dict, Any, List, Optional
 import json
@@ -17,9 +17,14 @@ def build_zoho_headers(context: ExecutionContext) -> Dict[str, str]:
         "Content-Type": "application/json"
     }
 
-def get_zoho_api_url(endpoint: str = "") -> str:
-    """Build Zoho CRM API URL."""
-    base_url = "https://www.zohoapis.com.au/crm/v8"
+def get_zoho_api_url(context: ExecutionContext, endpoint: str = "") -> str:
+    """Build Zoho CRM API URL using the region-specific api_domain from context."""
+    # Get api_domain from credentials (e.g., "https://www.zohoapis.com", "https://www.zohoapis.eu")
+    # Use 'or' to handle empty strings as well as None/missing keys
+    api_domain = context.auth['credentials'].get('api_domain') or 'https://www.zohoapis.com'
+    # Strip trailing slash if present
+    api_domain = api_domain.rstrip('/')
+    base_url = f"{api_domain}/crm/v8"
     return f"{base_url}{endpoint}"
 
 def build_contact_data(inputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -61,7 +66,7 @@ def build_account_data(inputs: Dict[str, Any]) -> Dict[str, Any]:
         "Account_Type": "Account_Type",
         "Industry": "Industry",
         "Annual_Revenue": "Annual_Revenue",
-        "No_of_Employees": "No_of_Employees",
+        "No_of_Employees": "Employees",
         "Phone": "Phone",
         "Fax": "Fax",
         "Website": "Website",
@@ -154,8 +159,8 @@ def build_account_query_params(inputs: Dict[str, Any]) -> Dict[str, str]:
     else:
         # Default account fields when none specified
         default_fields = [
-            'Account_Name', 'Account_Type', 'Industry', 'Annual_Revenue', 
-            'Phone', 'Website', 'Owner'
+            'Account_Name', 'Account_Type', 'Industry', 'Annual_Revenue',
+            'Employees', 'Phone', 'Website', 'Owner'
         ]
         params['fields'] = ','.join(default_fields)
     
@@ -243,7 +248,7 @@ def build_lead_data(inputs: Dict[str, Any]) -> Dict[str, Any]:
         "Lead_Status": "Lead_Status",
         "Industry": "Industry",
         "Annual_Revenue": "Annual_Revenue",
-        "No_of_Employees": "No_of_Employees",
+        "No_of_Employees": "Employees",
         "Website": "Website",
         "Street": "Street",
         "City": "City",
@@ -553,6 +558,53 @@ def build_search_params(inputs: Dict[str, Any]) -> Dict[str, str]:
     
     return params
 
+def build_note_data(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    """Build note data object from inputs for creating notes."""
+    note_data = {}
+
+    # Note_Content is mandatory
+    if 'Note_Content' in inputs and inputs['Note_Content']:
+        note_data['Note_Content'] = inputs['Note_Content']
+
+    # Note_Title is optional
+    if 'Note_Title' in inputs and inputs['Note_Title']:
+        note_data['Note_Title'] = inputs['Note_Title']
+
+    # Parent_Id is required for creating notes (when not using module endpoint)
+    if 'Parent_Id' in inputs and inputs['Parent_Id']:
+        parent_id = inputs['Parent_Id']
+        if isinstance(parent_id, dict):
+            note_data['Parent_Id'] = parent_id
+        else:
+            # If just an ID is provided, construct the Parent_Id object
+            module = inputs.get('module', 'Contacts')
+            note_data['Parent_Id'] = {
+                'id': parent_id
+            }
+
+    return note_data
+
+def build_notes_query_params(inputs: Dict[str, Any]) -> Dict[str, str]:
+    """Build query parameters for notes list operations."""
+    params = {}
+
+    # Add pagination parameters
+    if 'page' in inputs and inputs['page']:
+        params['page'] = str(inputs['page'])
+
+    if 'per_page' in inputs and inputs['per_page']:
+        per_page = min(int(inputs['per_page']), 200)  # Max 200 per Zoho API
+        params['per_page'] = str(per_page)
+
+    # Add fields parameter
+    if 'fields' in inputs and inputs['fields']:
+        if isinstance(inputs['fields'], list):
+            params['fields'] = ','.join(inputs['fields'])
+        else:
+            params['fields'] = inputs['fields']
+
+    return params
+
 # ---- Action Handlers ----
 
 @zoho.action("create_contact")
@@ -560,7 +612,7 @@ class CreateContact(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Contacts")
+            url = get_zoho_api_url(context, "/Contacts")
             
             # Build contact data
             contact_data = build_contact_data(inputs)
@@ -583,32 +635,36 @@ class CreateContact(ActionHandler):
                 contact_result = response["data"][0]
                 
                 if contact_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "contact": {
                             "id": contact_result.get("details", {}).get("id", ""),
                             "details": contact_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "contact": {},
                         "result": False,
                         "error": contact_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "contact": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "contact": {},
                 "result": False,
                 "error": f"Error creating contact: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("get_contact")
 class GetContact(ActionHandler):
@@ -616,7 +672,7 @@ class GetContact(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             contact_id = inputs["contact_id"]
-            url = get_zoho_api_url(f"/Contacts/{contact_id}")
+            url = get_zoho_api_url(context, f"/Contacts/{contact_id}")
             
             # Build query parameters
             params = {}
@@ -634,23 +690,26 @@ class GetContact(ActionHandler):
             # Process response
             if response.get("data") and len(response["data"]) > 0:
                 contact_data = response["data"][0]
-                return {
+                return ActionResult(data={
+
                     "contact": contact_data,
                     "result": True
-                }
+                }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "contact": {},
                     "result": False,
                     "error": "Contact not found"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "contact": {},
                 "result": False,
                 "error": f"Error retrieving contact: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("update_contact")
 class UpdateContact(ActionHandler):
@@ -658,7 +717,7 @@ class UpdateContact(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             contact_id = inputs["contact_id"]
-            url = get_zoho_api_url(f"/Contacts/{contact_id}")
+            url = get_zoho_api_url(context, f"/Contacts/{contact_id}")
             
             # Build contact data (excluding contact_id)
             contact_inputs = {k: v for k, v in inputs.items() if k != "contact_id"}
@@ -682,32 +741,36 @@ class UpdateContact(ActionHandler):
                 contact_result = response["data"][0]
                 
                 if contact_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "contact": {
                             "id": contact_result.get("details", {}).get("id", contact_id),
                             "details": contact_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "contact": {},
                         "result": False,
                         "error": contact_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "contact": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "contact": {},
                 "result": False,
                 "error": f"Error updating contact: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("delete_contact")
 class DeleteContact(ActionHandler):
@@ -715,7 +778,7 @@ class DeleteContact(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             contact_id = inputs["contact_id"]
-            url = get_zoho_api_url(f"/Contacts/{contact_id}")
+            url = get_zoho_api_url(context, f"/Contacts/{contact_id}")
             
             # Make API request
             response = await context.fetch(
@@ -729,38 +792,42 @@ class DeleteContact(ActionHandler):
                 delete_result = response["data"][0]
                 
                 if delete_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "result": True,
                         "details": {
                             "id": delete_result.get("details", {}).get("id", contact_id)
                         }
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "result": False,
                         "details": {},
                         "error": delete_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "result": False,
                     "details": {},
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "result": False,
                 "details": {},
                 "error": f"Error deleting contact: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("list_contacts")
 class ListContacts(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Contacts")
+            url = get_zoho_api_url(context, "/Contacts")
             
             # Build query parameters
             params = build_query_params(inputs)
@@ -777,26 +844,28 @@ class ListContacts(ActionHandler):
             contacts = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "contacts": contacts,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "contacts": [],
                 "info": {},
                 "result": False,
                 "error": f"Error listing contacts: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("search_contacts")
 class SearchContacts(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Contacts/search")
+            url = get_zoho_api_url(context, "/Contacts/search")
             
             # Build query parameters based on search type
             params = build_search_params(inputs)
@@ -813,19 +882,21 @@ class SearchContacts(ActionHandler):
             contacts = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "contacts": contacts,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "contacts": [],
                 "info": {},
                 "result": False,
                 "error": f"Error searching contacts: {str(e)}"
-            }
+            }, cost_usd=0)
 
 # ---- Account Action Handlers ----
 
@@ -834,7 +905,7 @@ class CreateAccount(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Accounts")
+            url = get_zoho_api_url(context, "/Accounts")
             
             # Build account data
             account_data = build_account_data(inputs)
@@ -857,32 +928,36 @@ class CreateAccount(ActionHandler):
                 account_result = response["data"][0]
                 
                 if account_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "account": {
                             "id": account_result.get("details", {}).get("id", ""),
                             "details": account_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "account": {},
                         "result": False,
                         "error": account_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "account": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "account": {},
                 "result": False,
                 "error": f"Error creating account: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("get_account")
 class GetAccount(ActionHandler):
@@ -890,7 +965,7 @@ class GetAccount(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             account_id = inputs["account_id"]
-            url = get_zoho_api_url(f"/Accounts/{account_id}")
+            url = get_zoho_api_url(context, f"/Accounts/{account_id}")
             
             # Build query parameters
             params = {}
@@ -899,8 +974,8 @@ class GetAccount(ActionHandler):
             else:
                 # Default account fields
                 default_fields = [
-                    'Account_Name', 'Account_Type', 'Industry', 'Annual_Revenue', 
-                    'Phone', 'Website', 'Owner', 'Created_Time', 'Modified_Time'
+                    'Account_Name', 'Account_Type', 'Industry', 'Annual_Revenue',
+                    'Employees', 'Phone', 'Website', 'Owner', 'Created_Time', 'Modified_Time'
                 ]
                 params['fields'] = ','.join(default_fields)
             
@@ -915,23 +990,26 @@ class GetAccount(ActionHandler):
             # Process response
             if response.get("data") and len(response["data"]) > 0:
                 account_data = response["data"][0]
-                return {
+                return ActionResult(data={
+
                     "account": account_data,
                     "result": True
-                }
+                }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "account": {},
                     "result": False,
                     "error": "Account not found"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "account": {},
                 "result": False,
                 "error": f"Error retrieving account: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("update_account")
 class UpdateAccount(ActionHandler):
@@ -939,7 +1017,7 @@ class UpdateAccount(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             account_id = inputs["account_id"]
-            url = get_zoho_api_url(f"/Accounts/{account_id}")
+            url = get_zoho_api_url(context, f"/Accounts/{account_id}")
             
             # Build account data (excluding account_id)
             account_inputs = {k: v for k, v in inputs.items() if k != "account_id"}
@@ -963,32 +1041,36 @@ class UpdateAccount(ActionHandler):
                 account_result = response["data"][0]
                 
                 if account_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "account": {
                             "id": account_result.get("details", {}).get("id", account_id),
                             "details": account_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "account": {},
                         "result": False,
                         "error": account_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "account": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "account": {},
                 "result": False,
                 "error": f"Error updating account: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("delete_account")
 class DeleteAccount(ActionHandler):
@@ -996,7 +1078,7 @@ class DeleteAccount(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             account_id = inputs["account_id"]
-            url = get_zoho_api_url(f"/Accounts/{account_id}")
+            url = get_zoho_api_url(context, f"/Accounts/{account_id}")
             
             # Make API request
             response = await context.fetch(
@@ -1010,38 +1092,42 @@ class DeleteAccount(ActionHandler):
                 delete_result = response["data"][0]
                 
                 if delete_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "result": True,
                         "details": {
                             "id": delete_result.get("details", {}).get("id", account_id)
                         }
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "result": False,
                         "details": {},
                         "error": delete_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "result": False,
                     "details": {},
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "result": False,
                 "details": {},
                 "error": f"Error deleting account: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("list_accounts")
 class ListAccounts(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Accounts")
+            url = get_zoho_api_url(context, "/Accounts")
             
             # Build query parameters
             params = build_account_query_params(inputs)
@@ -1058,26 +1144,28 @@ class ListAccounts(ActionHandler):
             accounts = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "accounts": accounts,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "accounts": [],
                 "info": {},
                 "result": False,
                 "error": f"Error listing accounts: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("search_accounts")
 class SearchAccounts(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Accounts/search")
+            url = get_zoho_api_url(context, "/Accounts/search")
             
             # Build query parameters based on search type
             params = build_search_params(inputs)
@@ -1094,19 +1182,21 @@ class SearchAccounts(ActionHandler):
             accounts = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "accounts": accounts,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "accounts": [],
                 "info": {},
                 "result": False,
                 "error": f"Error searching accounts: {str(e)}"
-            }
+            }, cost_usd=0)
 
 # ---- Deal Action Handlers ----
 
@@ -1115,7 +1205,7 @@ class CreateDeal(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Deals")
+            url = get_zoho_api_url(context, "/Deals")
             
             # Build deal data
             deal_data = build_deal_data(inputs)
@@ -1138,32 +1228,36 @@ class CreateDeal(ActionHandler):
                 deal_result = response["data"][0]
                 
                 if deal_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "deal": {
                             "id": deal_result.get("details", {}).get("id", ""),
                             "details": deal_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "deal": {},
                         "result": False,
                         "error": deal_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "deal": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "deal": {},
                 "result": False,
                 "error": f"Error creating deal: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("get_deal")
 class GetDeal(ActionHandler):
@@ -1171,7 +1265,7 @@ class GetDeal(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             deal_id = inputs["deal_id"]
-            url = get_zoho_api_url(f"/Deals/{deal_id}")
+            url = get_zoho_api_url(context, f"/Deals/{deal_id}")
             
             # Build query parameters
             params = {}
@@ -1196,23 +1290,26 @@ class GetDeal(ActionHandler):
             # Process response
             if response.get("data") and len(response["data"]) > 0:
                 deal_data = response["data"][0]
-                return {
+                return ActionResult(data={
+
                     "deal": deal_data,
                     "result": True
-                }
+                }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "deal": {},
                     "result": False,
                     "error": "Deal not found"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "deal": {},
                 "result": False,
                 "error": f"Error retrieving deal: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("update_deal")
 class UpdateDeal(ActionHandler):
@@ -1220,7 +1317,7 @@ class UpdateDeal(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             deal_id = inputs["deal_id"]
-            url = get_zoho_api_url(f"/Deals/{deal_id}")
+            url = get_zoho_api_url(context, f"/Deals/{deal_id}")
             
             # Build deal data (excluding deal_id)
             deal_inputs = {k: v for k, v in inputs.items() if k != "deal_id"}
@@ -1244,32 +1341,36 @@ class UpdateDeal(ActionHandler):
                 deal_result = response["data"][0]
                 
                 if deal_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "deal": {
                             "id": deal_result.get("details", {}).get("id", deal_id),
                             "details": deal_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "deal": {},
                         "result": False,
                         "error": deal_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "deal": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "deal": {},
                 "result": False,
                 "error": f"Error updating deal: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("delete_deal")
 class DeleteDeal(ActionHandler):
@@ -1277,7 +1378,7 @@ class DeleteDeal(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             deal_id = inputs["deal_id"]
-            url = get_zoho_api_url(f"/Deals/{deal_id}")
+            url = get_zoho_api_url(context, f"/Deals/{deal_id}")
             
             # Make API request
             response = await context.fetch(
@@ -1291,38 +1392,42 @@ class DeleteDeal(ActionHandler):
                 delete_result = response["data"][0]
                 
                 if delete_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "result": True,
                         "details": {
                             "id": delete_result.get("details", {}).get("id", deal_id)
                         }
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "result": False,
                         "details": {},
                         "error": delete_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "result": False,
                     "details": {},
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "result": False,
                 "details": {},
                 "error": f"Error deleting deal: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("list_deals")
 class ListDeals(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Deals")
+            url = get_zoho_api_url(context, "/Deals")
             
             # Build query parameters
             params = build_deal_query_params(inputs)
@@ -1339,26 +1444,28 @@ class ListDeals(ActionHandler):
             deals = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "deals": deals,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "deals": [],
                 "info": {},
                 "result": False,
                 "error": f"Error listing deals: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("search_deals")
 class SearchDeals(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Deals/search")
+            url = get_zoho_api_url(context, "/Deals/search")
             
             # Build query parameters based on search type
             params = build_search_params(inputs)
@@ -1375,19 +1482,21 @@ class SearchDeals(ActionHandler):
             deals = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "deals": deals,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "deals": [],
                 "info": {},
                 "result": False,
                 "error": f"Error searching deals: {str(e)}"
-            }
+            }, cost_usd=0)
 
 # ---- Lead Action Handlers ----
 
@@ -1396,7 +1505,7 @@ class CreateLead(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Leads")
+            url = get_zoho_api_url(context, "/Leads")
             
             # Build lead data
             lead_data = build_lead_data(inputs)
@@ -1419,32 +1528,36 @@ class CreateLead(ActionHandler):
                 lead_result = response["data"][0]
                 
                 if lead_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "lead": {
                             "id": lead_result.get("details", {}).get("id", ""),
                             "details": lead_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "lead": {},
                         "result": False,
                         "error": lead_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "lead": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "lead": {},
                 "result": False,
                 "error": f"Error creating lead: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("get_lead")
 class GetLead(ActionHandler):
@@ -1452,7 +1565,7 @@ class GetLead(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             lead_id = inputs["lead_id"]
-            url = get_zoho_api_url(f"/Leads/{lead_id}")
+            url = get_zoho_api_url(context, f"/Leads/{lead_id}")
             
             # Build query parameters
             params = {}
@@ -1477,23 +1590,26 @@ class GetLead(ActionHandler):
             # Process response
             if response.get("data") and len(response["data"]) > 0:
                 lead_data = response["data"][0]
-                return {
+                return ActionResult(data={
+
                     "lead": lead_data,
                     "result": True
-                }
+                }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "lead": {},
                     "result": False,
                     "error": "Lead not found"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "lead": {},
                 "result": False,
                 "error": f"Error retrieving lead: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("update_lead")
 class UpdateLead(ActionHandler):
@@ -1501,7 +1617,7 @@ class UpdateLead(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             lead_id = inputs["lead_id"]
-            url = get_zoho_api_url(f"/Leads/{lead_id}")
+            url = get_zoho_api_url(context, f"/Leads/{lead_id}")
             
             # Build lead data (excluding lead_id)
             lead_inputs = {k: v for k, v in inputs.items() if k != "lead_id"}
@@ -1525,32 +1641,36 @@ class UpdateLead(ActionHandler):
                 lead_result = response["data"][0]
                 
                 if lead_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "lead": {
                             "id": lead_result.get("details", {}).get("id", lead_id),
                             "details": lead_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "lead": {},
                         "result": False,
                         "error": lead_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "lead": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "lead": {},
                 "result": False,
                 "error": f"Error updating lead: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("delete_lead")
 class DeleteLead(ActionHandler):
@@ -1558,7 +1678,7 @@ class DeleteLead(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             lead_id = inputs["lead_id"]
-            url = get_zoho_api_url(f"/Leads/{lead_id}")
+            url = get_zoho_api_url(context, f"/Leads/{lead_id}")
             
             # Make API request
             response = await context.fetch(
@@ -1572,38 +1692,42 @@ class DeleteLead(ActionHandler):
                 delete_result = response["data"][0]
                 
                 if delete_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "result": True,
                         "details": {
                             "id": delete_result.get("details", {}).get("id", lead_id)
                         }
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "result": False,
                         "details": {},
                         "error": delete_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "result": False,
                     "details": {},
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "result": False,
                 "details": {},
                 "error": f"Error deleting lead: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("list_leads")
 class ListLeads(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Leads")
+            url = get_zoho_api_url(context, "/Leads")
             
             # Build query parameters
             params = build_lead_query_params(inputs)
@@ -1620,26 +1744,28 @@ class ListLeads(ActionHandler):
             leads = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "leads": leads,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "leads": [],
                 "info": {},
                 "result": False,
                 "error": f"Error listing leads: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("search_leads")
 class SearchLeads(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Leads/search")
+            url = get_zoho_api_url(context, "/Leads/search")
             
             # Build query parameters based on search type
             params = build_search_params(inputs)
@@ -1656,19 +1782,21 @@ class SearchLeads(ActionHandler):
             leads = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "leads": leads,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "leads": [],
                 "info": {},
                 "result": False,
                 "error": f"Error searching leads: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("convert_lead")
 class ConvertLead(ActionHandler):
@@ -1676,7 +1804,7 @@ class ConvertLead(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             lead_id = inputs["lead_id"]
-            url = get_zoho_api_url(f"/Leads/{lead_id}/actions/convert")
+            url = get_zoho_api_url(context, f"/Leads/{lead_id}/actions/convert")
             
             # Build conversion payload - Zoho API requires "data" array format
             conversion_data = {}
@@ -1725,33 +1853,37 @@ class ConvertLead(ActionHandler):
                 conversion_result = response["data"][0]
                 
                 if conversion_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "conversion": {
                             "account": conversion_result.get("Accounts"),
                             "contact": conversion_result.get("Contacts"),
                             "deal": conversion_result.get("Deals")
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "conversion": {},
                         "result": False,
                         "error": conversion_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "conversion": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "conversion": {},
                 "result": False,
                 "error": f"Error converting lead: {str(e)}"
-            }
+            }, cost_usd=0)
 
 # ---- Task Action Handlers ----
 
@@ -1760,7 +1892,7 @@ class CreateTask(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Tasks")
+            url = get_zoho_api_url(context, "/Tasks")
             
             # Build task data
             task_data = build_task_data(inputs)
@@ -1783,32 +1915,36 @@ class CreateTask(ActionHandler):
                 task_result = response["data"][0]
                 
                 if task_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "task": {
                             "id": task_result.get("details", {}).get("id", ""),
                             "details": task_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "task": {},
                         "result": False,
                         "error": task_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "task": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "task": {},
                 "result": False,
                 "error": f"Error creating task: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("get_task")
 class GetTask(ActionHandler):
@@ -1816,7 +1952,7 @@ class GetTask(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             task_id = inputs["task_id"]
-            url = get_zoho_api_url(f"/Tasks/{task_id}")
+            url = get_zoho_api_url(context, f"/Tasks/{task_id}")
             
             # Build query parameters
             params = {}
@@ -1841,23 +1977,26 @@ class GetTask(ActionHandler):
             # Process response
             if response.get("data") and len(response["data"]) > 0:
                 task_data = response["data"][0]
-                return {
+                return ActionResult(data={
+
                     "task": task_data,
                     "result": True
-                }
+                }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "task": {},
                     "result": False,
                     "error": "Task not found"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "task": {},
                 "result": False,
                 "error": f"Error retrieving task: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("update_task")
 class UpdateTask(ActionHandler):
@@ -1865,7 +2004,7 @@ class UpdateTask(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             task_id = inputs["task_id"]
-            url = get_zoho_api_url(f"/Tasks/{task_id}")
+            url = get_zoho_api_url(context, f"/Tasks/{task_id}")
             
             # Build task data (excluding task_id)
             task_inputs = {k: v for k, v in inputs.items() if k != "task_id"}
@@ -1889,32 +2028,36 @@ class UpdateTask(ActionHandler):
                 task_result = response["data"][0]
                 
                 if task_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "task": {
                             "id": task_result.get("details", {}).get("id", task_id),
                             "details": task_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "task": {},
                         "result": False,
                         "error": task_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "task": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "task": {},
                 "result": False,
                 "error": f"Error updating task: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("delete_task")
 class DeleteTask(ActionHandler):
@@ -1922,7 +2065,7 @@ class DeleteTask(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             task_id = inputs["task_id"]
-            url = get_zoho_api_url(f"/Tasks/{task_id}")
+            url = get_zoho_api_url(context, f"/Tasks/{task_id}")
             
             # Make API request
             response = await context.fetch(
@@ -1936,38 +2079,42 @@ class DeleteTask(ActionHandler):
                 delete_result = response["data"][0]
                 
                 if delete_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "result": True,
                         "details": {
                             "id": delete_result.get("details", {}).get("id", task_id)
                         }
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "result": False,
                         "details": {},
                         "error": delete_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "result": False,
                     "details": {},
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "result": False,
                 "details": {},
                 "error": f"Error deleting task: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("list_tasks")
 class ListTasks(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Tasks")
+            url = get_zoho_api_url(context, "/Tasks")
             
             # Build query parameters
             params = build_task_query_params(inputs)
@@ -1984,26 +2131,28 @@ class ListTasks(ActionHandler):
             tasks = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "tasks": tasks,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "tasks": [],
                 "info": {},
                 "result": False,
                 "error": f"Error listing tasks: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("search_tasks")
 class SearchTasks(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Tasks/search")
+            url = get_zoho_api_url(context, "/Tasks/search")
             
             # Build query parameters based on search type
             params = build_search_params(inputs)
@@ -2020,19 +2169,21 @@ class SearchTasks(ActionHandler):
             tasks = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "tasks": tasks,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "tasks": [],
                 "info": {},
                 "result": False,
                 "error": f"Error searching tasks: {str(e)}"
-            }
+            }, cost_usd=0)
 
 # ---- Event Action Handlers ----
 
@@ -2041,7 +2192,7 @@ class CreateEvent(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Events")
+            url = get_zoho_api_url(context, "/Events")
             
             # Build event data
             event_data = build_event_data(inputs)
@@ -2064,32 +2215,36 @@ class CreateEvent(ActionHandler):
                 event_result = response["data"][0]
                 
                 if event_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "event": {
                             "id": event_result.get("details", {}).get("id", ""),
                             "details": event_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "event": {},
                         "result": False,
                         "error": event_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "event": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "event": {},
                 "result": False,
                 "error": f"Error creating event: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("get_event")
 class GetEvent(ActionHandler):
@@ -2097,7 +2252,7 @@ class GetEvent(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             event_id = inputs["event_id"]
-            url = get_zoho_api_url(f"/Events/{event_id}")
+            url = get_zoho_api_url(context, f"/Events/{event_id}")
             
             # Build query parameters
             params = {}
@@ -2122,23 +2277,26 @@ class GetEvent(ActionHandler):
             # Process response
             if response.get("data") and len(response["data"]) > 0:
                 event_data = response["data"][0]
-                return {
+                return ActionResult(data={
+
                     "event": event_data,
                     "result": True
-                }
+                }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "event": {},
                     "result": False,
                     "error": "Event not found"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "event": {},
                 "result": False,
                 "error": f"Error retrieving event: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("update_event")
 class UpdateEvent(ActionHandler):
@@ -2146,7 +2304,7 @@ class UpdateEvent(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             event_id = inputs["event_id"]
-            url = get_zoho_api_url(f"/Events/{event_id}")
+            url = get_zoho_api_url(context, f"/Events/{event_id}")
             
             # Build event data (excluding event_id)
             event_inputs = {k: v for k, v in inputs.items() if k != "event_id"}
@@ -2170,32 +2328,36 @@ class UpdateEvent(ActionHandler):
                 event_result = response["data"][0]
                 
                 if event_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "event": {
                             "id": event_result.get("details", {}).get("id", event_id),
                             "details": event_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "event": {},
                         "result": False,
                         "error": event_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "event": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "event": {},
                 "result": False,
                 "error": f"Error updating event: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("delete_event")
 class DeleteEvent(ActionHandler):
@@ -2203,7 +2365,7 @@ class DeleteEvent(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             event_id = inputs["event_id"]
-            url = get_zoho_api_url(f"/Events/{event_id}")
+            url = get_zoho_api_url(context, f"/Events/{event_id}")
             
             # Make API request
             response = await context.fetch(
@@ -2217,38 +2379,42 @@ class DeleteEvent(ActionHandler):
                 delete_result = response["data"][0]
                 
                 if delete_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "result": True,
                         "details": {
                             "id": delete_result.get("details", {}).get("id", event_id)
                         }
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "result": False,
                         "details": {},
                         "error": delete_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "result": False,
                     "details": {},
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "result": False,
                 "details": {},
                 "error": f"Error deleting event: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("list_events")
 class ListEvents(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Events")
+            url = get_zoho_api_url(context, "/Events")
             
             # Build query parameters
             params = build_event_query_params(inputs)
@@ -2265,26 +2431,28 @@ class ListEvents(ActionHandler):
             events = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "events": events,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "events": [],
                 "info": {},
                 "result": False,
                 "error": f"Error listing events: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("search_events")
 class SearchEvents(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Events/search")
+            url = get_zoho_api_url(context, "/Events/search")
             
             # Build query parameters based on search type
             params = build_search_params(inputs)
@@ -2301,19 +2469,21 @@ class SearchEvents(ActionHandler):
             events = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "events": events,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "events": [],
                 "info": {},
                 "result": False,
                 "error": f"Error searching events: {str(e)}"
-            }
+            }, cost_usd=0)
 
 # ---- Call Action Handlers ----
 
@@ -2322,7 +2492,7 @@ class CreateCall(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Calls")
+            url = get_zoho_api_url(context, "/Calls")
             
             # Build call data
             call_data = build_call_data(inputs)
@@ -2345,32 +2515,36 @@ class CreateCall(ActionHandler):
                 call_result = response["data"][0]
                 
                 if call_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "call": {
                             "id": call_result.get("details", {}).get("id", ""),
                             "details": call_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "call": {},
                         "result": False,
                         "error": call_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "call": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "call": {},
                 "result": False,
                 "error": f"Error creating call: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("get_call")
 class GetCall(ActionHandler):
@@ -2378,7 +2552,7 @@ class GetCall(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             call_id = inputs["call_id"]
-            url = get_zoho_api_url(f"/Calls/{call_id}")
+            url = get_zoho_api_url(context, f"/Calls/{call_id}")
             
             # Build query parameters
             params = {}
@@ -2403,23 +2577,26 @@ class GetCall(ActionHandler):
             # Process response
             if response.get("data") and len(response["data"]) > 0:
                 call_data = response["data"][0]
-                return {
+                return ActionResult(data={
+
                     "call": call_data,
                     "result": True
-                }
+                }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "call": {},
                     "result": False,
                     "error": "Call not found"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "call": {},
                 "result": False,
                 "error": f"Error retrieving call: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("update_call")
 class UpdateCall(ActionHandler):
@@ -2427,7 +2604,7 @@ class UpdateCall(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             call_id = inputs["call_id"]
-            url = get_zoho_api_url(f"/Calls/{call_id}")
+            url = get_zoho_api_url(context, f"/Calls/{call_id}")
             
             # Build call data (excluding call_id)
             call_inputs = {k: v for k, v in inputs.items() if k != "call_id"}
@@ -2451,32 +2628,36 @@ class UpdateCall(ActionHandler):
                 call_result = response["data"][0]
                 
                 if call_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "call": {
                             "id": call_result.get("details", {}).get("id", call_id),
                             "details": call_result.get("details", {})
                         },
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "call": {},
                         "result": False,
                         "error": call_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "call": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "call": {},
                 "result": False,
                 "error": f"Error updating call: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("delete_call")
 class DeleteCall(ActionHandler):
@@ -2484,7 +2665,7 @@ class DeleteCall(ActionHandler):
         try:
             headers = build_zoho_headers(context)
             call_id = inputs["call_id"]
-            url = get_zoho_api_url(f"/Calls/{call_id}")
+            url = get_zoho_api_url(context, f"/Calls/{call_id}")
             
             # Make API request
             response = await context.fetch(
@@ -2498,38 +2679,42 @@ class DeleteCall(ActionHandler):
                 delete_result = response["data"][0]
                 
                 if delete_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "result": True,
                         "details": {
                             "id": delete_result.get("details", {}).get("id", call_id)
                         }
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "result": False,
                         "details": {},
                         "error": delete_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "result": False,
                     "details": {},
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "result": False,
                 "details": {},
                 "error": f"Error deleting call: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("list_calls")
 class ListCalls(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Calls")
+            url = get_zoho_api_url(context, "/Calls")
             
             # Build query parameters
             params = build_call_query_params(inputs)
@@ -2546,26 +2731,28 @@ class ListCalls(ActionHandler):
             calls = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "calls": calls,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "calls": [],
                 "info": {},
                 "result": False,
                 "error": f"Error listing calls: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("search_calls")
 class SearchCalls(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/Calls/search")
+            url = get_zoho_api_url(context, "/Calls/search")
             
             # Build query parameters based on search type
             params = build_search_params(inputs)
@@ -2582,19 +2769,21 @@ class SearchCalls(ActionHandler):
             calls = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "calls": calls,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "calls": [],
                 "info": {},
                 "result": False,
                 "error": f"Error searching calls: {str(e)}"
-            }
+            }, cost_usd=0)
 
 # ---- Related Records Action Handlers ----
 
@@ -2607,7 +2796,7 @@ class GetRelatedRecords(ActionHandler):
             record_id = inputs["record_id"]
             related_module = inputs["related_module"]
             
-            url = get_zoho_api_url(f"/{module}/{record_id}/{related_module}")
+            url = get_zoho_api_url(context, f"/{module}/{record_id}/{related_module}")
             
             # Build query parameters
             params = build_related_records_params(inputs)
@@ -2629,19 +2818,21 @@ class GetRelatedRecords(ActionHandler):
             related_records = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "related_records": related_records,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "related_records": [],
                 "info": {},
                 "result": False,
                 "error": f"Error getting related records: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("get_account_hierarchy")
 class GetAccountHierarchy(ActionHandler):
@@ -2652,7 +2843,7 @@ class GetAccountHierarchy(ActionHandler):
             include_modules = inputs.get("include_modules", ["Contacts", "Deals", "Tasks", "Events", "Calls"])
             
             # Get the account details first
-            account_url = get_zoho_api_url(f"/Accounts/{account_id}")
+            account_url = get_zoho_api_url(context, f"/Accounts/{account_id}")
             account_response = await context.fetch(
                 account_url,
                 method="GET",
@@ -2675,7 +2866,7 @@ class GetAccountHierarchy(ActionHandler):
             # Fetch related records for each requested module
             for module in include_modules:
                 try:
-                    related_url = get_zoho_api_url(f"/Accounts/{account_id}/{module}")
+                    related_url = get_zoho_api_url(context, f"/Accounts/{account_id}/{module}")
                     default_fields = get_default_fields_for_module(module)
                     
                     related_response = await context.fetch(
@@ -2692,13 +2883,15 @@ class GetAccountHierarchy(ActionHandler):
                     # If a related module fails, continue with others
                     hierarchy[module.lower()] = []
             
-            return {
+            return ActionResult(data={
+
                 **hierarchy,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "account": {},
                 "contacts": [],
                 "deals": [],
@@ -2707,7 +2900,7 @@ class GetAccountHierarchy(ActionHandler):
                 "calls": [],
                 "result": False,
                 "error": f"Error getting account hierarchy: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("get_contact_activities")
 class GetContactActivities(ActionHandler):
@@ -2718,7 +2911,7 @@ class GetContactActivities(ActionHandler):
             include_modules = inputs.get("include_modules", ["Tasks", "Events", "Calls"])
             
             # Get the contact details first
-            contact_url = get_zoho_api_url(f"/Contacts/{contact_id}")
+            contact_url = get_zoho_api_url(context, f"/Contacts/{contact_id}")
             contact_response = await context.fetch(
                 contact_url,
                 method="GET",
@@ -2744,7 +2937,7 @@ class GetContactActivities(ActionHandler):
             # Fetch activities for each requested module
             for module in include_modules:
                 try:
-                    related_url = get_zoho_api_url(f"/Contacts/{contact_id}/{module}")
+                    related_url = get_zoho_api_url(context, f"/Contacts/{contact_id}/{module}")
                     default_fields = get_default_fields_for_module(module)
                     
                     related_response = await context.fetch(
@@ -2763,13 +2956,15 @@ class GetContactActivities(ActionHandler):
                     activities[module.lower()] = []
                     activities["activity_summary"][f"total_{module.lower()}"] = 0
             
-            return {
+            return ActionResult(data={
+
                 **activities,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "contact": {},
                 "tasks": [],
                 "events": [],
@@ -2777,7 +2972,7 @@ class GetContactActivities(ActionHandler):
                 "activity_summary": {"total_tasks": 0, "total_events": 0, "total_calls": 0},
                 "result": False,
                 "error": f"Error getting contact activities: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("get_deal_relationships")
 class GetDealRelationships(ActionHandler):
@@ -2788,7 +2983,7 @@ class GetDealRelationships(ActionHandler):
             include_activities = inputs.get("include_activities", True)
             
             # Get the deal details first
-            deal_url = get_zoho_api_url(f"/Deals/{deal_id}")
+            deal_url = get_zoho_api_url(context, f"/Deals/{deal_id}")
             deal_response = await context.fetch(
                 deal_url,
                 method="GET",
@@ -2818,7 +3013,7 @@ class GetDealRelationships(ActionHandler):
                 account_id = deal_data["Account_Name"].get("id")
                 if account_id:
                     try:
-                        account_url = get_zoho_api_url(f"/Accounts/{account_id}")
+                        account_url = get_zoho_api_url(context, f"/Accounts/{account_id}")
                         account_response = await context.fetch(
                             account_url,
                             method="GET",
@@ -2835,7 +3030,7 @@ class GetDealRelationships(ActionHandler):
                 contact_id = deal_data["Contact_Name"].get("id")
                 if contact_id:
                     try:
-                        contact_url = get_zoho_api_url(f"/Contacts/{contact_id}")
+                        contact_url = get_zoho_api_url(context, f"/Contacts/{contact_id}")
                         contact_response = await context.fetch(
                             contact_url,
                             method="GET",
@@ -2854,7 +3049,7 @@ class GetDealRelationships(ActionHandler):
                 
                 for module in activity_modules:
                     try:
-                        activity_url = get_zoho_api_url(f"/Deals/{deal_id}/{module}")
+                        activity_url = get_zoho_api_url(context, f"/Deals/{deal_id}/{module}")
                         default_fields = get_default_fields_for_module(module)
                         
                         activity_response = await context.fetch(
@@ -2873,13 +3068,15 @@ class GetDealRelationships(ActionHandler):
                 
                 relationships["relationship_summary"]["total_activities"] = total_activities
             
-            return {
+            return ActionResult(data={
+
                 **relationships,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "deal": {},
                 "account": None,
                 "contact": None,
@@ -2889,14 +3086,14 @@ class GetDealRelationships(ActionHandler):
                 "relationship_summary": {"has_account": False, "has_contact": False, "total_activities": 0},
                 "result": False,
                 "error": f"Error getting deal relationships: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("execute_coql_query")
 class ExecuteCOQLQuery(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_zoho_headers(context)
-            url = get_zoho_api_url("/coql")
+            url = get_zoho_api_url(context, "/coql")
             
             # Build COQL request payload
             payload = {
@@ -2915,19 +3112,21 @@ class ExecuteCOQLQuery(ActionHandler):
             data = response.get("data", [])
             info = response.get("info", {})
             
-            return {
+            return ActionResult(data={
+
                 "data": data,
                 "info": info,
                 "result": True
-            }
+            }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "data": [],
                 "info": {},
                 "result": False,
                 "error": f"Error executing COQL query: {str(e)}"
-            }
+            }, cost_usd=0)
 
 @zoho.action("update_related_records")
 class UpdateRelatedRecords(ActionHandler):
@@ -2940,7 +3139,7 @@ class UpdateRelatedRecords(ActionHandler):
             related_record_id = inputs["related_record_id"]
             update_data = inputs["update_data"]
             
-            url = get_zoho_api_url(f"/{module}/{record_id}/{related_module}/{related_record_id}")
+            url = get_zoho_api_url(context, f"/{module}/{record_id}/{related_module}/{related_record_id}")
             
             # Create request payload
             payload = {
@@ -2960,26 +3159,295 @@ class UpdateRelatedRecords(ActionHandler):
                 update_result = response["data"][0]
                 
                 if update_result.get("code") == "SUCCESS":
-                    return {
+                    return ActionResult(data={
+
                         "updated_record": update_result.get("details", {}),
                         "result": True
-                    }
+                    }, cost_usd=0)
                 else:
-                    return {
+                    return ActionResult(data={
+
                         "updated_record": {},
                         "result": False,
                         "error": update_result.get("message", "Unknown error occurred")
-                    }
+                    }, cost_usd=0)
             else:
-                return {
+                return ActionResult(data={
+
                     "updated_record": {},
                     "result": False,
                     "error": "No response data received"
-                }
+                }, cost_usd=0)
                 
         except Exception as e:
-            return {
+            return ActionResult(data={
+
                 "updated_record": {},
                 "result": False,
                 "error": f"Error updating related record: {str(e)}"
+            }, cost_usd=0)
+
+@zoho.action("create_note")
+class CreateNote(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            headers = build_zoho_headers(context)
+            module = inputs["module"]
+            record_id = inputs["record_id"]
+            url = get_zoho_api_url(context, f"/{module}/{record_id}/Notes")
+
+            # Build note data
+            note_data = {
+                "Note_Content": inputs["Note_Content"]
             }
+
+            if 'Note_Title' in inputs and inputs['Note_Title']:
+                note_data['Note_Title'] = inputs['Note_Title']
+
+            # Create request payload
+            payload = {
+                "data": [note_data]
+            }
+
+            # Make API request
+            response = await context.fetch(
+                url,
+                method="POST",
+                headers=headers,
+                json=payload
+            )
+
+            # Process response
+            if response.get("data") and len(response["data"]) > 0:
+                note_result = response["data"][0]
+
+                if note_result.get("code") == "SUCCESS":
+                    return ActionResult(data={
+
+                        "note": {
+                            "id": note_result.get("details", {}).get("id", ""),
+                            "details": note_result.get("details", {})
+                        },
+                        "result": True
+                    }, cost_usd=0)
+                else:
+                    return ActionResult(data={
+
+                        "note": {},
+                        "result": False,
+                        "error": note_result.get("message", "Unknown error occurred")
+                    }, cost_usd=0)
+            else:
+                return ActionResult(data={
+
+                    "note": {},
+                    "result": False,
+                    "error": "No response data received"
+                }, cost_usd=0)
+
+        except Exception as e:
+            return ActionResult(data={
+
+                "note": {},
+                "result": False,
+                "error": f"Error creating note: {str(e)}"
+            }, cost_usd=0)
+
+@zoho.action("get_contact_notes")
+class GetContactNotes(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            headers = build_zoho_headers(context)
+            module = inputs["module"]
+            record_id = inputs["record_id"]
+            url = get_zoho_api_url(context, f"/{module}/{record_id}/Notes")
+
+            # Build query parameters
+            params = build_notes_query_params(inputs)
+
+            # Make API request
+            response = await context.fetch(
+                url,
+                method="GET",
+                headers=headers,
+                params=params
+            )
+
+            # Process response
+            notes_data = response.get("data", [])
+            info = response.get("info", {})
+
+            return ActionResult(data={
+
+                "notes": notes_data,
+                "info": info,
+                "result": True
+            }, cost_usd=0)
+
+        except Exception as e:
+            return ActionResult(data={
+
+                "notes": [],
+                "info": {},
+                "result": False,
+                "error": f"Error getting record notes: {str(e)}"
+            }, cost_usd=0)
+
+@zoho.action("get_note")
+class GetNote(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            headers = build_zoho_headers(context)
+            note_id = inputs["note_id"]
+            url = get_zoho_api_url(context, f"/Notes/{note_id}")
+
+            # Build query parameters
+            params = {}
+            if 'fields' in inputs and inputs['fields']:
+                if isinstance(inputs['fields'], list):
+                    params['fields'] = ','.join(inputs['fields'])
+                else:
+                    params['fields'] = inputs['fields']
+
+            # Make API request
+            response = await context.fetch(
+                url,
+                method="GET",
+                headers=headers,
+                params=params
+            )
+
+            # Process response
+            if response.get("data") and len(response["data"]) > 0:
+                note_data = response["data"][0]
+                return ActionResult(data={
+
+                    "note": note_data,
+                    "result": True
+                }, cost_usd=0)
+            else:
+                return ActionResult(data={
+
+                    "note": {},
+                    "result": False,
+                    "error": "Note not found"
+                }, cost_usd=0)
+
+        except Exception as e:
+            return ActionResult(data={
+
+                "note": {},
+                "result": False,
+                "error": f"Error getting note: {str(e)}"
+            }, cost_usd=0)
+
+@zoho.action("update_note")
+class UpdateNote(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            headers = build_zoho_headers(context)
+            note_id = inputs["note_id"]
+            url = get_zoho_api_url(context, f"/Notes/{note_id}")
+
+            # Build update data - only Note_Title and Note_Content can be updated
+            update_data = {}
+
+            if 'Note_Title' in inputs and inputs['Note_Title']:
+                update_data['Note_Title'] = inputs['Note_Title']
+
+            if 'Note_Content' in inputs and inputs['Note_Content']:
+                update_data['Note_Content'] = inputs['Note_Content']
+
+            # Create request payload
+            payload = {
+                "data": [update_data]
+            }
+
+            # Make API request
+            response = await context.fetch(
+                url,
+                method="PUT",
+                headers=headers,
+                json=payload
+            )
+
+            # Process response
+            if response.get("data") and len(response["data"]) > 0:
+                note_result = response["data"][0]
+
+                if note_result.get("code") == "SUCCESS":
+                    return ActionResult(data={
+
+                        "note": {
+                            "id": note_result.get("details", {}).get("id", ""),
+                            "details": note_result.get("details", {})
+                        },
+                        "result": True
+                    }, cost_usd=0)
+                else:
+                    return ActionResult(data={
+
+                        "note": {},
+                        "result": False,
+                        "error": note_result.get("message", "Unknown error occurred")
+                    }, cost_usd=0)
+            else:
+                return ActionResult(data={
+
+                    "note": {},
+                    "result": False,
+                    "error": "No response data received"
+                }, cost_usd=0)
+
+        except Exception as e:
+            return ActionResult(data={
+
+                "note": {},
+                "result": False,
+                "error": f"Error updating note: {str(e)}"
+            }, cost_usd=0)
+
+@zoho.action("delete_note")
+class DeleteNote(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            headers = build_zoho_headers(context)
+            note_id = inputs["note_id"]
+            url = get_zoho_api_url(context, f"/Notes/{note_id}")
+
+            # Make API request
+            response = await context.fetch(
+                url,
+                method="DELETE",
+                headers=headers
+            )
+
+            # Process response
+            if response.get("data") and len(response["data"]) > 0:
+                delete_result = response["data"][0]
+
+                if delete_result.get("code") == "SUCCESS":
+                    return ActionResult(data={
+
+                        "result": True,
+                        "message": "Note deleted successfully"
+                    }, cost_usd=0)
+                else:
+                    return ActionResult(data={
+
+                        "result": False,
+                        "error": delete_result.get("message", "Unknown error occurred")
+                    }, cost_usd=0)
+            else:
+                return ActionResult(data={
+
+                    "result": False,
+                    "error": "No response data received"
+                }, cost_usd=0)
+
+        except Exception as e:
+            return ActionResult(data={
+
+                "result": False,
+                "error": f"Error deleting note: {str(e)}"
+            }, cost_usd=0)

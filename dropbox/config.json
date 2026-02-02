@@ -1,0 +1,376 @@
+{
+    "name": "Dropbox",
+    "display_name": "Dropbox",
+    "version": "1.0.0",
+    "description": "Dropbox integration for reading and modifying files, folders, and account information",
+    "entry_point": "dropbox.py",
+    "auth": {
+        "type": "platform",
+        "provider": "Dropbox",
+        "scopes": [
+            "account_info.read",
+            "files.metadata.read",
+            "files.content.read",
+            "files.content.write"
+        ]
+    },
+    "actions": {
+        "list_folder": {
+            "display_name": "List Folder",
+            "description": "Lists contents of a folder. Returns entries, cursor for pagination, and has_more flag. To continue listing when has_more is true, call again with the returned cursor.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the folder (empty string '' for root folder, or '/folder_name' for subfolders)",
+                        "default": ""
+                    },
+                    "cursor": {
+                        "type": "string",
+                        "description": "Cursor from a previous list_folder call to continue pagination. When provided, other parameters are ignored."
+                    },
+                    "recursive": {
+                        "type": "boolean",
+                        "description": "If true, list folder recursively",
+                        "default": false
+                    },
+                    "include_deleted": {
+                        "type": "boolean",
+                        "description": "If true, include deleted files",
+                        "default": false
+                    },
+                    "include_has_explicit_shared_members": {
+                        "type": "boolean",
+                        "description": "If true, include has_explicit_shared_members field",
+                        "default": false
+                    },
+                    "include_mounted_folders": {
+                        "type": "boolean",
+                        "description": "If true, include mounted folders",
+                        "default": true
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (1-2000)",
+                        "minimum": 1,
+                        "maximum": 2000
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "entries": {
+                        "type": "array",
+                        "description": "List of file and folder entries"
+                    },
+                    "cursor": {
+                        "type": "string",
+                        "description": "Cursor for pagination (use with list_folder_continue)"
+                    },
+                    "has_more": {
+                        "type": "boolean",
+                        "description": "Whether there are more entries to fetch"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["entries", "has_more", "result"]
+            }
+        },
+        "get_metadata": {
+            "display_name": "Get Metadata",
+            "description": "Returns metadata for a file or folder at a given path.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file or folder (e.g., '/folder/file.txt')"
+                    },
+                    "include_deleted": {
+                        "type": "boolean",
+                        "description": "If true, will return deleted metadata",
+                        "default": false
+                    },
+                    "include_has_explicit_shared_members": {
+                        "type": "boolean",
+                        "description": "If true, include has_explicit_shared_members field",
+                        "default": false
+                    }
+                },
+                "required": ["path"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "metadata": {
+                        "type": "object",
+                        "description": "File or folder metadata (includes .tag, name, path_display, id, etc.)"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["metadata", "result"]
+            }
+        },
+        "get_temporary_link": {
+            "display_name": "Get Temporary Link",
+            "description": "Gets a temporary link to stream content of a file. Valid for 4 hours.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file (e.g., '/folder/file.txt')"
+                    }
+                },
+                "required": ["path"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "link": {
+                        "type": "string",
+                        "description": "Temporary download link (valid for 4 hours)"
+                    },
+                    "metadata": {
+                        "type": "object",
+                        "description": "Metadata for the file"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "upload_file": {
+            "display_name": "Upload File",
+            "description": "Upload a file to Dropbox.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path where the file should be saved (e.g., '/folder/file.txt')"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "File content as a base64-encoded string"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "description": "How to handle conflicts: 'add' (rename if exists), 'overwrite', or 'update'",
+                        "enum": ["add", "overwrite", "update"],
+                        "default": "add"
+                    },
+                    "autorename": {
+                        "type": "boolean",
+                        "description": "If true, rename the file if there's a conflict",
+                        "default": false
+                    },
+                    "mute": {
+                        "type": "boolean",
+                        "description": "If true, don't notify the user about this upload",
+                        "default": false
+                    }
+                },
+                "required": ["path", "content"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "description": "Uploaded file metadata"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "create_folder": {
+            "display_name": "Create Folder",
+            "description": "Create a new folder in Dropbox.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path of the folder to create (e.g., '/my_folder')"
+                    },
+                    "autorename": {
+                        "type": "boolean",
+                        "description": "If true, rename the folder if there's a conflict",
+                        "default": false
+                    }
+                },
+                "required": ["path"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "folder": {
+                        "type": "object",
+                        "description": "Created folder metadata"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "delete": {
+            "display_name": "Delete File or Folder",
+            "description": "Delete a file or folder from Dropbox. Works for both files and folders.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file or folder to delete (e.g., '/folder/file.txt' or '/folder')"
+                    }
+                },
+                "required": ["path"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "metadata": {
+                        "type": "object",
+                        "description": "Metadata of the deleted item"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "move": {
+            "display_name": "Move File or Folder",
+            "description": "Move a file or folder to a different location in Dropbox.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "from_path": {
+                        "type": "string",
+                        "description": "Current path of the file or folder"
+                    },
+                    "to_path": {
+                        "type": "string",
+                        "description": "New path for the file or folder"
+                    },
+                    "autorename": {
+                        "type": "boolean",
+                        "description": "If true, rename if there's a conflict at destination",
+                        "default": false
+                    },
+                    "allow_ownership_transfer": {
+                        "type": "boolean",
+                        "description": "Allow moving a shared folder to a different parent",
+                        "default": false
+                    }
+                },
+                "required": ["from_path", "to_path"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "metadata": {
+                        "type": "object",
+                        "description": "Metadata of the moved item"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "copy": {
+            "display_name": "Copy File or Folder",
+            "description": "Copy a file or folder to a different location in Dropbox.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "from_path": {
+                        "type": "string",
+                        "description": "Path of the file or folder to copy"
+                    },
+                    "to_path": {
+                        "type": "string",
+                        "description": "Destination path for the copy"
+                    },
+                    "autorename": {
+                        "type": "boolean",
+                        "description": "If true, rename if there's a conflict at destination",
+                        "default": false
+                    }
+                },
+                "required": ["from_path", "to_path"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "metadata": {
+                        "type": "object",
+                        "description": "Metadata of the copied item"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        }
+    }
+}

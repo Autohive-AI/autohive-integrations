@@ -1,0 +1,304 @@
+{
+    "name": "ShopifyCustomer",
+    "display_name": "Shopify Customer Account API",
+    "version": "1.0.0",
+    "description": "Shopify Customer Account API integration for customer self-service - profile, addresses, and order history",
+    "entry_point": "shopify_customer.py",
+    "auth": {
+        "type": "oauth2_pkce",
+        "provider": "ShopifyCustomerAccount",
+        "scopes": [
+            "openid",
+            "email",
+            "customer-account-api:full"
+        ]
+    },
+    "actions": {
+        "customer_get_profile": {
+            "display_name": "Get Customer Profile",
+            "description": "Get customer's own profile information",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "customer": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "customer_update_profile": {
+            "display_name": "Update Customer Profile",
+            "description": "Update customer's profile information",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "first_name": {"type": "string", "description": "First name", "label": "First Name"},
+                    "last_name": {"type": "string", "description": "Last name", "label": "Last Name"},
+                    "phone": {"type": "string", "description": "Phone number", "label": "Phone"},
+                    "accepts_marketing": {"type": "boolean", "description": "Accept marketing emails", "label": "Accepts Marketing"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "customer": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "customer_list_addresses": {
+            "display_name": "List Addresses",
+            "description": "List customer's saved addresses",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "first": {"type": "integer", "description": "Number of addresses to return", "label": "Count", "default": 20},
+                    "after": {"type": "string", "description": "Cursor for pagination", "label": "After Cursor"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "addresses": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "has_next_page": {"type": "boolean"},
+                    "end_cursor": {"type": "string"},
+                    "default_address_id": {"type": "string"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "customer_create_address": {
+            "display_name": "Create Address",
+            "description": "Create a new address",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "address1": {"type": "string", "description": "Street address", "label": "Address Line 1"},
+                    "address2": {"type": "string", "description": "Apartment, suite, etc.", "label": "Address Line 2"},
+                    "city": {"type": "string", "description": "City", "label": "City"},
+                    "province": {"type": "string", "description": "State/Province", "label": "Province"},
+                    "country": {"type": "string", "description": "Country code (e.g., US)", "label": "Country"},
+                    "zip": {"type": "string", "description": "Postal code", "label": "ZIP Code"},
+                    "phone": {"type": "string", "description": "Phone number", "label": "Phone"},
+                    "company": {"type": "string", "description": "Company name", "label": "Company"},
+                    "first_name": {"type": "string", "description": "First name", "label": "First Name"},
+                    "last_name": {"type": "string", "description": "Last name", "label": "Last Name"}
+                },
+                "required": ["address1", "city", "country", "zip"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "address": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "customer_update_address": {
+            "display_name": "Update Address",
+            "description": "Update an existing address",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "address_id": {"type": "string", "description": "Address GraphQL ID", "label": "Address ID"},
+                    "address1": {"type": "string", "description": "Street address", "label": "Address Line 1"},
+                    "address2": {"type": "string", "description": "Apartment, suite, etc.", "label": "Address Line 2"},
+                    "city": {"type": "string", "description": "City", "label": "City"},
+                    "province": {"type": "string", "description": "State/Province", "label": "Province"},
+                    "country": {"type": "string", "description": "Country code", "label": "Country"},
+                    "zip": {"type": "string", "description": "Postal code", "label": "ZIP Code"},
+                    "phone": {"type": "string", "description": "Phone number", "label": "Phone"},
+                    "company": {"type": "string", "description": "Company name", "label": "Company"},
+                    "first_name": {"type": "string", "description": "First name", "label": "First Name"},
+                    "last_name": {"type": "string", "description": "Last name", "label": "Last Name"}
+                },
+                "required": ["address_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "address": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "customer_delete_address": {
+            "display_name": "Delete Address",
+            "description": "Delete an address",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "address_id": {"type": "string", "description": "Address GraphQL ID", "label": "Address ID"}
+                },
+                "required": ["address_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "deleted": {"type": "boolean"},
+                    "deleted_address_id": {"type": "string"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "customer_set_default_address": {
+            "display_name": "Set Default Address",
+            "description": "Set an address as the default",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "address_id": {"type": "string", "description": "Address GraphQL ID", "label": "Address ID"}
+                },
+                "required": ["address_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "default_address_id": {"type": "string"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "customer_list_orders": {
+            "display_name": "List Orders",
+            "description": "List customer's order history",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "first": {"type": "integer", "description": "Number of orders to return", "label": "Count", "default": 10},
+                    "after": {"type": "string", "description": "Cursor for pagination", "label": "After Cursor"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "orders": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "has_next_page": {"type": "boolean"},
+                    "end_cursor": {"type": "string"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "customer_get_order": {
+            "display_name": "Get Order",
+            "description": "Get details of a specific order",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "order_id": {"type": "string", "description": "Order GraphQL ID", "label": "Order ID"}
+                },
+                "required": ["order_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "order": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "customer_generate_oauth_url": {
+            "display_name": "Generate OAuth URL",
+            "description": "Generate OAuth authorization URL for customer login",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "client_id": {"type": "string", "description": "OAuth client ID", "label": "Client ID"},
+                    "redirect_uri": {"type": "string", "description": "OAuth redirect URI", "label": "Redirect URI"},
+                    "scopes": {"type": "array", "description": "Requested scopes", "label": "Scopes", "items": {"type": "string"}}
+                },
+                "required": ["client_id", "redirect_uri"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "authorization_url": {"type": "string"},
+                    "code_verifier": {"type": "string"},
+                    "state": {"type": "string"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "customer_exchange_code": {
+            "display_name": "Exchange Authorization Code",
+            "description": "Exchange authorization code for access tokens",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "string", "description": "Authorization code from callback", "label": "Code"},
+                    "code_verifier": {"type": "string", "description": "PKCE code verifier", "label": "Code Verifier"},
+                    "redirect_uri": {"type": "string", "description": "OAuth redirect URI", "label": "Redirect URI"},
+                    "client_id": {"type": "string", "description": "OAuth client ID", "label": "Client ID"}
+                },
+                "required": ["code", "code_verifier", "redirect_uri", "client_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "access_token": {"type": "string"},
+                    "refresh_token": {"type": "string"},
+                    "id_token": {"type": "string"},
+                    "token_type": {"type": "string"},
+                    "expires_in": {"type": "integer"},
+                    "scope": {"type": "string"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "customer_refresh_token": {
+            "display_name": "Refresh Access Token",
+            "description": "Get new access token using refresh token",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "refresh_token": {"type": "string", "description": "Refresh token", "label": "Refresh Token"},
+                    "client_id": {"type": "string", "description": "OAuth client ID", "label": "Client ID"}
+                },
+                "required": ["refresh_token", "client_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "access_token": {"type": "string"},
+                    "refresh_token": {"type": "string"},
+                    "token_type": {"type": "string"},
+                    "expires_in": {"type": "integer"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        }
+    }
+}

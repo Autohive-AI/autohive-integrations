@@ -1,0 +1,891 @@
+{
+    "name": "ClickUp",
+    "display_name": "ClickUp",
+    "version": "1.0.0",
+    "description": "ClickUp integration for managing tasks, lists, folders, spaces, and team collaboration",
+    "entry_point": "clickup.py",
+    "auth": {
+        "type": "platform",
+        "provider": "ClickUp",
+        "scopes": []
+    },
+    "actions": {
+        "create_task": {
+            "display_name": "Create Task",
+            "description": "Creates a new task in a list.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "list_id": {
+                        "type": "string",
+                        "description": "The ID of the list to create the task in"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The task's name or title"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Task description (supports markdown)"
+                    },
+                    "assignees": {
+                        "type": "array",
+                        "description": "Array of user IDs to assign to the task",
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Status name (e.g., 'Open', 'In Progress', 'Complete')"
+                    },
+                    "priority": {
+                        "type": "integer",
+                        "description": "Priority level: 1 (Urgent), 2 (High), 3 (Normal), 4 (Low)"
+                    },
+                    "due_date": {
+                        "type": "integer",
+                        "description": "Due date in Unix timestamp milliseconds"
+                    },
+                    "due_date_time": {
+                        "type": "boolean",
+                        "description": "Whether the due date includes time"
+                    },
+                    "start_date": {
+                        "type": "integer",
+                        "description": "Start date in Unix timestamp milliseconds"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "description": "Array of tag names",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["list_id", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Created task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        },
+        "get_task": {
+            "display_name": "Get Task",
+            "description": "Retrieves details of a specific task by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task to retrieve"
+                    },
+                    "include_subtasks": {
+                        "type": "boolean",
+                        "description": "Include subtasks in the response"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        },
+        "update_task": {
+            "display_name": "Update Task",
+            "description": "Updates an existing task.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated task name"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Updated task description"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Updated status name"
+                    },
+                    "priority": {
+                        "type": "integer",
+                        "description": "Updated priority level (1-4)"
+                    },
+                    "assignees": {
+                        "type": "object",
+                        "description": "Assignee operations",
+                        "properties": {
+                            "add": {
+                                "type": "array",
+                                "items": {"type": "integer"}
+                            },
+                            "rem": {
+                                "type": "array",
+                                "items": {"type": "integer"}
+                            }
+                        }
+                    },
+                    "due_date": {
+                        "type": "integer",
+                        "description": "Updated due date (Unix timestamp ms)"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Updated task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        },
+        "delete_task": {
+            "display_name": "Delete Task",
+            "description": "Deletes a task permanently.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task to delete"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_tasks": {
+            "display_name": "Get Tasks",
+            "description": "Get tasks from a list with optional filtering.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "list_id": {
+                        "type": "string",
+                        "description": "The ID of the list to get tasks from"
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Include archived tasks"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination"
+                    },
+                    "order_by": {
+                        "type": "string",
+                        "description": "Order by field (e.g., 'created', 'updated', 'due_date')"
+                    },
+                    "reverse": {
+                        "type": "boolean",
+                        "description": "Reverse the order"
+                    },
+                    "subtasks": {
+                        "type": "boolean",
+                        "description": "Include subtasks"
+                    },
+                    "statuses": {
+                        "type": "array",
+                        "description": "Filter by status names",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "assignees": {
+                        "type": "array",
+                        "description": "Filter by assignee user IDs",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "required": ["list_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tasks": {
+                        "type": "array",
+                        "description": "List of tasks"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["tasks", "result"]
+            }
+        },
+        "create_list": {
+            "display_name": "Create List",
+            "description": "Creates a new list in a folder or space.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "folder_id": {
+                        "type": "string",
+                        "description": "The ID of the folder (required if space_id not provided)"
+                    },
+                    "space_id": {
+                        "type": "string",
+                        "description": "The ID of the space (required if folder_id not provided)"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "List name"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "List description"
+                    },
+                    "due_date": {
+                        "type": "integer",
+                        "description": "Due date in Unix timestamp milliseconds"
+                    },
+                    "priority": {
+                        "type": "integer",
+                        "description": "Priority level (1-4)"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Status for the list"
+                    }
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "list": {
+                        "type": "object",
+                        "description": "Created list details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["list", "result"]
+            }
+        },
+        "get_list": {
+            "display_name": "Get List",
+            "description": "Retrieves details of a specific list.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "list_id": {
+                        "type": "string",
+                        "description": "The ID of the list to retrieve"
+                    }
+                },
+                "required": ["list_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "list": {
+                        "type": "object",
+                        "description": "List details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["list", "result"]
+            }
+        },
+        "update_list": {
+            "display_name": "Update List",
+            "description": "Updates an existing list.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "list_id": {
+                        "type": "string",
+                        "description": "The ID of the list to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated list name"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Updated list description"
+                    },
+                    "due_date": {
+                        "type": "integer",
+                        "description": "Updated due date"
+                    },
+                    "priority": {
+                        "type": "integer",
+                        "description": "Updated priority"
+                    }
+                },
+                "required": ["list_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "list": {
+                        "type": "object",
+                        "description": "Updated list details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["list", "result"]
+            }
+        },
+        "delete_list": {
+            "display_name": "Delete List",
+            "description": "Deletes a list permanently.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "list_id": {
+                        "type": "string",
+                        "description": "The ID of the list to delete"
+                    }
+                },
+                "required": ["list_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_lists": {
+            "display_name": "Get Lists",
+            "description": "Get all lists in a folder or space.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "folder_id": {
+                        "type": "string",
+                        "description": "The ID of the folder (required if space_id not provided)"
+                    },
+                    "space_id": {
+                        "type": "string",
+                        "description": "The ID of the space (required if folder_id not provided)"
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Include archived lists"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "lists": {
+                        "type": "array",
+                        "description": "Array of lists"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["lists", "result"]
+            }
+        },
+        "create_folder": {
+            "display_name": "Create Folder",
+            "description": "Creates a new folder in a space.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "space_id": {
+                        "type": "string",
+                        "description": "The ID of the space to create the folder in"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Folder name"
+                    }
+                },
+                "required": ["space_id", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "folder": {
+                        "type": "object",
+                        "description": "Created folder details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["folder", "result"]
+            }
+        },
+        "get_folder": {
+            "display_name": "Get Folder",
+            "description": "Retrieves details of a specific folder.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "folder_id": {
+                        "type": "string",
+                        "description": "The ID of the folder to retrieve"
+                    }
+                },
+                "required": ["folder_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "folder": {
+                        "type": "object",
+                        "description": "Folder details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["folder", "result"]
+            }
+        },
+        "update_folder": {
+            "display_name": "Update Folder",
+            "description": "Updates an existing folder.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "folder_id": {
+                        "type": "string",
+                        "description": "The ID of the folder to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated folder name"
+                    }
+                },
+                "required": ["folder_id", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "folder": {
+                        "type": "object",
+                        "description": "Updated folder details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["folder", "result"]
+            }
+        },
+        "delete_folder": {
+            "display_name": "Delete Folder",
+            "description": "Deletes a folder permanently.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "folder_id": {
+                        "type": "string",
+                        "description": "The ID of the folder to delete"
+                    }
+                },
+                "required": ["folder_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_folders": {
+            "display_name": "Get Folders",
+            "description": "Get all folders in a space.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "space_id": {
+                        "type": "string",
+                        "description": "The ID of the space to get folders from"
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Include archived folders"
+                    }
+                },
+                "required": ["space_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "folders": {
+                        "type": "array",
+                        "description": "Array of folders"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["folders", "result"]
+            }
+        },
+        "get_space": {
+            "display_name": "Get Space",
+            "description": "Retrieves details of a specific space.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "space_id": {
+                        "type": "string",
+                        "description": "The ID of the space to retrieve"
+                    }
+                },
+                "required": ["space_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "space": {
+                        "type": "object",
+                        "description": "Space details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["space", "result"]
+            }
+        },
+        "get_spaces": {
+            "display_name": "Get Spaces",
+            "description": "Get all spaces in a team/workspace.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "team_id": {
+                        "type": "string",
+                        "description": "The ID of the team/workspace"
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Include archived spaces"
+                    }
+                },
+                "required": ["team_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "spaces": {
+                        "type": "array",
+                        "description": "Array of spaces"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["spaces", "result"]
+            }
+        },
+        "get_authorized_teams": {
+            "display_name": "Get Authorized Teams",
+            "description": "Get all teams/workspaces the authenticated user has access to.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "teams": {
+                        "type": "array",
+                        "description": "Array of authorized teams/workspaces"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["teams", "result"]
+            }
+        },
+        "create_task_comment": {
+            "display_name": "Create Task Comment",
+            "description": "Adds a comment to a task.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task"
+                    },
+                    "comment_text": {
+                        "type": "string",
+                        "description": "The comment text (supports markdown)"
+                    },
+                    "assignee": {
+                        "type": "integer",
+                        "description": "User ID to assign the comment to"
+                    },
+                    "notify_all": {
+                        "type": "boolean",
+                        "description": "Notify all task assignees"
+                    }
+                },
+                "required": ["task_id", "comment_text"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "comment": {
+                        "type": "object",
+                        "description": "Created comment details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["comment", "result"]
+            }
+        },
+        "get_task_comments": {
+            "display_name": "Get Task Comments",
+            "description": "Gets all comments for a task.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task"
+                    }
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "comments": {
+                        "type": "array",
+                        "description": "Array of comments"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["comments", "result"]
+            }
+        },
+        "update_comment": {
+            "display_name": "Update Comment",
+            "description": "Updates an existing comment.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "comment_id": {
+                        "type": "string",
+                        "description": "The ID of the comment to update"
+                    },
+                    "comment_text": {
+                        "type": "string",
+                        "description": "Updated comment text"
+                    }
+                },
+                "required": ["comment_id", "comment_text"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "comment": {
+                        "type": "object",
+                        "description": "Updated comment details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["comment", "result"]
+            }
+        },
+        "delete_comment": {
+            "display_name": "Delete Comment",
+            "description": "Deletes a comment permanently.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "comment_id": {
+                        "type": "string",
+                        "description": "The ID of the comment to delete"
+                    }
+                },
+                "required": ["comment_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        }
+    }
+}

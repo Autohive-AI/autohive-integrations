@@ -1,0 +1,322 @@
+{
+    "name": "Monday.com",
+    "display_name": "Monday.com",
+    "version": "0.1.0",
+    "description": "Manage boards, items, and workflows on Monday.com with powerful team collaboration features.",
+    "entry_point": "monday_com.py",
+    "auth": {
+        "type": "platform",
+        "provider": "Monday",
+        "scopes": [
+            "boards:read",
+            "boards:write",
+            "users:read",
+            "updates:write",
+            "account:read"
+        ]
+    },
+    "actions": {
+        "get_boards": {
+            "display_name": "Get Boards",
+            "description": "Retrieve boards from Monday.com workspace with columns and groups",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of boards to return (default: 25)",
+                        "default": 25
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)",
+                        "default": 1
+                    },
+                    "board_kind": {
+                        "type": "string",
+                        "description": "Filter by board kind: 'public', 'private', 'share'",
+                        "enum": ["public", "private", "share"]
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "boards": {
+                        "type": "array",
+                        "description": "Array of board objects",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "board_count": {
+                        "type": "integer",
+                        "description": "Number of boards returned"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "boards",
+                    "board_count",
+                    "result"
+                ]
+            }
+        },
+
+        "get_items": {
+            "display_name": "Get Items",
+            "description": "Retrieve items from a Monday.com board with all column values",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "board_id": {
+                        "type": "string",
+                        "description": "The board ID to retrieve items from"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of items to return (default: 25)",
+                        "default": 25
+                    },
+                    "cursor": {
+                        "type": "string",
+                        "description": "Cursor for pagination (optional, from previous response)"
+                    }
+                },
+                "required": [
+                    "board_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "description": "Array of item objects with column values",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "item_count": {
+                        "type": "integer",
+                        "description": "Number of items returned"
+                    },
+                    "cursor": {
+                        "type": ["string", "null"],
+                        "description": "Cursor for next page (use in next request for pagination)"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "items",
+                    "item_count",
+                    "result"
+                ]
+            }
+        },
+
+        "create_item": {
+            "display_name": "Create Item",
+            "description": "Create a new item on a Monday.com board",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "board_id": {
+                        "type": "string",
+                        "description": "The board ID to create the item on"
+                    },
+                    "group_id": {
+                        "type": "string",
+                        "description": "The group ID within the board (optional)"
+                    },
+                    "item_name": {
+                        "type": "string",
+                        "description": "The name of the new item"
+                    },
+                    "column_values": {
+                        "type": "string",
+                        "description": "JSON string of column values to set (e.g., '{\"status\": \"Done\", \"text\": \"Hello\"}')"
+                    }
+                },
+                "required": [
+                    "board_id",
+                    "item_name"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "item": {
+                        "type": ["object", "null"],
+                        "description": "The created item object"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+
+        "update_item": {
+            "display_name": "Update Item",
+            "description": "Update an existing item on a Monday.com board",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "board_id": {
+                        "type": "string",
+                        "description": "The board ID containing the item"
+                    },
+                    "item_id": {
+                        "type": "string",
+                        "description": "The item ID to update"
+                    },
+                    "column_values": {
+                        "type": "string",
+                        "description": "JSON string of column values to update (e.g., '{\"status\": \"Working on it\", \"text\": \"Updated text\"}')"
+                    }
+                },
+                "required": [
+                    "board_id",
+                    "item_id",
+                    "column_values"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "item": {
+                        "type": ["object", "null"],
+                        "description": "The updated item object"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+
+        "create_update": {
+            "display_name": "Create Update",
+            "description": "Create an update (comment) on a Monday.com item",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "item_id": {
+                        "type": "string",
+                        "description": "The item ID to create the update on"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "The text content of the update/comment"
+                    }
+                },
+                "required": [
+                    "item_id",
+                    "body"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "update": {
+                        "type": ["object", "null"],
+                        "description": "The created update object"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+
+        "get_users": {
+            "display_name": "Get Users",
+            "description": "Retrieve users from Monday.com workspace",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of users to return (default: 25)",
+                        "default": 25
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)",
+                        "default": 1
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "users": {
+                        "type": "array",
+                        "description": "Array of user objects",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "user_count": {
+                        "type": "integer",
+                        "description": "Number of users returned"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "users",
+                    "user_count",
+                    "result"
+                ]
+            }
+        }
+    }
+}

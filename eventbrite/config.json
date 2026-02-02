@@ -1,0 +1,1201 @@
+{
+    "name": "Eventbrite",
+    "display_name": "Eventbrite",
+    "version": "1.0.0",
+    "description": "Eventbrite integration for managing events, attendees, orders, venues, and ticket classes",
+    "entry_point": "eventbrite.py",
+    "auth": {
+        "type": "platform",
+        "provider": "Eventbrite",
+        "scopes": [
+            "event.read",
+            "event.write",
+            "order.read",
+            "attendee.read",
+            "venue.read",
+            "venue.write",
+            "organization.read",
+            "user.read"
+        ]
+    },
+    "actions": {
+        "get_current_user": {
+            "display_name": "Get Current User",
+            "description": "Retrieves information about the currently authenticated user.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "object",
+                        "description": "User details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_organizations": {
+            "display_name": "List Organizations",
+            "description": "Lists all organizations the authenticated user is a member of.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "organizations": {
+                        "type": "array",
+                        "description": "List of organizations"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["organizations", "result"]
+            }
+        },
+        "get_event": {
+            "display_name": "Get Event",
+            "description": "Retrieves details of a specific event by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The ID of the event to retrieve"
+                    },
+                    "expand": {
+                        "type": "array",
+                        "description": "Optional expansions to include (e.g., ['venue', 'organizer', 'category'])",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "object",
+                        "description": "Event details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["event", "result"]
+            }
+        },
+        "list_events": {
+            "display_name": "List Events",
+            "description": "Lists events for an organization.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "organization_id": {
+                        "type": "string",
+                        "description": "Organization ID to list events from"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by event status (draft, live, started, ended, completed, canceled, all)",
+                        "enum": ["draft", "live", "started", "ended", "completed", "canceled", "all"]
+                    },
+                    "order_by": {
+                        "type": "string",
+                        "description": "Sort order (start_asc, start_desc, created_asc, created_desc, name_asc, name_desc)",
+                        "enum": ["start_asc", "start_desc", "created_asc", "created_desc", "name_asc", "name_desc"]
+                    },
+                    "time_filter": {
+                        "type": "string",
+                        "description": "Filter by time (all, past, current_future)",
+                        "enum": ["all", "past", "current_future"]
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of results per page (max 50)"
+                    }
+                },
+                "required": ["organization_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "events": {
+                        "type": "array",
+                        "description": "List of events"
+                    },
+                    "pagination": {
+                        "type": "object",
+                        "description": "Pagination information"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["events", "result"]
+            }
+        },
+        "create_event": {
+            "display_name": "Create Event",
+            "description": "Creates a new event in an organization.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "organization_id": {
+                        "type": "string",
+                        "description": "Organization ID where the event will be created"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Event name/title"
+                    },
+                    "summary": {
+                        "type": "string",
+                        "description": "Short summary describing the event (max 140 chars)"
+                    },
+                    "start_utc": {
+                        "type": "string",
+                        "description": "Event start date/time in UTC (ISO 8601 format, e.g., 2024-12-25T18:00:00Z)"
+                    },
+                    "end_utc": {
+                        "type": "string",
+                        "description": "Event end date/time in UTC (ISO 8601 format)"
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "description": "Timezone for the event (e.g., America/Los_Angeles)"
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "Event currency (ISO 4217 code, e.g., USD)"
+                    },
+                    "online_event": {
+                        "type": "boolean",
+                        "description": "Whether this is an online-only event"
+                    },
+                    "venue_id": {
+                        "type": "string",
+                        "description": "Venue ID for in-person events"
+                    },
+                    "organizer_id": {
+                        "type": "string",
+                        "description": "Organizer ID"
+                    },
+                    "category_id": {
+                        "type": "string",
+                        "description": "Category ID for the event"
+                    },
+                    "listed": {
+                        "type": "boolean",
+                        "description": "Whether the event is publicly listed"
+                    },
+                    "shareable": {
+                        "type": "boolean",
+                        "description": "Whether the event is shareable"
+                    },
+                    "capacity": {
+                        "type": "integer",
+                        "description": "Maximum event capacity"
+                    }
+                },
+                "required": ["organization_id", "name", "start_utc", "end_utc", "timezone", "currency"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "object",
+                        "description": "Created event details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["event", "result"]
+            }
+        },
+        "update_event": {
+            "display_name": "Update Event",
+            "description": "Updates an existing event.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The ID of the event to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated event name"
+                    },
+                    "summary": {
+                        "type": "string",
+                        "description": "Updated event summary"
+                    },
+                    "start_utc": {
+                        "type": "string",
+                        "description": "Updated start date/time in UTC"
+                    },
+                    "end_utc": {
+                        "type": "string",
+                        "description": "Updated end date/time in UTC"
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "description": "Updated timezone"
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "Updated currency"
+                    },
+                    "online_event": {
+                        "type": "boolean",
+                        "description": "Whether this is an online event"
+                    },
+                    "venue_id": {
+                        "type": "string",
+                        "description": "Updated venue ID"
+                    },
+                    "listed": {
+                        "type": "boolean",
+                        "description": "Whether the event is publicly listed"
+                    },
+                    "capacity": {
+                        "type": "integer",
+                        "description": "Updated capacity"
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "object",
+                        "description": "Updated event details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["event", "result"]
+            }
+        },
+        "delete_event": {
+            "display_name": "Delete Event",
+            "description": "Deletes an event. Event must not have any pending or completed orders.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The ID of the event to delete"
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "deleted": {
+                        "type": "boolean",
+                        "description": "Whether the event was deleted"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "publish_event": {
+            "display_name": "Publish Event",
+            "description": "Publishes a draft event to make it live.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The ID of the event to publish"
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "published": {
+                        "type": "boolean",
+                        "description": "Whether the event was published"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "unpublish_event": {
+            "display_name": "Unpublish Event",
+            "description": "Unpublishes a live event back to draft status.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The ID of the event to unpublish"
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "unpublished": {
+                        "type": "boolean",
+                        "description": "Whether the event was unpublished"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "cancel_event": {
+            "display_name": "Cancel Event",
+            "description": "Cancels an event. Event must not have any pending or completed orders.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The ID of the event to cancel"
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "canceled": {
+                        "type": "boolean",
+                        "description": "Whether the event was canceled"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "copy_event": {
+            "display_name": "Copy Event",
+            "description": "Creates a copy of an existing event.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The ID of the event to copy"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name for the copied event"
+                    },
+                    "start_utc": {
+                        "type": "string",
+                        "description": "New start date/time for the copied event (ISO 8601)"
+                    },
+                    "end_utc": {
+                        "type": "string",
+                        "description": "New end date/time for the copied event (ISO 8601)"
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "description": "Timezone for the copied event"
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "event": {
+                        "type": "object",
+                        "description": "Copied event details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["event", "result"]
+            }
+        },
+        "get_venue": {
+            "display_name": "Get Venue",
+            "description": "Retrieves details of a specific venue.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "venue_id": {
+                        "type": "string",
+                        "description": "The ID of the venue to retrieve"
+                    }
+                },
+                "required": ["venue_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "venue": {
+                        "type": "object",
+                        "description": "Venue details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["venue", "result"]
+            }
+        },
+        "list_venues": {
+            "display_name": "List Venues",
+            "description": "Lists venues for an organization.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "organization_id": {
+                        "type": "string",
+                        "description": "Organization ID to list venues from"
+                    }
+                },
+                "required": ["organization_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "venues": {
+                        "type": "array",
+                        "description": "List of venues"
+                    },
+                    "pagination": {
+                        "type": "object",
+                        "description": "Pagination information"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["venues", "result"]
+            }
+        },
+        "create_venue": {
+            "display_name": "Create Venue",
+            "description": "Creates a new venue for an organization.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "organization_id": {
+                        "type": "string",
+                        "description": "Organization ID where the venue will be created"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Venue name"
+                    },
+                    "address_1": {
+                        "type": "string",
+                        "description": "Street address line 1"
+                    },
+                    "address_2": {
+                        "type": "string",
+                        "description": "Street address line 2"
+                    },
+                    "city": {
+                        "type": "string",
+                        "description": "City"
+                    },
+                    "region": {
+                        "type": "string",
+                        "description": "State/Province/Region code"
+                    },
+                    "postal_code": {
+                        "type": "string",
+                        "description": "Postal/ZIP code"
+                    },
+                    "country": {
+                        "type": "string",
+                        "description": "Country code (ISO 3166-1 alpha-2)"
+                    },
+                    "latitude": {
+                        "type": "string",
+                        "description": "Latitude coordinate"
+                    },
+                    "longitude": {
+                        "type": "string",
+                        "description": "Longitude coordinate"
+                    },
+                    "capacity": {
+                        "type": "integer",
+                        "description": "Venue capacity"
+                    }
+                },
+                "required": ["organization_id", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "venue": {
+                        "type": "object",
+                        "description": "Created venue details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["venue", "result"]
+            }
+        },
+        "get_order": {
+            "display_name": "Get Order",
+            "description": "Retrieves details of a specific order.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "order_id": {
+                        "type": "string",
+                        "description": "The ID of the order to retrieve"
+                    },
+                    "expand": {
+                        "type": "array",
+                        "description": "Optional expansions (e.g., ['event', 'attendees'])",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["order_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "order": {
+                        "type": "object",
+                        "description": "Order details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["order", "result"]
+            }
+        },
+        "list_orders_by_event": {
+            "display_name": "List Orders by Event",
+            "description": "Lists orders for a specific event.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "Event ID to list orders from"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by order status (active, inactive, both, all_not_deleted)",
+                        "enum": ["active", "inactive", "both", "all_not_deleted"]
+                    },
+                    "changed_since": {
+                        "type": "string",
+                        "description": "Only return orders changed after this time (ISO 8601)"
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "orders": {
+                        "type": "array",
+                        "description": "List of orders"
+                    },
+                    "pagination": {
+                        "type": "object",
+                        "description": "Pagination information"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["orders", "result"]
+            }
+        },
+        "list_orders_by_organization": {
+            "display_name": "List Orders by Organization",
+            "description": "Lists orders for an organization across all events.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "organization_id": {
+                        "type": "string",
+                        "description": "Organization ID to list orders from"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by order status (active, inactive, both, all_not_deleted)",
+                        "enum": ["active", "inactive", "both", "all_not_deleted"]
+                    },
+                    "changed_since": {
+                        "type": "string",
+                        "description": "Only return orders changed after this time (ISO 8601)"
+                    }
+                },
+                "required": ["organization_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "orders": {
+                        "type": "array",
+                        "description": "List of orders"
+                    },
+                    "pagination": {
+                        "type": "object",
+                        "description": "Pagination information"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["orders", "result"]
+            }
+        },
+        "get_attendee": {
+            "display_name": "Get Attendee",
+            "description": "Retrieves details of a specific attendee.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "Event ID the attendee belongs to"
+                    },
+                    "attendee_id": {
+                        "type": "string",
+                        "description": "The ID of the attendee to retrieve"
+                    }
+                },
+                "required": ["event_id", "attendee_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "attendee": {
+                        "type": "object",
+                        "description": "Attendee details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["attendee", "result"]
+            }
+        },
+        "list_attendees": {
+            "display_name": "List Attendees",
+            "description": "Lists attendees for a specific event.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "Event ID to list attendees from"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by attendee status (attending, not_attending, unpaid)",
+                        "enum": ["attending", "not_attending", "unpaid"]
+                    },
+                    "changed_since": {
+                        "type": "string",
+                        "description": "Only return attendees changed after this time (ISO 8601)"
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "attendees": {
+                        "type": "array",
+                        "description": "List of attendees"
+                    },
+                    "pagination": {
+                        "type": "object",
+                        "description": "Pagination information"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["attendees", "result"]
+            }
+        },
+        "get_ticket_class": {
+            "display_name": "Get Ticket Class",
+            "description": "Retrieves details of a specific ticket class.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "Event ID the ticket class belongs to"
+                    },
+                    "ticket_class_id": {
+                        "type": "string",
+                        "description": "The ID of the ticket class to retrieve"
+                    }
+                },
+                "required": ["event_id", "ticket_class_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket_class": {
+                        "type": "object",
+                        "description": "Ticket class details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["ticket_class", "result"]
+            }
+        },
+        "list_ticket_classes": {
+            "display_name": "List Ticket Classes",
+            "description": "Lists ticket classes for a specific event.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "Event ID to list ticket classes from"
+                    },
+                    "pos": {
+                        "type": "string",
+                        "description": "Point of sale filter (online, at_the_door)",
+                        "enum": ["online", "at_the_door"]
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket_classes": {
+                        "type": "array",
+                        "description": "List of ticket classes"
+                    },
+                    "pagination": {
+                        "type": "object",
+                        "description": "Pagination information"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["ticket_classes", "result"]
+            }
+        },
+        "create_ticket_class": {
+            "display_name": "Create Ticket Class",
+            "description": "Creates a new ticket class for an event.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "Event ID to create the ticket class for"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Ticket class name"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Ticket class description"
+                    },
+                    "quantity_total": {
+                        "type": "integer",
+                        "description": "Total number of tickets available"
+                    },
+                    "cost": {
+                        "type": "string",
+                        "description": "Ticket cost in format 'CURRENCY,AMOUNT' (e.g., 'USD,2500' for $25.00). Omit for free tickets."
+                    },
+                    "free": {
+                        "type": "boolean",
+                        "description": "Whether this is a free ticket"
+                    },
+                    "donation": {
+                        "type": "boolean",
+                        "description": "Whether this is a donation ticket"
+                    },
+                    "minimum_quantity": {
+                        "type": "integer",
+                        "description": "Minimum quantity per order"
+                    },
+                    "maximum_quantity": {
+                        "type": "integer",
+                        "description": "Maximum quantity per order"
+                    },
+                    "sales_start": {
+                        "type": "string",
+                        "description": "When ticket sales start (ISO 8601)"
+                    },
+                    "sales_end": {
+                        "type": "string",
+                        "description": "When ticket sales end (ISO 8601)"
+                    },
+                    "hidden": {
+                        "type": "boolean",
+                        "description": "Whether the ticket is hidden from public"
+                    }
+                },
+                "required": ["event_id", "name", "quantity_total"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket_class": {
+                        "type": "object",
+                        "description": "Created ticket class details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["ticket_class", "result"]
+            }
+        },
+        "update_ticket_class": {
+            "display_name": "Update Ticket Class",
+            "description": "Updates an existing ticket class.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "Event ID the ticket class belongs to"
+                    },
+                    "ticket_class_id": {
+                        "type": "string",
+                        "description": "The ID of the ticket class to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated ticket class name"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Updated description"
+                    },
+                    "quantity_total": {
+                        "type": "integer",
+                        "description": "Updated total quantity"
+                    },
+                    "minimum_quantity": {
+                        "type": "integer",
+                        "description": "Updated minimum quantity per order"
+                    },
+                    "maximum_quantity": {
+                        "type": "integer",
+                        "description": "Updated maximum quantity per order"
+                    },
+                    "sales_start": {
+                        "type": "string",
+                        "description": "Updated sales start time"
+                    },
+                    "sales_end": {
+                        "type": "string",
+                        "description": "Updated sales end time"
+                    },
+                    "hidden": {
+                        "type": "boolean",
+                        "description": "Whether the ticket is hidden"
+                    }
+                },
+                "required": ["event_id", "ticket_class_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "ticket_class": {
+                        "type": "object",
+                        "description": "Updated ticket class details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["ticket_class", "result"]
+            }
+        },
+        "delete_ticket_class": {
+            "display_name": "Delete Ticket Class",
+            "description": "Deletes a ticket class. Cannot delete if tickets have been sold.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "Event ID the ticket class belongs to"
+                    },
+                    "ticket_class_id": {
+                        "type": "string",
+                        "description": "The ID of the ticket class to delete"
+                    }
+                },
+                "required": ["event_id", "ticket_class_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "deleted": {
+                        "type": "boolean",
+                        "description": "Whether the ticket class was deleted"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_categories": {
+            "display_name": "List Categories",
+            "description": "Lists all available event categories.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "categories": {
+                        "type": "array",
+                        "description": "List of categories"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["categories", "result"]
+            }
+        },
+        "get_category": {
+            "display_name": "Get Category",
+            "description": "Retrieves details of a specific category.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "category_id": {
+                        "type": "string",
+                        "description": "The ID of the category to retrieve"
+                    }
+                },
+                "required": ["category_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "object",
+                        "description": "Category details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["category", "result"]
+            }
+        },
+        "get_event_description": {
+            "display_name": "Get Event Description",
+            "description": "Retrieves the full HTML description of an event.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The ID of the event"
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "Full HTML description of the event"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["description", "result"]
+            }
+        }
+    }
+}

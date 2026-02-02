@@ -1,0 +1,377 @@
+{
+  "name": "Grammarly",
+  "display_name": "Grammarly",
+  "version": "1.0.0",
+  "description": "Grammarly integration for writing quality assessment, AI detection, plagiarism checking, and analytics. Includes Writing Score API, Analytics API, AI Detection API, and Plagiarism Detection API.",
+  "entry_point": "grammarly.py",
+  "auth": {
+    "type": "custom",
+    "title": "Grammarly OAuth2 Credentials",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "client_id": {
+          "type": "string",
+          "label": "Client ID",
+          "help_text": "Your Grammarly OAuth2 Client ID from the developer portal"
+        },
+        "client_secret": {
+          "type": "string",
+          "format": "password",
+          "label": "Client Secret",
+          "help_text": "Your Grammarly OAuth2 Client Secret. Keep this secure and never share it publicly."
+        }
+      }
+    }
+  },
+  "actions": {
+    "analyze_writing_score": {
+      "display_name": "Analyze Writing Score",
+      "description": "Submit a document for writing quality analysis. Returns a score request ID to retrieve results later. Supports .doc, .docx, .odt, .txt, .rtf formats. Maximum 4MB, minimum 30 words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Name of the file to be analyzed (e.g., 'document.txt', 'article.docx')"
+          },
+          "file_content": {
+            "type": "string",
+            "description": "The text content of the file to analyze"
+          }
+        },
+        "required": ["filename", "file_content"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "score_request_id": {
+            "type": "string",
+            "description": "Unique identifier to retrieve the analysis results"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "get_writing_score_results": {
+      "display_name": "Get Writing Score Results",
+      "description": "Retrieve the writing quality score results for a previously submitted document. Returns overall score and category scores (Engagement, Correctness, Delivery, Clarity). Results available for 30 days.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "score_request_id": {
+            "type": "string",
+            "description": "The score request ID from create_writing_score_request"
+          }
+        },
+        "required": ["score_request_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Status of the scoring request: PENDING, COMPLETED, or FAILED",
+            "enum": ["PENDING", "COMPLETED", "FAILED"]
+          },
+          "general_score": {
+            "type": ["number", "null"],
+            "description": "Overall writing quality score (null if status is PENDING or FAILED)"
+          },
+          "engagement": {
+            "type": ["number", "null"],
+            "description": "Engagement score (null if status is PENDING or FAILED)"
+          },
+          "correctness": {
+            "type": ["number", "null"],
+            "description": "Correctness score (null if status is PENDING or FAILED)"
+          },
+          "delivery": {
+            "type": ["number", "null"],
+            "description": "Delivery score (null if status is PENDING or FAILED)"
+          },
+          "clarity": {
+            "type": ["number", "null"],
+            "description": "Clarity score (null if status is PENDING or FAILED)"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "get_user_analytics": {
+      "display_name": "Get User Analytics",
+      "description": "Retrieve paginated list of users with Grammarly usage statistics for a date range. Includes active days, sessions, improvements, and AI prompt usage. Data available for past 365 days with 2-day lag.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "date_from": {
+            "type": "string",
+            "description": "Start date in YYYY-MM-DD format (must be within 365 days prior)"
+          },
+          "date_to": {
+            "type": "string",
+            "description": "End date in YYYY-MM-DD format (latest allowed is two days before current date)"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Pagination cursor for fetching next page of results"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of results per page (max: 400)",
+            "minimum": 1,
+            "maximum": 400
+          }
+        },
+        "required": ["date_from", "date_to"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "description": "List of users with analytics data",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": ["string", "number"],
+                  "description": "Unique user identifier"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "User's name"
+                },
+                "email": {
+                  "type": "string",
+                  "description": "User's email address"
+                },
+                "days_active": {
+                  "type": "integer",
+                  "description": "Number of days the user actively used Grammarly"
+                },
+                "sessions_count": {
+                  "type": "integer",
+                  "description": "Number of writing sessions"
+                },
+                "sessions_improved_percent": {
+                  "type": "number",
+                  "description": "Percentage of sessions with improvements"
+                },
+                "prompt_count": {
+                  "type": "integer",
+                  "description": "Number of generative AI prompts used"
+                }
+              }
+            }
+          },
+          "paging": {
+            "type": "object",
+            "description": "Pagination information",
+            "properties": {
+              "next_cursor": {
+                "type": "string",
+                "description": "Cursor for next page of results"
+              },
+              "has_more": {
+                "type": "boolean",
+                "description": "Whether more results are available"
+              },
+              "page_size": {
+                "type": "integer",
+                "description": "Number of items in current page"
+              }
+            }
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "analyze_ai_detection": {
+      "display_name": "Analyze AI Detection",
+      "description": "Submit a document for AI content detection analysis. Returns a score request ID to retrieve results later. Evaluates likelihood text was generated by AI. Maximum file size: 4MB.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Name of the file to be analyzed (e.g., 'document.txt', 'article.docx')"
+          },
+          "file_content": {
+            "type": "string",
+            "description": "The text content of the file to analyze"
+          }
+        },
+        "required": ["filename", "file_content"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "score_request_id": {
+            "type": "string",
+            "description": "Unique identifier to retrieve the analysis results"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "get_ai_detection_results": {
+      "display_name": "Get AI Detection Results",
+      "description": "Retrieve AI detection results for a previously submitted document. Returns confidence score and percentage of text that appears AI-generated. Results available for 30 days.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "score_request_id": {
+            "type": "string",
+            "description": "The score request ID from create_ai_detection_request"
+          }
+        },
+        "required": ["score_request_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Status of the detection request: PENDING, COMPLETED, or FAILED",
+            "enum": ["PENDING", "COMPLETED", "FAILED"]
+          },
+          "average_confidence": {
+            "type": ["number", "null"],
+            "description": "Confidence level of the AI detection (0-1 scale, null if status is PENDING or FAILED)"
+          },
+          "ai_generated_percentage": {
+            "type": ["number", "null"],
+            "description": "Percentage of text that appears to be AI-generated (0-100, null if status is PENDING or FAILED)"
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "Timestamp when the result was last updated"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "analyze_plagiarism_detection": {
+      "display_name": "Analyze Plagiarism Detection",
+      "description": "Submit a document for plagiarism detection analysis. Returns a score request ID to retrieve results later. Compares text against billions of web pages and academic papers. Maximum file size: 4MB.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Name of the file to be checked (e.g., 'document.txt', 'paper.docx')"
+          },
+          "file_content": {
+            "type": "string",
+            "description": "The text content of the file to analyze"
+          }
+        },
+        "required": ["filename", "file_content"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "score_request_id": {
+            "type": "string",
+            "description": "Unique identifier to retrieve the analysis results"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "get_plagiarism_detection_results": {
+      "display_name": "Get Plagiarism Detection Results",
+      "description": "Retrieve plagiarism detection results for a previously submitted document. Returns originality score (higher is more original) and matching sources. Results available for 30 days.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "score_request_id": {
+            "type": "string",
+            "description": "The score request ID from create_plagiarism_detection_request"
+          }
+        },
+        "required": ["score_request_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Status of the detection request: PENDING, COMPLETED, or FAILED",
+            "enum": ["PENDING", "COMPLETED", "FAILED"]
+          },
+          "originality_score": {
+            "type": ["number", "null"],
+            "description": "Originality score (higher means more original, null if status is PENDING or FAILED)"
+          },
+          "plagiarism_percentage": {
+            "type": ["number", "null"],
+            "description": "Percentage of text that appears to be plagiarized (0-100, null if status is PENDING or FAILED)"
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "Timestamp when the result was last updated"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": ["result"]
+      }
+    }
+  }
+}

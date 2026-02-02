@@ -1,0 +1,948 @@
+{
+    "name": "YouTube",
+    "display_name": "YouTube",
+    "version": "1.0.1",
+    "description": "Complete YouTube Data API v3 integration for managing videos, channels, playlists, comments, and more.",
+    "entry_point": "youtube.py",
+    "auth": {
+        "type": "platform",
+        "provider": "YouTube",
+        "scopes": [
+            "https://www.googleapis.com/auth/youtube",
+            "https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.force-ssl"
+        ]
+    },
+    "actions": {
+        "search": {
+            "display_name": "Search YouTube",
+            "description": "Search for videos, channels, or playlists on YouTube. Quota cost: 100 units",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query term"
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Filter by resource type",
+                        "enum": ["video", "channel", "playlist"]
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum results per request (1-50, default 5)"
+                    },
+                    "order": {
+                        "type": "string",
+                        "description": "Sort order for results",
+                        "enum": ["relevance", "date", "rating", "viewCount", "title"]
+                    },
+                    "published_after": {
+                        "type": "string",
+                        "description": "Filter videos published after this date (RFC 3339 format)"
+                    },
+                    "published_before": {
+                        "type": "string",
+                        "description": "Filter videos published before this date (RFC 3339 format)"
+                    },
+                    "channel_id": {
+                        "type": "string",
+                        "description": "Search within a specific channel"
+                    },
+                    "region_code": {
+                        "type": "string",
+                        "description": "Geographic location code (e.g., US, GB)"
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Token for pagination"
+                    }
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "description": "Search results",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "object",
+                                    "description": "Resource identifier"
+                                },
+                                "title": {
+                                    "type": "string",
+                                    "description": "Result title"
+                                },
+                                "description": {
+                                    "type": "string",
+                                    "description": "Result description"
+                                },
+                                "thumbnail": {
+                                    "type": "string",
+                                    "description": "Thumbnail URL"
+                                },
+                                "published_at": {
+                                    "type": "string",
+                                    "description": "Publication date"
+                                },
+                                "channel_title": {
+                                    "type": "string",
+                                    "description": "Channel name"
+                                }
+                            }
+                        }
+                    },
+                    "next_page_token": {
+                        "type": "string",
+                        "description": "Token for next page"
+                    },
+                    "total_results": {
+                        "type": "integer",
+                        "description": "Total number of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["items", "result"]
+            }
+        },
+        "get_video": {
+            "display_name": "Get Video Details",
+            "description": "Get detailed information about a YouTube video. Quota cost: 1 unit",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "video_id": {
+                        "type": "string",
+                        "description": "YouTube video ID"
+                    }
+                },
+                "required": ["video_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "video": {
+                        "type": "object",
+                        "description": "Video details",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Video ID"
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "Video title"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Video description"
+                            },
+                            "channel_id": {
+                                "type": "string",
+                                "description": "Channel ID"
+                            },
+                            "channel_title": {
+                                "type": "string",
+                                "description": "Channel name"
+                            },
+                            "published_at": {
+                                "type": "string",
+                                "description": "Publication date"
+                            },
+                            "thumbnails": {
+                                "type": "object",
+                                "description": "Thumbnail URLs"
+                            },
+                            "duration": {
+                                "type": "string",
+                                "description": "Video duration (ISO 8601)"
+                            },
+                            "view_count": {
+                                "type": "string",
+                                "description": "Number of views"
+                            },
+                            "like_count": {
+                                "type": "string",
+                                "description": "Number of likes"
+                            },
+                            "comment_count": {
+                                "type": "string",
+                                "description": "Number of comments"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "description": "Video tags",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["video", "result"]
+            }
+        },
+        "update_video": {
+            "display_name": "Update Video",
+            "description": "Update video metadata including title, description, tags, and privacy. Quota cost: 50 units",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "video_id": {
+                        "type": "string",
+                        "description": "YouTube video ID"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Video title"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Video description"
+                    },
+                    "category_id": {
+                        "type": "string",
+                        "description": "Video category ID"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "description": "Video tags",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "privacy_status": {
+                        "type": "string",
+                        "description": "Privacy status",
+                        "enum": ["private", "public", "unlisted"]
+                    },
+                    "made_for_kids": {
+                        "type": "boolean",
+                        "description": "Whether video is made for kids"
+                    }
+                },
+                "required": ["video_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "video": {
+                        "type": "object",
+                        "description": "Updated video details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["video", "result"]
+            }
+        },
+        "upload_thumbnail": {
+            "display_name": "Upload Thumbnail",
+            "description": "Upload custom thumbnail for a video. Automatically compresses images larger than 2MB. Accepts JPEG/PNG formats. Quota cost: 50 units. Supports URLs, local file paths, and chat-uploaded files.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "video_id": {
+                        "type": "string",
+                        "description": "YouTube video ID"
+                    },
+                    "image_url": {
+                        "type": "string",
+                        "description": "URL of the thumbnail image (JPEG/PNG). Will be auto-compressed if larger than 2MB"
+                    },
+                    "image_path": {
+                        "type": "string",
+                        "description": "Local file path of the thumbnail image to upload (JPEG/PNG). Will be auto-compressed if larger than 2MB"
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "Chat-uploaded file object containing image data"
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "Array of chat-uploaded file objects (will use first file if multiple provided)"
+                    }
+                },
+                "required": ["video_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "thumbnail": {
+                        "type": "object",
+                        "description": "Thumbnail details"
+                    },
+                    "compression_info": {
+                        "type": "object",
+                        "description": "Compression details (only present if image was compressed)",
+                        "properties": {
+                            "original_size_mb": {
+                                "type": "number",
+                                "description": "Original image size in MB"
+                            },
+                            "compressed_size_mb": {
+                                "type": "number",
+                                "description": "Compressed image size in MB"
+                            },
+                            "reduction_percent": {
+                                "type": "number",
+                                "description": "Percentage reduction in file size"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_channel": {
+            "display_name": "Get Channel Details",
+            "description": "Get channel information including subscriber count and statistics. Quota cost: 1 unit",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "YouTube channel ID"
+                    },
+                    "channel_handle": {
+                        "type": "string",
+                        "description": "Channel handle (e.g., @username)"
+                    },
+                    "mine": {
+                        "type": "boolean",
+                        "description": "Get authenticated user's channel"
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "channel": {
+                        "type": "object",
+                        "description": "Channel details",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Channel ID"
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "Channel name"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Channel description"
+                            },
+                            "custom_url": {
+                                "type": "string",
+                                "description": "Custom channel URL"
+                            },
+                            "published_at": {
+                                "type": "string",
+                                "description": "Channel creation date"
+                            },
+                            "subscriber_count": {
+                                "type": "string",
+                                "description": "Number of subscribers"
+                            },
+                            "video_count": {
+                                "type": "string",
+                                "description": "Total videos"
+                            },
+                            "view_count": {
+                                "type": "string",
+                                "description": "Total views"
+                            },
+                            "thumbnails": {
+                                "type": "object",
+                                "description": "Channel thumbnails"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["channel", "result"]
+            }
+        },
+        "list_playlists": {
+            "display_name": "List Playlists",
+            "description": "List playlists from a channel or authenticated user. Quota cost: 1 unit",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "Channel ID to list playlists from"
+                    },
+                    "mine": {
+                        "type": "boolean",
+                        "description": "List authenticated user's playlists"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum results (1-50, default 5)"
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Pagination token"
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "playlists": {
+                        "type": "array",
+                        "description": "List of playlists"
+                    },
+                    "next_page_token": {
+                        "type": "string",
+                        "description": "Token for next page"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["playlists", "result"]
+            }
+        },
+        "create_playlist": {
+            "display_name": "Create Playlist",
+            "description": "Create a new YouTube playlist. Quota cost: 50 units",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Playlist title"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Playlist description"
+                    },
+                    "privacy_status": {
+                        "type": "string",
+                        "description": "Privacy status",
+                        "enum": ["private", "public", "unlisted"]
+                    }
+                },
+                "required": ["title", "privacy_status"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "playlist": {
+                        "type": "object",
+                        "description": "Created playlist details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["playlist", "result"]
+            }
+        },
+        "update_playlist": {
+            "display_name": "Update Playlist",
+            "description": "Update playlist title, description, or privacy. Quota cost: 50 units",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "playlist_id": {
+                        "type": "string",
+                        "description": "Playlist ID"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Playlist title"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Playlist description"
+                    },
+                    "privacy_status": {
+                        "type": "string",
+                        "description": "Privacy status",
+                        "enum": ["private", "public", "unlisted"]
+                    }
+                },
+                "required": ["playlist_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "playlist": {
+                        "type": "object",
+                        "description": "Updated playlist details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["playlist", "result"]
+            }
+        },
+        "delete_playlist": {
+            "display_name": "Delete Playlist",
+            "description": "Delete a YouTube playlist. Quota cost: 50 units",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "playlist_id": {
+                        "type": "string",
+                        "description": "Playlist ID to delete"
+                    }
+                },
+                "required": ["playlist_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_playlist_items": {
+            "display_name": "List Playlist Items",
+            "description": "List videos in a playlist. Quota cost: 1 unit",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "playlist_id": {
+                        "type": "string",
+                        "description": "Playlist ID"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum results (1-50, default 5)"
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Pagination token"
+                    }
+                },
+                "required": ["playlist_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "description": "Playlist items"
+                    },
+                    "next_page_token": {
+                        "type": "string",
+                        "description": "Token for next page"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["items", "result"]
+            }
+        },
+        "add_video_to_playlist": {
+            "display_name": "Add Video to Playlist",
+            "description": "Add a video to a playlist. Quota cost: 50 units",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "playlist_id": {
+                        "type": "string",
+                        "description": "Playlist ID"
+                    },
+                    "video_id": {
+                        "type": "string",
+                        "description": "Video ID to add"
+                    },
+                    "position": {
+                        "type": "integer",
+                        "description": "Position in playlist (0-based, optional)"
+                    }
+                },
+                "required": ["playlist_id", "video_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "playlist_item": {
+                        "type": "object",
+                        "description": "Added playlist item"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "remove_video_from_playlist": {
+            "display_name": "Remove Video from Playlist",
+            "description": "Remove a video from a playlist. Quota cost: 50 units",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "playlist_item_id": {
+                        "type": "string",
+                        "description": "Playlist item ID to remove (not video ID)"
+                    }
+                },
+                "required": ["playlist_item_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_comments": {
+            "display_name": "List Comments",
+            "description": "List top-level comments for a video. Quota cost: 1 unit",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "video_id": {
+                        "type": "string",
+                        "description": "Video ID"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum results (1-100, default 20)"
+                    },
+                    "order": {
+                        "type": "string",
+                        "description": "Sort order",
+                        "enum": ["time", "relevance"]
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Pagination token"
+                    }
+                },
+                "required": ["video_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "comments": {
+                        "type": "array",
+                        "description": "List of comments"
+                    },
+                    "next_page_token": {
+                        "type": "string",
+                        "description": "Token for next page"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["comments", "result"]
+            }
+        },
+        "list_comment_replies": {
+            "display_name": "List Comment Replies",
+            "description": "List replies to a specific comment. Quota cost: 1 unit",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "parent_comment_id": {
+                        "type": "string",
+                        "description": "Parent comment ID"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum results (1-100, default 20)"
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Pagination token"
+                    }
+                },
+                "required": ["parent_comment_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "replies": {
+                        "type": "array",
+                        "description": "List of reply comments"
+                    },
+                    "next_page_token": {
+                        "type": "string",
+                        "description": "Token for next page"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["replies", "result"]
+            }
+        },
+        "post_comment": {
+            "display_name": "Post Comment",
+            "description": "Post a top-level comment on a video. Quota cost: 50 units",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "video_id": {
+                        "type": "string",
+                        "description": "Video ID"
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "Comment text"
+                    }
+                },
+                "required": ["video_id", "text"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "comment": {
+                        "type": "object",
+                        "description": "Posted comment details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "reply_to_comment": {
+            "display_name": "Reply to Comment",
+            "description": "Reply to an existing comment. Quota cost: 50 units",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "parent_comment_id": {
+                        "type": "string",
+                        "description": "Parent comment ID"
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "Reply text"
+                    }
+                },
+                "required": ["parent_comment_id", "text"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "comment": {
+                        "type": "object",
+                        "description": "Posted reply details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "update_comment": {
+            "display_name": "Update Comment",
+            "description": "Update your own comment text. Quota cost: 50 units",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "comment_id": {
+                        "type": "string",
+                        "description": "Comment ID"
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "Updated comment text"
+                    }
+                },
+                "required": ["comment_id", "text"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "comment": {
+                        "type": "object",
+                        "description": "Updated comment details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "delete_comment": {
+            "display_name": "Delete Comment",
+            "description": "Delete a comment (owner only). Quota cost: 50 units",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "comment_id": {
+                        "type": "string",
+                        "description": "Comment ID to delete"
+                    }
+                },
+                "required": ["comment_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "moderate_comment": {
+            "display_name": "Moderate Comment",
+            "description": "Set comment moderation status (channel owner only). Quota cost: 50 units",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "comment_id": {
+                        "type": "string",
+                        "description": "Comment ID"
+                    },
+                    "moderation_status": {
+                        "type": "string",
+                        "description": "Moderation status",
+                        "enum": ["published", "heldForReview", "rejected"]
+                    },
+                    "ban_author": {
+                        "type": "boolean",
+                        "description": "Whether to ban the comment author from the channel"
+                    }
+                },
+                "required": ["comment_id", "moderation_status"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Success status"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        }
+    }
+}

@@ -1,0 +1,438 @@
+{
+    "name": "Harvest",
+    "display_name": "Harvest",
+    "version": "0.1.0",
+    "description": "Harvest time tracking integration for managing time entries, projects, clients, tasks, and invoices.",
+    "entry_point": "harvest.py",
+    "auth": {
+        "type": "platform",
+        "provider": "harvest",
+        "scopes": []
+    },
+    "actions": {
+        "create_time_entry": {
+            "display_name": "Create Time Entry",
+            "description": "Create a new time entry in Harvest for tracking work hours",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "The ID of the project to log time to"
+                    },
+                    "task_id": {
+                        "type": "integer",
+                        "description": "The ID of the task to log time to"
+                    },
+                    "spent_date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "The date the time entry was spent (YYYY-MM-DD)"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Optional notes about the work performed"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Number of hours to log (use this OR started_time/ended_time)"
+                    },
+                    "started_time": {
+                        "type": "string",
+                        "description": "Time tracking started (HH:MM format, e.g., '08:00')"
+                    },
+                    "ended_time": {
+                        "type": "string",
+                        "description": "Time tracking ended (HH:MM format, e.g., '17:00')"
+                    },
+                    "is_running": {
+                        "type": "boolean",
+                        "description": "Whether to start a running timer"
+                    },
+                    "user_id": {
+                        "type": "integer",
+                        "description": "User ID (defaults to authenticated user)"
+                    },
+                    "external_reference": {
+                        "type": "object",
+                        "description": "External reference metadata"
+                    }
+                },
+                "required": ["project_id", "task_id", "spent_date"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "time_entry": {"type": "object"},
+                    "error": {"type": "string"}
+                }
+            }
+        },
+        "stop_time_entry": {
+            "display_name": "Stop Time Entry",
+            "description": "Stop a currently running time entry timer",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "time_entry_id": {
+                        "type": "integer",
+                        "description": "The ID of the time entry to stop"
+                    }
+                },
+                "required": ["time_entry_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "time_entry": {"type": "object"},
+                    "error": {"type": "string"}
+                }
+            }
+        },
+        "list_time_entries": {
+            "display_name": "List Time Entries",
+            "description": "Retrieve a list of time entries with optional filtering by user, project, client, date range, etc.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "integer",
+                        "description": "Filter by user ID"
+                    },
+                    "client_id": {
+                        "type": "integer",
+                        "description": "Filter by client ID"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Filter by project ID"
+                    },
+                    "task_id": {
+                        "type": "integer",
+                        "description": "Filter by task ID"
+                    },
+                    "is_billed": {
+                        "type": "boolean",
+                        "description": "Filter by billed status"
+                    },
+                    "is_running": {
+                        "type": "boolean",
+                        "description": "Filter for running timers"
+                    },
+                    "updated_since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Only return entries updated since this date (ISO 8601)"
+                    },
+                    "from": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Start date for date range filter (YYYY-MM-DD)"
+                    },
+                    "to": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "End date for date range filter (YYYY-MM-DD)"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination"
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Number of results per page (max 2000)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "time_entries": {"type": "array"},
+                    "per_page": {"type": "integer"},
+                    "total_pages": {"type": "integer"},
+                    "total_entries": {"type": "integer"},
+                    "next_page": {"type": ["integer", "null"]},
+                    "previous_page": {"type": ["integer", "null"]},
+                    "page": {"type": "integer"},
+                    "links": {"type": "object"},
+                    "error": {"type": "string"}
+                }
+            }
+        },
+        "update_time_entry": {
+            "display_name": "Update Time Entry",
+            "description": "Update an existing time entry's details (project, task, hours, notes, etc.)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "time_entry_id": {
+                        "type": "integer",
+                        "description": "The ID of the time entry to update"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "New project ID"
+                    },
+                    "task_id": {
+                        "type": "integer",
+                        "description": "New task ID"
+                    },
+                    "spent_date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "New spent date (YYYY-MM-DD)"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Updated notes"
+                    },
+                    "hours": {
+                        "type": "number",
+                        "description": "Updated hours"
+                    },
+                    "started_time": {
+                        "type": "string",
+                        "description": "Updated start time (HH:MM)"
+                    },
+                    "ended_time": {
+                        "type": "string",
+                        "description": "Updated end time (HH:MM)"
+                    },
+                    "external_reference": {
+                        "type": "object",
+                        "description": "External reference metadata"
+                    }
+                },
+                "required": ["time_entry_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "time_entry": {"type": "object"},
+                    "error": {"type": "string"}
+                }
+            }
+        },
+        "delete_time_entry": {
+            "display_name": "Delete Time Entry",
+            "description": "Permanently delete a time entry from Harvest",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "time_entry_id": {
+                        "type": "integer",
+                        "description": "The ID of the time entry to delete"
+                    }
+                },
+                "required": ["time_entry_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "message": {"type": "string"},
+                    "error": {"type": "string"}
+                }
+            }
+        },
+        "list_projects": {
+            "display_name": "List Projects",
+            "description": "Retrieve a list of all projects in Harvest with optional filtering",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "is_active": {
+                        "type": "boolean",
+                        "description": "Filter by active status (true = active only, false = archived only)"
+                    },
+                    "client_id": {
+                        "type": "integer",
+                        "description": "Filter by client ID"
+                    },
+                    "updated_since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Only return projects updated since this date (ISO 8601)"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination"
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Number of results per page (max 2000)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "projects": {"type": "array"},
+                    "per_page": {"type": "integer"},
+                    "total_pages": {"type": "integer"},
+                    "total_entries": {"type": "integer"},
+                    "next_page": {"type": ["integer", "null"]},
+                    "previous_page": {"type": ["integer", "null"]},
+                    "page": {"type": "integer"},
+                    "links": {"type": "object"},
+                    "error": {"type": "string"}
+                }
+            }
+        },
+        "get_project": {
+            "display_name": "Get Project",
+            "description": "Retrieve detailed information about a specific project by ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "The ID of the project to retrieve"
+                    }
+                },
+                "required": ["project_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "project": {"type": "object"},
+                    "error": {"type": "string"}
+                }
+            }
+        },
+        "list_clients": {
+            "display_name": "List Clients",
+            "description": "Retrieve a list of all clients in Harvest with optional filtering",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "is_active": {
+                        "type": "boolean",
+                        "description": "Filter by active status (true = active only, false = archived only)"
+                    },
+                    "updated_since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Only return clients updated since this date (ISO 8601)"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination"
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Number of results per page (max 2000)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "clients": {"type": "array"},
+                    "per_page": {"type": "integer"},
+                    "total_pages": {"type": "integer"},
+                    "total_entries": {"type": "integer"},
+                    "next_page": {"type": ["integer", "null"]},
+                    "previous_page": {"type": ["integer", "null"]},
+                    "page": {"type": "integer"},
+                    "links": {"type": "object"},
+                    "error": {"type": "string"}
+                }
+            }
+        },
+        "list_tasks": {
+            "display_name": "List Tasks",
+            "description": "Retrieve a list of all tasks in Harvest with optional filtering",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "is_active": {
+                        "type": "boolean",
+                        "description": "Filter by active status (true = active only, false = archived only)"
+                    },
+                    "updated_since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Only return tasks updated since this date (ISO 8601)"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination"
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Number of results per page (max 2000)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "tasks": {"type": "array"},
+                    "per_page": {"type": "integer"},
+                    "total_pages": {"type": "integer"},
+                    "total_entries": {"type": "integer"},
+                    "next_page": {"type": ["integer", "null"]},
+                    "previous_page": {"type": ["integer", "null"]},
+                    "page": {"type": "integer"},
+                    "links": {"type": "object"},
+                    "error": {"type": "string"}
+                }
+            }
+        },
+        "list_users": {
+            "display_name": "List Users",
+            "description": "Retrieve a list of all users (team members) in Harvest with optional filtering",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "is_active": {
+                        "type": "boolean",
+                        "description": "Filter by active status (true = active only, false = archived only)"
+                    },
+                    "updated_since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Only return users updated since this date (ISO 8601)"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number for pagination"
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Number of results per page (max 2000)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "users": {"type": "array"},
+                    "per_page": {"type": "integer"},
+                    "total_pages": {"type": "integer"},
+                    "total_entries": {"type": "integer"},
+                    "next_page": {"type": ["integer", "null"]},
+                    "previous_page": {"type": ["integer", "null"]},
+                    "page": {"type": "integer"},
+                    "links": {"type": "object"},
+                    "error": {"type": "string"}
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,618 @@
+{
+    "name": "Shopify Admin",
+    "display_name": "Shopify Admin API",
+    "version": "1.0.0",
+    "description": "Shopify Admin API integration for store management - customers, orders, products, inventory, locations, fulfillments, and draft orders",
+    "entry_point": "shopify_admin.py",
+    "auth": {
+        "type": "platform",
+        "provider": "Shopify Admin",
+        "scopes": [
+            "read_customers",
+            "write_customers",
+            "read_orders",
+            "write_orders",
+            "read_products",
+            "write_products",
+            "read_inventory",
+            "write_inventory",
+            "read_locations",
+            "read_fulfillments",
+            "write_fulfillments",
+            "read_draft_orders",
+            "write_draft_orders"
+        ]
+    },
+    "actions": {
+        "list_customers": {
+            "display_name": "List Customers",
+            "description": "Retrieve a list of customers with optional filtering and pagination",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "description": "Maximum customers to return (max 250)", "label": "Limit", "default": 50},
+                    "since_id": {"type": "string", "description": "Restrict results to after this ID", "label": "Since ID"},
+                    "created_at_min": {"type": "string", "description": "Show customers created after date (ISO 8601)", "label": "Created After"},
+                    "created_at_max": {"type": "string", "description": "Show customers created before date (ISO 8601)", "label": "Created Before"},
+                    "updated_at_min": {"type": "string", "description": "Show customers updated after date (ISO 8601)", "label": "Updated After"},
+                    "updated_at_max": {"type": "string", "description": "Show customers updated before date (ISO 8601)", "label": "Updated Before"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "customers": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "get_customer": {
+            "display_name": "Get Customer",
+            "description": "Retrieve a single customer by ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "customer_id": {"type": "string", "description": "Customer ID", "label": "Customer ID"}
+                },
+                "required": ["customer_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "customer": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "search_customers": {
+            "display_name": "Search Customers",
+            "description": "Search customers by query string",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query", "label": "Query"},
+                    "limit": {"type": "integer", "description": "Maximum results", "label": "Limit", "default": 50}
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "customers": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "create_customer": {
+            "display_name": "Create Customer",
+            "description": "Create a new customer",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "email": {"type": "string", "format": "email", "description": "Email address", "label": "Email"},
+                    "first_name": {"type": "string", "description": "First name", "label": "First Name"},
+                    "last_name": {"type": "string", "description": "Last name", "label": "Last Name"},
+                    "phone": {"type": "string", "description": "Phone number", "label": "Phone"},
+                    "verified_email": {"type": "boolean", "description": "Email verified", "label": "Verified", "default": true},
+                    "send_email_welcome": {"type": "boolean", "description": "Send welcome email", "label": "Welcome Email", "default": false},
+                    "tags": {"type": "string", "description": "Comma-separated tags", "label": "Tags"},
+                    "note": {"type": "string", "description": "Note about customer", "label": "Note"},
+                    "tax_exempt": {"type": "boolean", "description": "Tax exempt", "label": "Tax Exempt", "default": false},
+                    "address": {"type": "object", "description": "Customer address", "label": "Address"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "customer": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "update_customer": {
+            "display_name": "Update Customer",
+            "description": "Update an existing customer",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "customer_id": {"type": "string", "description": "Customer ID", "label": "Customer ID"},
+                    "email": {"type": "string", "format": "email", "description": "Email", "label": "Email"},
+                    "first_name": {"type": "string", "description": "First name", "label": "First Name"},
+                    "last_name": {"type": "string", "description": "Last name", "label": "Last Name"},
+                    "phone": {"type": "string", "description": "Phone", "label": "Phone"},
+                    "tags": {"type": "string", "description": "Tags", "label": "Tags"},
+                    "note": {"type": "string", "description": "Note", "label": "Note"},
+                    "tax_exempt": {"type": "boolean", "description": "Tax exempt", "label": "Tax Exempt"}
+                },
+                "required": ["customer_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "customer": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_orders": {
+            "display_name": "List Orders",
+            "description": "Retrieve orders with optional filtering",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "description": "Maximum orders", "label": "Limit", "default": 50},
+                    "status": {"type": "string", "description": "Order status", "label": "Status", "enum": ["open", "closed", "cancelled", "any"], "default": "any"},
+                    "financial_status": {"type": "string", "description": "Financial status", "label": "Financial Status", "enum": ["authorized", "pending", "paid", "partially_paid", "refunded", "voided", "partially_refunded", "any"]},
+                    "fulfillment_status": {"type": "string", "description": "Fulfillment status", "label": "Fulfillment Status", "enum": ["shipped", "partial", "unshipped", "unfulfilled", "any"]},
+                    "since_id": {"type": "string", "description": "After this ID", "label": "Since ID"},
+                    "created_at_min": {"type": "string", "description": "Created after", "label": "Created After"},
+                    "created_at_max": {"type": "string", "description": "Created before", "label": "Created Before"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "orders": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "get_order": {
+            "display_name": "Get Order",
+            "description": "Retrieve a single order by ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "order_id": {"type": "string", "description": "Order ID", "label": "Order ID"}
+                },
+                "required": ["order_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "order": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "create_order": {
+            "display_name": "Create Order",
+            "description": "Create a new order",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "line_items": {"type": "array", "description": "Order line items", "label": "Line Items"},
+                    "customer_id": {"type": "string", "description": "Customer ID", "label": "Customer ID"},
+                    "email": {"type": "string", "format": "email", "description": "Customer email", "label": "Email"},
+                    "financial_status": {"type": "string", "description": "Financial status", "label": "Financial Status", "enum": ["pending", "authorized", "partially_paid", "paid"], "default": "pending"},
+                    "send_receipt": {"type": "boolean", "description": "Send receipt", "label": "Send Receipt", "default": false},
+                    "note": {"type": "string", "description": "Order note", "label": "Note"},
+                    "tags": {"type": "string", "description": "Tags", "label": "Tags"},
+                    "shipping_address": {"type": "object", "description": "Shipping address", "label": "Shipping Address"},
+                    "billing_address": {"type": "object", "description": "Billing address", "label": "Billing Address"}
+                },
+                "required": ["line_items"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "order": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "cancel_order": {
+            "display_name": "Cancel Order",
+            "description": "Cancel an existing order",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "order_id": {"type": "string", "description": "Order ID", "label": "Order ID"},
+                    "reason": {"type": "string", "description": "Cancel reason", "label": "Reason", "enum": ["customer", "fraud", "inventory", "declined", "other"]},
+                    "email": {"type": "boolean", "description": "Send email", "label": "Send Email", "default": true},
+                    "restock": {"type": "boolean", "description": "Restock items", "label": "Restock", "default": true}
+                },
+                "required": ["order_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "order": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_products": {
+            "display_name": "List Products",
+            "description": "Retrieve products with optional filtering (GraphQL API)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "description": "Maximum products (max 250)", "label": "Limit", "default": 50},
+                    "after": {"type": "string", "description": "Cursor for pagination (from endCursor)", "label": "After Cursor"},
+                    "title": {"type": "string", "description": "Filter by title (partial match)", "label": "Title"},
+                    "vendor": {"type": "string", "description": "Filter by vendor", "label": "Vendor"},
+                    "product_type": {"type": "string", "description": "Filter by type", "label": "Product Type"},
+                    "status": {"type": "string", "description": "Filter by status", "label": "Status", "enum": ["active", "archived", "draft"]},
+                    "created_at_min": {"type": "string", "description": "Created after (ISO 8601)", "label": "Created After"},
+                    "created_at_max": {"type": "string", "description": "Created before (ISO 8601)", "label": "Created Before"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "products": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "hasNextPage": {"type": "boolean", "description": "Whether more results exist"},
+                    "endCursor": {"type": "string", "description": "Cursor for next page"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "get_product": {
+            "display_name": "Get Product",
+            "description": "Retrieve a single product by ID (GraphQL API)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "product_id": {"type": "string", "description": "Product ID (numeric or GID format)", "label": "Product ID"}
+                },
+                "required": ["product_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "product": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "create_product": {
+            "display_name": "Create Product",
+            "description": "Create a new product (GraphQL API)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Product title", "label": "Title"},
+                    "body_html": {"type": "string", "description": "Description HTML", "label": "Description"},
+                    "vendor": {"type": "string", "description": "Vendor name", "label": "Vendor"},
+                    "product_type": {"type": "string", "description": "Product type", "label": "Product Type"},
+                    "tags": {"type": "string", "description": "Comma-separated tags", "label": "Tags"},
+                    "status": {"type": "string", "description": "Status", "label": "Status", "enum": ["active", "archived", "draft"], "default": "draft"},
+                    "variants": {"type": "array", "description": "Product variants with price, sku, barcode, weight", "label": "Variants"},
+                    "options": {"type": "array", "description": "Product options (e.g., Size, Color)", "label": "Options"}
+                },
+                "required": ["title"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "product": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "update_product": {
+            "display_name": "Update Product",
+            "description": "Update an existing product (GraphQL API). Note: Variant updates require separate API calls.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "product_id": {"type": "string", "description": "Product ID (numeric or GID format)", "label": "Product ID"},
+                    "title": {"type": "string", "description": "Title", "label": "Title"},
+                    "body_html": {"type": "string", "description": "Description HTML", "label": "Description"},
+                    "vendor": {"type": "string", "description": "Vendor", "label": "Vendor"},
+                    "product_type": {"type": "string", "description": "Type", "label": "Product Type"},
+                    "tags": {"type": "string", "description": "Comma-separated tags", "label": "Tags"},
+                    "status": {"type": "string", "description": "Status", "label": "Status", "enum": ["active", "archived", "draft"]}
+                },
+                "required": ["product_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "product": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "get_inventory_levels": {
+            "display_name": "Get Inventory Levels",
+            "description": "Retrieve inventory levels by location or item IDs",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "inventory_item_ids": {"type": "string", "description": "Comma-separated item IDs", "label": "Inventory Item IDs"},
+                    "location_ids": {"type": "string", "description": "Comma-separated location IDs", "label": "Location IDs"},
+                    "limit": {"type": "integer", "description": "Maximum results", "label": "Limit", "default": 50}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "inventory_levels": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "set_inventory_level": {
+            "display_name": "Set Inventory Level",
+            "description": "Set inventory level for an item at a location",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "inventory_item_id": {"type": "string", "description": "Inventory item ID", "label": "Inventory Item ID"},
+                    "location_id": {"type": "string", "description": "Location ID", "label": "Location ID"},
+                    "available": {"type": "integer", "description": "Available quantity", "label": "Available"}
+                },
+                "required": ["inventory_item_id", "location_id", "available"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "inventory_level": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_locations": {
+            "display_name": "List Locations",
+            "description": "List all store locations",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "locations": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "get_location": {
+            "display_name": "Get Location",
+            "description": "Get a single location by ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "location_id": {"type": "string", "description": "Location ID", "label": "Location ID"}
+                },
+                "required": ["location_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "location": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "get_shop": {
+            "display_name": "Get Shop Info",
+            "description": "Get store information",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "shop": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_draft_orders": {
+            "display_name": "List Draft Orders",
+            "description": "List draft orders",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "description": "Maximum results", "label": "Limit", "default": 50},
+                    "since_id": {"type": "string", "description": "After this ID", "label": "Since ID"},
+                    "status": {"type": "string", "description": "Status filter", "label": "Status"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "draft_orders": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "create_draft_order": {
+            "display_name": "Create Draft Order",
+            "description": "Create a new draft order",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "line_items": {"type": "array", "description": "Line items", "label": "Line Items"},
+                    "customer_id": {"type": "string", "description": "Customer ID", "label": "Customer ID"},
+                    "email": {"type": "string", "format": "email", "description": "Email", "label": "Email"},
+                    "note": {"type": "string", "description": "Note", "label": "Note"},
+                    "tags": {"type": "string", "description": "Tags", "label": "Tags"},
+                    "shipping_address": {"type": "object", "description": "Shipping address", "label": "Shipping Address"},
+                    "billing_address": {"type": "object", "description": "Billing address", "label": "Billing Address"},
+                    "use_customer_default_address": {"type": "boolean", "description": "Use default address", "label": "Use Default Address"}
+                },
+                "required": ["line_items"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "draft_order": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "complete_draft_order": {
+            "display_name": "Complete Draft Order",
+            "description": "Complete a draft order, converting to real order",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "draft_order_id": {"type": "string", "description": "Draft order ID", "label": "Draft Order ID"},
+                    "payment_pending": {"type": "boolean", "description": "Payment pending", "label": "Payment Pending", "default": false}
+                },
+                "required": ["draft_order_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "draft_order": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "delete_draft_order": {
+            "display_name": "Delete Draft Order",
+            "description": "Delete a draft order",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "draft_order_id": {"type": "string", "description": "Draft order ID", "label": "Draft Order ID"}
+                },
+                "required": ["draft_order_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "deleted": {"type": "boolean"},
+                    "draft_order_id": {"type": "string"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_fulfillments": {
+            "display_name": "List Fulfillments",
+            "description": "List fulfillments for an order",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "order_id": {"type": "string", "description": "Order ID", "label": "Order ID"}
+                },
+                "required": ["order_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "fulfillments": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "create_fulfillment": {
+            "display_name": "Create Fulfillment",
+            "description": "Create a fulfillment for an order",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "order_id": {"type": "string", "description": "Order ID", "label": "Order ID"},
+                    "location_id": {"type": "string", "description": "Location ID", "label": "Location ID"},
+                    "tracking_number": {"type": "string", "description": "Tracking number", "label": "Tracking Number"},
+                    "tracking_company": {"type": "string", "description": "Shipping company", "label": "Tracking Company"},
+                    "tracking_url": {"type": "string", "description": "Tracking URL", "label": "Tracking URL"},
+                    "notify_customer": {"type": "boolean", "description": "Notify customer", "label": "Notify Customer", "default": true},
+                    "line_items": {"type": "array", "description": "Line items to fulfill", "label": "Line Items"}
+                },
+                "required": ["order_id", "location_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "fulfillment": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "update_fulfillment_tracking": {
+            "display_name": "Update Fulfillment Tracking",
+            "description": "Update tracking information for a fulfillment",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "fulfillment_id": {"type": "string", "description": "Fulfillment ID", "label": "Fulfillment ID"},
+                    "tracking_number": {"type": "string", "description": "Tracking number", "label": "Tracking Number"},
+                    "tracking_company": {"type": "string", "description": "Shipping company", "label": "Tracking Company"},
+                    "tracking_url": {"type": "string", "description": "Tracking URL", "label": "Tracking URL"},
+                    "notify_customer": {"type": "boolean", "description": "Notify customer", "label": "Notify Customer", "default": false}
+                },
+                "required": ["fulfillment_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "fulfillment": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        }
+    }
+}

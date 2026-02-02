@@ -1,0 +1,6 @@
+google-ads==28.4.1
+autohive_integrations_sdk~=1.0.2
+python-dotenv
+grpcio>=1.56.2,<2.0.0dev
+grpcio-status>=1.56.2,<2.0.0dev
+protobuf>=4.25.0,<7.0.0

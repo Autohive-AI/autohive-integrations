@@ -1,0 +1,942 @@
+{
+    "name": "Asana",
+    "display_name": "Asana",
+    "version": "1.0.0",
+    "description": "Asana integration for managing tasks, projects, workspaces, and team collaboration",
+    "entry_point": "asana.py",
+    "auth": {
+        "type": "platform",
+        "provider": "Asana",
+        "scopes": [
+            "tasks:read",
+            "tasks:write",
+            "tasks:delete",
+            "projects:read",
+            "projects:write",
+            "projects:delete",
+            "stories:read",
+            "stories:write",
+            "workspaces:read",
+            "teams:read",
+            "users:read"
+        ]
+    },
+    "actions": {
+        "create_task": {
+            "display_name": "Create Task",
+            "description": "Creates a new task in Asana. Task name is required, along with either workspace or projects.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The task's name or title"
+                    },
+                    "workspace": {
+                        "type": "string",
+                        "description": "GID of the workspace to create task in (required if projects not provided)"
+                    },
+                    "projects": {
+                        "type": "array",
+                        "description": "Array of project GIDs to add task to",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "assignee": {
+                        "type": "string",
+                        "description": "User GID to assign task to, or 'me' for current user"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Task description/notes (supports rich text)"
+                    },
+                    "due_on": {
+                        "type": "string",
+                        "description": "Due date in YYYY-MM-DD format"
+                    },
+                    "due_at": {
+                        "type": "string",
+                        "description": "Due date with time (ISO 8601 format)"
+                    },
+                    "completed": {
+                        "type": "boolean",
+                        "description": "Whether the task is completed"
+                    }
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Created task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        },
+        "get_task": {
+            "display_name": "Get Task",
+            "description": "Retrieves details of a specific task by its GID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_gid": {
+                        "type": "string",
+                        "description": "The GID of the task to retrieve"
+                    },
+                    "opt_fields": {
+                        "type": "array",
+                        "description": "Optional fields to include in response (e.g., ['assignee', 'due_on', 'projects'])",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["task_gid"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        },
+        "update_task": {
+            "display_name": "Update Task",
+            "description": "Updates an existing task. Provide the task GID and fields to update.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_gid": {
+                        "type": "string",
+                        "description": "The GID of the task to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated task name"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Updated task notes/description"
+                    },
+                    "assignee": {
+                        "type": "string",
+                        "description": "Updated assignee GID, or 'me', or null to unassign"
+                    },
+                    "due_on": {
+                        "type": "string",
+                        "description": "Updated due date (YYYY-MM-DD)"
+                    },
+                    "due_at": {
+                        "type": "string",
+                        "description": "Updated due date with time (ISO 8601)"
+                    },
+                    "completed": {
+                        "type": "boolean",
+                        "description": "Mark task as completed or incomplete"
+                    }
+                },
+                "required": ["task_gid"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Updated task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        },
+        "list_tasks": {
+            "display_name": "List Tasks",
+            "description": "Returns tasks filtered by project, section, assignee, or workspace.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string",
+                        "description": "Project GID to filter tasks by"
+                    },
+                    "section": {
+                        "type": "string",
+                        "description": "Section GID to filter tasks by"
+                    },
+                    "assignee": {
+                        "type": "string",
+                        "description": "Assignee GID to filter tasks by (use 'me' for current user)"
+                    },
+                    "workspace": {
+                        "type": "string",
+                        "description": "Workspace GID to filter tasks by"
+                    },
+                    "completed_since": {
+                        "type": "string",
+                        "description": "Only return tasks completed after this time (ISO 8601)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of tasks to return (max 100)",
+                        "maximum": 100
+                    },
+                    "opt_fields": {
+                        "type": "array",
+                        "description": "Optional fields to include",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tasks": {
+                        "type": "array",
+                        "description": "List of tasks"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["tasks", "result"]
+            }
+        },
+        "delete_task": {
+            "display_name": "Delete Task",
+            "description": "Deletes a task permanently.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_gid": {
+                        "type": "string",
+                        "description": "The GID of the task to delete"
+                    }
+                },
+                "required": ["task_gid"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_projects": {
+            "display_name": "List Projects",
+            "description": "Returns projects in a workspace or team. NOTE: As of 2025, workspace or team parameter is REQUIRED. Use 'list_workspaces' action first to get available workspace IDs.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "workspace": {
+                        "type": "string",
+                        "description": "Workspace GID to list projects from (REQUIRED - use list_workspaces to get this)"
+                    },
+                    "team": {
+                        "type": "string",
+                        "description": "Team GID to list projects from (alternative to workspace)"
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Only return archived projects"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of projects to return",
+                        "maximum": 100
+                    }
+                },
+                "required": ["workspace"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "projects": {
+                        "type": "array",
+                        "description": "List of projects"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["projects", "result"]
+            }
+        },
+        "get_project": {
+            "display_name": "Get Project",
+            "description": "Retrieves details of a specific project by its GID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_gid": {
+                        "type": "string",
+                        "description": "The GID of the project to retrieve"
+                    },
+                    "opt_fields": {
+                        "type": "array",
+                        "description": "Optional fields to include in response",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["project_gid"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "object",
+                        "description": "Project details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["project", "result"]
+            }
+        },
+        "create_project": {
+            "display_name": "Create Project",
+            "description": "Creates a new project in Asana. Name and workspace are required.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Project name"
+                    },
+                    "workspace": {
+                        "type": "string",
+                        "description": "Workspace GID where project will be created"
+                    },
+                    "team": {
+                        "type": "string",
+                        "description": "Team GID to share project with (required for organization workspaces)"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Project description/notes"
+                    },
+                    "color": {
+                        "type": "string",
+                        "description": "Project color (e.g., 'light-green', 'dark-blue')"
+                    },
+                    "public": {
+                        "type": "boolean",
+                        "description": "Whether project is public to the workspace"
+                    }
+                },
+                "required": ["name", "workspace"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "object",
+                        "description": "Created project details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["project", "result"]
+            }
+        },
+        "update_project": {
+            "display_name": "Update Project",
+            "description": "Updates an existing project's details.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_gid": {
+                        "type": "string",
+                        "description": "The GID of the project to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated project name"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Updated project notes"
+                    },
+                    "color": {
+                        "type": "string",
+                        "description": "Updated project color"
+                    },
+                    "public": {
+                        "type": "boolean",
+                        "description": "Updated public setting"
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Archive or unarchive the project"
+                    }
+                },
+                "required": ["project_gid"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "object",
+                        "description": "Updated project details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["project", "result"]
+            }
+        },
+        "delete_project": {
+            "display_name": "Delete Project",
+            "description": "Deletes a project permanently.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_gid": {
+                        "type": "string",
+                        "description": "The GID of the project to delete"
+                    }
+                },
+                "required": ["project_gid"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_project_by_name": {
+            "display_name": "Get Project by Name",
+            "description": "Get a project by its exact name. IMPORTANT: As of 2025, providing workspace parameter is strongly recommended and may be required. Use 'list_workspaces' action first to get workspace IDs.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The exact name of the project to find."
+                    },
+                    "workspace": {
+                        "type": "string",
+                        "description": "Workspace GID to search in (STRONGLY RECOMMENDED - use list_workspaces to get this)"
+                    },
+                    "team": {
+                        "type": "string",
+                        "description": "Team GID to search in (optional)"
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether to include archived projects in search",
+                        "default": false
+                    }
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "gid": {
+                        "type": ["string", "null"],
+                        "description": "The project GID, null if not found"
+                    },
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "The project name, null if not found"
+                    },
+                    "workspace": {
+                        "type": ["object", "null"],
+                        "description": "The workspace the project belongs to, null if not found"
+                    },
+                    "team": {
+                        "type": ["object", "null"],
+                        "description": "The team the project belongs to, null if not found"
+                    },
+                    "archived": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether the project is archived, null if not found"
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Project color, null if not found"
+                    },
+                    "notes": {
+                        "type": ["string", "null"],
+                        "description": "Project notes, null if not found"
+                    },
+                    "not_found": {
+                        "type": "boolean",
+                        "description": "Whether the project was not found"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_sections": {
+            "display_name": "List Sections",
+            "description": "Returns sections in a project (columns in board view or headers in list view).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_gid": {
+                        "type": "string",
+                        "description": "Project GID to get sections from"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of sections to return",
+                        "maximum": 100
+                    }
+                },
+                "required": ["project_gid"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "sections": {
+                        "type": "array",
+                        "description": "List of sections"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["sections", "result"]
+            }
+        },
+        "create_section": {
+            "display_name": "Create Section",
+            "description": "Creates a new section in a project.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_gid": {
+                        "type": "string",
+                        "description": "Project GID to create section in"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Section name"
+                    }
+                },
+                "required": ["project_gid", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "section": {
+                        "type": "object",
+                        "description": "Created section details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["section", "result"]
+            }
+        },
+        "update_section": {
+            "display_name": "Update Section",
+            "description": "Updates a section's name.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "section_gid": {
+                        "type": "string",
+                        "description": "The GID of the section to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated section name"
+                    }
+                },
+                "required": ["section_gid", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "section": {
+                        "type": "object",
+                        "description": "Updated section details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["section", "result"]
+            }
+        },
+        "add_task_to_section": {
+            "display_name": "Add Task to Section",
+            "description": "Moves a task to a specific section within a project.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "section_gid": {
+                        "type": "string",
+                        "description": "The GID of the section"
+                    },
+                    "task_gid": {
+                        "type": "string",
+                        "description": "The GID of the task to add"
+                    }
+                },
+                "required": ["section_gid", "task_gid"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "create_story": {
+            "display_name": "Create Comment",
+            "description": "Adds a comment (story) to a task.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_gid": {
+                        "type": "string",
+                        "description": "The GID of the task"
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "The comment text (plain text or rich text)"
+                    }
+                },
+                "required": ["task_gid", "text"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "story": {
+                        "type": "object",
+                        "description": "Created story/comment details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["story", "result"]
+            }
+        },
+        "list_stories": {
+            "display_name": "List Comments",
+            "description": "Gets all comments and stories for a task.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_gid": {
+                        "type": "string",
+                        "description": "The GID of the task"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of stories to return",
+                        "maximum": 100
+                    }
+                },
+                "required": ["task_gid"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "stories": {
+                        "type": "array",
+                        "description": "List of stories/comments"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["stories", "result"]
+            }
+        },
+        "create_subtask": {
+            "display_name": "Create Subtask",
+            "description": "Creates a subtask under a parent task.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "parent_task_gid": {
+                        "type": "string",
+                        "description": "The GID of the parent task"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Subtask name"
+                    },
+                    "assignee": {
+                        "type": "string",
+                        "description": "Assignee GID or 'me'"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Subtask notes/description"
+                    },
+                    "due_on": {
+                        "type": "string",
+                        "description": "Due date (YYYY-MM-DD)"
+                    }
+                },
+                "required": ["parent_task_gid", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "subtask": {
+                        "type": "object",
+                        "description": "Created subtask details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["subtask", "result"]
+            }
+        },
+        "list_workspaces": {
+            "display_name": "List Workspaces",
+            "description": "Returns all workspaces the authenticated user has access to. Use this to get workspace IDs for other actions.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of workspaces to return",
+                        "maximum": 100
+                    },
+                    "opt_fields": {
+                        "type": "array",
+                        "description": "Optional fields to include in response",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "workspaces": {
+                        "type": "array",
+                        "description": "List of workspaces"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["workspaces", "result"]
+            }
+        },
+        "get_workspace": {
+            "display_name": "Get Workspace",
+            "description": "Retrieves details of a specific workspace by its GID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "workspace_gid": {
+                        "type": "string",
+                        "description": "The GID of the workspace to retrieve"
+                    },
+                    "opt_fields": {
+                        "type": "array",
+                        "description": "Optional fields to include in response",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["workspace_gid"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "workspace": {
+                        "type": "object",
+                        "description": "Workspace details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["workspace", "result"]
+            }
+        },
+        "get_user": {
+            "display_name": "Get User",
+            "description": "Retrieves details of a user. Use 'me' as user_gid to get the current authenticated user's information including their workspaces.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_gid": {
+                        "type": "string",
+                        "description": "The GID of the user to retrieve, or 'me' for current user",
+                        "default": "me"
+                    },
+                    "opt_fields": {
+                        "type": "array",
+                        "description": "Optional fields to include in response (e.g., ['workspaces', 'email', 'photo'])",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "object",
+                        "description": "User details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["user", "result"]
+            }
+        }
+    }
+}

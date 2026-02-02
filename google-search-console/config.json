@@ -1,0 +1,309 @@
+{
+    "name": "Google Search Console",
+    "display_name": "Google Search Console",
+    "version": "0.1.0",
+    "description": "Access Google Search Console data including search analytics, URL inspection, sitemaps, and site verification.",
+    "entry_point": "google_search_console.py",
+    "auth": {
+        "type": "platform",
+        "provider": "google_search_console",
+        "scopes": [
+            "https://www.googleapis.com/auth/webmasters"
+        ]
+    },
+    "actions": {
+        "query_analytics": {
+            "display_name": "Query Search Analytics",
+            "description": "Retrieve search analytics data including queries, pages, countries, and devices",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "site_url": {
+                        "type": "string",
+                        "description": "The site URL (e.g., 'https://example.com' or 'sc-domain:example.com')"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date in YYYY-MM-DD format"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date in YYYY-MM-DD format"
+                    },
+                    "dimensions": {
+                        "type": "array",
+                        "description": "Dimensions to group by (e.g., 'query', 'page', 'country', 'device', 'date')",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "dimension_filter_groups": {
+                        "type": "array",
+                        "description": "Filters to apply to the data",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "filters": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "dimension": {
+                                                "type": "string",
+                                                "description": "Dimension to filter (e.g., 'country', 'device')"
+                                            },
+                                            "operator": {
+                                                "type": "string",
+                                                "description": "Filter operator (equals, notEquals, contains, notContains)"
+                                            },
+                                            "expression": {
+                                                "type": "string",
+                                                "description": "Filter value"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "row_limit": {
+                        "type": "integer",
+                        "description": "Maximum number of rows to return (default: 25000, max: 25000)",
+                        "default": 25000
+                    },
+                    "start_row": {
+                        "type": "integer",
+                        "description": "Starting row for pagination (default: 0)",
+                        "default": 0
+                    }
+                },
+                "required": [
+                    "site_url",
+                    "start_date",
+                    "end_date"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "rows": {
+                        "type": "array",
+                        "description": "Analytics data rows",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "row_count": {
+                        "type": "integer",
+                        "description": "Number of rows returned"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "rows",
+                    "row_count",
+                    "result"
+                ]
+            }
+        },
+
+        "list_sites": {
+            "display_name": "List Sites",
+            "description": "List all sites in the user's Search Console account",
+            "input_schema": {
+                "type": "object",
+                "properties": {}
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "sites": {
+                        "type": "array",
+                        "description": "List of sites",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "site_url": {
+                                    "type": "string"
+                                },
+                                "permission_level": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "site_count": {
+                        "type": "integer",
+                        "description": "Number of sites"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "sites",
+                    "site_count",
+                    "result"
+                ]
+            }
+        },
+
+        "inspect_url": {
+            "display_name": "Inspect URL",
+            "description": "Get URL inspection data including index status, mobile usability, and more",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "site_url": {
+                        "type": "string",
+                        "description": "The site URL (e.g., 'https://example.com')"
+                    },
+                    "inspection_url": {
+                        "type": "string",
+                        "description": "The URL to inspect"
+                    }
+                },
+                "required": [
+                    "site_url",
+                    "inspection_url"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "inspection_result": {
+                        "type": "object",
+                        "description": "URL inspection data"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "inspection_result",
+                    "result"
+                ]
+            }
+        },
+
+        "list_sitemaps": {
+            "display_name": "List Sitemaps",
+            "description": "List all sitemaps for a site",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "site_url": {
+                        "type": "string",
+                        "description": "The site URL (e.g., 'https://example.com')"
+                    }
+                },
+                "required": [
+                    "site_url"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "sitemaps": {
+                        "type": "array",
+                        "description": "List of sitemaps",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "path": {
+                                    "type": "string"
+                                },
+                                "last_submitted": {
+                                    "type": "string"
+                                },
+                                "is_pending": {
+                                    "type": "boolean"
+                                },
+                                "is_sitemap_index": {
+                                    "type": "boolean"
+                                }
+                            }
+                        }
+                    },
+                    "sitemap_count": {
+                        "type": "integer",
+                        "description": "Number of sitemaps"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "sitemaps",
+                    "sitemap_count",
+                    "result"
+                ]
+            }
+        },
+
+        "get_sitemap": {
+            "display_name": "Get Sitemap Details",
+            "description": "Get detailed information about a specific sitemap",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "site_url": {
+                        "type": "string",
+                        "description": "The site URL (e.g., 'https://example.com')"
+                    },
+                    "sitemap_url": {
+                        "type": "string",
+                        "description": "The sitemap URL"
+                    }
+                },
+                "required": [
+                    "site_url",
+                    "sitemap_url"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "sitemap": {
+                        "type": "object",
+                        "description": "Sitemap details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation succeeded"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "sitemap",
+                    "result"
+                ]
+            }
+        }
+    }
+}

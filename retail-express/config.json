@@ -1,0 +1,508 @@
+{
+    "name": "RetailExpress",
+    "display_name": "Retail Express",
+    "version": "1.0.0",
+    "description": "Retail Express integration for managing products, customers, orders, and outlets in the Retail Express POS platform",
+    "entry_point": "retail_express.py",
+    "supports_billing": true,
+    "supports_connected_account": false,
+    "auth": {
+        "type": "custom",
+        "title": "Retail Express API Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Key",
+                    "help_text": "Your Retail Express API Key. Request this from the Retail Express client you wish to integrate with."
+                }
+            }
+        }
+    },
+    "actions": {
+        "list_products": {
+            "display_name": "List Products",
+            "description": "Retrieve a paginated list of products from Retail Express.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)",
+                        "default": 1
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of items per page (max: 250)",
+                        "default": 20,
+                        "maximum": 250
+                    },
+                    "sku": {
+                        "type": "string",
+                        "description": "Filter by product SKU"
+                    },
+                    "updated_since": {
+                        "type": "string",
+                        "description": "Filter products updated since this date (ISO 8601 format)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "products": {
+                        "type": "array",
+                        "description": "List of products"
+                    },
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Current page number"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of items per page"
+                    },
+                    "total_records": {
+                        "type": "integer",
+                        "description": "Total number of records"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "get_product": {
+            "display_name": "Get Product",
+            "description": "Retrieve details of a specific product by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "product_id": {
+                        "type": "string",
+                        "description": "The Retail Express product ID"
+                    }
+                },
+                "required": ["product_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "product": {
+                        "type": "object",
+                        "description": "Product details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "list_customers": {
+            "display_name": "List Customers",
+            "description": "Retrieve a paginated list of customers from Retail Express.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)",
+                        "default": 1
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of items per page (max: 250)",
+                        "default": 20,
+                        "maximum": 250
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Filter by customer email"
+                    },
+                    "updated_since": {
+                        "type": "string",
+                        "description": "Filter customers updated since this date (ISO 8601 format)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "customers": {
+                        "type": "array",
+                        "description": "List of customers"
+                    },
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Current page number"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of items per page"
+                    },
+                    "total_records": {
+                        "type": "integer",
+                        "description": "Total number of records"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "get_customer": {
+            "display_name": "Get Customer",
+            "description": "Retrieve details of a specific customer by their ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "customer_id": {
+                        "type": "string",
+                        "description": "The Retail Express customer ID"
+                    }
+                },
+                "required": ["customer_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "customer": {
+                        "type": "object",
+                        "description": "Customer details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "create_customer": {
+            "display_name": "Create Customer",
+            "description": "Create a new customer in Retail Express.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "first_name": {
+                        "type": "string",
+                        "description": "Customer's first name"
+                    },
+                    "last_name": {
+                        "type": "string",
+                        "description": "Customer's last name"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Customer's email address"
+                    },
+                    "phone": {
+                        "type": "string",
+                        "description": "Customer's phone number"
+                    },
+                    "mobile": {
+                        "type": "string",
+                        "description": "Customer's mobile number"
+                    },
+                    "company": {
+                        "type": "string",
+                        "description": "Customer's company name"
+                    },
+                    "billing_address": {
+                        "type": "object",
+                        "description": "Customer's billing address",
+                        "properties": {
+                            "address_line_1": {"type": "string"},
+                            "address_line_2": {"type": "string"},
+                            "suburb": {"type": "string"},
+                            "state": {"type": "string"},
+                            "postcode": {"type": "string"},
+                            "country": {"type": "string"}
+                        }
+                    },
+                    "shipping_address": {
+                        "type": "object",
+                        "description": "Customer's shipping address",
+                        "properties": {
+                            "address_line_1": {"type": "string"},
+                            "address_line_2": {"type": "string"},
+                            "suburb": {"type": "string"},
+                            "state": {"type": "string"},
+                            "postcode": {"type": "string"},
+                            "country": {"type": "string"}
+                        }
+                    }
+                },
+                "required": ["first_name", "last_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "customer": {
+                        "type": "object",
+                        "description": "Created customer details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "update_customer": {
+            "display_name": "Update Customer",
+            "description": "Update an existing customer's information.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "customer_id": {
+                        "type": "string",
+                        "description": "The Retail Express customer ID"
+                    },
+                    "first_name": {
+                        "type": "string",
+                        "description": "Customer's first name"
+                    },
+                    "last_name": {
+                        "type": "string",
+                        "description": "Customer's last name"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Customer's email address"
+                    },
+                    "phone": {
+                        "type": "string",
+                        "description": "Customer's phone number"
+                    },
+                    "mobile": {
+                        "type": "string",
+                        "description": "Customer's mobile number"
+                    },
+                    "company": {
+                        "type": "string",
+                        "description": "Customer's company name"
+                    }
+                },
+                "required": ["customer_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "customer": {
+                        "type": "object",
+                        "description": "Updated customer details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "list_orders": {
+            "display_name": "List Orders",
+            "description": "Retrieve a paginated list of orders from Retail Express.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)",
+                        "default": 1
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of items per page (max: 250)",
+                        "default": 20,
+                        "maximum": 250
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by order status"
+                    },
+                    "customer_id": {
+                        "type": "string",
+                        "description": "Filter by customer ID"
+                    },
+                    "updated_since": {
+                        "type": "string",
+                        "description": "Filter orders updated since this date (ISO 8601 format)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "orders": {
+                        "type": "array",
+                        "description": "List of orders"
+                    },
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Current page number"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of items per page"
+                    },
+                    "total_records": {
+                        "type": "integer",
+                        "description": "Total number of records"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "get_order": {
+            "display_name": "Get Order",
+            "description": "Retrieve details of a specific order by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "order_id": {
+                        "type": "string",
+                        "description": "The Retail Express order ID"
+                    }
+                },
+                "required": ["order_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "order": {
+                        "type": "object",
+                        "description": "Order details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "list_outlets": {
+            "display_name": "List Outlets",
+            "description": "Retrieve a list of all outlets (store locations) from Retail Express.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)",
+                        "default": 1
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of items per page (max: 250)",
+                        "default": 20,
+                        "maximum": 250
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "outlets": {
+                        "type": "array",
+                        "description": "List of outlets"
+                    },
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Current page number"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of items per page"
+                    },
+                    "total_records": {
+                        "type": "integer",
+                        "description": "Total number of records"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "get_outlet": {
+            "display_name": "Get Outlet",
+            "description": "Retrieve details of a specific outlet by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "outlet_id": {
+                        "type": "string",
+                        "description": "The Retail Express outlet ID"
+                    }
+                },
+                "required": ["outlet_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "outlet": {
+                        "type": "object",
+                        "description": "Outlet details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        }
+    }
+}

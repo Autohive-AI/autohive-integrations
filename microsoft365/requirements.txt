@@ -1,1 +1,2 @@
 autohive_integrations_sdk
+aiohttp

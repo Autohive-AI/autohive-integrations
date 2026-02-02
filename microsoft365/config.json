@@ -1,7 +1,7 @@
 {
-    "name": "Microsoft 365",
+    "name": "Microsoft Copilot 365",
     "version": "1.0.0",
-    "description": "Microsoft 365 integration for Outlook, OneDrive, and Calendar",
+    "description": "Microsoft Copilot 365 integration for Outlook, OneDrive, and Calendar",
     "entry_point": "microsoft365.py",
     "auth": {
         "type": "platform",
@@ -9,10 +9,11 @@
         "scopes": [
             "offline_access",
             "Mail.ReadWrite",
-            "Mail.Send", 
+            "Mail.Send",
             "Files.ReadWrite",
             "Calendars.ReadWrite",
-            "Contacts.Read"
+            "Contacts.Read",
+            "Sites.Read.All"
         ]
     },
     "actions": {
@@ -653,9 +654,149 @@
                 "required": ["result", "id", "isRead", "lastModifiedDateTime"]
             }
         },
+        "list_mail_folders": {
+            "display_name": "List Mail Folders",
+            "description": "List mail folders in the user's mailbox. Returns folder IDs needed for move_email action. Use include_children=true to get all folders including nested subfolders.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "folder_id": {
+                        "type": "string",
+                        "description": "Optional: ID of a parent folder to list children of. If not provided, lists root-level folders."
+                    },
+                    "include_hidden": {
+                        "type": "boolean",
+                        "description": "Include hidden system folders in the response",
+                        "default": false
+                    },
+                    "include_children": {
+                        "type": "boolean",
+                        "description": "Recursively include all nested child folders. Recommended when searching for a custom folder.",
+                        "default": false
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "folders": {
+                        "type": "array",
+                        "description": "List of mail folders",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Folder ID - use this value for move_email destination_folder_id"
+                                },
+                                "displayName": {
+                                    "type": "string",
+                                    "description": "Human-readable folder name"
+                                },
+                                "parentFolderId": {
+                                    "type": "string",
+                                    "description": "ID of the parent folder"
+                                },
+                                "childFolderCount": {
+                                    "type": "integer",
+                                    "description": "Number of child folders"
+                                },
+                                "unreadItemCount": {
+                                    "type": "integer",
+                                    "description": "Number of unread items in the folder"
+                                },
+                                "totalItemCount": {
+                                    "type": "integer",
+                                    "description": "Total number of items in the folder"
+                                },
+                                "isHidden": {
+                                    "type": "boolean",
+                                    "description": "Whether the folder is hidden"
+                                }
+                            }
+                        }
+                    },
+                    "total_count": {
+                        "type": "integer",
+                        "description": "Total number of folders returned"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["folders", "total_count", "result"]
+            }
+        },
+        "get_mail_folder": {
+            "display_name": "Get Mail Folder",
+            "description": "Get details of a specific mail folder by ID or well-known name. Well-known names (lowercase): inbox, drafts, sentitems, deleteditems, junkemail, archive, outbox, clutter, scheduled, searchfolders, conversationhistory",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "folder_id": {
+                        "type": "string",
+                        "description": "Folder ID or well-known folder name (lowercase, no spaces). Examples: 'inbox', 'drafts', 'deleteditems', 'junkemail', 'archive'"
+                    }
+                },
+                "required": ["folder_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "folder": {
+                        "type": "object",
+                        "description": "Mail folder details",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Folder ID"
+                            },
+                            "displayName": {
+                                "type": "string",
+                                "description": "Human-readable folder name"
+                            },
+                            "parentFolderId": {
+                                "type": "string",
+                                "description": "ID of the parent folder"
+                            },
+                            "childFolderCount": {
+                                "type": "integer",
+                                "description": "Number of child folders"
+                            },
+                            "unreadItemCount": {
+                                "type": "integer",
+                                "description": "Number of unread items"
+                            },
+                            "totalItemCount": {
+                                "type": "integer",
+                                "description": "Total number of items"
+                            },
+                            "isHidden": {
+                                "type": "boolean",
+                                "description": "Whether the folder is hidden"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["folder", "result"]
+            }
+        },
         "move_email": {
             "display_name": "Move Email to Folder",
-            "description": "Move an email to a different folder",
+            "description": "Move an email to a different folder. IMPORTANT: For custom folders, first use list_mail_folders with include_children=true to find the folder ID. For system folders, use well-known names (lowercase): inbox, drafts, sentitems, deleteditems, junkemail, archive, outbox, clutter, scheduled.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -663,12 +804,12 @@
                         "type": "string",
                         "description": "The ID of the email to move"
                     },
-                    "destination_folder": {
+                    "destination_folder_id": {
                         "type": "string",
-                        "description": "Name or ID of the destination folder (e.g., 'Archive', 'Junk Email', 'Drafts')"
+                        "description": "Destination folder ID (from list_mail_folders) OR a well-known folder name (lowercase, no spaces). Well-known names: inbox, drafts, sentitems, deleteditems, junkemail, archive, outbox, clutter, scheduled. For custom folders like 'Clients' or 'Projects', you MUST use list_mail_folders first to get the folder ID."
                     }
                 },
-                "required": ["email_id", "destination_folder"]
+                "required": ["email_id", "destination_folder_id"]
             },
             "output_schema": {
                 "type": "object",
@@ -681,6 +822,10 @@
                         "type": "string",
                         "description": "The ID of the folder the email was moved to"
                     },
+                    "subject": {
+                        "type": "string",
+                        "description": "Subject of the moved email"
+                    },
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
@@ -690,7 +835,7 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "id", "parentFolderId"]
+                "required": ["result"]
             }
         },
         "read_email": {
@@ -759,7 +904,7 @@
                     },
                     "search": {
                         "type": "string",
-                        "description": "Search query to filter contacts by name or email"
+                        "description": "Search query to filter contacts by name or company (case-insensitive, partial matching)"
                     }
                 }
             },
@@ -838,12 +983,1173 @@
                         "type": "boolean",
                         "description": "Whether the operation was successful"
                     },
+                    "message": {
+                        "type": "string",
+                        "description": "Descriptive message about the search results"
+                    },
+                    "search_term": {
+                        "type": "string",
+                        "description": "The search term used (only present when searching)"
+                    },
+                    "total_searched": {
+                        "type": "integer",
+                        "description": "Total number of contacts searched through (only present when searching)"
+                    },
+                    "total_contacts": {
+                        "type": "integer",
+                        "description": "Total number of contacts retrieved (only present when not searching)"
+                    },
                     "error": {
                         "type": "string",
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["contacts", "result"]
+                "required": ["contacts", "result", "message"]
+            }
+        },
+        "search_onedrive_files": {
+            "display_name": "Search OneDrive Files",
+            "description": "Search for files in OneDrive using natural language query",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query to find files (e.g., 'quarterly report', 'budget 2024', 'project documents')"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of files to return",
+                        "default": 10
+                    }
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "files": {
+                        "type": "array",
+                        "description": "List of matching files",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "File ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "File name"
+                                },
+                                "size": {
+                                    "type": "integer",
+                                    "description": "File size in bytes"
+                                },
+                                "lastModifiedDateTime": {
+                                    "type": "string",
+                                    "description": "Last modified time"
+                                },
+                                "webUrl": {
+                                    "type": "string",
+                                    "description": "Web URL to the file"
+                                },
+                                "folder": {
+                                    "type": "object",
+                                    "description": "Folder facet (present if item is a folder)"
+                                },
+                                "file": {
+                                    "type": "object",
+                                    "description": "File facet with metadata"
+                                }
+                            }
+                        }
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "The search query that was executed"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["files", "query", "result"]
+            }
+        },
+        "read_onedrive_file_content": {
+            "display_name": "Read OneDrive File Content",
+            "description": "Read the content of a OneDrive file by ID, with automatic PDF conversion for Office documents",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_id": {
+                        "type": "string",
+                        "description": "The ID of the file to read (obtained from search or list operations)"
+                    }
+                },
+                "required": ["file_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "Base64 encoded file content - PDF for Office documents, original content for text files"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the file"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "Content type of the returned file (application/pdf for converted Office docs, original mime type for others)"
+                            }
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "metadata": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "The ID of the file"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the file"
+                            },
+                            "size": {
+                                "type": "integer",
+                                "description": "File size in bytes"
+                            },
+                            "mimeType": {
+                                "type": "string",
+                                "description": "The original MIME type of the file"
+                            },
+                            "webUrl": {
+                                "type": "string",
+                                "description": "Web URL to access the file"
+                            }
+                        },
+                        "required": ["id", "name"]
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["file", "metadata", "result"]
+            }
+        },
+        "create_draft_email": {
+            "display_name": "Create Draft Email",
+            "description": "Create a draft email message that can be sent later",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "subject": {
+                        "type": "string",
+                        "description": "Email subject line"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "Email body content"
+                    },
+                    "body_type": {
+                        "type": "string",
+                        "enum": ["Text", "HTML"],
+                        "description": "Content type of the email body",
+                        "default": "Text"
+                    },
+                    "to_recipients": {
+                        "type": "array",
+                        "description": "List of email recipients",
+                        "items": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "address": {"type": "string"},
+                                        "name": {"type": "string"}
+                                    },
+                                    "required": ["address"]
+                                }
+                            ]
+                        }
+                    },
+                    "cc_recipients": {
+                        "type": "array",
+                        "description": "List of CC recipients",
+                        "items": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "address": {"type": "string"},
+                                        "name": {"type": "string"}
+                                    },
+                                    "required": ["address"]
+                                }
+                            ]
+                        }
+                    },
+                    "bcc_recipients": {
+                        "type": "array",
+                        "description": "List of BCC recipients",
+                        "items": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "address": {"type": "string"},
+                                        "name": {"type": "string"}
+                                    },
+                                    "required": ["address"]
+                                }
+                            ]
+                        }
+                    },
+                    "importance": {
+                        "type": "string",
+                        "enum": ["Low", "Normal", "High"],
+                        "description": "Email importance level",
+                        "default": "Normal"
+                    }
+                },
+                "required": ["subject", "body", "to_recipients"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the draft was created successfully"
+                    },
+                    "draft_id": {
+                        "type": "string",
+                        "description": "ID of the created draft"
+                    },
+                    "subject": {
+                        "type": "string",
+                        "description": "Subject of the draft"
+                    },
+                    "created_datetime": {
+                        "type": "string",
+                        "description": "When the draft was created"
+                    },
+                    "is_draft": {
+                        "type": "boolean",
+                        "description": "Whether this is a draft message"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "send_draft_email": {
+            "display_name": "Send Draft Email",
+            "description": "Send a previously created draft email",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "draft_id": {
+                        "type": "string",
+                        "description": "ID of the draft to send"
+                    }
+                },
+                "required": ["draft_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the draft was sent successfully"
+                    },
+                    "draft_id": {
+                        "type": "string",
+                        "description": "ID of the sent draft"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Status of the operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result", "draft_id"]
+            }
+        },
+        "reply_to_email": {
+            "display_name": "Reply to Email",
+            "description": "Reply to an existing email message",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "message_id": {
+                        "type": "string",
+                        "description": "ID of the message to reply to"
+                    },
+                    "comment": {
+                        "type": "string",
+                        "description": "Reply message text"
+                    }
+                },
+                "required": ["message_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the reply was sent successfully"
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "ID of the original message"
+                    },
+                    "operation": {
+                        "type": "string",
+                        "description": "Type of operation performed"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Status of the operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result", "message_id", "operation"]
+            }
+        },
+        "forward_email": {
+            "display_name": "Forward Email",
+            "description": "Forward an existing email message to other recipients",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "message_id": {
+                        "type": "string",
+                        "description": "ID of the message to forward"
+                    },
+                    "to_recipients": {
+                        "type": "array",
+                        "description": "List of recipients to forward to",
+                        "items": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "address": {"type": "string"},
+                                        "name": {"type": "string"}
+                                    },
+                                    "required": ["address"]
+                                }
+                            ]
+                        }
+                    },
+                    "comment": {
+                        "type": "string",
+                        "description": "Additional message text to include"
+                    }
+                },
+                "required": ["message_id", "to_recipients"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the forward was sent successfully"
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "ID of the original message"
+                    },
+                    "operation": {
+                        "type": "string",
+                        "description": "Type of operation performed"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Status of the operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result", "message_id", "operation"]
+            }
+        },
+        "download_email_attachment": {
+            "display_name": "Download Email Attachment",
+            "description": "Download the content of an email attachment",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "message_id": {
+                        "type": "string",
+                        "description": "ID of the message containing the attachment"
+                    },
+                    "attachment_id": {
+                        "type": "string",
+                        "description": "ID of the attachment to download"
+                    },
+                    "include_content": {
+                        "type": "boolean",
+                        "description": "Whether to include attachment content",
+                        "default": true
+                    }
+                },
+                "required": ["message_id", "attachment_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "Base64 encoded attachment content"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Attachment filename"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "MIME type of the attachment"
+                            }
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "metadata": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Attachment ID"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Attachment filename"
+                            },
+                            "size": {
+                                "type": "integer",
+                                "description": "File size in bytes"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "MIME type of the attachment"
+                            },
+                            "message_id": {
+                                "type": "string",
+                                "description": "ID of the message containing this attachment"
+                            },
+                            "is_inline": {
+                                "type": "boolean",
+                                "description": "Whether attachment is inline"
+                            }
+                        },
+                        "required": ["id", "name", "size", "contentType", "message_id", "is_inline"]
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["file", "metadata", "result"]
+            }
+        },
+        "search_emails": {
+            "display_name": "Search Emails",
+            "description": "Search for emails using natural language queries",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query to find emails (searches body, sender, subject, and attachments)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return",
+                        "default": 25,
+                        "maximum": 1000
+                    },
+                    "enable_top_results": {
+                        "type": "boolean",
+                        "description": "Enable relevance-based ranking for top results",
+                        "default": false
+                    }
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the search was successful"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "The search query that was executed"
+                    },
+                    "total_results": {
+                        "type": "integer",
+                        "description": "Total number of matching emails found"
+                    },
+                    "messages": {
+                        "type": "array",
+                        "description": "List of matching email messages",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "message_id": {
+                                    "type": "string",
+                                    "description": "Message ID"
+                                },
+                                "subject": {
+                                    "type": "string",
+                                    "description": "Email subject"
+                                },
+                                "sender": {
+                                    "type": "object",
+                                    "description": "Sender information"
+                                },
+                                "received_datetime": {
+                                    "type": "string",
+                                    "description": "When the email was received"
+                                },
+                                "body_preview": {
+                                    "type": "string",
+                                    "description": "Preview of email body"
+                                },
+                                "has_attachments": {
+                                    "type": "boolean",
+                                    "description": "Whether email has attachments"
+                                }
+                            }
+                        }
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result", "query", "total_results", "messages"]
+            }
+        },
+        "search_sharepoint_sites": {
+            "display_name": "Search SharePoint Sites",
+            "description": "Search for SharePoint sites across the organization",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query to find SharePoint sites"
+                    },
+                    "order_by_created": {
+                        "type": "boolean",
+                        "description": "Order results by creation date (newest first)",
+                        "default": false
+                    }
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the search was successful"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "The search query that was executed"
+                    },
+                    "sites": {
+                        "type": "array",
+                        "description": "List of matching SharePoint sites",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Unique site identifier"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Site name"
+                                },
+                                "display_name": {
+                                    "type": "string",
+                                    "description": "Site display name"
+                                },
+                                "description": {
+                                    "type": "string",
+                                    "description": "Site description"
+                                },
+                                "web_url": {
+                                    "type": "string",
+                                    "description": "Web URL to access the site"
+                                },
+                                "created_datetime": {
+                                    "type": "string",
+                                    "description": "When the site was created"
+                                },
+                                "last_modified_datetime": {
+                                    "type": "string",
+                                    "description": "When the site was last modified"
+                                }
+                            }
+                        }
+                    },
+                    "total_sites": {
+                        "type": "integer",
+                        "description": "Total number of sites found"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result", "query", "sites", "total_sites"]
+            }
+        },
+        "get_sharepoint_site_details": {
+            "display_name": "Get SharePoint Site Details",
+            "description": "Get detailed information about a specific SharePoint site",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "site_id": {
+                        "type": "string",
+                        "description": "The ID of the SharePoint site"
+                    }
+                },
+                "required": ["site_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "site": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Unique site identifier"
+                            },
+                            "display_name": {
+                                "type": "string",
+                                "description": "Site display name"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Site name"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Site description"
+                            },
+                            "web_url": {
+                                "type": "string",
+                                "description": "Web URL to access the site"
+                            },
+                            "created_datetime": {
+                                "type": "string",
+                                "description": "When the site was created"
+                            },
+                            "last_modified_datetime": {
+                                "type": "string",
+                                "description": "When the site was last modified"
+                            },
+                            "is_personal_site": {
+                                "type": "boolean",
+                                "description": "Whether this is a personal site"
+                            }
+                        },
+                        "required": ["id", "name", "web_url"]
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result", "site"]
+            }
+        },
+        "list_sharepoint_libraries": {
+            "display_name": "List SharePoint Document Libraries",
+            "description": "List all document libraries (drives) in a SharePoint site",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "site_id": {
+                        "type": "string",
+                        "description": "The ID of the SharePoint site"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of libraries to return"
+                    },
+                    "select_fields": {
+                        "type": "string",
+                        "description": "Comma-separated list of fields to return"
+                    }
+                },
+                "required": ["site_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "site_id": {
+                        "type": "string",
+                        "description": "The SharePoint site ID"
+                    },
+                    "libraries": {
+                        "type": "array",
+                        "description": "List of document libraries",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Library (drive) ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Library name"
+                                },
+                                "description": {
+                                    "type": "string",
+                                    "description": "Library description"
+                                },
+                                "drive_type": {
+                                    "type": "string",
+                                    "description": "Type of drive (documentLibrary)"
+                                },
+                                "web_url": {
+                                    "type": "string",
+                                    "description": "Web URL to access the library"
+                                },
+                                "created_datetime": {
+                                    "type": "string",
+                                    "description": "When the library was created"
+                                },
+                                "last_modified_datetime": {
+                                    "type": "string",
+                                    "description": "When the library was last modified"
+                                }
+                            }
+                        }
+                    },
+                    "total_libraries": {
+                        "type": "integer",
+                        "description": "Total number of libraries found"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result", "site_id", "libraries", "total_libraries"]
+            }
+        },
+        "search_sharepoint_documents": {
+            "display_name": "Search SharePoint Documents",
+            "description": "Search for documents within a SharePoint site's document libraries",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "site_id": {
+                        "type": "string",
+                        "description": "The ID of the SharePoint site"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Search query to find documents"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of documents to return",
+                        "default": 10
+                    }
+                },
+                "required": ["site_id", "query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the search was successful"
+                    },
+                    "site_id": {
+                        "type": "string",
+                        "description": "The SharePoint site ID"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "The search query that was executed"
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of matching documents",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Document ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Document name"
+                                },
+                                "size": {
+                                    "type": "integer",
+                                    "description": "File size in bytes"
+                                },
+                                "lastModifiedDateTime": {
+                                    "type": "string",
+                                    "description": "When the document was last modified"
+                                },
+                                "webUrl": {
+                                    "type": "string",
+                                    "description": "Web URL to access the document"
+                                },
+                                "drive_id": {
+                                    "type": "string",
+                                    "description": "ID of the document library (drive) containing this document"
+                                },
+                                "drive_name": {
+                                    "type": "string",
+                                    "description": "Name of the document library (drive) containing this document"
+                                }
+                            }
+                        }
+                    },
+                    "total_files": {
+                        "type": "integer",
+                        "description": "Total number of documents found"
+                    },
+                    "drives_searched": {
+                        "type": "integer",
+                        "description": "Number of document libraries searched"
+                    },
+                    "total_drives": {
+                        "type": "integer",
+                        "description": "Total number of document libraries in the site"
+                    },
+                    "search_errors": {
+                        "type": "array",
+                        "description": "List of errors encountered while searching specific drives",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Additional message about the search results"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result", "site_id", "query", "files", "total_files"]
+            }
+        },
+        "read_sharepoint_document": {
+            "display_name": "Read SharePoint Document Content",
+            "description": "Read the content of a SharePoint document with automatic PDF conversion for Office documents",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "site_id": {
+                        "type": "string",
+                        "description": "The ID of the SharePoint site"
+                    },
+                    "file_id": {
+                        "type": "string",
+                        "description": "The ID of the file to read"
+                    },
+                    "drive_id": {
+                        "type": "string",
+                        "description": "Optional: The ID of the specific document library (drive) containing the file. If not provided, uses the site's default drive."
+                    }
+                },
+                "required": ["site_id", "file_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "Base64 encoded file content"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the file"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "Content type of the returned file"
+                            }
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "metadata": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "The ID of the file"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the file"
+                            },
+                            "size": {
+                                "type": "integer",
+                                "description": "File size in bytes"
+                            },
+                            "mimeType": {
+                                "type": "string",
+                                "description": "The original MIME type of the file"
+                            },
+                            "webUrl": {
+                                "type": "string",
+                                "description": "Web URL to access the file"
+                            },
+                            "site_id": {
+                                "type": "string",
+                                "description": "The SharePoint site ID"
+                            },
+                            "drive_id": {
+                                "type": "string",
+                                "description": "The ID of the document library (drive) containing the file"
+                            }
+                        },
+                        "required": ["id", "name", "site_id"]
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["file", "metadata", "result"]
+            }
+        },
+        "list_sharepoint_pages": {
+            "display_name": "List SharePoint Site Pages",
+            "description": "List all pages in a SharePoint site",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "site_id": {
+                        "type": "string",
+                        "description": "The ID of the SharePoint site"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of pages to return"
+                    },
+                    "order_by": {
+                        "type": "string",
+                        "description": "Order by field (e.g., 'createdDateTime desc')"
+                    },
+                    "select_fields": {
+                        "type": "string",
+                        "description": "Comma-separated list of fields to return"
+                    }
+                },
+                "required": ["site_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "site_id": {
+                        "type": "string",
+                        "description": "The SharePoint site ID"
+                    },
+                    "pages": {
+                        "type": "array",
+                        "description": "List of site pages",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Page ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Page filename"
+                                },
+                                "title": {
+                                    "type": "string",
+                                    "description": "Page title"
+                                },
+                                "web_url": {
+                                    "type": "string",
+                                    "description": "Web URL to access the page"
+                                },
+                                "page_layout": {
+                                    "type": "string",
+                                    "description": "Page layout type"
+                                },
+                                "created_datetime": {
+                                    "type": "string",
+                                    "description": "When the page was created"
+                                },
+                                "last_modified_datetime": {
+                                    "type": "string",
+                                    "description": "When the page was last modified"
+                                }
+                            }
+                        }
+                    },
+                    "total_pages": {
+                        "type": "integer",
+                        "description": "Total number of pages found"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result", "site_id", "pages", "total_pages"]
+            }
+        },
+        "read_sharepoint_page_content": {
+            "display_name": "Read SharePoint Page Content",
+            "description": "Read the content and metadata of a SharePoint site page",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "site_id": {
+                        "type": "string",
+                        "description": "The ID of the SharePoint site"
+                    },
+                    "page_id": {
+                        "type": "string",
+                        "description": "The ID of the page to read"
+                    },
+                    "include_content": {
+                        "type": "boolean",
+                        "description": "Whether to include page content and web parts",
+                        "default": true
+                    }
+                },
+                "required": ["site_id", "page_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "site_id": {
+                        "type": "string",
+                        "description": "The SharePoint site ID"
+                    },
+                    "page": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Page ID"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Page filename"
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "Page title"
+                            },
+                            "web_url": {
+                                "type": "string",
+                                "description": "Web URL to access the page"
+                            },
+                            "page_layout": {
+                                "type": "string",
+                                "description": "Page layout type"
+                            },
+                            "created_datetime": {
+                                "type": "string",
+                                "description": "When the page was created"
+                            },
+                            "last_modified_datetime": {
+                                "type": "string",
+                                "description": "When the page was last modified"
+                            },
+                            "content": {
+                                "type": "object",
+                                "description": "Page content structure with web parts (only present if include_content=true)"
+                            }
+                        },
+                        "required": ["id", "name", "title", "web_url"]
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": ["result", "site_id", "page"]
             }
         }
     }

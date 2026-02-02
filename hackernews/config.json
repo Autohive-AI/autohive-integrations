@@ -1,0 +1,498 @@
+{
+  "name": "Hacker News",
+  "version": "1.0.0",
+  "description": "Read-only integration with Hacker News API for fetching top stories, news, and discussions.",
+  "entry_point": "hackernews.py",
+  "actions": {
+    "get_top_stories": {
+      "display_name": "Get Top Stories",
+      "description": "Fetches the current top stories from Hacker News with full details including title, URL, score, author, and comment count. Returns stories sorted by ranking. Ideal for creating daily tech news digests.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of stories to return (1-100). Default is 30.",
+            "default": 30,
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "stories": {
+            "type": "array",
+            "description": "List of top stories with full details",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "integer", "description": "Unique story ID" },
+                "title": { "type": "string", "description": "Story title" },
+                "url": {
+                  "type": "string",
+                  "description": "External URL of the story (if any)"
+                },
+                "hn_url": {
+                  "type": "string",
+                  "description": "Hacker News discussion URL"
+                },
+                "score": {
+                  "type": "integer",
+                  "description": "Story score/points"
+                },
+                "by": { "type": "string", "description": "Author username" },
+                "time": {
+                  "type": "string",
+                  "description": "ISO timestamp of submission"
+                },
+                "descendants": {
+                  "type": "integer",
+                  "description": "Total comment count"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Item type (story, job, etc.)"
+                }
+              }
+            }
+          },
+          "fetched_at": {
+            "type": "string",
+            "description": "ISO timestamp when data was fetched"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of stories returned"
+          }
+        }
+      }
+    },
+    "get_best_stories": {
+      "display_name": "Get Best Stories",
+      "description": "Fetches the best stories from Hacker News (highest voted over time). These are stories that have performed exceptionally well. Good for finding evergreen high-quality content.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of stories to return (1-100). Default is 30.",
+            "default": 30,
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "stories": {
+            "type": "array",
+            "description": "List of best stories with full details",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "integer", "description": "Unique story ID" },
+                "title": { "type": "string", "description": "Story title" },
+                "url": {
+                  "type": "string",
+                  "description": "External URL of the story (if any)"
+                },
+                "hn_url": {
+                  "type": "string",
+                  "description": "Hacker News discussion URL"
+                },
+                "score": {
+                  "type": "integer",
+                  "description": "Story score/points"
+                },
+                "by": { "type": "string", "description": "Author username" },
+                "time": {
+                  "type": "string",
+                  "description": "ISO timestamp of submission"
+                },
+                "descendants": {
+                  "type": "integer",
+                  "description": "Total comment count"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Item type (story, job, etc.)"
+                }
+              }
+            }
+          },
+          "fetched_at": {
+            "type": "string",
+            "description": "ISO timestamp when data was fetched"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of stories returned"
+          }
+        }
+      }
+    },
+    "get_new_stories": {
+      "display_name": "Get New Stories",
+      "description": "Fetches the newest stories submitted to Hacker News. Useful for discovering fresh content before it gets popular. Stories are sorted by submission time (newest first).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of stories to return (1-100). Default is 30.",
+            "default": 30,
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "stories": {
+            "type": "array",
+            "description": "List of newest stories with full details",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "integer", "description": "Unique story ID" },
+                "title": { "type": "string", "description": "Story title" },
+                "url": {
+                  "type": "string",
+                  "description": "External URL of the story (if any)"
+                },
+                "hn_url": {
+                  "type": "string",
+                  "description": "Hacker News discussion URL"
+                },
+                "score": {
+                  "type": "integer",
+                  "description": "Story score/points"
+                },
+                "by": { "type": "string", "description": "Author username" },
+                "time": {
+                  "type": "string",
+                  "description": "ISO timestamp of submission"
+                },
+                "descendants": {
+                  "type": "integer",
+                  "description": "Total comment count"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Item type (story, job, etc.)"
+                }
+              }
+            }
+          },
+          "fetched_at": {
+            "type": "string",
+            "description": "ISO timestamp when data was fetched"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of stories returned"
+          }
+        }
+      }
+    },
+    "get_ask_hn_stories": {
+      "display_name": "Get Ask HN Stories",
+      "description": "Fetches 'Ask HN' posts where users ask the community questions. Great for understanding community discussions and getting insights on tech topics.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of stories to return (1-100). Default is 30.",
+            "default": 30,
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "stories": {
+            "type": "array",
+            "description": "List of Ask HN stories with full details",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "integer", "description": "Unique story ID" },
+                "title": { "type": "string", "description": "Story title" },
+                "text": {
+                  "type": "string",
+                  "description": "The question/post text content"
+                },
+                "hn_url": {
+                  "type": "string",
+                  "description": "Hacker News discussion URL"
+                },
+                "score": {
+                  "type": "integer",
+                  "description": "Story score/points"
+                },
+                "by": { "type": "string", "description": "Author username" },
+                "time": {
+                  "type": "string",
+                  "description": "ISO timestamp of submission"
+                },
+                "descendants": {
+                  "type": "integer",
+                  "description": "Total comment count"
+                },
+                "type": { "type": "string", "description": "Item type" }
+              }
+            }
+          },
+          "fetched_at": {
+            "type": "string",
+            "description": "ISO timestamp when data was fetched"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of stories returned"
+          }
+        }
+      }
+    },
+    "get_show_hn_stories": {
+      "display_name": "Get Show HN Stories",
+      "description": "Fetches 'Show HN' posts where users showcase their projects and creations. Excellent for discovering new tools, apps, and side projects from the community.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of stories to return (1-100). Default is 30.",
+            "default": 30,
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "stories": {
+            "type": "array",
+            "description": "List of Show HN stories with full details",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "integer", "description": "Unique story ID" },
+                "title": { "type": "string", "description": "Story title" },
+                "url": {
+                  "type": "string",
+                  "description": "External URL of the project"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Description text (if any)"
+                },
+                "hn_url": {
+                  "type": "string",
+                  "description": "Hacker News discussion URL"
+                },
+                "score": {
+                  "type": "integer",
+                  "description": "Story score/points"
+                },
+                "by": { "type": "string", "description": "Author username" },
+                "time": {
+                  "type": "string",
+                  "description": "ISO timestamp of submission"
+                },
+                "descendants": {
+                  "type": "integer",
+                  "description": "Total comment count"
+                },
+                "type": { "type": "string", "description": "Item type" }
+              }
+            }
+          },
+          "fetched_at": {
+            "type": "string",
+            "description": "ISO timestamp when data was fetched"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of stories returned"
+          }
+        }
+      }
+    },
+    "get_job_stories": {
+      "display_name": "Get Job Stories",
+      "description": "Fetches job postings from Hacker News. These are typically from YC companies and tech startups.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of job postings to return (1-100). Default is 30.",
+            "default": 30,
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "description": "List of job postings",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "integer", "description": "Unique job ID" },
+                "title": {
+                  "type": "string",
+                  "description": "Job posting title"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "External URL for the job"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Job description text"
+                },
+                "hn_url": {
+                  "type": "string",
+                  "description": "Hacker News URL"
+                },
+                "by": { "type": "string", "description": "Poster username" },
+                "time": {
+                  "type": "string",
+                  "description": "ISO timestamp of posting"
+                },
+                "type": { "type": "string", "description": "Item type (job)" }
+              }
+            }
+          },
+          "fetched_at": {
+            "type": "string",
+            "description": "ISO timestamp when data was fetched"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of jobs returned"
+          }
+        }
+      }
+    },
+    "get_story_with_comments": {
+      "display_name": "Get Story with Comments",
+      "description": "Fetches a single story with its top comments. Returns the story details along with a threaded comment tree. Useful for understanding the community discussion around a specific story.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "story_id": {
+            "type": "integer",
+            "description": "The Hacker News story ID to fetch"
+          },
+          "comment_limit": {
+            "type": "integer",
+            "description": "Maximum number of top-level comments to fetch (1-50). Default is 20.",
+            "default": 20,
+            "minimum": 1,
+            "maximum": 50
+          },
+          "comment_depth": {
+            "type": "integer",
+            "description": "How many levels deep to fetch replies (1-5). Default is 2.",
+            "default": 2,
+            "minimum": 1,
+            "maximum": 5
+          }
+        },
+        "required": ["story_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "story": {
+            "type": "object",
+            "description": "The story details",
+            "properties": {
+              "id": { "type": "integer" },
+              "title": { "type": "string" },
+              "url": { "type": "string" },
+              "text": { "type": "string" },
+              "hn_url": { "type": "string" },
+              "score": { "type": "integer" },
+              "by": { "type": "string" },
+              "time": { "type": "string" },
+              "descendants": { "type": "integer" },
+              "type": { "type": "string" }
+            }
+          },
+          "comments": {
+            "type": "array",
+            "description": "Top-level comments with nested replies",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "integer" },
+                "by": { "type": "string" },
+                "text": { "type": "string" },
+                "time": { "type": "string" },
+                "replies": { "type": "array", "description": "Nested replies" }
+              }
+            }
+          },
+          "fetched_at": {
+            "type": "string",
+            "description": "ISO timestamp when data was fetched"
+          }
+        }
+      }
+    },
+    "get_user_profile": {
+      "display_name": "Get User Profile",
+      "description": "Fetches a Hacker News user's public profile including karma, account age, and about text.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "The Hacker News username (case-sensitive)"
+          }
+        },
+        "required": ["username"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Username" },
+          "karma": { "type": "integer", "description": "User's karma score" },
+          "created": {
+            "type": "string",
+            "description": "Account creation date (ISO timestamp)"
+          },
+          "about": {
+            "type": "string",
+            "description": "User's self-description (HTML)"
+          },
+          "profile_url": {
+            "type": "string",
+            "description": "Link to user's HN profile"
+          }
+        }
+      }
+    }
+  }
+}

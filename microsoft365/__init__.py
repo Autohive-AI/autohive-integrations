@@ -1,1 +1,1 @@
-# Microsoft 365 Integration for Autohive
+# Microsoft Copilot 365 Integration for Autohive

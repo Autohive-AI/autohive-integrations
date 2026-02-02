@@ -1,0 +1,1009 @@
+{
+    "name": "coda",
+    "version": "1.0.0",
+    "description": "Coda integration for managing documents, pages, tables, and rows",
+    "entry_point": "coda.py",
+    "auth": {
+        "type": "custom",
+        "title": "Coda API Token",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_token": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Token",
+                    "help_text": "Generate your API token from Coda account settings > API Settings. Visit https://coda.io/account for more details."
+                }
+            }
+        }
+    },
+    "actions": {
+        "list_docs": {
+            "display_name": "List Docs",
+            "description": "Returns a list of Coda docs accessible by the user. Docs are returned in reverse chronological order by the latest event relevant to the user.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "is_owner": {
+                        "type": "boolean",
+                        "description": "Show only docs owned by the user",
+                        "default": false
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Search term to filter docs by name"
+                    },
+                    "source_doc": {
+                        "type": "string",
+                        "description": "Show only docs copied from the specified doc ID"
+                    },
+                    "is_published": {
+                        "type": "boolean",
+                        "description": "Show only published docs"
+                    },
+                    "is_starred": {
+                        "type": "boolean",
+                        "description": "Show only starred docs"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return",
+                        "default": 100,
+                        "minimum": 1,
+                        "maximum": 500
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "docs": {
+                        "type": "array",
+                        "description": "List of Coda documents",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["docs", "result"]
+            }
+        },
+        "get_doc": {
+            "display_name": "Get Doc",
+            "description": "Returns metadata for the specified Coda doc, including name, owner, creation date, and other details.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    }
+                },
+                "required": ["doc_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Doc metadata including id, name, owner, createdAt, updatedAt, etc."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "create_doc": {
+            "display_name": "Create Doc",
+            "description": "Creates a new Coda doc. Optionally copies content from an existing doc. Returns HTTP 202 (Accepted) as doc creation is processed asynchronously.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Title of the new doc"
+                    },
+                    "source_doc": {
+                        "type": "string",
+                        "description": "Optional: Doc ID to copy content from (e.g., 'AbCDeFGH')"
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "description": "Optional: Timezone for the doc (e.g., 'America/Los_Angeles')"
+                    },
+                    "folder_id": {
+                        "type": "string",
+                        "description": "Optional: Folder ID where the doc should be created"
+                    }
+                },
+                "required": ["title"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Created doc details including id, name, href, etc."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "update_doc": {
+            "display_name": "Update Doc",
+            "description": "Updates metadata for a Coda doc (title and icon). Requires Doc Maker permissions for updating the title.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc to update (e.g., 'AbCDeFGH')"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Optional: New title for the doc"
+                    },
+                    "icon_name": {
+                        "type": "string",
+                        "description": "Optional: New icon name (e.g., 'rocket', 'star', 'heart')"
+                    }
+                },
+                "required": ["doc_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Updated doc details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "delete_doc": {
+            "display_name": "Delete Doc",
+            "description": "Deletes a Coda doc. Returns HTTP 202 (Accepted) as deletion is queued for processing. This action is permanent and cannot be undone.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc to delete (e.g., 'AbCDeFGH')"
+                    }
+                },
+                "required": ["doc_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Deletion confirmation"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "list_pages": {
+            "display_name": "List Pages",
+            "description": "Returns a list of pages in a Coda doc. Use this to discover the doc structure and navigate between pages.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return per page",
+                        "default": 100,
+                        "minimum": 1,
+                        "maximum": 500
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Token for fetching the next page of results"
+                    }
+                },
+                "required": ["doc_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "pages": {
+                        "type": "array",
+                        "description": "List of pages in the doc",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "next_page_token": {
+                        "type": "string",
+                        "description": "Token for fetching next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["pages", "result"]
+            }
+        },
+        "get_page": {
+            "display_name": "Get Page",
+            "description": "Returns detailed metadata for a specific page including title, subtitle, icon, image, parent/child relationships, and authors.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "page_id_or_name": {
+                        "type": "string",
+                        "description": "Page ID or name (e.g., 'canvas-abc123')"
+                    }
+                },
+                "required": ["doc_id", "page_id_or_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Page metadata including id, name, subtitle, icon, image, parent, children, authors, etc."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "create_page": {
+            "display_name": "Create Page",
+            "description": "Creates a new page in a Coda doc with optional content, subtitle, icon, and parent page. Returns HTTP 202 (Accepted) as creation is processed asynchronously. Requires Doc Maker permissions.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Page name/title"
+                    },
+                    "subtitle": {
+                        "type": "string",
+                        "description": "Optional: Page subtitle text"
+                    },
+                    "icon_name": {
+                        "type": "string",
+                        "description": "Optional: Icon name (e.g., 'rocket', 'star', 'heart', 'bell', 'calendar')"
+                    },
+                    "image_url": {
+                        "type": "string",
+                        "description": "Optional: URL for cover image"
+                    },
+                    "parent_page_id": {
+                        "type": "string",
+                        "description": "Optional: Parent page ID to create as subpage"
+                    },
+                    "content_format": {
+                        "type": "string",
+                        "enum": ["html", "markdown"],
+                        "description": "Optional: Format of page content (html or markdown)",
+                        "default": "html"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Optional: Page content in HTML or Markdown format"
+                    }
+                },
+                "required": ["doc_id", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Created page details including id, requestId"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "update_page": {
+            "display_name": "Update Page",
+            "description": "Updates a page's metadata (name, subtitle, icon, image). Cannot update page content after creation. Returns HTTP 202 (Accepted). Requires Doc Maker permissions for updating title/icon.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "page_id_or_name": {
+                        "type": "string",
+                        "description": "Page ID or name to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Optional: New page name/title"
+                    },
+                    "subtitle": {
+                        "type": "string",
+                        "description": "Optional: New page subtitle"
+                    },
+                    "icon_name": {
+                        "type": "string",
+                        "description": "Optional: New icon name (e.g., 'rocket', 'star', 'heart')"
+                    },
+                    "image_url": {
+                        "type": "string",
+                        "description": "Optional: New cover image URL"
+                    }
+                },
+                "required": ["doc_id", "page_id_or_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Updated page details including id, requestId"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "delete_page": {
+            "display_name": "Delete Page",
+            "description": "Deletes the specified page from a Coda doc. Returns HTTP 202 (Accepted) as deletion is queued for processing. Use page IDs rather than names when possible.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "page_id_or_name": {
+                        "type": "string",
+                        "description": "Page ID or name to delete. Names are discouraged as they can be changed by users. If multiple pages have the same name, an arbitrary one will be selected."
+                    }
+                },
+                "required": ["doc_id", "page_id_or_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Deletion confirmation including id and requestId"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "list_tables": {
+            "display_name": "List Tables",
+            "description": "Returns a list of tables in a Coda doc. By default, returns both base tables and views. Use tableTypes to filter results.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return per page",
+                        "default": 100,
+                        "minimum": 1,
+                        "maximum": 500
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Token for fetching the next page of results"
+                    },
+                    "sort_by": {
+                        "type": "string",
+                        "description": "Optional: Sort order for tables"
+                    },
+                    "table_types": {
+                        "type": "string",
+                        "description": "Comma-separated list of table types to include (e.g., 'table,view', 'table', or 'view')",
+                        "default": "table,view"
+                    }
+                },
+                "required": ["doc_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tables": {
+                        "type": "array",
+                        "description": "List of tables and/or views",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "next_page_token": {
+                        "type": "string",
+                        "description": "Token for fetching next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["tables", "result"]
+            }
+        },
+        "get_table": {
+            "display_name": "Get Table",
+            "description": "Returns detailed metadata for a specific table or view, including row count, columns, display column, and sort configuration.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "table_id_or_name": {
+                        "type": "string",
+                        "description": "Table ID or name. IDs recommended over names (e.g., 'grid-xyz123')"
+                    }
+                },
+                "required": ["doc_id", "table_id_or_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Table metadata including id, name, rowCount, displayColumn, sorts, etc."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "list_columns": {
+            "display_name": "List Columns",
+            "description": "Returns a list of columns in a table or view. Use this to discover the table structure before inserting or reading rows.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "table_id_or_name": {
+                        "type": "string",
+                        "description": "Table ID or name. IDs recommended over names (e.g., 'grid-xyz123')"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return per page",
+                        "default": 100,
+                        "minimum": 1,
+                        "maximum": 500
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Token for fetching the next page of results"
+                    },
+                    "visible_only": {
+                        "type": "boolean",
+                        "description": "If true, returns only columns visible in the UI",
+                        "default": false
+                    }
+                },
+                "required": ["doc_id", "table_id_or_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "columns": {
+                        "type": "array",
+                        "description": "List of columns in the table",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "next_page_token": {
+                        "type": "string",
+                        "description": "Token for fetching next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["columns", "result"]
+            }
+        },
+        "get_column": {
+            "display_name": "Get Column",
+            "description": "Returns detailed metadata for a specific column including name, type, formula (if calculated), default value, and format settings.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "table_id_or_name": {
+                        "type": "string",
+                        "description": "Table ID or name. IDs recommended (e.g., 'grid-xyz123')"
+                    },
+                    "column_id_or_name": {
+                        "type": "string",
+                        "description": "Column ID or name. IDs recommended (e.g., 'c-column123')"
+                    }
+                },
+                "required": ["doc_id", "table_id_or_name", "column_id_or_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Column metadata including id, name, valueType, calculated, formula, display, etc."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "list_rows": {
+            "display_name": "List Rows",
+            "description": "Returns a list of rows in a table or view. Supports filtering, sorting, and pagination. Use query parameter to filter rows by column values.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "table_id_or_name": {
+                        "type": "string",
+                        "description": "Table ID or name. IDs recommended (e.g., 'grid-xyz123')"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return per page",
+                        "default": 100,
+                        "minimum": 1,
+                        "maximum": 500
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Token for fetching the next page of results"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Filter rows by column value (format: 'ColumnName:\"value\"' or 'c-columnId:123')"
+                    },
+                    "sort_by": {
+                        "type": "string",
+                        "description": "Sort by column (e.g., 'natural', 'created', or column ID)"
+                    },
+                    "use_column_names": {
+                        "type": "boolean",
+                        "description": "Use column names instead of IDs in response (default: false)",
+                        "default": false
+                    },
+                    "value_format": {
+                        "type": "string",
+                        "enum": ["simple", "simpleWithArrays", "rich"],
+                        "description": "Format for cell values (simple, simpleWithArrays, or rich)",
+                        "default": "simple"
+                    },
+                    "visible_only": {
+                        "type": "boolean",
+                        "description": "Return only visible columns (default: false)",
+                        "default": false
+                    }
+                },
+                "required": ["doc_id", "table_id_or_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "rows": {
+                        "type": "array",
+                        "description": "List of rows",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "next_page_token": {
+                        "type": "string",
+                        "description": "Token for fetching next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["rows", "result"]
+            }
+        },
+        "get_row": {
+            "display_name": "Get Row",
+            "description": "Returns detailed data for a specific row including all cell values, creation date, and update date.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "table_id_or_name": {
+                        "type": "string",
+                        "description": "Table ID or name. IDs recommended (e.g., 'grid-xyz123')"
+                    },
+                    "row_id_or_name": {
+                        "type": "string",
+                        "description": "Row ID or name. IDs recommended (e.g., 'i-rowId123')"
+                    },
+                    "use_column_names": {
+                        "type": "boolean",
+                        "description": "Use column names instead of IDs in response (default: false)",
+                        "default": false
+                    },
+                    "value_format": {
+                        "type": "string",
+                        "enum": ["simple", "simpleWithArrays", "rich"],
+                        "description": "Format for cell values",
+                        "default": "simple"
+                    }
+                },
+                "required": ["doc_id", "table_id_or_name", "row_id_or_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Row data including id, values, createdAt, updatedAt, etc."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "upsert_rows": {
+            "display_name": "Upsert Rows",
+            "description": "Inserts rows into a table, or updates existing rows if keyColumns are provided. Only works on base tables, not views. Returns HTTP 202 (Accepted) as processing is asynchronous.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "table_id_or_name": {
+                        "type": "string",
+                        "description": "Table ID or name. Must be a base table, not a view. IDs recommended (e.g., 'grid-xyz123')"
+                    },
+                    "rows": {
+                        "type": "array",
+                        "description": "Array of rows to insert/update. Each row contains a cells array.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "cells": {
+                                    "type": "array",
+                                    "description": "Array of cell objects with column and value",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "column": {
+                                                "type": "string",
+                                                "description": "Column ID or name (e.g., 'c-column123')"
+                                            },
+                                            "value": {
+                                                "description": "Cell value (type depends on column)"
+                                            }
+                                        },
+                                        "required": ["column", "value"]
+                                    }
+                                }
+                            },
+                            "required": ["cells"]
+                        }
+                    },
+                    "key_columns": {
+                        "type": "array",
+                        "description": "Optional: Column IDs/names to use for matching existing rows (for upsert behavior)",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "disable_parsing": {
+                        "type": "boolean",
+                        "description": "If true, disables automatic value parsing (default: false)",
+                        "default": false
+                    }
+                },
+                "required": ["doc_id", "table_id_or_name", "rows"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Response including addedRowIds and requestId"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "update_row": {
+            "display_name": "Update Row",
+            "description": "Updates a specific row in a table. Only updates the cells provided, leaving others unchanged. Returns HTTP 202 (Accepted).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "table_id_or_name": {
+                        "type": "string",
+                        "description": "Table ID or name. IDs recommended (e.g., 'grid-xyz123')"
+                    },
+                    "row_id_or_name": {
+                        "type": "string",
+                        "description": "Row ID or name. IDs recommended (e.g., 'i-rowId123')"
+                    },
+                    "cells": {
+                        "type": "array",
+                        "description": "Array of cell objects to update",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "column": {
+                                    "type": "string",
+                                    "description": "Column ID or name (e.g., 'c-column123')"
+                                },
+                                "value": {
+                                    "description": "New cell value (type depends on column)"
+                                }
+                            },
+                            "required": ["column", "value"]
+                        }
+                    },
+                    "disable_parsing": {
+                        "type": "boolean",
+                        "description": "If true, disables automatic value parsing (default: false)",
+                        "default": false
+                    }
+                },
+                "required": ["doc_id", "table_id_or_name", "row_id_or_name", "cells"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Update response including requestId and id"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "delete_row": {
+            "display_name": "Delete Row",
+            "description": "Deletes a specific row from a table. Returns HTTP 202 (Accepted) as deletion is queued for processing.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "table_id_or_name": {
+                        "type": "string",
+                        "description": "Table ID or name. IDs recommended (e.g., 'grid-xyz123')"
+                    },
+                    "row_id_or_name": {
+                        "type": "string",
+                        "description": "Row ID or name to delete. IDs recommended (e.g., 'i-rowId123')"
+                    }
+                },
+                "required": ["doc_id", "table_id_or_name", "row_id_or_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Deletion confirmation including requestId and id"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        },
+        "delete_rows": {
+            "display_name": "Delete Rows",
+            "description": "Deletes multiple rows from a table by their IDs. Returns HTTP 202 (Accepted) as deletion is queued for processing.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {
+                        "type": "string",
+                        "description": "ID of the doc (e.g., 'AbCDeFGH')"
+                    },
+                    "table_id_or_name": {
+                        "type": "string",
+                        "description": "Table ID or name. IDs recommended (e.g., 'grid-xyz123')"
+                    },
+                    "row_ids": {
+                        "type": "array",
+                        "description": "Array of row IDs to delete (e.g., ['i-row1', 'i-row2'])",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["doc_id", "table_id_or_name", "row_ids"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "description": "Deletion confirmation including requestId and rowIds"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if operation failed"
+                    }
+                },
+                "required": ["data", "result"]
+            }
+        }
+    }
+}

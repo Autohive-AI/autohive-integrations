@@ -1,0 +1,370 @@
+{
+    "name": "Google Tasks",
+    "display_name": "Google Tasks",
+    "version": "1.0.0",
+    "description": "Google Tasks integration for managing tasks, task lists, and to-do items with full CRUD operations",
+    "entry_point": "google_tasks.py",
+    "auth": {
+        "type": "platform",
+        "provider": "Google Tasks",
+        "scopes": [
+            "https://www.googleapis.com/auth/tasks"
+        ]
+    },
+    "actions": {
+        "list_tasklists": {
+            "display_name": "List Task Lists",
+            "description": "Returns all the authenticated user's task lists. Maximum 2,000 task lists.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "maxResults": {
+                        "type": "integer",
+                        "description": "Maximum number of task lists returned (default: 100)"
+                    },
+                    "pageToken": {
+                        "type": "string",
+                        "description": "Token specifying the result page to return"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tasklists": {
+                        "type": "array",
+                        "description": "List of task lists"
+                    },
+                    "nextPageToken": {
+                        "type": "string",
+                        "description": "Token for the next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["tasklists", "result"]
+            }
+        },
+        "get_tasklist": {
+            "display_name": "Get Task List",
+            "description": "Returns the authenticated user's specified task list.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tasklist": {
+                        "type": "string",
+                        "description": "Task list identifier"
+                    }
+                },
+                "required": ["tasklist"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tasklist": {
+                        "type": "object",
+                        "description": "Task list details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["tasklist", "result"]
+            }
+        },
+        "create_task": {
+            "display_name": "Create Task",
+            "description": "Creates a new task on the specified task list.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tasklist": {
+                        "type": "string",
+                        "description": "Task list identifier"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Title of the task (max 1024 characters)"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notes describing the task (max 8192 characters)"
+                    },
+                    "due": {
+                        "type": "string",
+                        "description": "Due date in RFC 3339 timestamp format (e.g., '2024-12-31T00:00:00Z'). Time is required in the format but only the date is used."
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Status of the task",
+                        "enum": ["needsAction", "completed"]
+                    },
+                    "parent": {
+                        "type": "string",
+                        "description": "Parent task identifier (for creating subtasks)"
+                    },
+                    "previous": {
+                        "type": "string",
+                        "description": "Previous sibling task identifier for positioning"
+                    }
+                },
+                "required": ["tasklist", "title"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Created task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        },
+        "list_tasks": {
+            "display_name": "List Tasks",
+            "description": "Returns all tasks in the specified task list. Maximum 20,000 non-hidden tasks per list.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tasklist": {
+                        "type": "string",
+                        "description": "Task list identifier"
+                    },
+                    "maxResults": {
+                        "type": "integer",
+                        "description": "Maximum number of tasks returned (default: 100)"
+                    },
+                    "pageToken": {
+                        "type": "string",
+                        "description": "Token specifying the result page to return"
+                    },
+                    "showCompleted": {
+                        "type": "boolean",
+                        "description": "Include completed tasks (default: true)"
+                    },
+                    "showHidden": {
+                        "type": "boolean",
+                        "description": "Include hidden (cleared) tasks (default: false)"
+                    },
+                    "dueMin": {
+                        "type": "string",
+                        "description": "Lower bound for task's due date (RFC 3339 timestamp)"
+                    },
+                    "dueMax": {
+                        "type": "string",
+                        "description": "Upper bound for task's due date (RFC 3339 timestamp)"
+                    }
+                },
+                "required": ["tasklist"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tasks": {
+                        "type": "array",
+                        "description": "List of tasks"
+                    },
+                    "nextPageToken": {
+                        "type": "string",
+                        "description": "Token for the next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["tasks", "result"]
+            }
+        },
+        "get_task": {
+            "display_name": "Get Task",
+            "description": "Returns the specified task.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tasklist": {
+                        "type": "string",
+                        "description": "Task list identifier"
+                    },
+                    "task": {
+                        "type": "string",
+                        "description": "Task identifier"
+                    }
+                },
+                "required": ["tasklist", "task"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        },
+        "update_task": {
+            "display_name": "Update Task",
+            "description": "Updates the specified task.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tasklist": {
+                        "type": "string",
+                        "description": "Task list identifier"
+                    },
+                    "task": {
+                        "type": "string",
+                        "description": "Task identifier"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Updated title"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Updated notes"
+                    },
+                    "due": {
+                        "type": "string",
+                        "description": "Updated due date (RFC 3339 timestamp)"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Updated status",
+                        "enum": ["needsAction", "completed"]
+                    }
+                },
+                "required": ["tasklist", "task"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Updated task details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        },
+        "delete_task": {
+            "display_name": "Delete Task",
+            "description": "Deletes the specified task from the task list.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tasklist": {
+                        "type": "string",
+                        "description": "Task list identifier"
+                    },
+                    "task": {
+                        "type": "string",
+                        "description": "Task identifier"
+                    }
+                },
+                "required": ["tasklist", "task"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "move_task": {
+            "display_name": "Move Task",
+            "description": "Moves the specified task to another position in the task list. Can move task under a parent (create subtask) or change position among siblings.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tasklist": {
+                        "type": "string",
+                        "description": "Task list identifier"
+                    },
+                    "task": {
+                        "type": "string",
+                        "description": "Task identifier"
+                    },
+                    "parent": {
+                        "type": "string",
+                        "description": "New parent task identifier (omit to move to top level)"
+                    },
+                    "previous": {
+                        "type": "string",
+                        "description": "New previous sibling task identifier (omit to move to first position)"
+                    }
+                },
+                "required": ["tasklist", "task"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object",
+                        "description": "Moved task details with updated position"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["task", "result"]
+            }
+        }
+    }
+}

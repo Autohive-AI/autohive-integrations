@@ -1,3 +1,4 @@
 autohive_integrations_sdk
+aiohttp
 pytest
 pytest-asyncio

@@ -1,0 +1,10 @@
+autohive-integrations-sdk~=1.0.2
+numpy
+Pillow
+PyPDF2
+python-docx
+reportlab
+openpyxl
+XlsxWriter
+matplotlib
+python-pptx

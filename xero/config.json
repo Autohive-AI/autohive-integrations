@@ -1,12 +1,13 @@
 {
     "name": "Xero",
-    "version": "1.0.0",
-    "description": "Xero accounting integration for aged payables and receivables reporting",
+    "version": "1.4.0",
+    "description": "Xero accounting integration for invoice and bill management, purchase orders, reporting, file attachments, and PDF invoice retrieval",
     "entry_point": "xero.py",
+    "supports_connected_account": true,
     "auth": {
         "type": "platform",
         "provider": "Xero",
-        "scopes": ["accounting.reports.read", "accounting.contacts.read", "accounting.settings.read", "accounting.transactions.read", "offline_access"]
+        "scopes": ["accounting.reports.read", "accounting.contacts.read", "accounting.settings.read", "accounting.transactions.read", "accounting.transactions", "accounting.attachments", "offline_access"]
     },
     "actions": {
         "get_available_connections": {
@@ -51,7 +52,7 @@
         },
         "find_contact_by_name": {
             "display_name": "Find Contact by Name",
-            "description": "Finds contact ID by searching for contacts with matching name in Xero using the Name field",
+            "description": "Finds contacts with matching name in Xero and returns comprehensive contact details including email, phone, address, and other information",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -82,9 +83,97 @@
                                     "type": "string",
                                     "description": "Contact name from Name field"
                                 },
+                                "contact_number": {
+                                    "type": ["string", "null"],
+                                    "description": "Contact number"
+                                },
+                                "account_number": {
+                                    "type": ["string", "null"],
+                                    "description": "Account number"
+                                },
                                 "contact_status": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Contact status"
+                                },
+                                "first_name": {
+                                    "type": ["string", "null"],
+                                    "description": "First name"
+                                },
+                                "last_name": {
+                                    "type": ["string", "null"],
+                                    "description": "Last name"
+                                },
+                                "email_address": {
+                                    "type": ["string", "null"],
+                                    "description": "Email address"
+                                },
+                                "skype_user_name": {
+                                    "type": ["string", "null"],
+                                    "description": "Skype username"
+                                },
+                                "bank_account_details": {
+                                    "type": ["string", "null"],
+                                    "description": "Bank account details"
+                                },
+                                "tax_number": {
+                                    "type": ["string", "null"],
+                                    "description": "Tax number"
+                                },
+                                "accounts_receivable_tax_type": {
+                                    "type": ["string", "null"],
+                                    "description": "Accounts receivable tax type"
+                                },
+                                "accounts_payable_tax_type": {
+                                    "type": ["string", "null"],
+                                    "description": "Accounts payable tax type"
+                                },
+                                "addresses": {
+                                    "type": ["array", "null"],
+                                    "description": "Array of contact addresses"
+                                },
+                                "phones": {
+                                    "type": ["array", "null"],
+                                    "description": "Array of contact phone numbers"
+                                },
+                                "updated_date_utc": {
+                                    "type": ["string", "null"],
+                                    "description": "Last updated date in UTC"
+                                },
+                                "contact_groups": {
+                                    "type": ["array", "null"],
+                                    "description": "Array of contact groups"
+                                },
+                                "website": {
+                                    "type": ["string", "null"],
+                                    "description": "Website URL"
+                                },
+                                "branding_theme": {
+                                    "type": ["object", "null"],
+                                    "description": "Branding theme information"
+                                },
+                                "batch_payments": {
+                                    "type": ["object", "null"],
+                                    "description": "Batch payment information"
+                                },
+                                "discount": {
+                                    "type": ["number", "null"],
+                                    "description": "Discount percentage"
+                                },
+                                "balances": {
+                                    "type": ["object", "null"],
+                                    "description": "Account balances"
+                                },
+                                "attachments": {
+                                    "type": ["array", "null"],
+                                    "description": "Array of attachments"
+                                },
+                                "has_attachments": {
+                                    "type": ["boolean", "null"],
+                                    "description": "Whether contact has attachments"
+                                },
+                                "contact_persons": {
+                                    "type": ["array", "null"],
+                                    "description": "Array of contact persons"
                                 }
                             },
                             "required": ["contact_id", "name"]
@@ -450,6 +539,112 @@
                 "description": "Raw Xero API response for Payments"
             }
         },
+        "get_invoices": {
+            "display_name": "Get Invoices",
+            "description": "Retrieves invoices from Xero API with optimized filtering. Can fetch all invoices or a specific invoice by ID. Supports sales invoices (ACCREC) and purchase invoices (ACCPAY)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "invoice_id": {
+                        "type": "string",
+                        "description": "Optional specific invoice ID (GUID) to fetch. When provided, fetches only this invoice and ignores other filter parameters"
+                    },
+                    "where": {
+                        "type": "string",
+                        "description": "Optional Xero where filter clause with optimized fields. Range operators: >, >=, <, <=, ==, !=. Examples: Status==\"AUTHORISED\", Date>=DateTime(2020,01,01) AND Date<=DateTime(2020,12,31), Contact.ContactID==guid(\"contact-id\"), Type==\"ACCREC\", Total>=100.00 AND Total<=1000.00. Combine with AND/OR operators."
+                    },
+                    "order": {
+                        "type": "string",
+                        "description": "Optional Xero orderby parameter. Optimized fields: InvoiceNumber, Date, DueDate, Total, UpdatedDateUTC. Examples: \"Date DESC\", \"InvoiceNumber ASC\", \"Total DESC,Date ASC\". Multi-field sorting supported."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Optional page number for pagination"
+                    },
+                    "pageSize": {
+                        "type": "integer",
+                        "description": "Optional page size for pagination (max 100)"
+                    },
+                    "statuses": {
+                        "type": "string",
+                        "description": "Optional comma-separated list of invoice statuses for bulk filtering. Examples: \"DRAFT,SUBMITTED,AUTHORISED\", \"VOIDED,DELETED\". Valid statuses: DRAFT, SUBMITTED, AUTHORISED, PAID, VOIDED, DELETED"
+                    },
+                    "invoice_numbers": {
+                        "type": "string",
+                        "description": "Optional comma-separated list of invoice numbers for bulk retrieval by invoice number"
+                    },
+                    "contact_ids": {
+                        "type": "string",
+                        "description": "Optional comma-separated list of contact IDs (GUIDs) to filter invoices by specific contacts"
+                    }
+                },
+                "required": ["tenant_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "invoices": {
+                        "type": "array",
+                        "description": "Array of Xero invoices with details including invoice number, date, due date, contact, line items, amounts, and status"
+                    }
+                },
+                "description": "Raw Xero API response for Invoices"
+            }
+        },
+        "get_invoice_pdf": {
+            "display_name": "Get Invoice PDF",
+            "description": "Retrieves a specific invoice as a PDF file from Xero API. Works with both sales invoices (ACCREC) and purchase bills (ACCPAY)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "invoice_id": {
+                        "type": "string",
+                        "description": "Invoice ID (GUID) to retrieve as PDF. Example: 97c2dc5-cc47-4afd-8ec8-74990b8761e9"
+                    }
+                },
+                "required": ["tenant_id", "invoice_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "File name of the PDF"
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "Base64 encoded PDF content"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "MIME type of the file (application/pdf)"
+                            }
+                        },
+                        "required": ["name", "content", "contentType"]
+                    },
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether the PDF download was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if download failed"
+                    }
+                },
+                "required": ["file", "success"]
+            }
+        },
         "get_bank_transactions": {
             "display_name": "Get Bank Transactions",
             "description": "Retrieves bank transactions from Xero for Receive/Spend Money not tied to invoices (CapEx, financing, other operating)",
@@ -484,6 +679,1004 @@
                     }
                 },
                 "description": "Raw Xero API response for Bank Transactions"
+            }
+        },
+        "create_sales_invoice": {
+            "display_name": "Create Sales Invoice",
+            "description": "Creates a new sales invoice (ACCREC) in Xero for billing customers",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "contact": {
+                        "type": "object",
+                        "description": "Contact object with either ContactID or Name. Examples: {\"ContactID\": \"guid\"} or {\"Name\": \"Customer Name\"}",
+                        "properties": {
+                            "ContactID": {
+                                "type": "string",
+                                "description": "Contact ID (GUID)"
+                            },
+                            "Name": {
+                                "type": "string",
+                                "description": "Contact name"
+                            }
+                        }
+                    },
+                    "line_items": {
+                        "type": "array",
+                        "description": "Array of line items for the invoice",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "Description": {
+                                    "type": "string",
+                                    "description": "Line item description"
+                                },
+                                "Quantity": {
+                                    "type": "number",
+                                    "description": "Quantity"
+                                },
+                                "UnitAmount": {
+                                    "type": "number",
+                                    "description": "Unit amount/price"
+                                },
+                                "AccountCode": {
+                                    "type": "string",
+                                    "description": "Account code for the line item"
+                                },
+                                "TaxType": {
+                                    "type": "string",
+                                    "description": "Tax type (e.g., OUTPUT, EXEMPTOUTPUT)"
+                                }
+                            },
+                            "required": ["Description", "UnitAmount", "AccountCode"]
+                        }
+                    },
+                    "date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Invoice date (YYYY-MM-DD). Defaults to today if not specified"
+                    },
+                    "due_date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Due date for payment (YYYY-MM-DD)"
+                    },
+                    "invoice_number": {
+                        "type": "string",
+                        "description": "Custom invoice number"
+                    },
+                    "reference": {
+                        "type": "string",
+                        "description": "Invoice reference"
+                    },
+                    "branding_theme_id": {
+                        "type": "string",
+                        "description": "Branding theme ID (GUID)"
+                    },
+                    "currency_code": {
+                        "type": "string",
+                        "description": "Currency code (e.g., USD, EUR). Defaults to organization currency"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["DRAFT", "SUBMITTED", "AUTHORISED"],
+                        "description": "Invoice status. Defaults to DRAFT"
+                    },
+                    "line_amount_types": {
+                        "type": "string",
+                        "enum": ["Exclusive", "Inclusive", "NoTax"],
+                        "description": "Line amount types for tax calculation"
+                    }
+                },
+                "required": ["tenant_id", "contact", "line_items"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "Invoices": {
+                        "type": "array",
+                        "description": "Array containing the created invoice with full details"
+                    }
+                },
+                "description": "Raw Xero API response for created sales invoice"
+            }
+        },
+        "create_purchase_bill": {
+            "display_name": "Create Purchase Bill",
+            "description": "Creates a new purchase bill (ACCPAY) in Xero for recording supplier invoices",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "contact": {
+                        "type": "object",
+                        "description": "Contact object with either ContactID or Name. Examples: {\"ContactID\": \"guid\"} or {\"Name\": \"Supplier Name\"}",
+                        "properties": {
+                            "ContactID": {
+                                "type": "string",
+                                "description": "Contact ID (GUID)"
+                            },
+                            "Name": {
+                                "type": "string",
+                                "description": "Contact name"
+                            }
+                        }
+                    },
+                    "line_items": {
+                        "type": "array",
+                        "description": "Array of line items for the bill",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "Description": {
+                                    "type": "string",
+                                    "description": "Line item description"
+                                },
+                                "Quantity": {
+                                    "type": "number",
+                                    "description": "Quantity"
+                                },
+                                "UnitAmount": {
+                                    "type": "number",
+                                    "description": "Unit amount/price"
+                                },
+                                "AccountCode": {
+                                    "type": "string",
+                                    "description": "Account code for the line item"
+                                },
+                                "TaxType": {
+                                    "type": "string",
+                                    "description": "Tax type (e.g., INPUT, EXEMPTINPUT)"
+                                }
+                            },
+                            "required": ["Description", "UnitAmount", "AccountCode"]
+                        }
+                    },
+                    "date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Bill date (YYYY-MM-DD). Defaults to today if not specified"
+                    },
+                    "due_date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Due date for payment (YYYY-MM-DD)"
+                    },
+                    "invoice_number": {
+                        "type": "string",
+                        "description": "Supplier's invoice/bill number"
+                    },
+                    "reference": {
+                        "type": "string",
+                        "description": "Bill reference"
+                    },
+                    "currency_code": {
+                        "type": "string",
+                        "description": "Currency code (e.g., USD, EUR). Defaults to organization currency"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["DRAFT", "SUBMITTED", "AUTHORISED"],
+                        "description": "Bill status. Defaults to DRAFT"
+                    },
+                    "line_amount_types": {
+                        "type": "string",
+                        "enum": ["Exclusive", "Inclusive", "NoTax"],
+                        "description": "Line amount types for tax calculation"
+                    }
+                },
+                "required": ["tenant_id", "contact", "line_items"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "Invoices": {
+                        "type": "array",
+                        "description": "Array containing the created purchase bill with full details"
+                    }
+                },
+                "description": "Raw Xero API response for created purchase bill"
+            }
+        },
+        "update_sales_invoice": {
+            "display_name": "Update Sales Invoice",
+            "description": "Updates an existing sales invoice (ACCREC) in Xero. Only DRAFT and SUBMITTED invoices can be updated",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "invoice_id": {
+                        "type": "string",
+                        "description": "ID of the invoice to update (GUID)"
+                    },
+                    "contact": {
+                        "type": "object",
+                        "description": "Optional contact object to update. Examples: {\"ContactID\": \"guid\"} or {\"Name\": \"Customer Name\"}",
+                        "properties": {
+                            "ContactID": {
+                                "type": "string",
+                                "description": "Contact ID (GUID)"
+                            },
+                            "Name": {
+                                "type": "string",
+                                "description": "Contact name"
+                            }
+                        }
+                    },
+                    "line_items": {
+                        "type": "array",
+                        "description": "Optional array of line items. IMPORTANT - Creating, updating and deleting line items when updating invoices: Providing an existing LineItem with its LineItemID will update that line item. Providing a LineItem with no LineItemID will create a new line item. Not providing an existing LineItem with its LineItemID will result in that line item being deleted.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "LineItemID": {
+                                    "type": "string",
+                                    "description": "Line item ID (GUID). Include this to update an existing line item. Omit to create a new line item."
+                                },
+                                "Description": {
+                                    "type": "string",
+                                    "description": "Line item description"
+                                },
+                                "Quantity": {
+                                    "type": "number",
+                                    "description": "Quantity"
+                                },
+                                "UnitAmount": {
+                                    "type": "number",
+                                    "description": "Unit amount/price"
+                                },
+                                "AccountCode": {
+                                    "type": "string",
+                                    "description": "Account code for the line item"
+                                },
+                                "TaxType": {
+                                    "type": "string",
+                                    "description": "Tax type (e.g., OUTPUT, EXEMPTOUTPUT)"
+                                }
+                            },
+                            "required": ["Description", "UnitAmount", "AccountCode"]
+                        }
+                    },
+                    "date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Invoice date (YYYY-MM-DD)"
+                    },
+                    "due_date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Due date for payment (YYYY-MM-DD)"
+                    },
+                    "invoice_number": {
+                        "type": "string",
+                        "description": "Custom invoice number"
+                    },
+                    "reference": {
+                        "type": "string",
+                        "description": "Invoice reference"
+                    },
+                    "branding_theme_id": {
+                        "type": "string",
+                        "description": "Branding theme ID (GUID)"
+                    },
+                    "currency_code": {
+                        "type": "string",
+                        "description": "Currency code (e.g., USD, EUR)"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["DRAFT", "SUBMITTED", "AUTHORISED"],
+                        "description": "Invoice status"
+                    },
+                    "line_amount_types": {
+                        "type": "string",
+                        "enum": ["Exclusive", "Inclusive", "NoTax"],
+                        "description": "Line amount types for tax calculation"
+                    }
+                },
+                "required": ["tenant_id", "invoice_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "Invoices": {
+                        "type": "array",
+                        "description": "Array containing the updated invoice with full details"
+                    }
+                },
+                "description": "Raw Xero API response for updated sales invoice"
+            }
+        },
+        "update_purchase_bill": {
+            "display_name": "Update Purchase Bill",
+            "description": "Updates an existing purchase bill (ACCPAY) in Xero. Only DRAFT and SUBMITTED bills can be updated",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "invoice_id": {
+                        "type": "string",
+                        "description": "ID of the bill to update (GUID) - bills use InvoiceID in Xero API"
+                    },
+                    "contact": {
+                        "type": "object",
+                        "description": "Optional contact object to update. Examples: {\"ContactID\": \"guid\"} or {\"Name\": \"Supplier Name\"}",
+                        "properties": {
+                            "ContactID": {
+                                "type": "string",
+                                "description": "Contact ID (GUID)"
+                            },
+                            "Name": {
+                                "type": "string",
+                                "description": "Contact name"
+                            }
+                        }
+                    },
+                    "line_items": {
+                        "type": "array",
+                        "description": "Optional array of line items. IMPORTANT - Creating, updating and deleting line items when updating bills: Providing an existing LineItem with its LineItemID will update that line item. Providing a LineItem with no LineItemID will create a new line item. Not providing an existing LineItem with its LineItemID will result in that line item being deleted.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "LineItemID": {
+                                    "type": "string",
+                                    "description": "Line item ID (GUID). Include this to update an existing line item. Omit to create a new line item."
+                                },
+                                "Description": {
+                                    "type": "string",
+                                    "description": "Line item description"
+                                },
+                                "Quantity": {
+                                    "type": "number",
+                                    "description": "Quantity"
+                                },
+                                "UnitAmount": {
+                                    "type": "number",
+                                    "description": "Unit amount/price"
+                                },
+                                "AccountCode": {
+                                    "type": "string",
+                                    "description": "Account code for the line item"
+                                },
+                                "TaxType": {
+                                    "type": "string",
+                                    "description": "Tax type (e.g., INPUT, EXEMPTINPUT)"
+                                }
+                            },
+                            "required": ["Description", "UnitAmount", "AccountCode"]
+                        }
+                    },
+                    "date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Bill date (YYYY-MM-DD)"
+                    },
+                    "due_date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Due date for payment (YYYY-MM-DD)"
+                    },
+                    "invoice_number": {
+                        "type": "string",
+                        "description": "Supplier's invoice/bill number"
+                    },
+                    "reference": {
+                        "type": "string",
+                        "description": "Bill reference"
+                    },
+                    "currency_code": {
+                        "type": "string",
+                        "description": "Currency code (e.g., USD, EUR)"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["DRAFT", "SUBMITTED", "AUTHORISED"],
+                        "description": "Bill status"
+                    },
+                    "line_amount_types": {
+                        "type": "string",
+                        "enum": ["Exclusive", "Inclusive", "NoTax"],
+                        "description": "Line amount types for tax calculation"
+                    }
+                },
+                "required": ["tenant_id", "invoice_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "Invoices": {
+                        "type": "array",
+                        "description": "Array containing the updated purchase bill with full details"
+                    }
+                },
+                "description": "Raw Xero API response for updated purchase bill"
+            }
+        },
+        "attach_file_to_invoice": {
+            "display_name": "Attach File to Invoice",
+            "description": "Attaches a file to an existing sales invoice or purchase bill in Xero",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "invoice_id": {
+                        "type": "string",
+                        "description": "ID of the invoice/bill to attach file to (GUID)"
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "File object from chat: base64 content, name, contentType.",
+                        "properties": {
+                            "content": {"type": "string", "description": "Base64 encoded file content"},
+                            "name": {"type": "string", "description": "File name including extension"},
+                            "contentType": {"type": "string", "description": "MIME type of the file"}
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "Alternate input: array of file objects; the first will be used.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "content": {"type": "string", "description": "Base64 encoded file content"},
+                                "name": {"type": "string", "description": "File name including extension"},
+                                "contentType": {"type": "string", "description": "MIME type of the file"}
+                            },
+                            "required": ["content", "name", "contentType"]
+                        }
+                    },
+                    "include_online": {
+                        "type": "boolean",
+                        "description": "Whether to include the attachment in online invoice (default: true)"
+                    }
+                },
+                "required": ["tenant_id", "invoice_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "Attachments": {
+                        "type": "array",
+                        "description": "Array containing the attachment details"
+                    }
+                },
+                "description": "Raw Xero API response for file attachment"
+            }
+        },
+        "attach_file_to_bill": {
+            "display_name": "Attach File to Bill",
+            "description": "Attaches a file to an existing purchase bill in Xero",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "bill_id": {
+                        "type": "string",
+                        "description": "ID of the bill to attach file to (GUID) - same as invoice_id in Xero API"
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "File object from chat: base64 content, name, contentType.",
+                        "properties": {
+                            "content": {"type": "string", "description": "Base64 encoded file content"},
+                            "name": {"type": "string", "description": "File name including extension"},
+                            "contentType": {"type": "string", "description": "MIME type of the file"}
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "Alternate input: array of file objects; the first will be used.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "content": {"type": "string", "description": "Base64 encoded file content"},
+                                "name": {"type": "string", "description": "File name including extension"},
+                                "contentType": {"type": "string", "description": "MIME type of the file"}
+                            },
+                            "required": ["content", "name", "contentType"]
+                        }
+                    },
+                    "include_online": {
+                        "type": "boolean",
+                        "description": "Whether to include the attachment in online bill (default: true)"
+                    }
+                },
+                "required": ["tenant_id", "bill_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "Attachments": {
+                        "type": "array",
+                        "description": "Array containing the attachment details"
+                    }
+                },
+                "description": "Raw Xero API response for file attachment"
+            }
+        },
+        "get_attachments": {
+            "display_name": "Get Attachments",
+            "description": "Gets all attachments for a specific invoice, bill, or bank transaction from Xero API",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "endpoint": {
+                        "type": "string",
+                        "description": "The endpoint type (e.g., 'Invoices', 'Bills', 'BankTransactions')",
+                        "enum": ["Invoices", "Bills", "BankTransactions"]
+                    },
+                    "guid": {
+                        "type": "string",
+                        "description": "The GUID of the invoice/bill/transaction"
+                    }
+                },
+                "required": ["tenant_id", "endpoint", "guid"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "Attachments": {
+                        "type": "array",
+                        "description": "Array of attachment metadata including file names, IDs, sizes, and MIME types"
+                    }
+                },
+                "description": "Raw Xero API response for attachments list"
+            }
+        },
+        "get_attachment_content": {
+            "display_name": "Get Attachment Content",
+            "description": "Downloads the actual content of a specific attachment from Xero API for agent analysis",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "endpoint": {
+                        "type": "string",
+                        "description": "The endpoint type (e.g., 'Invoices', 'Bills', 'BankTransactions')",
+                        "enum": ["Invoices", "Bills", "BankTransactions"]
+                    },
+                    "guid": {
+                        "type": "string",
+                        "description": "The GUID of the invoice/bill/transaction"
+                    },
+                    "file_name": {
+                        "type": "string",
+                        "description": "The filename of the attachment to download"
+                    }
+                },
+                "required": ["tenant_id", "endpoint", "guid", "file_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "File name"
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "Base64 encoded file content for agent analysis"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "MIME type of the file"
+                            }
+                        },
+                        "required": ["name", "content", "contentType"]
+                    },
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether the download was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if download failed"
+                    }
+                },
+                "required": ["file", "success"]
+            }
+        },
+        "get_purchase_orders": {
+            "display_name": "Get Purchase Orders",
+            "description": "Retrieves purchase orders from Xero API with filtering. Can fetch all purchase orders or a specific one by ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "purchase_order_id": {
+                        "type": "string",
+                        "description": "Optional specific purchase order ID (GUID) to fetch. When provided, fetches only this purchase order"
+                    },
+                    "where": {
+                        "type": "string",
+                        "description": "Optional Xero where filter clause. Range operators: >, >=, <, <=, ==, !=. Examples: Status==\"AUTHORISED\", Date>=DateTime(2020,01,01), Contact.ContactID==guid(\"contact-id\"). Combine with AND/OR operators."
+                    },
+                    "order": {
+                        "type": "string",
+                        "description": "Optional Xero orderby parameter. Examples: \"Date DESC\", \"PurchaseOrderNumber ASC\". Multi-field sorting supported."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Optional page number for pagination"
+                    },
+                    "statuses": {
+                        "type": "string",
+                        "description": "Optional comma-separated list of statuses. Examples: \"DRAFT,SUBMITTED,AUTHORISED\". Valid statuses: DRAFT, SUBMITTED, AUTHORISED, BILLED, DELETED"
+                    }
+                },
+                "required": ["tenant_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "PurchaseOrders": {
+                        "type": "array",
+                        "description": "Array of Xero purchase orders with details"
+                    }
+                },
+                "description": "Raw Xero API response for Purchase Orders"
+            }
+        },
+        "create_purchase_order": {
+            "display_name": "Create Purchase Order",
+            "description": "Creates a new purchase order in Xero for ordering goods or services from suppliers",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "contact": {
+                        "type": "object",
+                        "description": "Contact object with either ContactID or Name. Examples: {\"ContactID\": \"guid\"} or {\"Name\": \"Supplier Name\"}",
+                        "properties": {
+                            "ContactID": {
+                                "type": "string",
+                                "description": "Contact ID (GUID)"
+                            },
+                            "Name": {
+                                "type": "string",
+                                "description": "Contact name"
+                            }
+                        }
+                    },
+                    "line_items": {
+                        "type": "array",
+                        "description": "Array of line items for the purchase order",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "Description": {
+                                    "type": "string",
+                                    "description": "Line item description"
+                                },
+                                "Quantity": {
+                                    "type": "number",
+                                    "description": "Quantity"
+                                },
+                                "UnitAmount": {
+                                    "type": "number",
+                                    "description": "Unit amount/price"
+                                },
+                                "AccountCode": {
+                                    "type": "string",
+                                    "description": "Account code for the line item"
+                                },
+                                "TaxType": {
+                                    "type": "string",
+                                    "description": "Tax type (e.g., INPUT, EXEMPTINPUT)"
+                                }
+                            },
+                            "required": ["Description", "UnitAmount", "AccountCode"]
+                        }
+                    },
+                    "date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Purchase order date (YYYY-MM-DD). Defaults to today if not specified"
+                    },
+                    "delivery_date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Expected delivery date (YYYY-MM-DD)"
+                    },
+                    "purchase_order_number": {
+                        "type": "string",
+                        "description": "Custom purchase order number"
+                    },
+                    "reference": {
+                        "type": "string",
+                        "description": "Purchase order reference"
+                    },
+                    "currency_code": {
+                        "type": "string",
+                        "description": "Currency code (e.g., USD, EUR). Defaults to organization currency"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["DRAFT", "SUBMITTED", "AUTHORISED", "BILLED", "DELETED"],
+                        "description": "Purchase order status. Defaults to DRAFT"
+                    },
+                    "line_amount_types": {
+                        "type": "string",
+                        "enum": ["Exclusive", "Inclusive", "NoTax"],
+                        "description": "Line amount types for tax calculation"
+                    },
+                    "delivery_address": {
+                        "type": "string",
+                        "description": "Delivery address"
+                    },
+                    "attention_to": {
+                        "type": "string",
+                        "description": "Name of person to be contacted"
+                    },
+                    "telephone": {
+                        "type": "string",
+                        "description": "Phone number for contact"
+                    },
+                    "delivery_instructions": {
+                        "type": "string",
+                        "description": "Delivery instructions"
+                    }
+                },
+                "required": ["tenant_id", "contact", "line_items"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "PurchaseOrders": {
+                        "type": "array",
+                        "description": "Array containing the created purchase order with full details"
+                    }
+                },
+                "description": "Raw Xero API response for created purchase order"
+            }
+        },
+        "update_purchase_order": {
+            "display_name": "Update Purchase Order",
+            "description": "Updates an existing purchase order in Xero. Only DRAFT and SUBMITTED purchase orders can be updated",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "purchase_order_id": {
+                        "type": "string",
+                        "description": "ID of the purchase order to update (GUID)"
+                    },
+                    "contact": {
+                        "type": "object",
+                        "description": "Optional contact object to update. Examples: {\"ContactID\": \"guid\"} or {\"Name\": \"Supplier Name\"}",
+                        "properties": {
+                            "ContactID": {
+                                "type": "string",
+                                "description": "Contact ID (GUID)"
+                            },
+                            "Name": {
+                                "type": "string",
+                                "description": "Contact name"
+                            }
+                        }
+                    },
+                    "line_items": {
+                        "type": "array",
+                        "description": "Optional array of line items. IMPORTANT - Creating, updating and deleting line items when updating purchase orders: Providing an existing LineItem with its LineItemID will update that line item. Providing a LineItem with no LineItemID will create a new line item. Not providing an existing LineItem with its LineItemID will result in that line item being deleted.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "LineItemID": {
+                                    "type": "string",
+                                    "description": "Line item ID (GUID). Include this to update an existing line item. Omit to create a new line item."
+                                },
+                                "Description": {
+                                    "type": "string",
+                                    "description": "Line item description"
+                                },
+                                "Quantity": {
+                                    "type": "number",
+                                    "description": "Quantity"
+                                },
+                                "UnitAmount": {
+                                    "type": "number",
+                                    "description": "Unit amount/price"
+                                },
+                                "AccountCode": {
+                                    "type": "string",
+                                    "description": "Account code for the line item"
+                                },
+                                "TaxType": {
+                                    "type": "string",
+                                    "description": "Tax type (e.g., INPUT, EXEMPTINPUT)"
+                                }
+                            },
+                            "required": ["Description", "UnitAmount", "AccountCode"]
+                        }
+                    },
+                    "date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Purchase order date (YYYY-MM-DD)"
+                    },
+                    "delivery_date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Expected delivery date (YYYY-MM-DD)"
+                    },
+                    "purchase_order_number": {
+                        "type": "string",
+                        "description": "Custom purchase order number"
+                    },
+                    "reference": {
+                        "type": "string",
+                        "description": "Purchase order reference"
+                    },
+                    "currency_code": {
+                        "type": "string",
+                        "description": "Currency code (e.g., USD, EUR)"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["DRAFT", "SUBMITTED", "AUTHORISED", "BILLED", "DELETED"],
+                        "description": "Purchase order status"
+                    },
+                    "line_amount_types": {
+                        "type": "string",
+                        "enum": ["Exclusive", "Inclusive", "NoTax"],
+                        "description": "Line amount types for tax calculation"
+                    },
+                    "delivery_address": {
+                        "type": "string",
+                        "description": "Delivery address"
+                    },
+                    "attention_to": {
+                        "type": "string",
+                        "description": "Name of person to be contacted"
+                    },
+                    "telephone": {
+                        "type": "string",
+                        "description": "Phone number for contact"
+                    },
+                    "delivery_instructions": {
+                        "type": "string",
+                        "description": "Delivery instructions"
+                    }
+                },
+                "required": ["tenant_id", "purchase_order_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "PurchaseOrders": {
+                        "type": "array",
+                        "description": "Array containing the updated purchase order with full details"
+                    }
+                },
+                "description": "Raw Xero API response for updated purchase order"
+            }
+        },
+        "delete_purchase_order": {
+            "display_name": "Delete Purchase Order",
+            "description": "Deletes a purchase order in Xero by updating its status to DELETED",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "purchase_order_id": {
+                        "type": "string",
+                        "description": "ID of the purchase order to delete (GUID)"
+                    }
+                },
+                "required": ["tenant_id", "purchase_order_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "PurchaseOrders": {
+                        "type": "array",
+                        "description": "Array containing the deleted purchase order with updated status"
+                    }
+                },
+                "description": "Raw Xero API response for deleted purchase order"
+            }
+        },
+        "get_purchase_order_history": {
+            "display_name": "Get Purchase Order History",
+            "description": "Retrieves the history and notes for a specific purchase order from Xero API",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "purchase_order_id": {
+                        "type": "string",
+                        "description": "ID of the purchase order to get history for (GUID)"
+                    }
+                },
+                "required": ["tenant_id", "purchase_order_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "HistoryRecords": {
+                        "type": "array",
+                        "description": "Array of history records including notes and changes"
+                    }
+                },
+                "description": "Raw Xero API response for purchase order history"
+            }
+        },
+        "add_note_to_purchase_order": {
+            "display_name": "Add Note to Purchase Order",
+            "description": "Adds a note to a purchase order's history in Xero",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {
+                        "type": "string",
+                        "description": "Xero tenant ID"
+                    },
+                    "purchase_order_id": {
+                        "type": "string",
+                        "description": "ID of the purchase order to add note to (GUID)"
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "The note text to add to the purchase order history"
+                    }
+                },
+                "required": ["tenant_id", "purchase_order_id", "note"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "HistoryRecords": {
+                        "type": "array",
+                        "description": "Array containing the added history record"
+                    }
+                },
+                "description": "Raw Xero API response for added note"
             }
         }
     }

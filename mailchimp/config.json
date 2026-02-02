@@ -1,0 +1,816 @@
+{
+  "name": "Mailchimp",
+  "version": "1.0.0",
+  "description": "Mailchimp integration for managing email lists, campaigns, and audience members.",
+  "entry_point": "mailchimp.py",
+  "supports_billing": false,
+  "supports_connected_account": true,
+  "auth": {
+    "type": "platform",
+    "provider": "Mailchimp",
+    "scopes": []
+  },
+  "actions": {
+    "get_lists": {
+      "display_name": "Get Lists",
+      "description": "Retrieve all mailing lists from Mailchimp account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Number of lists to return (default 10, max 50)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of lists to skip (for pagination)"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "lists": {
+            "type": "array",
+            "description": "Array of mailing lists",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "List ID"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "List name"
+                },
+                "stats": {
+                  "type": "object",
+                  "description": "List statistics"
+                }
+              }
+            }
+          },
+          "total_items": {
+            "type": "integer",
+            "description": "Total number of lists"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": [
+          "lists",
+          "result"
+        ]
+      }
+    },
+    "find_list": {
+      "display_name": "Find List",
+      "description": "Search for a mailing list by name",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name or partial name to search for (case-insensitive)"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "object",
+            "description": "Matching list details (first match if multiple)",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "List ID"
+              },
+              "name": {
+                "type": "string",
+                "description": "List name"
+              },
+              "stats": {
+                "type": "object",
+                "description": "List statistics"
+              }
+            }
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "get_list": {
+      "display_name": "Get List",
+      "description": "Get details of a specific mailing list",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "list_id": {
+            "type": "string",
+            "description": "Mailchimp list ID"
+          }
+        },
+        "required": [
+          "list_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "object",
+            "description": "List details",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "List ID"
+              },
+              "name": {
+                "type": "string",
+                "description": "List name"
+              },
+              "stats": {
+                "type": "object",
+                "description": "List statistics"
+              }
+            }
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "create_list": {
+      "display_name": "Create List",
+      "description": "Create a new mailing list in Mailchimp",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "List name"
+          },
+          "permission_reminder": {
+            "type": "string",
+            "description": "Permission reminder text for subscribers"
+          },
+          "email_type_option": {
+            "type": "boolean",
+            "description": "Whether to show email format options"
+          },
+          "contact": {
+            "type": "object",
+            "description": "Contact information for the list",
+            "properties": {
+              "company": {
+                "type": "string",
+                "description": "Company name"
+              },
+              "address1": {
+                "type": "string",
+                "description": "Street address"
+              },
+              "city": {
+                "type": "string",
+                "description": "City"
+              },
+              "state": {
+                "type": "string",
+                "description": "State"
+              },
+              "zip": {
+                "type": "string",
+                "description": "Zip code"
+              },
+              "country": {
+                "type": "string",
+                "description": "Country (2-letter code)"
+              }
+            },
+            "required": [
+              "company",
+              "address1",
+              "city",
+              "state",
+              "zip",
+              "country"
+            ]
+          },
+          "campaign_defaults": {
+            "type": "object",
+            "description": "Default values for campaigns",
+            "properties": {
+              "from_name": {
+                "type": "string",
+                "description": "Default from name"
+              },
+              "from_email": {
+                "type": "string",
+                "description": "Default from email"
+              },
+              "subject": {
+                "type": "string",
+                "description": "Default subject"
+              },
+              "language": {
+                "type": "string",
+                "description": "Default language (e.g., 'en')"
+              }
+            },
+            "required": [
+              "from_name",
+              "from_email",
+              "subject",
+              "language"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "permission_reminder",
+          "contact",
+          "campaign_defaults"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "object",
+            "description": "Created list details",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "List ID"
+              },
+              "name": {
+                "type": "string",
+                "description": "List name"
+              }
+            }
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "add_member": {
+      "display_name": "Add Member",
+      "description": "Add a new member to a mailing list",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "list_id": {
+            "type": "string",
+            "description": "Mailchimp list ID"
+          },
+          "email_address": {
+            "type": "string",
+            "description": "Email address of the member"
+          },
+          "status": {
+            "type": "string",
+            "description": "Subscription status: 'subscribed', 'unsubscribed', 'cleaned', or 'pending'"
+          },
+          "merge_fields": {
+            "type": "object",
+            "description": "Merge fields (e.g., FNAME, LNAME)"
+          },
+          "tags": {
+            "type": "array",
+            "description": "Tags to add to the member",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "list_id",
+          "email_address",
+          "status"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "member": {
+            "type": "object",
+            "description": "Created member details",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Member ID"
+              },
+              "email_address": {
+                "type": "string",
+                "description": "Member email"
+              },
+              "status": {
+                "type": "string",
+                "description": "Subscription status"
+              }
+            }
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "update_member": {
+      "display_name": "Update Member",
+      "description": "Update an existing member in a mailing list",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "list_id": {
+            "type": "string",
+            "description": "Mailchimp list ID"
+          },
+          "subscriber_hash": {
+            "type": "string",
+            "description": "MD5 hash of lowercase email address"
+          },
+          "email_address": {
+            "type": "string",
+            "description": "Email address of the member (used to generate hash if subscriber_hash not provided)"
+          },
+          "status": {
+            "type": "string",
+            "description": "Subscription status: 'subscribed', 'unsubscribed', 'cleaned', or 'pending'"
+          },
+          "merge_fields": {
+            "type": "object",
+            "description": "Merge fields to update (e.g., FNAME, LNAME)"
+          },
+          "tags": {
+            "type": "array",
+            "description": "Tags to add to the member",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "list_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "member": {
+            "type": "object",
+            "description": "Updated member details",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Member ID"
+              },
+              "email_address": {
+                "type": "string",
+                "description": "Member email"
+              },
+              "status": {
+                "type": "string",
+                "description": "Subscription status"
+              }
+            }
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "get_member": {
+      "display_name": "Get Member",
+      "description": "Get details of a specific member in a mailing list",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "list_id": {
+            "type": "string",
+            "description": "Mailchimp list ID"
+          },
+          "subscriber_hash": {
+            "type": "string",
+            "description": "MD5 hash of lowercase email address"
+          },
+          "email_address": {
+            "type": "string",
+            "description": "Email address of the member (used to generate hash if subscriber_hash not provided)"
+          }
+        },
+        "required": [
+          "list_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "member": {
+            "type": "object",
+            "description": "Member details",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Member ID"
+              },
+              "email_address": {
+                "type": "string",
+                "description": "Member email"
+              },
+              "status": {
+                "type": "string",
+                "description": "Subscription status"
+              },
+              "merge_fields": {
+                "type": "object",
+                "description": "Merge fields"
+              }
+            }
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "get_list_members": {
+      "display_name": "Get List Members",
+      "description": "Get all members from a mailing list",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "list_id": {
+            "type": "string",
+            "description": "Mailchimp list ID"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of members to return (default 10, max 50)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of members to skip (for pagination)"
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter by status: 'subscribed', 'unsubscribed', 'cleaned', or 'pending'"
+          }
+        },
+        "required": [
+          "list_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "array",
+            "description": "Array of members",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Member ID"
+                },
+                "email_address": {
+                  "type": "string",
+                  "description": "Member email"
+                },
+                "status": {
+                  "type": "string",
+                  "description": "Subscription status"
+                }
+              }
+            }
+          },
+          "total_items": {
+            "type": "integer",
+            "description": "Total number of members"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": [
+          "members",
+          "result"
+        ]
+      }
+    },
+    "find_campaign": {
+      "display_name": "Find Campaign",
+      "description": "Search for a campaign by title or subject line",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Title or subject line to search for (case-insensitive)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "campaign": {
+            "type": "object",
+            "description": "Matching campaign details (first match if multiple)",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Campaign ID"
+              },
+              "type": {
+                "type": "string",
+                "description": "Campaign type"
+              },
+              "status": {
+                "type": "string",
+                "description": "Campaign status"
+              },
+              "settings": {
+                "type": "object",
+                "description": "Campaign settings including title and subject_line"
+              }
+            }
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "get_campaigns": {
+      "display_name": "Get Campaigns",
+      "description": "Retrieve all campaigns from Mailchimp account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Number of campaigns to return (default 10, max 50)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of campaigns to skip (for pagination)"
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter by status: 'save', 'paused', 'schedule', 'sending', or 'sent'"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "campaigns": {
+            "type": "array",
+            "description": "Array of campaigns",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Campaign ID"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Campaign type"
+                },
+                "status": {
+                  "type": "string",
+                  "description": "Campaign status"
+                }
+              }
+            }
+          },
+          "total_items": {
+            "type": "integer",
+            "description": "Total number of campaigns"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": [
+          "campaigns",
+          "result"
+        ]
+      }
+    },
+    "create_campaign": {
+      "display_name": "Create Campaign",
+      "description": "Create a new email campaign in Mailchimp",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Campaign type: 'regular', 'plaintext', 'absplit', 'rss', or 'variate'"
+          },
+          "list_id": {
+            "type": "string",
+            "description": "List ID to send the campaign to"
+          },
+          "subject_line": {
+            "type": "string",
+            "description": "Campaign subject line"
+          },
+          "from_name": {
+            "type": "string",
+            "description": "From name for the campaign"
+          },
+          "reply_to": {
+            "type": "string",
+            "description": "Reply-to email address"
+          },
+          "title": {
+            "type": "string",
+            "description": "Campaign title (internal use)"
+          }
+        },
+        "required": [
+          "type",
+          "list_id",
+          "subject_line",
+          "from_name",
+          "reply_to"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "campaign": {
+            "type": "object",
+            "description": "Created campaign details",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Campaign ID"
+              },
+              "type": {
+                "type": "string",
+                "description": "Campaign type"
+              },
+              "status": {
+                "type": "string",
+                "description": "Campaign status"
+              }
+            }
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "get_campaign": {
+      "display_name": "Get Campaign",
+      "description": "Get details of a specific campaign",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "campaign_id": {
+            "type": "string",
+            "description": "Mailchimp campaign ID"
+          }
+        },
+        "required": [
+          "campaign_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "campaign": {
+            "type": "object",
+            "description": "Campaign details",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Campaign ID"
+              },
+              "type": {
+                "type": "string",
+                "description": "Campaign type"
+              },
+              "status": {
+                "type": "string",
+                "description": "Campaign status"
+              }
+            }
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the action failed"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    }
+  }
+}

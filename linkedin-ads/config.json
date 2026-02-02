@@ -1,0 +1,426 @@
+{
+    "name": "LinkedIn Ads",
+    "display_name": "LinkedIn Ads",
+    "version": "1.0.0",
+    "description": "Integration with LinkedIn Marketing API for managing ad accounts, campaigns, creatives, and analytics.",
+    "entry_point": "linkedin_ads.py",
+    "auth": {
+        "type": "platform",
+        "provider": "linkedin-ads",
+        "scopes": [
+            "r_ads",
+            "r_ads_reporting",
+            "rw_ads"
+        ]
+    },
+    "actions": {
+        "get_ad_accounts": {
+            "display_name": "Get Ad Accounts",
+            "description": "Retrieve all ad accounts the authenticated user has access to.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of results per page (max 100)",
+                        "default": 25,
+                        "maximum": 100
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "accounts": {
+                        "type": "array",
+                        "description": "List of ad accounts"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "get_campaigns": {
+            "display_name": "Get Campaigns",
+            "description": "Retrieve campaigns for a specific ad account with optional filtering.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID (e.g., 'urn:li:sponsoredAccount:123456789')"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by campaign status: ACTIVE, PAUSED, ARCHIVED, COMPLETED, CANCELED, DRAFT",
+                        "enum": ["ACTIVE", "PAUSED", "ARCHIVED", "COMPLETED", "CANCELED", "DRAFT"]
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of results per page",
+                        "default": 25,
+                        "maximum": 100
+                    }
+                },
+                "required": ["account_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "campaigns": {
+                        "type": "array",
+                        "description": "List of campaigns"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "get_campaign": {
+            "display_name": "Get Campaign Details",
+            "description": "Retrieve detailed information about a specific campaign.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "campaign_id": {
+                        "type": "string",
+                        "description": "The campaign ID (e.g., 'urn:li:sponsoredCampaign:123456789')"
+                    }
+                },
+                "required": ["campaign_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "campaign": {
+                        "type": "object",
+                        "description": "Campaign details"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "create_campaign": {
+            "display_name": "Create Campaign",
+            "description": "Create a new advertising campaign.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID"
+                    },
+                    "campaign_group_id": {
+                        "type": "string",
+                        "description": "The campaign group ID to associate with"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Campaign name"
+                    },
+                    "objective_type": {
+                        "type": "string",
+                        "description": "Campaign objective",
+                        "enum": ["BRAND_AWARENESS", "ENGAGEMENT", "JOB_APPLICANTS", "LEAD_GENERATION", "WEBSITE_CONVERSIONS", "WEBSITE_VISITS", "VIDEO_VIEWS"]
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Campaign type",
+                        "enum": ["TEXT_AD", "SPONSORED_UPDATES", "SPONSORED_INMAILS", "DYNAMIC"]
+                    },
+                    "daily_budget_amount": {
+                        "type": "number",
+                        "description": "Daily budget amount in account currency"
+                    },
+                    "currency_code": {
+                        "type": "string",
+                        "description": "Currency code (e.g., USD, EUR)",
+                        "default": "USD"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Initial campaign status",
+                        "enum": ["ACTIVE", "PAUSED", "DRAFT"],
+                        "default": "DRAFT"
+                    },
+                    "cost_type": {
+                        "type": "string",
+                        "description": "Bid cost type (optional - LinkedIn will use defaults if not provided)",
+                        "enum": ["CPM", "CPC", "CPV"]
+                    },
+                    "unit_cost_amount": {
+                        "type": "number",
+                        "description": "Bid amount per unit (optional - only set if cost_type is provided)"
+                    }
+                },
+                "required": ["account_id", "campaign_group_id", "name", "objective_type", "type", "daily_budget_amount"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "campaign_id": {
+                        "type": "string",
+                        "description": "Created campaign ID"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "update_campaign": {
+            "display_name": "Update Campaign",
+            "description": "Update an existing campaign's settings.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "campaign_id": {
+                        "type": "string",
+                        "description": "The campaign ID to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New campaign name"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Campaign status",
+                        "enum": ["ACTIVE", "PAUSED", "ARCHIVED", "CANCELED"]
+                    },
+                    "daily_budget_amount": {
+                        "type": "number",
+                        "description": "New daily budget amount"
+                    },
+                    "total_budget_amount": {
+                        "type": "number",
+                        "description": "New total budget amount"
+                    },
+                    "currency_code": {
+                        "type": "string",
+                        "description": "Currency code for budget amounts (e.g., USD, EUR)",
+                        "default": "USD"
+                    }
+                },
+                "required": ["campaign_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "pause_campaign": {
+            "display_name": "Pause Campaign",
+            "description": "Pause an active campaign.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "campaign_id": {
+                        "type": "string",
+                        "description": "The campaign ID to pause"
+                    }
+                },
+                "required": ["campaign_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "activate_campaign": {
+            "display_name": "Activate Campaign",
+            "description": "Activate a paused or draft campaign.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "campaign_id": {
+                        "type": "string",
+                        "description": "The campaign ID to activate"
+                    }
+                },
+                "required": ["campaign_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "get_campaign_groups": {
+            "display_name": "Get Campaign Groups",
+            "description": "Retrieve campaign groups for an ad account.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by status",
+                        "enum": ["ACTIVE", "PAUSED", "ARCHIVED", "DRAFT"]
+                    }
+                },
+                "required": ["account_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "campaign_groups": {
+                        "type": "array",
+                        "description": "List of campaign groups"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "get_creatives": {
+            "display_name": "Get Creatives",
+            "description": "Retrieve creatives (ads) for a campaign.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "campaign_id": {
+                        "type": "string",
+                        "description": "The campaign ID to get creatives for"
+                    }
+                },
+                "required": ["campaign_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "creatives": {
+                        "type": "array",
+                        "description": "List of creatives"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "get_ad_analytics": {
+            "display_name": "Get Ad Analytics",
+            "description": "Retrieve performance analytics for campaigns.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID"
+                    },
+                    "campaign_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of campaign IDs to get analytics for"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD format)"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD format)"
+                    },
+                    "time_granularity": {
+                        "type": "string",
+                        "description": "Time granularity for data",
+                        "enum": ["DAILY", "MONTHLY", "ALL"],
+                        "default": "DAILY"
+                    }
+                },
+                "required": ["account_id", "start_date", "end_date"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "analytics": {
+                        "type": "array",
+                        "description": "Analytics data"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "get_ad_account_users": {
+            "display_name": "Get Ad Account Users",
+            "description": "Retrieve users with access to an ad account.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID"
+                    }
+                },
+                "required": ["account_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "users": {
+                        "type": "array",
+                        "description": "List of users with access"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

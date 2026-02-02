@@ -1,0 +1,1814 @@
+{
+    "name": "HeyGen",
+    "version": "2.0.0",
+    "description": "HeyGen integration for AI avatar generation, video creation, and photo avatar management",
+    "entry_point": "heygen.py",
+    "supports_billing": true,
+    "auth": {
+        "type": "platform",
+        "provider": "HeyGen",
+        "use_pkce": true,
+        "scopes": []
+    },
+    "actions": {
+        "generate_photo_avatar": {
+            "display_name": "Generate Photo Avatar",
+            "description": "Generate AI photos for photo avatar development with customizable attributes",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Avatar Name - Name to assign to the generated avatar"
+                    },
+                    "age": {
+                        "type": "string",
+                        "enum": [
+                            "Young Adult",
+                            "Early Middle Age",
+                            "Late Middle Age",
+                            "Senior",
+                            "Unspecified"
+                        ],
+                        "description": "Age - Age group for the avatar's appearance. Must be exactly one of: 'Young Adult' (18-30), 'Early Middle Age' (30-45), 'Late Middle Age' (45-60), 'Senior' (60+), or 'Unspecified'"
+                    },
+                    "gender": {
+                        "type": "string",
+                        "enum": [
+                            "Woman",
+                            "Man",
+                            "Unspecified"
+                        ],
+                        "description": "Gender - Gender identity of the avatar. Must be exactly one of: 'Woman' (not 'female'), 'Man' (not 'male'), or 'Unspecified'. Use exact capitalization"
+                    },
+                    "ethnicity": {
+                        "type": "string",
+                        "enum": [
+                            "White",
+                            "Black",
+                            "Asian American",
+                            "East Asian",
+                            "South East Asian",
+                            "South Asian",
+                            "Middle Eastern",
+                            "Latino",
+                            "Native American",
+                            "Pacific Islander",
+                            "Mixed",
+                            "Unspecified"
+                        ],
+                        "description": "Ethnicity - Ethnic background for facial and skin tone characteristics. Must be exactly one of the listed values with exact capitalization (e.g., 'White' not 'white', 'East Asian' not 'asian')"
+                    },
+                    "orientation": {
+                        "type": "string",
+                        "enum": [
+                            "square",
+                            "horizontal",
+                            "vertical"
+                        ],
+                        "description": "Orientation - Image orientation for the generated avatar"
+                    },
+                    "pose": {
+                        "type": "string",
+                        "enum": [
+                            "half_body",
+                            "close_up",
+                            "full_body"
+                        ],
+                        "description": "Pose - Framing or body coverage in the avatar. Must be exactly one of: 'half_body' (waist up), 'close_up' (head and shoulders), or 'full_body' (entire body). Note: use 'half_body' not 'upper_body'"
+                    },
+                    "style": {
+                        "type": "string",
+                        "enum": [
+                            "Realistic",
+                            "Pixar",
+                            "Cinematic",
+                            "Vintage",
+                            "Noir",
+                            "Cyberpunk",
+                            "Unspecified"
+                        ],
+                        "description": "Style - Visual or artistic style of the generated avatar. Must be exactly one of the listed values with exact capitalization (e.g., 'Cinematic' not 'cinematic', 'Realistic' not 'realistic')"
+                    },
+                    "appearance": {
+                        "type": "string",
+                        "maxLength": 1000,
+                        "description": "Appearance - Text prompt describing the avatar's appearance, such as clothing, mood, lighting, etc. Maximum 1000 characters"
+                    },
+                    "callback_url": {
+                        "type": "string",
+                        "description": "Callback URL - Optional: URL to notify when generation is complete"
+                    },
+                    "callback_id": {
+                        "type": "string",
+                        "description": "Callback ID - Optional: Custom ID for callback tracking"
+                    }
+                },
+                "required": [
+                    "name",
+                    "age",
+                    "gender",
+                    "ethnicity",
+                    "orientation",
+                    "pose",
+                    "style",
+                    "appearance"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "generation_id": {
+                                "type": "string",
+                                "description": "Generation ID"
+                            }
+                        },
+                        "description": "Response Data"
+                    }
+                }
+            }
+        },
+        "check_generation_status": {
+            "display_name": "Check Generation Status",
+            "description": "Check the status of a photo or look generation request",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "generation_id": {
+                        "type": "string",
+                        "description": "Generation ID - The generation ID returned from generate_photo_avatar or generate_avatar_look"
+                    }
+                },
+                "required": [
+                    "generation_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Error - Displays error message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Unique identifier of the generated avatar/look"
+                            },
+                            "status": {
+                                "type": "string",
+                                "description": "Current status of the generated avatar or look (e.g., 'in_progress', 'completed', 'failed')"
+                            },
+                            "msg": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Legacy field for messages. This field is deprecated"
+                            },
+                            "image_url_list": {
+                                "type": [
+                                    "array",
+                                    "null"
+                                ],
+                                "items": {
+                                    "type": "string"
+                                },
+                                "description": "URLs of the generated avatars/looks. Null when generation is still in progress"
+                            },
+                            "image_key_list": {
+                                "type": [
+                                    "array",
+                                    "null"
+                                ],
+                                "items": {
+                                    "type": "string"
+                                },
+                                "description": "Image keys corresponding to the generated avatars/looks. Null when generation is still in progress"
+                            }
+                        },
+                        "description": "Response Data - Contains detailed information about the generated avatar/look; null if request fails"
+                    }
+                }
+            }
+        },
+        "create_avatar_group": {
+            "display_name": "Create Avatar Group",
+            "description": "Create an avatar group by grouping photos of the same subject",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Group Name - Name of the avatar group"
+                    },
+                    "image_key": {
+                        "type": "string",
+                        "description": "Image Key - Image key of the AI-generated avatar/uploaded photo. For AI-generated photos, retrieve from Check Photo/Look Generation Status endpoint. For user-uploaded photos, retrieve from Upload Asset endpoint"
+                    },
+                    "generation_id": {
+                        "type": "string",
+                        "description": "Generation ID - Optional: Unique identifier of the AI-generated avatar. Can be retrieved from Generate Photo Avatar Photos endpoint. Applies only to AI-generated avatars"
+                    }
+                },
+                "required": [
+                    "name",
+                    "image_key"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Avatar ID"
+                            },
+                            "image_url": {
+                                "type": "string",
+                                "description": "Image URL"
+                            },
+                            "created_at": {
+                                "type": "number",
+                                "description": "Created At"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Avatar Name"
+                            },
+                            "status": {
+                                "type": "string",
+                                "description": "Status"
+                            },
+                            "group_id": {
+                                "type": "string",
+                                "description": "Group ID"
+                            },
+                            "is_motion": {
+                                "type": "boolean",
+                                "description": "Is Motion"
+                            },
+                            "motion_preview_url": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Motion Preview URL"
+                            },
+                            "business_type": {
+                                "type": "string",
+                                "description": "Business Type"
+                            },
+                            "upscale_availability": {
+                                "type": "object",
+                                "properties": {
+                                    "available": {
+                                        "type": "boolean",
+                                        "description": "Available"
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "description": "Reason"
+                                    }
+                                },
+                                "description": "Upscale Availability"
+                            },
+                            "upscaled": {
+                                "type": "boolean",
+                                "description": "Upscaled"
+                            },
+                            "background_sound_effect": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Background Sound Effect"
+                            },
+                            "default_voice_id": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Default Voice ID"
+                            },
+                            "moderation_msg": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Moderation Message"
+                            }
+                        },
+                        "description": "Response Data"
+                    }
+                }
+            }
+        },
+        "add_looks_to_group": {
+            "display_name": "Add Looks to Avatar Group",
+            "description": "Add additional looks to an existing avatar group (max 4 per request)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "group_id": {
+                        "type": "string",
+                        "description": "Group ID - Unique identifier of the avatar group to which the new looks will be added. Can be retrieved from the Create Photo Avatar Group endpoint"
+                    },
+                    "image_keys": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "maxItems": 4,
+                        "description": "Image Keys - Image key(s) of the AI-generated avatar(s)/uploaded photo(s) to add to the avatar group. For AI-generated avatars, retrieve from Check Photo/Look Generation Status endpoint. For user-uploaded photos, retrieve from Upload Asset endpoint. Maximum 4 images at a time"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Look Name - Name of the look"
+                    },
+                    "generation_id": {
+                        "type": "string",
+                        "description": "Generation ID - Optional: Unique identifier of the AI-generated avatar. Can be retrieved from Generate Photo Avatar Photos endpoint. Applies only to AI avatar photos"
+                    }
+                },
+                "required": [
+                    "group_id",
+                    "image_keys",
+                    "name"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Response Data"
+                    }
+                }
+            }
+        },
+        "train_avatar_group": {
+            "display_name": "Train Avatar Group",
+            "description": "Train an avatar group to recognize the subject's unique features using machine learning",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "group_id": {
+                        "type": "string",
+                        "description": "Group ID - Avatar group ID to train"
+                    }
+                },
+                "required": [
+                    "group_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Error"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "integer",
+                                "description": "Response Code"
+                            },
+                            "data": {
+                                "type": "object",
+                                "properties": {
+                                    "num_of_photar": {
+                                        "type": "integer",
+                                        "description": "Number of Photo Avatars"
+                                    },
+                                    "num_of_instant_avatar": {
+                                        "type": "integer",
+                                        "description": "Number of Instant Avatars"
+                                    },
+                                    "num_of_studio_avatar": {
+                                        "type": "integer",
+                                        "description": "Number of Studio Avatars"
+                                    },
+                                    "flow_id": {
+                                        "type": "string",
+                                        "description": "Flow ID"
+                                    }
+                                },
+                                "description": "Training Data"
+                            },
+                            "msg": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Message"
+                            },
+                            "message": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Additional Message"
+                            }
+                        },
+                        "description": "Response Data"
+                    }
+                }
+            }
+        },
+        "check_training_status": {
+            "display_name": "Check Training Status",
+            "description": "Check the status of an avatar group training job",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "group_id": {
+                        "type": "string",
+                        "description": "Group ID - Avatar group ID being trained"
+                    }
+                },
+                "required": [
+                    "group_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "status": {
+                                "type": "string",
+                                "description": "Training Status - Current status of the training job (e.g., 'ready', 'pending', 'processing', 'failed')"
+                            },
+                            "error_msg": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Error Message - Error message if training failed; null if successful"
+                            },
+                            "created_at": {
+                                "type": "integer",
+                                "description": "Created At - Unix timestamp when the training job was created"
+                            },
+                            "updated_at": {
+                                "type": "integer",
+                                "description": "Updated At - Unix timestamp when the training job was last updated"
+                            }
+                        },
+                        "description": "Response Data - Contains training job status and timestamps"
+                    }
+                }
+            }
+        },
+        "generate_avatar_look": {
+            "display_name": "Generate Avatar Look",
+            "description": "Generate new appearance variations for a trained avatar group",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "group_id": {
+                        "type": "string",
+                        "description": "Group ID - Unique identifier of the avatar group to which the new look will be added. Can be retrieved from the Create Photo Avatar Group endpoint"
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "maxLength": 1000,
+                        "description": "Prompt - Text prompt describing the look's appearance, such as clothing, mood, lighting, etc. Maximum 1000 characters"
+                    },
+                    "orientation": {
+                        "type": "string",
+                        "enum": [
+                            "square",
+                            "horizontal",
+                            "vertical"
+                        ],
+                        "description": "Orientation - Image orientation for the generated look"
+                    },
+                    "pose": {
+                        "type": "string",
+                        "enum": [
+                            "half_body",
+                            "close_up",
+                            "full_body"
+                        ],
+                        "description": "Pose - Framing or body coverage in the look"
+                    },
+                    "style": {
+                        "type": "string",
+                        "enum": [
+                            "Realistic",
+                            "Pixar",
+                            "Cinematic",
+                            "Vintage",
+                            "Noir",
+                            "Cyberpunk",
+                            "Unspecified"
+                        ],
+                        "description": "Style - Visual or artistic style of the generated look"
+                    }
+                },
+                "required": [
+                    "group_id",
+                    "prompt",
+                    "orientation",
+                    "pose",
+                    "style"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "generation_id": {
+                                "type": "string",
+                                "description": "Generation ID"
+                            }
+                        },
+                        "description": "Response Data"
+                    }
+                }
+            }
+        },
+        "add_motion_to_avatar": {
+            "display_name": "Add Motion to Avatar",
+            "description": "Add animated effects to a static photo avatar",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Avatar ID - Unique identifier of the avatar/look. For avatars, this ID can be retrieved from Create Photo Avatar Group endpoint. For looks, this ID can be retrieved from Add Looks to Photo Avatar Group endpoint"
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "Prompt - Optional: Text prompt describing the avatar's movement or desired animation. Used to guide motion generation"
+                    },
+                    "motion_type": {
+                        "type": "string",
+                        "enum": [
+                            "expressive",
+                            "consistent",
+                            "consistent_gen_3",
+                            "hailuo_2",
+                            "veo2",
+                            "seedance_lite",
+                            "kling"
+                        ],
+                        "description": "Motion Type - Optional: Motion engine to use for adding movement. Defaults to 'consistent'"
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Motion Avatar/Look ID - Unique identifier of the generated motion avatar/look"
+                            }
+                        },
+                        "description": "Response Data - Contains the motion avatar/look ID"
+                    }
+                }
+            }
+        },
+        "add_sound_effect_to_avatar": {
+            "display_name": "Add Sound Effect to Avatar",
+            "description": "Attach audio enhancements to an avatar",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Motion Avatar/Look ID - Unique identifier of the motion avatar/look. Can be retrieved from Add Motion endpoint"
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "integer",
+                                "description": "Status Code - Status code indicating the result of the API request. A 100 indicates a successful response"
+                            },
+                            "data": {
+                                "type": "object",
+                                "properties": {
+                                    "sound_effect_id": {
+                                        "type": "string",
+                                        "description": "Sound Effect ID - Unique identifier of the sound effect"
+                                    }
+                                },
+                                "description": "Sound Effect Data - Contains the ID of the sound effect"
+                            },
+                            "msg": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Message (Deprecated) - Legacy field for messages. This field is deprecated"
+                            },
+                            "message": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Message - Contains human-readable messages explaining the status of the request. In case of errors, it returns an explanation"
+                            }
+                        },
+                        "description": "Response Data - Contains the main response data"
+                    }
+                }
+            }
+        },
+        "list_avatar_groups": {
+            "display_name": "List Avatar Groups",
+            "description": "List all photo avatar groups in the account with pagination support",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "description": "Page - Optional: Page number for pagination (starts at 1)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Limit - Optional: Number of results per page (default: 10, max: 50)"
+                    },
+                    "include_public": {
+                        "type": "boolean",
+                        "description": "Include Public - Optional: Whether to include all public avatar groups. Defaults to false"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "avatar_groups": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "description": "Group ID"
+                                        },
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Group Name"
+                                        },
+                                        "created_at": {
+                                            "type": "integer",
+                                            "description": "Created At - Unix timestamp"
+                                        },
+                                        "training_status": {
+                                            "type": "string",
+                                            "description": "Training Status"
+                                        }
+                                    }
+                                },
+                                "description": "Avatar Groups - List of all photo avatar groups"
+                            },
+                            "total": {
+                                "type": "integer",
+                                "description": "Total Count - Total number of avatar groups"
+                            },
+                            "page": {
+                                "type": "integer",
+                                "description": "Current Page"
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Items Per Page"
+                            }
+                        },
+                        "description": "Response Data - Contains list of avatar groups with pagination info"
+                    }
+                }
+            }
+        },
+        "list_avatars_in_group": {
+            "display_name": "List Avatars in Group",
+            "description": "List all avatars/looks within a specific avatar group",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "group_id": {
+                        "type": "string",
+                        "description": "Group ID - Unique identifier of the avatar group. Can be retrieved from List Avatar Groups or Create Avatar Group endpoint"
+                    }
+                },
+                "required": [
+                    "group_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "group_id": {
+                                "type": "string",
+                                "description": "Group ID"
+                            },
+                            "group_name": {
+                                "type": "string",
+                                "description": "Group Name"
+                            },
+                            "avatars": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "description": "Avatar/Look ID"
+                                        },
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Avatar/Look Name"
+                                        },
+                                        "image_url": {
+                                            "type": "string",
+                                            "description": "Image URL"
+                                        },
+                                        "status": {
+                                            "type": "string",
+                                            "description": "Status"
+                                        },
+                                        "is_motion": {
+                                            "type": "boolean",
+                                            "description": "Is Motion"
+                                        },
+                                        "created_at": {
+                                            "type": "integer",
+                                            "description": "Created At - Unix timestamp"
+                                        }
+                                    }
+                                },
+                                "description": "Avatars - List of all avatars/looks in the group"
+                            }
+                        },
+                        "description": "Response Data - Contains group info and list of avatars"
+                    }
+                }
+            }
+        },
+        "get_avatar_details": {
+            "display_name": "Get Avatar Details",
+            "description": "Retrieve comprehensive information about a specific video avatar (public/studio avatars)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "avatar_id": {
+                        "type": "string",
+                        "description": "Avatar ID - Unique identifier of the avatar from list_avatars"
+                    }
+                },
+                "required": [
+                    "avatar_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "avatar_id": {
+                                "type": "string",
+                                "description": "Avatar ID"
+                            },
+                            "avatar_name": {
+                                "type": "string",
+                                "description": "Avatar Name"
+                            },
+                            "gender": {
+                                "type": "string",
+                                "description": "Gender"
+                            },
+                            "preview_image_url": {
+                                "type": "string",
+                                "description": "Preview Image URL"
+                            },
+                            "preview_video_url": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Preview Video URL"
+                            },
+                            "default_voice_id": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Default Voice ID"
+                            }
+                        },
+                        "description": "Avatar Details"
+                    }
+                }
+            }
+        },
+        "get_photo_avatar_details": {
+            "display_name": "Get Photo Avatar Details",
+            "description": "Retrieve comprehensive information about a specific photo avatar/talking photo",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Avatar/Look ID - Unique identifier of the avatar/look. For avatars, this ID can be retrieved from Create Photo Avatar Group endpoint. For looks, this ID can be retrieved from Add Looks to Photo Avatar Group endpoint"
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Avatar/Look ID"
+                            },
+                            "image_url": {
+                                "type": "string",
+                                "description": "Image URL"
+                            },
+                            "created_at": {
+                                "type": "integer",
+                                "description": "Created At - Unix timestamp when the avatar/look was created"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Name"
+                            },
+                            "status": {
+                                "type": "string",
+                                "description": "Status - Processing status (e.g., pending, in_appeal, moderation_rejected)"
+                            },
+                            "group_id": {
+                                "type": "string",
+                                "description": "Group ID"
+                            },
+                            "is_motion": {
+                                "type": "boolean",
+                                "description": "Is Motion - Whether the avatar/look is animated"
+                            },
+                            "motion_preview_url": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Motion Preview URL"
+                            },
+                            "business_type": {
+                                "type": "string",
+                                "description": "Business Type - Origin of the avatar/look (e.g., generated or uploaded)"
+                            },
+                            "upscale_availability": {
+                                "type": "object",
+                                "properties": {
+                                    "available": {
+                                        "type": "boolean",
+                                        "description": "Available"
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "description": "Reason"
+                                    }
+                                },
+                                "description": "Upscale Availability"
+                            },
+                            "upscaled": {
+                                "type": "boolean",
+                                "description": "Upscaled"
+                            },
+                            "background_sound_effect": {
+                                "type": [
+                                    "object",
+                                    "null"
+                                ],
+                                "properties": {
+                                    "status": {
+                                        "type": "string",
+                                        "description": "Status"
+                                    },
+                                    "sound_effect_id": {
+                                        "type": "string",
+                                        "description": "Sound Effect ID"
+                                    },
+                                    "sound_effect_preview_url": {
+                                        "type": "string",
+                                        "description": "Sound Effect Preview URL"
+                                    },
+                                    "file_meta": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "description": "ID"
+                                            },
+                                            "size": {
+                                                "type": "integer",
+                                                "description": "Size (bytes)"
+                                            },
+                                            "duration": {
+                                                "type": "integer",
+                                                "description": "Duration"
+                                            },
+                                            "status": {
+                                                "type": "integer",
+                                                "description": "Status Code"
+                                            },
+                                            "mime_type": {
+                                                "type": "string",
+                                                "description": "MIME Type"
+                                            },
+                                            "meta": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "properties": {
+                                                        "type": "object",
+                                                        "description": "Properties"
+                                                    }
+                                                },
+                                                "description": "Meta"
+                                            },
+                                            "created_ts": {
+                                                "type": "integer",
+                                                "description": "Created Timestamp"
+                                            }
+                                        },
+                                        "description": "File Metadata"
+                                    }
+                                },
+                                "description": "Background Sound Effect"
+                            },
+                            "default_voice_id": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Default Voice ID"
+                            },
+                            "moderation_msg": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Moderation Message - Provides reason if avatar is rejected, suspended, or pending review"
+                            }
+                        },
+                        "description": "Avatar Information - Contains detailed information about avatar/look"
+                    }
+                }
+            }
+        },
+        "list_voices": {
+            "display_name": "List Voices",
+            "description": "List all available voices for text-to-speech with their IDs, names, languages, and characteristics",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "voices": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "voice_id": {
+                                            "type": "string",
+                                            "description": "Voice ID - Unique identifier for the voice"
+                                        },
+                                        "display_name": {
+                                            "type": "string",
+                                            "description": "Display Name - Human-readable name of the voice"
+                                        },
+                                        "language": {
+                                            "type": "string",
+                                            "description": "Language - Language code (e.g., en-US, es-ES)"
+                                        },
+                                        "gender": {
+                                            "type": "string",
+                                            "description": "Gender - Voice gender"
+                                        },
+                                        "age": {
+                                            "type": "string",
+                                            "description": "Age - Voice age group"
+                                        },
+                                        "emotion_support": {
+                                            "type": "boolean",
+                                            "description": "Emotion Support - Whether this voice supports emotions"
+                                        },
+                                        "multilingual": {
+                                            "type": "boolean",
+                                            "description": "Multilingual - Whether this voice supports multiple languages"
+                                        }
+                                    }
+                                },
+                                "description": "Voices - List of all available voices"
+                            }
+                        },
+                        "description": "Response Data - Contains list of voices"
+                    }
+                }
+            }
+        },
+        "list_voice_locales": {
+            "display_name": "List Voice Locales",
+            "description": "List all available locales/accents for multilingual voices",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "voice_id": {
+                        "type": "string",
+                        "description": "Voice ID - Optional: Get locales for a specific voice. If not provided, returns all available locales"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "locales": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "locale": {
+                                            "type": "string",
+                                            "description": "Locale Code - Language and region code (e.g., en-US, en-GB, pt-BR)"
+                                        },
+                                        "language": {
+                                            "type": "string",
+                                            "description": "Language Name"
+                                        },
+                                        "region": {
+                                            "type": "string",
+                                            "description": "Region Name"
+                                        }
+                                    }
+                                },
+                                "description": "Locales - List of available locales/accents"
+                            }
+                        },
+                        "description": "Response Data - Contains list of locales"
+                    }
+                }
+            }
+        },
+        "list_avatars": {
+            "display_name": "List Avatars",
+            "description": "List all available avatars in the account with pagination support",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "description": "Page - Optional: Page number for pagination"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Limit - Optional: Number of results per page"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "avatars": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "avatar_id": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "description": "Avatar ID"
+                                        },
+                                        "avatar_name": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "description": "Avatar Name"
+                                        },
+                                        "gender": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "description": "Gender"
+                                        },
+                                        "type": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "description": "Avatar Type"
+                                        },
+                                        "premium": {
+                                            "type": [
+                                                "boolean",
+                                                "null"
+                                            ],
+                                            "description": "Premium - Indicates whether the avatar is a premium avatar or not (account-specific)"
+                                        },
+                                        "default_voice_id": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "description": "Default Voice ID"
+                                        }
+                                    }
+                                },
+                                "description": "Avatars - A collection of available avatar objects"
+                            },
+                            "talking_photos": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "talking_photo_id": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "description": "Talking Photo ID"
+                                        },
+                                        "talking_photo_name": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "description": "Talking Photo Name"
+                                        }
+                                    }
+                                },
+                                "description": "Talking Photos - A collection of available talking photo objects"
+                            }
+                        },
+                        "description": "Response Data - Contains the list of avatars and talking photos"
+                    }
+                }
+            }
+        },
+        "create_avatar_video": {
+            "display_name": "Create Avatar Video",
+            "description": "Create a video using an avatar with text-to-speech or audio input. Supports multiple scenes with customizable character, voice, background, and text elements",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "video_inputs": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "character": {
+                                    "type": "object",
+                                    "description": "Character - Could be an avatar or talking photo (photo avatar)"
+                                },
+                                "voice": {
+                                    "type": "object",
+                                    "description": "Voice - Could be text (TTS), audio, or silence"
+                                },
+                                "background": {
+                                    "type": "object",
+                                    "description": "Background - Optional: Could be color, image, or video"
+                                },
+                                "text": {
+                                    "type": "object",
+                                    "description": "Text - Optional: Text overlay displayed on screen"
+                                }
+                            },
+                            "required": [
+                                "character",
+                                "voice"
+                            ]
+                        },
+                        "description": "Video Inputs (Scenes) - Array of video input settings (scenes). Must contain between 1 to 50 items. Each scene describes the avatar, background, voice, and script. See HeyGen API docs for full nested structure: character object requires 'type' (avatar/talking_photo) and 'avatar_id' or 'talking_photo_id'. Voice object requires 'type' (text/audio/silence), and for text type: 'voice_id' and 'input_text' are required"
+                    },
+                    "title": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Video Title - Title of this video"
+                    },
+                    "caption": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ],
+                        "description": "Enable Captions - Whether to enable captions in the video. Only supported for text-based input. Default: false"
+                    },
+                    "dimension": {
+                        "type": "object",
+                        "properties": {
+                            "width": {
+                                "type": "integer",
+                                "description": "Width - Width of the output video. Default: 1280"
+                            },
+                            "height": {
+                                "type": "integer",
+                                "description": "Height - Height of the output video. Default: 720"
+                            }
+                        },
+                        "description": "Video Dimensions - Custom dimensions for the output video. Default: {width: 1280, height: 720}"
+                    },
+                    "folder_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Folder ID - Unique identifier of the folder where the video is stored. Can be retrieved from List Folders or Create Folder endpoint"
+                    },
+                    "callback_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Callback ID - Custom ID for callback purposes. Returned in the status/webhook payload for tracking"
+                    },
+                    "callback_url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Callback URL - URL to notify when video rendering is complete. Using a webhook endpoint is recommended. If both webhook and callback_url are used, events will be sent to both endpoints"
+                    }
+                },
+                "required": [
+                    "video_inputs"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "video_id": {
+                                "type": "string",
+                                "description": "Video ID"
+                            }
+                        },
+                        "description": "Response Data"
+                    }
+                }
+            }
+        },
+        "create_photo_avatar_video": {
+            "display_name": "Create Photo Avatar Video",
+            "description": "Generate an Avatar IV video from a photo avatar with text-to-speech or audio. Requires image_key, video_title, and either (script + voice_id) OR (audio_url/audio_asset_id)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "image_key": {
+                        "type": "string",
+                        "description": "Image Key - Image key of the uploaded photo to use. Can be retrieved from the Upload Asset endpoint or Check Photo/Look Generation Status endpoint"
+                    },
+                    "video_title": {
+                        "type": "string",
+                        "description": "Video Title - Title of the generated video"
+                    },
+                    "script": {
+                        "type": "string",
+                        "description": "Script - Text that the avatar will speak in the generated video. Either script along with voice_id, or audio_url/audio_asset_id must be provided"
+                    },
+                    "voice_id": {
+                        "type": "string",
+                        "description": "Voice ID - Unique identifier of the voice. Can be retrieved from List All Voices (V2) endpoint. Either script along with voice_id, or audio_url/audio_asset_id must be provided"
+                    },
+                    "video_orientation": {
+                        "type": "string",
+                        "enum": [
+                            "portrait",
+                            "landscape"
+                        ],
+                        "description": "Video Orientation - Orientation of the output video. Can be 'portrait' or 'landscape'. Defaults to 'portrait'"
+                    },
+                    "fit": {
+                        "type": "string",
+                        "enum": [
+                            "cover",
+                            "contain"
+                        ],
+                        "description": "Fit - Choose how avatar fits to the screen. Can be 'cover' or 'contain'"
+                    },
+                    "custom_motion_prompt": {
+                        "type": "string",
+                        "description": "Custom Motion Prompt - Text prompt describing the avatar's motion style"
+                    },
+                    "enhance_custom_motion_prompt": {
+                        "type": "boolean",
+                        "description": "Enhance Custom Motion Prompt - Whether to use AI to enhance the avatar's motion based on a text description you provided in custom_motion_prompt"
+                    },
+                    "audio_url": {
+                        "type": "string",
+                        "description": "Audio URL - URL of the uploaded audio. Can be retrieved from Upload Asset endpoint. Either audio_url or audio_asset_id must be provided in case script and voice_id are not provided"
+                    },
+                    "audio_asset_id": {
+                        "type": "string",
+                        "description": "Audio Asset ID - Unique identifier of the uploaded audio. Can be retrieved from Upload Asset endpoint. Either audio_url or audio_asset_id must be provided in case script and voice_id are not provided"
+                    }
+                },
+                "required": [
+                    "image_key",
+                    "video_title"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "video_id": {
+                                "type": "string",
+                                "description": "Video ID"
+                            }
+                        },
+                        "description": "Response Data"
+                    }
+                }
+            }
+        },
+        "get_video_status": {
+            "display_name": "Get Video Status",
+            "description": "Check the status of a video generation request and get the video URL when complete",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "video_id": {
+                        "type": "string",
+                        "description": "Video ID - Video generation request ID"
+                    }
+                },
+                "required": [
+                    "video_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "Error Code"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Error Message"
+                            }
+                        },
+                        "description": "Error - Error object with code and message when the request fails; null if the request is successful"
+                    },
+                    "data": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "video_id": {
+                                "type": "string",
+                                "description": "Video ID"
+                            },
+                            "status": {
+                                "type": "string",
+                                "description": "Video Status - Values: pending, in_progress, complete, failed"
+                            },
+                            "video_url": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Video URL - Available when status is 'complete', null otherwise"
+                            },
+                            "thumbnail_url": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Thumbnail URL - Available when status is 'complete', null otherwise"
+                            },
+                            "duration": {
+                                "type": [
+                                    "number",
+                                    "null"
+                                ],
+                                "description": "Duration - Video duration in seconds, available when complete"
+                            },
+                            "created_at": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "description": "Created At - Unix timestamp when video generation started"
+                            },
+                            "error": {
+                                "type": [
+                                    "object",
+                                    "null"
+                                ],
+                                "description": "Error - Error details if status is 'failed'"
+                            }
+                        },
+                        "description": "Response Data"
+                    }
+                }
+            }
+        }
+    }
+}

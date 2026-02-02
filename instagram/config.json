@@ -1,0 +1,318 @@
+{
+    "name": "Instagram",
+    "version": "1.0.0",
+    "description": "Instagram Business/Creator integration for managing posts, comments, and insights",
+    "supports_connected_account": true,
+    "entry_point": "instagram.py",
+    "auth": {
+        "type": "platform",
+        "provider": "instagram",
+        "scopes": [
+            "instagram_business_basic",
+            "instagram_business_content_publish",
+            "instagram_business_manage_comments",
+            "instagram_business_manage_insights"
+        ]
+    },
+    "actions": {
+        "get_account": {
+            "display_name": "Get Account",
+            "description": "Get Instagram Business or Creator account details including profile information and follower statistics.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Instagram account ID"},
+                    "username": {"type": "string", "description": "Instagram username"},
+                    "name": {"type": "string", "description": "Display name"},
+                    "biography": {"type": "string", "description": "Account bio"},
+                    "followers_count": {"type": "integer", "description": "Number of followers"},
+                    "following_count": {"type": "integer", "description": "Number of accounts followed"},
+                    "media_count": {"type": "integer", "description": "Total number of media posts"},
+                    "profile_picture_url": {"type": "string", "description": "URL of the profile picture"},
+                    "website": {"type": "string", "description": "Website URL from profile"}
+                },
+                "required": ["id", "username"]
+            }
+        },
+        "get_posts": {
+            "display_name": "Get Posts",
+            "description": "Retrieve posts from the Instagram account. Fetch a single post by ID or list recent posts with basic engagement counts (likes and comments only).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "media_id": {
+                        "type": "string",
+                        "description": "Optional: Specific post ID to retrieve. If omitted, returns recent posts."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of posts to return (default: 25, max: 100)",
+                        "default": 25
+                    },
+                    "after_cursor": {
+                        "type": "string",
+                        "description": "Optional: Pagination cursor from a previous response to fetch the next page of results."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "media": {
+                        "type": "array",
+                        "description": "List of posts",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Post ID"},
+                                "media_type": {"type": "string", "enum": ["IMAGE", "VIDEO", "CAROUSEL_ALBUM", "REELS"], "description": "Type of post"},
+                                "caption": {"type": "string", "description": "Post caption"},
+                                "permalink": {"type": "string", "description": "Direct link to the post"},
+                                "timestamp": {"type": "string", "description": "ISO 8601 timestamp"},
+                                "thumbnail_url": {"type": "string", "description": "Thumbnail URL (for videos)"},
+                                "media_url": {"type": "string", "description": "URL of the media file"},
+                                "like_count": {"type": "integer", "description": "Number of likes"},
+                                "comments_count": {"type": "integer", "description": "Number of comments"}
+                            }
+                        }
+                    },
+                    "next_cursor": {
+                        "type": ["string", "null"],
+                        "description": "Pagination cursor to fetch the next page. Null if no more results."
+                    }
+                },
+                "required": ["media"]
+            }
+        },
+        "create_post": {
+            "display_name": "Create Post",
+            "description": "Publish content to Instagram. Supports images, videos, reels, and carousel posts.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "media_type": {
+                        "type": "string",
+                        "enum": ["IMAGE", "VIDEO", "REELS", "CAROUSEL"],
+                        "description": "Type of post to publish"
+                    },
+                    "media_url": {
+                        "type": "string",
+                        "description": "Required for IMAGE, VIDEO, REELS: Public URL of the media file"
+                    },
+                    "caption": {
+                        "type": "string",
+                        "description": "Caption for the post"
+                    },
+                    "children": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Required for CAROUSEL: Array of media URLs for carousel items"
+                    },
+                    "alt_text": {
+                        "type": "string",
+                        "description": "Optional: Alt text for accessibility (images only)"
+                    }
+                },
+                "required": ["media_type"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "media_id": {"type": "string", "description": "ID of the created post"},
+                    "permalink": {"type": "string", "description": "Direct link to the post"}
+                },
+                "required": ["media_id"]
+            }
+        },
+        "create_story": {
+            "display_name": "Create Story",
+            "description": "Publish a story to Instagram. Stories disappear after 24 hours.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "media_type": {
+                        "type": "string",
+                        "enum": ["IMAGE", "VIDEO"],
+                        "description": "Type of story media"
+                    },
+                    "media_url": {
+                        "type": "string",
+                        "description": "Public URL of the media file"
+                    }
+                },
+                "required": ["media_type", "media_url"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "media_id": {"type": "string", "description": "ID of the created story"}
+                },
+                "required": ["media_id"]
+            }
+        },
+        "get_comments": {
+            "display_name": "Get Comments",
+            "description": "Retrieve comments on an Instagram post. Returns comment text, author info, timestamps, and replies.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "media_id": {
+                        "type": "string",
+                        "description": "The post ID to get comments from"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of comments to return (default: 25, max: 100)",
+                        "default": 25
+                    },
+                    "after_cursor": {
+                        "type": "string",
+                        "description": "Optional: Pagination cursor from a previous response to fetch the next page of results."
+                    }
+                },
+                "required": ["media_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "comments": {
+                        "type": "array",
+                        "description": "List of comments on the post",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Comment ID"},
+                                "text": {"type": "string", "description": "Comment text"},
+                                "username": {"type": "string", "description": "Commenter's username"},
+                                "timestamp": {"type": "string", "description": "ISO 8601 timestamp"},
+                                "like_count": {"type": "integer", "description": "Number of likes on the comment"},
+                                "replies": {
+                                    "type": "array",
+                                    "description": "Replies to this comment",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": {"type": "string", "description": "Reply ID"},
+                                            "text": {"type": "string", "description": "Reply text"},
+                                            "username": {"type": "string", "description": "Replier's username"},
+                                            "timestamp": {"type": "string", "description": "ISO 8601 timestamp"}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "next_cursor": {
+                        "type": ["string", "null"],
+                        "description": "Pagination cursor to fetch the next page. Null if no more results."
+                    }
+                },
+                "required": ["comments"]
+            }
+        },
+        "manage_comment": {
+            "display_name": "Manage Comment",
+            "description": "Interact with comments on your Instagram posts. Reply to comments or hide/unhide them.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "comment_id": {
+                        "type": "string",
+                        "description": "The comment ID to manage"
+                    },
+                    "action": {
+                        "type": "string",
+                        "enum": ["reply", "hide", "unhide"],
+                        "description": "Action to perform: 'reply' to respond, 'hide'/'unhide' to toggle visibility"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Required for 'reply' action: Your reply text"
+                    }
+                },
+                "required": ["comment_id", "action"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the action succeeded"},
+                    "action_taken": {"type": "string", "description": "The action that was performed"},
+                    "reply_id": {"type": "string", "description": "ID of the reply comment (if action was 'reply')"}
+                },
+                "required": ["success", "action_taken"]
+            }
+        },
+        "delete_comment": {
+            "display_name": "Delete Comment",
+            "description": "Permanently delete a comment from an Instagram post. This action cannot be undone.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "comment_id": {
+                        "type": "string",
+                        "description": "The ID of the comment to delete"
+                    }
+                },
+                "required": ["comment_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the comment was deleted"},
+                    "deleted_comment_id": {"type": "string", "description": "ID of the deleted comment"}
+                },
+                "required": ["success"]
+            }
+        },
+        "get_insights": {
+            "display_name": "Get Insights",
+            "description": "Retrieve advanced analytics beyond basic like/comment counts. Account metrics: reach, impressions, profile views, follower demographics. Post metrics: reach, saves, shares, video watch time.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "target_type": {
+                        "type": "string",
+                        "enum": ["account", "media"],
+                        "description": "Type of insights: 'account' for overall analytics, 'media' for specific post metrics"
+                    },
+                    "target_id": {
+                        "type": "string",
+                        "description": "Required for post insights: The post ID"
+                    },
+                    "metrics": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Specific metrics to retrieve. Defaults to common metrics if omitted."
+                    },
+                    "period": {
+                        "type": "string",
+                        "enum": ["day", "week", "days_28", "lifetime"],
+                        "description": "Time period for insights (default: 'days_28'). 'lifetime' only for posts.",
+                        "default": "days_28"
+                    }
+                },
+                "required": ["target_type"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "target_type": {"type": "string", "description": "Whether these are account or post insights"},
+                    "target_id": {"type": "string", "description": "The account or post ID"},
+                    "period": {"type": "string", "description": "Time period for the data"},
+                    "metrics": {
+                        "type": "object",
+                        "description": "Key-value pairs of metric names and their values",
+                        "additionalProperties": true
+                    }
+                },
+                "required": ["target_type", "period", "metrics"]
+            }
+        }
+    }
+}

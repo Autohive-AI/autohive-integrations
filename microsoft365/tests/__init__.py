@@ -1,1 +1,1 @@
-# Tests for Microsoft 365 integration
+# Tests for Microsoft Copilot 365 integration

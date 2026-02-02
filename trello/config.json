@@ -1,0 +1,723 @@
+{
+    "name": "Trello",
+    "display_name": "Trello",
+    "version": "1.0.0",
+    "description": "Trello integration for managing boards, lists, cards, and team collaboration",
+    "entry_point": "trello.py",
+    "auth": {
+        "type": "custom",
+        "title": "Trello API Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "label": "API Key",
+                    "help_text": "Your Trello API Key from https://trello.com/power-ups/admin"
+                },
+                "token": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Token",
+                    "help_text": "Your Trello API Token with required permissions. Generate it after obtaining your API Key."
+                }
+            }
+        }
+    },
+    "actions": {
+        "get_current_member": {
+            "display_name": "Get Current Member",
+            "description": "Returns information about the authenticated member.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "member": {
+                        "type": "object",
+                        "description": "Member details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["member", "result"]
+            }
+        },
+        "create_board": {
+            "display_name": "Create Board",
+            "description": "Creates a new board. Board name is required.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the board"
+                    },
+                    "desc": {
+                        "type": "string",
+                        "description": "Board description"
+                    },
+                    "defaultLists": {
+                        "type": "boolean",
+                        "description": "Whether to create default lists (To Do, Doing, Done)",
+                        "default": true
+                    },
+                    "prefs_permissionLevel": {
+                        "type": "string",
+                        "description": "Permission level: private, org, or public",
+                        "enum": ["private", "org", "public"]
+                    },
+                    "prefs_background": {
+                        "type": "string",
+                        "description": "Board background color (e.g., 'blue', 'green', 'red')"
+                    }
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "board": {
+                        "type": "object",
+                        "description": "Created board details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["board", "result"]
+            }
+        },
+        "get_board": {
+            "display_name": "Get Board",
+            "description": "Retrieves details of a specific board by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "board_id": {
+                        "type": "string",
+                        "description": "The ID of the board to retrieve"
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Comma-separated list of fields to return (e.g., 'name,desc,url')"
+                    }
+                },
+                "required": ["board_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "board": {
+                        "type": "object",
+                        "description": "Board details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["board", "result"]
+            }
+        },
+        "update_board": {
+            "display_name": "Update Board",
+            "description": "Updates an existing board's details.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "board_id": {
+                        "type": "string",
+                        "description": "The ID of the board to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated board name"
+                    },
+                    "desc": {
+                        "type": "string",
+                        "description": "Updated board description"
+                    },
+                    "closed": {
+                        "type": "boolean",
+                        "description": "Whether the board is closed (archived)"
+                    },
+                    "prefs_permissionLevel": {
+                        "type": "string",
+                        "description": "Permission level: private, org, or public"
+                    }
+                },
+                "required": ["board_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "board": {
+                        "type": "object",
+                        "description": "Updated board details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["board", "result"]
+            }
+        },
+        "list_boards": {
+            "display_name": "List Boards",
+            "description": "Returns all boards for the authenticated member.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "type": "string",
+                        "description": "Filter boards: all, open, closed, members, organization, public, starred",
+                        "default": "open"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "boards": {
+                        "type": "array",
+                        "description": "List of boards"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["boards", "result"]
+            }
+        },
+        "create_list": {
+            "display_name": "Create List",
+            "description": "Creates a new list on a board.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "board_id": {
+                        "type": "string",
+                        "description": "The ID of the board to create the list on"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the list"
+                    },
+                    "pos": {
+                        "type": "string",
+                        "description": "Position: 'top', 'bottom', or a positive number"
+                    }
+                },
+                "required": ["board_id", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "list": {
+                        "type": "object",
+                        "description": "Created list details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["list", "result"]
+            }
+        },
+        "get_list": {
+            "display_name": "Get List",
+            "description": "Retrieves details of a specific list by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "list_id": {
+                        "type": "string",
+                        "description": "The ID of the list to retrieve"
+                    }
+                },
+                "required": ["list_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "list": {
+                        "type": "object",
+                        "description": "List details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["list", "result"]
+            }
+        },
+        "update_list": {
+            "display_name": "Update List",
+            "description": "Updates a list's properties.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "list_id": {
+                        "type": "string",
+                        "description": "The ID of the list to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated list name"
+                    },
+                    "closed": {
+                        "type": "boolean",
+                        "description": "Whether the list is closed (archived)"
+                    },
+                    "pos": {
+                        "type": "string",
+                        "description": "New position: 'top', 'bottom', or a positive number"
+                    }
+                },
+                "required": ["list_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "list": {
+                        "type": "object",
+                        "description": "Updated list details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["list", "result"]
+            }
+        },
+        "list_lists": {
+            "display_name": "List Board Lists",
+            "description": "Returns all lists on a board.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "board_id": {
+                        "type": "string",
+                        "description": "The ID of the board"
+                    },
+                    "filter": {
+                        "type": "string",
+                        "description": "Filter lists: all, open, closed",
+                        "default": "open"
+                    }
+                },
+                "required": ["board_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "lists": {
+                        "type": "array",
+                        "description": "List of lists"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["lists", "result"]
+            }
+        },
+        "create_card": {
+            "display_name": "Create Card",
+            "description": "Creates a new card on a list.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "list_id": {
+                        "type": "string",
+                        "description": "The ID of the list to create the card on"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the card"
+                    },
+                    "desc": {
+                        "type": "string",
+                        "description": "Card description (supports Markdown)"
+                    },
+                    "pos": {
+                        "type": "string",
+                        "description": "Position: 'top', 'bottom', or a positive number"
+                    },
+                    "due": {
+                        "type": "string",
+                        "description": "Due date (ISO 8601 format)"
+                    },
+                    "idMembers": {
+                        "type": "array",
+                        "description": "Array of member IDs to assign to the card",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "idLabels": {
+                        "type": "array",
+                        "description": "Array of label IDs to add to the card",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["list_id", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "card": {
+                        "type": "object",
+                        "description": "Created card details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["card", "result"]
+            }
+        },
+        "get_card": {
+            "display_name": "Get Card",
+            "description": "Retrieves details of a specific card by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "card_id": {
+                        "type": "string",
+                        "description": "The ID of the card to retrieve"
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Comma-separated list of fields to return"
+                    }
+                },
+                "required": ["card_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "card": {
+                        "type": "object",
+                        "description": "Card details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["card", "result"]
+            }
+        },
+        "update_card": {
+            "display_name": "Update Card",
+            "description": "Updates an existing card's details.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "card_id": {
+                        "type": "string",
+                        "description": "The ID of the card to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated card name"
+                    },
+                    "desc": {
+                        "type": "string",
+                        "description": "Updated card description"
+                    },
+                    "closed": {
+                        "type": "boolean",
+                        "description": "Whether the card is closed (archived)"
+                    },
+                    "idList": {
+                        "type": "string",
+                        "description": "Move card to a different list (list ID)"
+                    },
+                    "due": {
+                        "type": "string",
+                        "description": "Updated due date (ISO 8601)"
+                    },
+                    "dueComplete": {
+                        "type": "boolean",
+                        "description": "Whether the due date is marked complete"
+                    },
+                    "idMembers": {
+                        "type": "array",
+                        "description": "Updated array of member IDs",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["card_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "card": {
+                        "type": "object",
+                        "description": "Updated card details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["card", "result"]
+            }
+        },
+        "delete_card": {
+            "display_name": "Delete Card",
+            "description": "Deletes a card permanently.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "card_id": {
+                        "type": "string",
+                        "description": "The ID of the card to delete"
+                    }
+                },
+                "required": ["card_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_cards": {
+            "display_name": "List Cards",
+            "description": "Returns all cards on a list or board.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "list_id": {
+                        "type": "string",
+                        "description": "The ID of the list (use this or board_id)"
+                    },
+                    "board_id": {
+                        "type": "string",
+                        "description": "The ID of the board (use this or list_id)"
+                    },
+                    "filter": {
+                        "type": "string",
+                        "description": "Filter cards: all, open, closed, visible",
+                        "default": "open"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "cards": {
+                        "type": "array",
+                        "description": "List of cards"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["cards", "result"]
+            }
+        },
+        "create_checklist": {
+            "display_name": "Create Checklist",
+            "description": "Creates a new checklist on a card.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "card_id": {
+                        "type": "string",
+                        "description": "The ID of the card"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the checklist"
+                    }
+                },
+                "required": ["card_id", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "checklist": {
+                        "type": "object",
+                        "description": "Created checklist details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["checklist", "result"]
+            }
+        },
+        "add_checklist_item": {
+            "display_name": "Add Checklist Item",
+            "description": "Adds a new item to a checklist.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "checklist_id": {
+                        "type": "string",
+                        "description": "The ID of the checklist"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The name/text of the checklist item"
+                    },
+                    "checked": {
+                        "type": "boolean",
+                        "description": "Whether the item is checked",
+                        "default": false
+                    },
+                    "pos": {
+                        "type": "string",
+                        "description": "Position: 'top', 'bottom', or a positive number"
+                    }
+                },
+                "required": ["checklist_id", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "checkItem": {
+                        "type": "object",
+                        "description": "Created checklist item details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["checkItem", "result"]
+            }
+        },
+        "add_comment": {
+            "display_name": "Add Comment",
+            "description": "Adds a comment to a card.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "card_id": {
+                        "type": "string",
+                        "description": "The ID of the card"
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "The comment text (supports Markdown)"
+                    }
+                },
+                "required": ["card_id", "text"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "comment": {
+                        "type": "object",
+                        "description": "Created comment details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["comment", "result"]
+            }
+        }
+    }
+}

@@ -25,7 +25,7 @@
                         "properties": {
                             "value": {
                                 "type": "string",
-                                "enum": ["page", "database"],
+                                "enum": ["page", "data_source"],
                                 "description": "Type of object to search for"
                             },
                             "property": {
@@ -179,20 +179,20 @@
                 "properties": {
                     "parent": {
                         "type": "object",
-                        "description": "Parent page or database where this page will be created",
+                        "description": "Parent page or data source where this page will be created",
                         "properties": {
                             "type": {
                                 "type": "string",
-                                "enum": ["page_id", "database_id"],
+                                "enum": ["page_id", "data_source_id"],
                                 "description": "Type of parent"
                             },
                             "page_id": {
                                 "type": "string",
                                 "description": "ID of parent page (if type is page_id)"
                             },
-                            "database_id": {
+                            "data_source_id": {
                                 "type": "string",
-                                "description": "ID of parent database (if type is database_id)"
+                                "description": "ID of parent data source (if type is data_source_id)"
                             }
                         },
                         "required": ["type"]
@@ -304,15 +304,199 @@
                 }
             }
         },
-        "query_notion_database": {
-            "display_name": "Query Database",
-            "description": "Query a database with advanced filtering, sorting, and pagination",
+        "get_notion_comments": {
+            "display_name": "Get Comments",
+            "description": "Retrieve comments from a Notion page or block, optionally including info about child blocks with comments",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "block_id": {
+                        "type": "string",
+                        "description": "The unique identifier of the page or block to retrieve comments from"
+                    },
+                    "include_child_blocks_with_comments": {
+                        "type": "boolean",
+                        "description": "If true, also fetches child blocks and reports which ones have inline comments. This requires additional API calls.",
+                        "default": false
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "description": "Number of comments to return (1-100)"
+                    },
+                    "start_cursor": {
+                        "type": "string",
+                        "description": "Pagination cursor for retrieving next page of comments"
+                    }
+                },
+                "required": ["block_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "object": {
+                        "type": "string",
+                        "description": "Type of response (always 'list')"
+                    },
+                    "comments": {
+                        "type": "array",
+                        "description": "Array of comment objects",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "discussion_id": {"type": "string"},
+                                "created_time": {"type": "string"},
+                                "last_edited_time": {"type": "string"},
+                                "created_by": {"type": "object"},
+                                "rich_text": {"type": "array"},
+                                "parent": {"type": "object"}
+                            }
+                        }
+                    },
+                    "child_blocks_with_comments": {
+                        "type": "array",
+                        "description": "List of child blocks that have inline comments (only present if include_child_blocks_with_comments is true)",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "block_id": {
+                                    "type": "string",
+                                    "description": "ID of the block with comments"
+                                },
+                                "block_type": {
+                                    "type": "string",
+                                    "description": "Type of the block (paragraph, heading_1, etc.)"
+                                },
+                                "has_comments": {
+                                    "type": "boolean",
+                                    "description": "Whether this block has comments"
+                                }
+                            }
+                        }
+                    },
+                    "next_cursor": {
+                        "type": ["string", "null"],
+                        "description": "Cursor for next page (null if no more results)"
+                    },
+                    "has_more": {
+                        "type": "boolean",
+                        "description": "Whether more comments are available"
+                    }
+                }
+            }
+        },
+        "list_data_sources": {
+            "display_name": "List Data Sources",
+            "description": "List data sources within a database container",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "database_id": {
                         "type": "string",
-                        "description": "The unique identifier of the database to query"
+                        "description": "The unique identifier of the database container"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "description": "Number of data sources to return (1-100)"
+                    },
+                    "start_cursor": {
+                        "type": "string",
+                        "description": "Pagination cursor for retrieving next page of data sources"
+                    }
+                },
+                "required": ["database_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "object": {
+                        "type": "string",
+                        "description": "Type of response (always 'list')"
+                    },
+                    "data_sources": {
+                        "type": "array",
+                        "description": "Array of data source objects",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Unique identifier of the data source"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name of the data source"
+                                },
+                                "properties": {
+                                    "type": "object",
+                                    "description": "Data source property schema"
+                                }
+                            }
+                        }
+                    },
+                    "next_cursor": {
+                        "type": ["string", "null"],
+                        "description": "Cursor for next page (null if no more results)"
+                    },
+                    "has_more": {
+                        "type": "boolean",
+                        "description": "Whether more data sources are available"
+                    }
+                }
+            }
+        },
+        "get_data_source": {
+            "display_name": "Get Data Source",
+            "description": "Retrieve a specific data source's schema and properties",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "data_source_id": {
+                        "type": "string",
+                        "description": "The unique identifier of the data source to retrieve"
+                    }
+                },
+                "required": ["data_source_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "object": {
+                        "type": "string",
+                        "description": "Type of object (always 'data_source')"
+                    },
+                    "id": {
+                        "type": "string",
+                        "description": "Unique identifier of the data source"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the data source"
+                    },
+                    "properties": {
+                        "type": "object",
+                        "description": "Data source property schema definitions"
+                    },
+                    "parent": {
+                        "type": "object",
+                        "description": "Parent database container information"
+                    }
+                }
+            }
+        },
+        "query_notion_data_source": {
+            "display_name": "Query Data Source",
+            "description": "Query a data source with advanced filtering, sorting, and pagination",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "data_source_id": {
+                        "type": "string",
+                        "description": "The unique identifier of the data source to query"
                     },
                     "filter": {
                         "type": "object",
@@ -349,7 +533,7 @@
                         "description": "Pagination cursor for retrieving next page of results"
                     }
                 },
-                "required": ["database_id"]
+                "required": ["data_source_id"]
             },
             "output_schema": {
                 "type": "object",
@@ -360,7 +544,7 @@
                     },
                     "results": {
                         "type": "array",
-                        "description": "Array of database pages matching the query",
+                        "description": "Array of data source pages matching the query",
                         "items": {
                             "type": "object",
                             "description": "Database page object"
@@ -373,49 +557,6 @@
                     "has_more": {
                         "type": "boolean",
                         "description": "Whether more results are available"
-                    }
-                }
-            }
-        },
-        "get_notion_database": {
-            "display_name": "Get Database Schema",
-            "description": "Retrieve database structure, properties, and metadata",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "database_id": {
-                        "type": "string",
-                        "description": "The unique identifier of the database to retrieve"
-                    }
-                },
-                "required": ["database_id"]
-            },
-            "output_schema": {
-                "type": "object",
-                "properties": {
-                    "object": {
-                        "type": "string",
-                        "description": "Type of object (always 'database')"
-                    },
-                    "id": {
-                        "type": "string",
-                        "description": "Unique identifier of the database"
-                    },
-                    "title": {
-                        "type": "array",
-                        "description": "Database title as rich text"
-                    },
-                    "description": {
-                        "type": "array",
-                        "description": "Database description as rich text"
-                    },
-                    "properties": {
-                        "type": "object",
-                        "description": "Database property schema definitions"
-                    },
-                    "url": {
-                        "type": "string",
-                        "description": "URL of the database"
                     }
                 }
             }

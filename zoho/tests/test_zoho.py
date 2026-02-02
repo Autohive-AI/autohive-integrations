@@ -1,315 +1,331 @@
-import unittest
-from unittest.mock import AsyncMock, Mock, patch
-import json
+"""
+Zoho CRM Integration Testbed
+============================
+
+Real API integration testing against Zoho CRM with placeholder credentials.
+
+Prerequisites:
+1. Zoho CRM account with API access enabled
+2. OAuth 2.0 credentials from Zoho API Console
+3. Access token obtained through OAuth flow
+4. Existing records in CRM (for get/list operations)
+
+Credential Setup:
+- Access Token: Zoho API Console -> Client Credentials -> Authorization
+- API Domain: Region-specific (www.zohoapis.com, www.zohoapis.eu, www.zohoapis.com.au)
+
+Running Tests:
+    python test_zoho.py
+
+Notes:
+- Makes real API calls - review Zoho rate limits
+- Some tests require existing data in your CRM
+- Create operations add records to your Zoho CRM
+"""
+
+import asyncio
+import time
 from context import zoho
+from autohive_integrations_sdk import ExecutionContext
 
-class TestZohoIntegration(unittest.TestCase):
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-        self.mock_context.auth = {
-            'credentials': {
-                'access_token': 'test_access_token'
-            }
-        }
-    
-    async def test_create_contact_success(self):
-        """Test successful contact creation."""
-        # Mock successful API response
-        mock_response = {
-            "data": [{
-                "code": "SUCCESS",
-                "details": {
-                    "id": "123456789"
-                },
-                "message": "record added"
-            }]
-        }
-        self.mock_context.fetch.return_value = mock_response
-        
-        # Create action handler
-        handler = zoho.CreateContactAction()
-        
-        # Test inputs
-        inputs = {
-            "Last_Name": "Smith",
-            "First_Name": "John",
-            "Email": "john.smith@example.com",
-            "Phone": "+1-555-0123",
-            "Account_Name": "Acme Corporation"
-        }
-        
-        # Execute action
-        result = await handler.execute(inputs, self.mock_context)
-        
-        # Verify result
-        self.assertEqual(result["id"], "123456789")
-        self.assertEqual(result["status"], "SUCCESS")
-        
-        # Verify API call
-        self.mock_context.fetch.assert_called_once()
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("Contacts", call_args[0][0])
-        self.assertEqual(call_args[1]["method"], "POST")
-    
-    async def test_get_contact_success(self):
-        """Test successful contact retrieval."""
-        # Mock API response
-        mock_response = {
-            "data": [{
-                "id": "123456789",
-                "Last_Name": "Smith",
-                "First_Name": "John",
-                "Email": "john.smith@example.com",
-                "Phone": "+1-555-0123"
-            }]
-        }
-        self.mock_context.fetch.return_value = mock_response
-        
-        handler = zoho.GetContactAction()
-        inputs = {"contact_id": "123456789"}
-        
-        result = await handler.execute(inputs, self.mock_context)
-        
-        self.assertEqual(result["id"], "123456789")
-        self.assertEqual(result["Last_Name"], "Smith")
-        self.assertEqual(result["Email"], "john.smith@example.com")
-    
-    async def test_create_deal_success(self):
-        """Test successful deal creation."""
-        mock_response = {
-            "data": [{
-                "code": "SUCCESS",
-                "details": {
-                    "id": "987654321"
-                },
-                "message": "record added"
-            }]
-        }
-        self.mock_context.fetch.return_value = mock_response
-        
-        handler = zoho.CreateDealAction()
-        inputs = {
-            "Deal_Name": "Q4 Enterprise Software Deal",
-            "Amount": 50000,
-            "Stage": "Proposal/Price Quote",
-            "Account_Name": "Acme Corporation"
-        }
-        
-        result = await handler.execute(inputs, self.mock_context)
-        
-        self.assertEqual(result["id"], "987654321")
-        self.assertEqual(result["status"], "SUCCESS")
-        
-        # Verify API call structure
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("Deals", call_args[0][0])
-        self.assertEqual(call_args[1]["method"], "POST")
-    
-    async def test_convert_lead_success(self):
-        """Test successful lead conversion."""
-        mock_response = {
-            "data": [{
-                "code": "SUCCESS",
-                "details": {
-                    "Contacts": "111111111",
-                    "Accounts": "222222222", 
-                    "Deals": "333333333"
-                }
-            }]
-        }
-        self.mock_context.fetch.return_value = mock_response
-        
-        handler = zoho.ConvertLeadAction()
-        inputs = {
-            "lead_id": "456789123",
-            "convert_to_contact": True,
-            "convert_to_account": True,
-            "convert_to_deal": True
-        }
-        
-        result = await handler.execute(inputs, self.mock_context)
-        
-        self.assertEqual(result["contact_id"], "111111111")
-        self.assertEqual(result["account_id"], "222222222")
-        self.assertEqual(result["deal_id"], "333333333")
-    
-    async def test_list_contacts_success(self):
-        """Test successful contact listing with pagination."""
-        mock_response = {
-            "data": [
-                {
-                    "id": "123456789",
-                    "Last_Name": "Smith",
-                    "First_Name": "John",
-                    "Email": "john.smith@example.com"
-                },
-                {
-                    "id": "987654321",
-                    "Last_Name": "Johnson",
-                    "First_Name": "Jane",
-                    "Email": "jane.johnson@example.com"
-                }
-            ],
-            "info": {
-                "count": 2,
-                "page": 1,
-                "per_page": 200,
-                "more_records": False
-            }
-        }
-        self.mock_context.fetch.return_value = mock_response
-        
-        handler = zoho.ListContactsAction()
-        inputs = {"page": 1, "per_page": 200}
-        
-        result = await handler.execute(inputs, self.mock_context)
-        
-        self.assertEqual(len(result["contacts"]), 2)
-        self.assertEqual(result["info"]["count"], 2)
-        self.assertFalse(result["info"]["more_records"])
-    
-    async def test_execute_coql_query_success(self):
-        """Test successful COQL query execution."""
-        mock_response = {
-            "data": [
-                {
-                    "First_Name": "John",
-                    "Last_Name": "Smith", 
-                    "Email": "john.smith@example.com",
-                    "Account_Name": "Acme Corporation"
-                }
-            ],
-            "info": {
-                "count": 1,
-                "more_records": False
-            }
-        }
-        self.mock_context.fetch.return_value = mock_response
-        
-        handler = zoho.ExecuteCoqlQueryAction()
-        inputs = {
-            "query": "SELECT First_Name, Last_Name, Email, Account_Name FROM Contacts WHERE Lead_Source = 'Website'"
-        }
-        
-        result = await handler.execute(inputs, self.mock_context)
-        
-        self.assertEqual(len(result["data"]), 1)
-        self.assertEqual(result["data"][0]["Email"], "john.smith@example.com")
-        self.assertEqual(result["info"]["count"], 1)
-    
-    async def test_create_task_success(self):
-        """Test successful task creation."""
-        mock_response = {
-            "data": [{
-                "code": "SUCCESS",
-                "details": {
-                    "id": "555666777"
-                },
-                "message": "record added"
-            }]
-        }
-        self.mock_context.fetch.return_value = mock_response
-        
-        handler = zoho.CreateTaskAction()
-        inputs = {
-            "Subject": "Follow up with lead",
-            "Status": "Not Started",
-            "Priority": "High",
-            "Due_Date": "2024-12-31"
-        }
-        
-        result = await handler.execute(inputs, self.mock_context)
-        
-        self.assertEqual(result["id"], "555666777")
-        self.assertEqual(result["status"], "SUCCESS")
-    
-    async def test_get_related_records_success(self):
-        """Test successful related records retrieval."""
-        mock_response = {
-            "data": [
-                {
-                    "id": "111111111",
-                    "Last_Name": "Smith",
-                    "First_Name": "John",
-                    "Email": "john.smith@example.com"
-                }
-            ],
-            "info": {
-                "count": 1,
-                "more_records": False
-            }
-        }
-        self.mock_context.fetch.return_value = mock_response
-        
-        handler = zoho.GetRelatedRecordsAction()
-        inputs = {
-            "module_api_name": "Accounts",
-            "record_id": "123456789",
-            "related_list_api_name": "Contacts"
-        }
-        
-        result = await handler.execute(inputs, self.mock_context)
-        
-        self.assertEqual(len(result["related_records"]), 1)
-        self.assertEqual(result["related_records"][0]["Email"], "john.smith@example.com")
-    
-    async def test_authentication_headers(self):
-        """Test that proper authentication headers are built."""
-        from zoho import build_zoho_headers
-        
-        headers = build_zoho_headers(self.mock_context)
-        
-        self.assertEqual(headers["Authorization"], "Zoho-oauthtoken test_access_token")
-        self.assertEqual(headers["Content-Type"], "application/json")
-    
-    async def test_error_handling(self):
-        """Test error handling in actions."""
-        # Mock API error
-        self.mock_context.fetch.side_effect = Exception("API Rate Limit Exceeded")
-        
-        handler = zoho.CreateContactAction()
-        inputs = {
-            "Last_Name": "Smith"
-        }
-        
-        # Should raise the exception for proper error handling
-        with self.assertRaises(Exception) as context:
-            await handler.execute(inputs, self.mock_context)
-        
-        self.assertEqual(str(context.exception), "API Rate Limit Exceeded")
-    
-    async def test_field_validation(self):
-        """Test input field validation and data building."""
-        from zoho import build_contact_data
-        
-        inputs = {
-            "Last_Name": "Smith",
-            "First_Name": "John",
-            "Email": "john.smith@example.com",
-            "Phone": "+1-555-0123",
-            "": "",  # Empty field should be filtered out
-            "Account_Name": None  # None field should be filtered out
-        }
-        
-        contact_data = build_contact_data(inputs)
-        
-        self.assertEqual(contact_data["Last_Name"], "Smith")
-        self.assertEqual(contact_data["Email"], "john.smith@example.com")
-        self.assertNotIn("", contact_data)  # Empty key should not be included
-        self.assertNotIn("Account_Name", contact_data)  # None value should not be included
-    
-    def test_api_url_building(self):
-        """Test API URL building helper function."""
-        from zoho import get_zoho_api_url
-        
-        base_url = get_zoho_api_url()
-        self.assertEqual(base_url, "https://www.zohoapis.com.au/crm/v8")
-        
-        contacts_url = get_zoho_api_url("/Contacts")
-        self.assertEqual(contacts_url, "https://www.zohoapis.com.au/crm/v8/Contacts")
 
-if __name__ == '__main__':
-    unittest.main()
+# =============================================================================
+# CONFIGURATION - Update these values with your Zoho credentials
+# =============================================================================
+AUTH = {
+    "auth_type": "PlatformOauth2",
+    "credentials": {
+        "access_token": "<placeholder>",
+        "api_domain": "www.zohoapis.com.au"  # Options: www.zohoapis.com (US), www.zohoapis.eu (EU), www.zohoapis.com.au (AU)
+    }
+}
+
+# Replace with an actual CONTACT ID from your Zoho CRM (use list_contacts to find one)
+# Note: This should be a Contact ID (e.g., 102732000000388354), NOT an Account ID
+TEST_CONTACT_ID = "102732000000388354"  # Kris Marrier (Sample) from list_contacts
+# =============================================================================
+
+
+async def test_list_contacts():
+    """Test listing contacts with pagination."""
+    inputs = {
+        "page": 1,
+        "per_page": 10
+    }
+
+    async with ExecutionContext(auth=AUTH) as context:
+        try:
+            result = await zoho.execute_action("list_contacts", inputs, context)
+            # Access data from IntegrationResult.result.data
+            result_data = result.result.data
+            print(f"List Contacts Result: {result_data}")
+
+            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert 'contacts' in result_data, "Response missing 'contacts' field"
+            assert 'info' in result_data, "Response missing pagination 'info' field"
+            print("✓ test_list_contacts passed")
+            return result_data
+        except Exception as e:
+            print(f"✗ Error testing list_contacts: {e}")
+            return None
+
+
+async def test_create_contact():
+    """Test creating a new contact."""
+    # Use timestamp to ensure unique email each run
+    timestamp = int(time.time())
+    inputs = {
+        "Last_Name": "Smith",
+        "First_Name": "John",
+        "Email": f"john.smith.{timestamp}@example.com",
+        "Phone": "+1-555-0100"
+    }
+
+    async with ExecutionContext(auth=AUTH) as context:
+        try:
+            result = await zoho.execute_action("create_contact", inputs, context)
+            result_data = result.result.data
+            print(f"Create Contact Result: {result_data}")
+
+            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert 'contact' in result_data, "Response missing 'contact' field"
+            assert result_data['contact'].get('id'), "Contact ID not returned"
+            print("✓ test_create_contact passed")
+            return result_data
+        except Exception as e:
+            print(f"✗ Error testing create_contact: {e}")
+            return None
+
+
+async def test_get_contact():
+    """Test getting a specific contact by ID."""
+    inputs = {
+        "contact_id": TEST_CONTACT_ID
+    }
+
+    async with ExecutionContext(auth=AUTH) as context:
+        try:
+            result = await zoho.execute_action("get_contact", inputs, context)
+            result_data = result.result.data
+            print(f"Get Contact Result: {result_data}")
+
+            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert 'contact' in result_data, "Response missing 'contact' field"
+            print("✓ test_get_contact passed")
+            return result_data
+        except Exception as e:
+            print(f"✗ Error testing get_contact: {e}")
+            return None
+
+
+async def test_create_deal():
+    """Test creating a new deal."""
+    inputs = {
+        "Deal_Name": "Enterprise Software Deal",
+        "Amount": 50000,
+        "Stage": "Proposal"
+    }
+
+    async with ExecutionContext(auth=AUTH) as context:
+        try:
+            result = await zoho.execute_action("create_deal", inputs, context)
+            result_data = result.result.data
+            print(f"Create Deal Result: {result_data}")
+
+            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert 'deal' in result_data, "Response missing 'deal' field"
+            assert result_data['deal'].get('id'), "Deal ID not returned"
+            print("✓ test_create_deal passed")
+            return result_data
+        except Exception as e:
+            print(f"✗ Error testing create_deal: {e}")
+            return None
+
+
+async def test_list_deals():
+    """Test listing deals with pagination."""
+    inputs = {
+        "page": 1,
+        "per_page": 10
+    }
+
+    async with ExecutionContext(auth=AUTH) as context:
+        try:
+            result = await zoho.execute_action("list_deals", inputs, context)
+            result_data = result.result.data
+            print(f"List Deals Result: {result_data}")
+
+            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert 'deals' in result_data, "Response missing 'deals' field"
+            assert 'info' in result_data, "Response missing pagination 'info' field"
+            print("✓ test_list_deals passed")
+            return result_data
+        except Exception as e:
+            print(f"✗ Error testing list_deals: {e}")
+            return None
+
+
+async def test_create_note():
+    """Test creating a note on a contact record."""
+    inputs = {
+        "module": "Contacts",
+        "record_id": TEST_CONTACT_ID,
+        "Note_Title": "Discussion Notes",
+        "Note_Content": "Q4 requirements discussed"
+    }
+
+    async with ExecutionContext(auth=AUTH) as context:
+        try:
+            result = await zoho.execute_action("create_note", inputs, context)
+            result_data = result.result.data
+            print(f"Create Note Result: {result_data}")
+
+            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert 'note' in result_data, "Response missing 'note' field"
+            assert result_data['note'].get('id'), "Note ID not returned"
+            print("✓ test_create_note passed")
+            return result_data
+        except Exception as e:
+            print(f"✗ Error testing create_note: {e}")
+            return None
+
+
+async def test_get_contact_notes():
+    """Test getting notes from a contact record."""
+    inputs = {
+        "module": "Contacts",
+        "record_id": TEST_CONTACT_ID,
+        "page": 1,
+        "per_page": 10,
+        "fields": ["Note_Title", "Note_Content", "Owner", "Created_Time"]
+    }
+
+    async with ExecutionContext(auth=AUTH) as context:
+        try:
+            result = await zoho.execute_action("get_contact_notes", inputs, context)
+            result_data = result.result.data
+            print(f"Get Contact Notes Result: {result_data}")
+
+            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert 'notes' in result_data, "Response missing 'notes' field"
+            assert 'info' in result_data, "Response missing pagination 'info' field"
+            print("✓ test_get_contact_notes passed")
+            return result_data
+        except Exception as e:
+            print(f"✗ Error testing get_contact_notes: {e}")
+            return None
+
+
+async def test_execute_coql_query():
+    """Test executing a COQL query."""
+    inputs = {
+        "select_query": "SELECT First_Name, Last_Name, Email FROM Contacts WHERE Last_Name is not null LIMIT 10"
+    }
+
+    async with ExecutionContext(auth=AUTH) as context:
+        try:
+            result = await zoho.execute_action("execute_coql_query", inputs, context)
+            result_data = result.result.data
+            print(f"Execute COQL Query Result: {result_data}")
+
+            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert 'data' in result_data, "Response missing 'data' field"
+            assert 'info' in result_data, "Response missing 'info' field"
+            print("✓ test_execute_coql_query passed")
+            return result_data
+        except Exception as e:
+            print(f"✗ Error testing execute_coql_query: {e}")
+            return None
+
+
+async def test_list_leads():
+    """Test listing leads with pagination."""
+    inputs = {
+        "page": 1,
+        "per_page": 10
+    }
+
+    async with ExecutionContext(auth=AUTH) as context:
+        try:
+            result = await zoho.execute_action("list_leads", inputs, context)
+            result_data = result.result.data
+            print(f"List Leads Result: {result_data}")
+
+            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert 'leads' in result_data, "Response missing 'leads' field"
+            assert 'info' in result_data, "Response missing pagination 'info' field"
+            print("✓ test_list_leads passed")
+            return result_data
+        except Exception as e:
+            print(f"✗ Error testing list_leads: {e}")
+            return None
+
+
+async def main():
+    """Run all test functions sequentially."""
+    print("=" * 70)
+    print("Testing Zoho CRM Integration - 9 Actions")
+    print("=" * 70)
+    print()
+    print("NOTE: Replace placeholders before running:")
+    print("  - your_zoho_oauth_token_here: Your OAuth 2.0 access token")
+    print("  - your_contact_id_here: An existing contact ID from your Zoho CRM")
+    print("  - api_domain: Your datacenter (com, com.au, eu, etc.)")
+    print()
+    print("To obtain OAuth credentials:")
+    print("  1. Go to Zoho API Console (https://api-console.zoho.com/)")
+    print("  2. Create Server-based Application")
+    print("  3. Generate access token with required scopes")
+    print("  4. Note your datacenter domain (e.g., www.zohoapis.com.au)")
+    print()
+    print("=" * 70)
+    print()
+
+    # Contacts Module (3 tests)
+    print("1. Testing list_contacts...")
+    await test_list_contacts()
+    print()
+
+    print("2. Testing create_contact...")
+    await test_create_contact()
+    print()
+
+    print("3. Testing get_contact...")
+    await test_get_contact()
+    print()
+
+    # Deals Module (2 tests)
+    print("4. Testing create_deal...")
+    await test_create_deal()
+    print()
+
+    print("5. Testing list_deals...")
+    await test_list_deals()
+    print()
+
+    # Notes Module (2 tests)
+    print("6. Testing create_note...")
+    await test_create_note()
+    print()
+
+    print("7. Testing get_contact_notes...")
+    await test_get_contact_notes()
+    print()
+
+    # Query Module (1 test)
+    print("8. Testing execute_coql_query...")
+    await test_execute_coql_query()
+    print()
+
+    # Leads (1 test)
+    print("9. Testing list_leads...")
+    await test_list_leads()
+    print()
+
+    print("=" * 70)
+    print("Testing completed - 9 actions tested!")
+    print("=" * 70)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -1,0 +1,374 @@
+{
+    "name": "App and Business Reviews",
+    "version": "1.0.0",
+    "description": "Access reviews from App Store, Google Play Store, and Google Maps using SerpAPI",
+    "entry_point": "app_business_reviews.py",
+    "auth": {
+        "type": "custom",
+        "title": "SerpApi Configuration",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "SerpApi API Key",
+                    "help_text": "Your SerpApi API key for accessing App Store, Google Play, and Google Maps reviews. Get your key at https://serpapi.com/manage-api-key"
+                }
+            }
+        }
+    },
+    "actions": {
+        "search_apps_ios": {
+            "display_name": "Search iOS Apps (App Store)",
+            "description": "Search for iOS apps on Apple App Store by name or developer",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "term": {
+                        "type": "string",
+                        "description": "App name or search term (e.g., 'WhatsApp', 'Instagram')",
+                        "label": "App Name"
+                    },
+                    "country": {
+                        "type": "string",
+                        "description": "Country code for localization (e.g., 'us', 'uk', 'fr')",
+                        "label": "Country Code",
+                        "default": "us"
+                    },
+                    "num": {
+                        "type": "integer",
+                        "description": "Number of results to return (1-200)",
+                        "label": "Results Limit",
+                        "minimum": 1,
+                        "maximum": 200,
+                        "default": 10
+                    },
+                    "property": {
+                        "type": "string",
+                        "enum": ["developer"],
+                        "description": "Search property (leave empty for app names, use 'developer' to search by developer name)",
+                        "label": "Search Property"
+                    }
+                },
+                "required": ["term"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "apps": {
+                        "type": "array",
+                        "description": "List of matching apps"
+                    },
+                    "total_results": {
+                        "type": "number",
+                        "description": "Number of apps found"
+                    }
+                },
+                "required": ["apps"]
+            }
+        },
+        "get_reviews_app_store": {
+            "display_name": "Get Reviews (App Store)",
+            "description": "Fetch reviews for an iOS app from Apple App Store",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "product_id": {
+                        "type": "string",
+                        "description": "Apple App Store app ID (e.g., '534220544'). Leave empty if using app_name.",
+                        "label": "App ID"
+                    },
+                    "app_name": {
+                        "type": "string",
+                        "description": "App name to search for (e.g., 'WhatsApp'). Will automatically find the app ID.",
+                        "label": "App Name"
+                    },
+                    "country": {
+                        "type": "string",
+                        "description": "Country code for localization (e.g., 'us', 'uk', 'fr')",
+                        "label": "Country Code",
+                        "default": "us"
+                    },
+                    "sort": {
+                        "type": "string",
+                        "enum": ["mostrecent", "mosthelpful", "mostfavorable", "mostcritical"],
+                        "description": "Sort reviews by: mostrecent, mosthelpful, mostfavorable, or mostcritical",
+                        "label": "Sort Order",
+                        "default": "mostrecent"
+                    },
+                    "max_pages": {
+                        "type": "integer",
+                        "description": "Maximum number of pages to fetch (1-10)",
+                        "label": "Max Pages",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "default": 3
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "reviews": {
+                        "type": "array",
+                        "description": "List of Apple App Store reviews"
+                    },
+                    "total_reviews": {
+                        "type": "number",
+                        "description": "Total number of reviews fetched"
+                    },
+                    "app_name": {
+                        "type": "string",
+                        "description": "Name of the app"
+                    },
+                    "product_id": {
+                        "type": "string",
+                        "description": "Apple App Store app ID"
+                    }
+                },
+                "required": ["reviews"]
+            }
+        },
+        "search_apps_android": {
+            "display_name": "Search Android Apps (Google Play)",
+            "description": "Search for Android apps on Google Play Store by name",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "App name or search term (e.g., 'WhatsApp', 'Instagram')",
+                        "label": "App Name"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of apps to return (1-50)",
+                        "label": "Results Limit",
+                        "minimum": 1,
+                        "maximum": 50,
+                        "default": 10
+                    }
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "apps": {
+                        "type": "array",
+                        "description": "List of matching apps"
+                    },
+                    "total_results": {
+                        "type": "number",
+                        "description": "Number of apps found"
+                    }
+                },
+                "required": ["apps"]
+            }
+        },
+        "get_reviews_google_play": {
+            "display_name": "Get Reviews (Google Play)",
+            "description": "Fetch reviews for an Android app from Google Play Store",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "product_id": {
+                        "type": "string",
+                        "description": "Google Play Store app ID (e.g., 'com.whatsapp'). Leave empty if using app_name.",
+                        "label": "App ID"
+                    },
+                    "app_name": {
+                        "type": "string",
+                        "description": "App name to search for (e.g., 'WhatsApp'). Will automatically find the app ID.",
+                        "label": "App Name"
+                    },
+                    "rating": {
+                        "type": "integer",
+                        "enum": [1, 2, 3, 4, 5],
+                        "description": "Filter reviews by star rating",
+                        "label": "Rating Filter"
+                    },
+                    "platform": {
+                        "type": "string",
+                        "enum": ["phone", "tablet", "watch", "chromebook", "tv"],
+                        "description": "Filter reviews by device platform",
+                        "label": "Platform Filter"
+                    },
+                    "sort_by": {
+                        "type": "integer",
+                        "enum": [1, 2, 3],
+                        "description": "How to sort the reviews (1: Most relevant, 2: Newest, 3: Rating)",
+                        "label": "Sort Order",
+                        "default": 1
+                    },
+                    "num_reviews": {
+                        "type": "integer",
+                        "description": "Number of reviews to fetch per page (1-199)",
+                        "label": "Number of Reviews",
+                        "minimum": 1,
+                        "maximum": 199,
+                        "default": 40
+                    },
+                    "max_pages": {
+                        "type": "integer",
+                        "description": "Maximum number of pages to fetch (1-10)",
+                        "label": "Max Pages",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "default": 3
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "reviews": {
+                        "type": "array",
+                        "description": "List of Google Play Store reviews"
+                    },
+                    "total_reviews": {
+                        "type": "number",
+                        "description": "Total number of reviews fetched"
+                    },
+                    "app_name": {
+                        "type": "string",
+                        "description": "Name of the app"
+                    },
+                    "app_rating": {
+                        "type": "number",
+                        "description": "Overall app rating"
+                    },
+                    "product_id": {
+                        "type": "string",
+                        "description": "Google Play Store app ID"
+                    }
+                },
+                "required": ["reviews"]
+            }
+        },
+        "search_places_google_maps": {
+            "display_name": "Search Places (Google Maps)",
+            "description": "Search for businesses on Google Maps by name to get place_id and basic information",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Business name or search query (e.g., 'Starbucks', 'Pizza restaurant')",
+                        "label": "Business Name"
+                    },
+                    "location": {
+                        "type": "string",
+                        "description": "Location to search in (e.g., 'New York, NY', 'London, UK')",
+                        "label": "Location"
+                    },
+                    "num_results": {
+                        "type": "integer",
+                        "description": "Number of results to return (1-20)",
+                        "label": "Results Limit",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "default": 5
+                    }
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "places": {
+                        "type": "array",
+                        "description": "List of matching places"
+                    },
+                    "total_results": {
+                        "type": "number",
+                        "description": "Number of places found"
+                    }
+                },
+                "required": ["places"]
+            }
+        },
+        "get_reviews_google_maps": {
+            "display_name": "Get Reviews (Google Maps)",
+            "description": "Fetch reviews for a business from Google Maps. Use place_id for most reliable results. If place_id is not provided and search fails, immediately ask user to get place_id manually from https://developers.google.com/maps/documentation/places/web-service/place-id - do NOT retry with different search terms.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "place_id": {
+                        "type": "string",
+                        "description": "Google Maps Place ID (RECOMMENDED - Most reliable method). If search by name fails, get Place ID from: https://developers.google.com/maps/documentation/places/web-service/place-id",
+                        "label": "Place ID"
+                    },
+                    "data_id": {
+                        "type": "string",
+                        "description": "Google Maps data ID (alternative to place_id)",
+                        "label": "Data ID"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Business name only (e.g., 'Starbucks'). Do NOT include address. If search fails, do NOT retry - immediately ask user for place_id from https://developers.google.com/maps/documentation/places/web-service/place-id",
+                        "label": "Business Name"
+                    },
+                    "location": {
+                        "type": "string",
+                        "description": "City and country/state (e.g., 'Wellington, New Zealand', 'New York, NY'). Use this to specify where to search.",
+                        "label": "Location"
+                    },
+                    "sort_by": {
+                        "type": "string",
+                        "enum": ["qualityScore", "newestFirst", "ratingHigh", "ratingLow"],
+                        "description": "How to sort the reviews",
+                        "label": "Sort Order",
+                        "default": "qualityScore"
+                    },
+                    "num_reviews": {
+                        "type": "integer",
+                        "description": "Number of reviews to fetch per page (1-20)",
+                        "label": "Reviews Per Page",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "default": 10
+                    },
+                    "max_pages": {
+                        "type": "integer",
+                        "description": "Maximum number of pages to fetch (1-10)",
+                        "label": "Max Pages",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "default": 5
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "reviews": {
+                        "type": "array",
+                        "description": "List of Google Maps reviews"
+                    },
+                    "total_reviews": {
+                        "type": "number",
+                        "description": "Total number of reviews found"
+                    },
+                    "average_rating": {
+                        "type": "number",
+                        "description": "Average rating of the business"
+                    },
+                    "business_name": {
+                        "type": "string",
+                        "description": "Name of the business"
+                    },
+                    "place_id": {
+                        "type": "string",
+                        "description": "Google Maps Place ID"
+                    }
+                },
+                "required": ["reviews"]
+            }
+        }
+    }
+}

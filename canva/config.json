@@ -1,0 +1,1058 @@
+{
+    "name": "canva",
+    "display_name": "Canva",
+    "version": "1.0.0",
+    "description": "Canva integration for managing assets, designs, and folders",
+    "entry_point": "canva.py",
+    "supports_connected_account": true,
+    "auth": {
+        "type": "platform",
+        "provider": "Canva",
+        "use_pkce": true,
+        "scopes": [
+            "asset:read",
+            "asset:write",
+            "design:content:read",
+            "design:content:write",
+            "design:meta:read",
+            "folder:read",
+            "folder:write",
+            "profile:read"
+        ]
+    },
+    "actions": {
+        "get_user_capabilities": {
+            "display_name": "Get User Capabilities",
+            "description": "Get the capabilities available to the authenticated user based on their Canva plan (Free, Pro, Enterprise). Use this to check if a user has access to premium features before attempting operations that require specific capabilities.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "capabilities": {
+                        "type": "array",
+                        "description": "List of capabilities available to the user. Examples: 'design:content:write', 'export:pro_quality', 'folder:write'",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "upload_asset": {
+            "display_name": "Upload Asset",
+            "description": "Upload an asset (image, video, or audio) to Canva's asset library. This is an ASYNCHRONOUS operation - use 'get_asset_upload_status' to check completion and retrieve the asset_id.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "description": "Single file object (from chat): base64 content, name, contentType.",
+                        "properties": {
+                            "content": {"type": "string", "description": "Base64-encoded file content"},
+                            "name": {"type": "string", "description": "Filename"},
+                            "contentType": {"type": "string", "description": "MIME type"}
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "Alternate chat input: array of file objects; the first will be used.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "content": {"type": "string", "description": "Base64-encoded file content"},
+                                "name": {"type": "string", "description": "Filename"},
+                                "contentType": {"type": "string", "description": "MIME type"}
+                            },
+                            "required": ["content", "name", "contentType"]
+                        }
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "Upload job ID"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Initial job status"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_asset_upload_status": {
+            "display_name": "Get Asset Upload Status",
+            "description": "Get the result of an asset upload job that was created using the create asset upload job API. You might need to make multiple requests to this endpoint until you get a success or failed status.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "Upload job ID returned from upload_asset"
+                    }
+                },
+                "required": ["job_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Upload status (in_progress, success, failed)"
+                    },
+                    "asset": {
+                        "type": "object",
+                        "description": "Complete asset details if upload succeeded",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Asset ID"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Asset name"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "description": "Asset tags",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "thumbnail": {
+                                "type": "object",
+                                "description": "Asset thumbnail information"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_asset": {
+            "display_name": "Get Asset",
+            "description": "You can retrieve the metadata of an asset by specifying its assetId. Use this to view asset details like name, tags, timestamps, and thumbnail URL after uploading or to verify an asset exists before using it in a design.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "asset_id": {
+                        "type": "string",
+                        "description": "Asset ID"
+                    }
+                },
+                "required": ["asset_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "asset": {
+                        "type": "object",
+                        "description": "Asset metadata",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Asset ID"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Asset name"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "description": "Asset tags",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "created_at": {
+                                "type": "integer",
+                                "description": "Creation timestamp"
+                            },
+                            "updated_at": {
+                                "type": "integer",
+                                "description": "Last update timestamp"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "update_asset": {
+            "display_name": "Update Asset",
+            "description": "Update an asset's name or tags. You can update the name, tags, or both in a single request. Common use case: Organize assets by adding tags for campaigns, projects, or content types.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "asset_id": {
+                        "type": "string",
+                        "description": "Asset ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New name for the asset"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "description": "New tags for the asset",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["asset_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "delete_asset": {
+            "display_name": "Delete Asset",
+            "description": "You can delete an asset by specifying its assetId. This operation mirrors the behavior in the Canva UI. Deleting an item moves it to the trash. Deleting an asset doesn't remove it from designs that already use it.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "asset_id": {
+                        "type": "string",
+                        "description": "Asset ID"
+                    }
+                },
+                "required": ["asset_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "create_design": {
+            "display_name": "Create Design",
+            "description": "Create a new blank Canva design using one of three preset types. Optionally specify a title or insert an image asset into the new design.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "preset_type": {
+                        "type": "string",
+                        "description": "The name of the design type. Available values: 'doc' (Canva's online text editor), 'whiteboard' (an infinite design space), 'presentation' (you can collaborate for presenting to an audience)",
+                        "enum": ["doc", "whiteboard", "presentation"]
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Design title (1-255 characters)",
+                        "minLength": 1,
+                        "maxLength": 255
+                    },
+                    "asset_id": {
+                        "type": "string",
+                        "description": "Optional image asset ID to insert into the design. Currently, this only supports image assets."
+                    }
+                },
+                "required": ["preset_type"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "design": {
+                        "type": "object",
+                        "description": "Created design details",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Design ID"
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "Design title"
+                            },
+                            "urls": {
+                                "type": "object",
+                                "description": "URLs for accessing the design"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_designs": {
+            "display_name": "List Designs",
+            "description": "List the user's Canva designs with optional search query, ownership filter, and sorting options. Returns paginated results - use 'continuation' token to fetch additional pages.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search term to filter designs (max 255 characters)"
+                    },
+                    "continuation": {
+                        "type": "string",
+                        "description": "Continuation token for pagination"
+                    },
+                    "ownership": {
+                        "type": "string",
+                        "description": "Filter by ownership: 'any' (owned by and shared with user), 'owned' (owned by user), 'shared' (shared with user)",
+                        "enum": ["any", "owned", "shared"]
+                    },
+                    "sort_by": {
+                        "type": "string",
+                        "description": "Sort method: 'relevance', 'modified_descending', 'modified_ascending', 'title_descending', 'title_ascending'",
+                        "enum": ["relevance", "modified_descending", "modified_ascending", "title_descending", "title_ascending"]
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "designs": {
+                        "type": "array",
+                        "description": "List of designs",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Design ID"
+                                },
+                                "title": {
+                                    "type": "string",
+                                    "description": "Design title"
+                                },
+                                "created_at": {
+                                    "type": "integer",
+                                    "description": "Creation timestamp"
+                                },
+                                "updated_at": {
+                                    "type": "integer",
+                                    "description": "Last update timestamp"
+                                }
+                            }
+                        }
+                    },
+                    "continuation": {
+                        "type": "string",
+                        "description": "Token for next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["designs", "result"]
+            }
+        },
+        "get_design": {
+            "display_name": "Get Design",
+            "description": "Retrieve metadata for a specific design by its designId. Returns design details including title, URLs, and timestamps.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "design_id": {
+                        "type": "string",
+                        "description": "Design ID"
+                    }
+                },
+                "required": ["design_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "design": {
+                        "type": "object",
+                        "description": "Design metadata",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Design ID"
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "Design title"
+                            },
+                            "created_at": {
+                                "type": "integer",
+                                "description": "Creation timestamp"
+                            },
+                            "updated_at": {
+                                "type": "integer",
+                                "description": "Last update timestamp"
+                            },
+                            "urls": {
+                                "type": "object",
+                                "description": "URLs for accessing the design"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "export_design": {
+            "display_name": "Export Design",
+            "description": "Export a Canva design to various formats (PNG, JPG, PDF, PPTX, GIF, MP4). This is an ASYNCHRONOUS operation - use 'get_export_status' to poll for completion and retrieve download URLs. Supports format-specific options like quality, dimensions, transparency, and page selection.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "design_id": {
+                        "type": "string",
+                        "description": "Design ID"
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Export format type (pdf, png, jpg, pptx, gif, mp4, etc.)"
+                    },
+                    "export_quality": {
+                        "type": "string",
+                        "description": "Overall export quality for all formats (optional): 'regular' (default) or 'pro'. Pro may fail if design has premium elements and user lacks Canva Pro.",
+                        "enum": ["regular", "pro"]
+                    },
+                    "jpg_quality": {
+                        "type": "integer",
+                        "description": "JPG compression quality (1-100, default 85). Lower = smaller file size but more pixelation. Only applies to JPG format.",
+                        "minimum": 1,
+                        "maximum": 100
+                    },
+                    "image_quality": {
+                        "type": "string",
+                        "description": "Quality for PNG/MP4/GIF exports: orientation_resolution format. Only applies to PNG/MP4/GIF formats.",
+                        "enum": ["horizontal_480p", "horizontal_720p", "horizontal_1080p", "horizontal_4k", "vertical_480p", "vertical_720p", "vertical_1080p", "vertical_4k"]
+                    },
+                    "paper_size": {
+                        "type": "string",
+                        "description": "Paper size for PDF exports of Documents (a4, a3, letter, legal). Only applies to PDF format and Canva Docs.",
+                        "enum": ["a4", "a3", "letter", "legal"]
+                    },
+                    "width": {
+                        "type": "integer",
+                        "description": "Width in pixels for exported image (40-25000). If only width specified, height scaled to match aspect ratio. If both specified but don't match aspect ratio, larger dimension used.",
+                        "minimum": 40,
+                        "maximum": 25000
+                    },
+                    "height": {
+                        "type": "integer",
+                        "description": "Height in pixels for exported image (40-25000). Applies to JPG and PNG. If only height specified, width scaled to match aspect ratio.",
+                        "minimum": 40,
+                        "maximum": 25000
+                    },
+                    "lossless": {
+                        "type": "boolean",
+                        "description": "PNG only: Export without compression (true, default) or with lossy compression (false). Lossy requires Canva Pro."
+                    },
+                    "transparent_background": {
+                        "type": "boolean",
+                        "description": "PNG only: Export with transparent background (requires Canva Pro). Default: false."
+                    },
+                    "as_single_image": {
+                        "type": "boolean",
+                        "description": "PNG only: Merge multi-page designs into single image (true) or export each page separately (false, default)."
+                    },
+                    "pages": {
+                        "type": "array",
+                        "description": "Specific pages to export (optional, defaults to all pages). First page is 1. Applies to multi-page designs.",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "required": ["design_id", "format"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "Export job ID"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_export_status": {
+            "display_name": "Get Export Status",
+            "description": "Get the result of a design export job created by 'export_design'. You might need to make multiple requests to this endpoint until you get a success or failed status. On success, returns array of download URLs.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "export_id": {
+                        "type": "string",
+                        "description": "Export job ID returned from export_design"
+                    }
+                },
+                "required": ["export_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Export status (in_progress, success, failed)"
+                    },
+                    "urls": {
+                        "type": "array",
+                        "description": "Download URLs for exported files",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "import_design": {
+            "display_name": "Import Design",
+            "description": "Import external design files (PDF, PPTX, etc.) into Canva as editable designs. This is an ASYNCHRONOUS operation - use 'get_design_import_status' to check completion. Large files may be split into multiple Canva designs.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "description": "Single file object (from chat): base64 content, name, contentType.",
+                        "properties": {
+                            "content": {"type": "string", "description": "Base64-encoded file content"},
+                            "name": {"type": "string", "description": "Filename"},
+                            "contentType": {"type": "string", "description": "MIME type"}
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "Alternate chat input: array of file objects; the first will be used.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "content": {"type": "string", "description": "Base64-encoded file content"},
+                                "name": {"type": "string", "description": "Filename"},
+                                "contentType": {"type": "string", "description": "MIME type"}
+                            },
+                            "required": ["content", "name", "contentType"]
+                        }
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Title for the imported design (optional, uses filename if not provided)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "Import job ID"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Initial job status"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_design_import_status": {
+            "display_name": "Get Design Import Status",
+            "description": "Get the result of a design import job created by 'import_design'. You might need to make multiple requests to this endpoint until you get a success or failed status. On success, returns array of imported design objects with IDs and URLs.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "Import job ID returned from import_design"
+                    }
+                },
+                "required": ["job_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Import status (in_progress, success, failed)"
+                    },
+                    "designs": {
+                        "type": "array",
+                        "description": "Array of imported designs (only if status is success)",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Design ID"
+                                },
+                                "title": {
+                                    "type": "string",
+                                    "description": "Design title"
+                                },
+                                "urls": {
+                                    "type": "object",
+                                    "description": "Edit and view URLs"
+                                }
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "import_design_from_url": {
+            "display_name": "Import Design from URL",
+            "description": "Import external design files from a publicly accessible URL (PDF, PPTX, etc.) into Canva. This is an ASYNCHRONOUS operation - use 'get_url_import_status' to check completion. Alternative to 'import_design' when you have a URL instead of file data.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "Publicly accessible file URL (1-2048 characters)"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Title for the imported design (1-255 characters)"
+                    },
+                    "mime_type": {
+                        "type": "string",
+                        "description": "MIME type of the file (auto-detected if omitted)"
+                    }
+                },
+                "required": ["url", "title"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "URL import job ID"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Initial job status"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_url_import_status": {
+            "display_name": "Get URL Import Status",
+            "description": "Get the result of a URL import job created by 'import_design_from_url'. You might need to make multiple requests to this endpoint until you get a success or failed status. On success, returns array of imported designs with edit/view URLs.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "URL import job ID returned from import_design_from_url"
+                    }
+                },
+                "required": ["job_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Import status (in_progress, success, failed)"
+                    },
+                    "designs": {
+                        "type": "array",
+                        "description": "Array of imported designs (only if status is success)",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Design ID"
+                                },
+                                "title": {
+                                    "type": "string",
+                                    "description": "Design title"
+                                },
+                                "urls": {
+                                    "type": "object",
+                                    "description": "Edit and view URLs (valid 30 days)"
+                                },
+                                "thumbnail": {
+                                    "type": "object",
+                                    "description": "Thumbnail information"
+                                }
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "create_folder": {
+            "display_name": "Create Folder",
+            "description": "Create a new folder to organize designs and assets in Canva. Use 'parent_folder_id' to create nested folders. Special values: 'root' for top-level, 'uploads' for uploads folder. Defaults to 'root' if not specified.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Folder name"
+                    },
+                    "parent_folder_id": {
+                        "type": "string",
+                        "description": "Parent folder ID - Use 'root' for top level (default), or 'uploads' for Uploads folder, or a specific folder ID"
+                    }
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "folder": {
+                        "type": "object",
+                        "description": "Created folder details",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Folder ID"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Folder name"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_folder": {
+            "display_name": "Get Folder",
+            "description": "Retrieve metadata for a specific folder by its folderId. Returns folder details including name and timestamps.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "folder_id": {
+                        "type": "string",
+                        "description": "Folder ID"
+                    }
+                },
+                "required": ["folder_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "folder": {
+                        "type": "object",
+                        "description": "Folder metadata",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Folder ID"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Folder name"
+                            },
+                            "created_at": {
+                                "type": "integer",
+                                "description": "Creation timestamp"
+                            },
+                            "updated_at": {
+                                "type": "integer",
+                                "description": "Last update timestamp"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "list_folder_items": {
+            "display_name": "List Folder Items",
+            "description": "List all items in a folder including designs, assets, and subfolders. Returns paginated results with each item's type, ID, and name. Use 'continuation' token to fetch additional pages.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "folder_id": {
+                        "type": "string",
+                        "description": "Folder ID"
+                    },
+                    "continuation": {
+                        "type": "string",
+                        "description": "Continuation token for pagination"
+                    }
+                },
+                "required": ["folder_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "description": "List of items in the folder",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Item ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Item name"
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "description": "Item type (design, asset, folder)"
+                                }
+                            }
+                        }
+                    },
+                    "continuation": {
+                        "type": "string",
+                        "description": "Token for next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["items", "result"]
+            }
+        },
+        "update_folder": {
+            "display_name": "Update Folder",
+            "description": "Update a folder's name by specifying its folderId. This only renames the folder and does not move it or change its contents.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "folder_id": {
+                        "type": "string",
+                        "description": "Folder ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New folder name"
+                    }
+                },
+                "required": ["folder_id", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "delete_folder": {
+            "display_name": "Delete Folder",
+            "description": "Delete a folder by specifying its folderId. Warning: This deletes the folder and all its contents including designs, assets, and subfolders.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "folder_id": {
+                        "type": "string",
+                        "description": "Folder ID"
+                    }
+                },
+                "required": ["folder_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "move_item_to_folder": {
+            "display_name": "Move Item to Folder",
+            "description": "Move an item (design, asset, or folder) to a different destination folder. Use 'root' as destination_folder_id to move to top level. Note: Video assets cannot be moved.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "item_id": {
+                        "type": "string",
+                        "description": "ID of the item to move (design, asset, or folder). Note: video assets are not supported."
+                    },
+                    "destination_folder_id": {
+                        "type": "string",
+                        "description": "Destination folder ID. Use 'root' to move to top level of user's projects."
+                    }
+                },
+                "required": ["item_id", "destination_folder_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["result"]
+            }
+        }
+    }
+}

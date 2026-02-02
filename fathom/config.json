@@ -1,0 +1,362 @@
+{
+    "name": "fathom_v1",
+    "version": "1.0.0",
+    "description": "An integration with Fathom AI to access meeting recordings, transcripts, summaries, teams, and team members.",
+    "entry_point": "fathom.py",
+    "auth": {
+        "type": "platform",
+        "provider": "fathom",
+        "scopes": [
+            "public_api"
+        ]
+    },
+    "actions": {
+        "list_meetings": {
+            "display_name": "List Meetings",
+            "description": "List recent meetings recorded by you or shared to your team, with optional filtering.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "calendar_invitees_domains": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Domains of the companies to filter by. Exact match. Returns meetings where any of the given company domains appear in the meeting."
+                    },
+                    "calendar_invitees_domains_type": {
+                        "type": "string",
+                        "description": "Filter by whether calendar invitee list includes external email domains.",
+                        "enum": ["all", "only_internal", "one_or_more_external"],
+                        "default": "all"
+                    },
+                    "created_after": {
+                        "type": "string",
+                        "description": "Filter to meetings with created_at after this timestamp, e.g. created_after=2025-01-01T00:00:00Z."
+                    },
+                    "created_before": {
+                        "type": "string",
+                        "description": "Filter to meetings with created_at before this timestamp, e.g. created_before=2025-01-01T00:00:00Z."
+                    },
+                    "cursor": {
+                        "type": "string",
+                        "description": "Cursor for pagination."
+                    },
+                    "include_action_items": {
+                        "type": "boolean",
+                        "description": "Include the action items for each meeting.",
+                        "default": false
+                    },
+                    "include_crm_matches": {
+                        "type": "boolean",
+                        "description": "Include CRM matches for each meeting. Only returns data from your or your team's linked CRM.",
+                        "default": false
+                    },
+                    "meeting_type": {
+                        "type": "string",
+                        "description": "Filter by meeting type.",
+                        "enum": ["all", "internal", "external"]
+                    },
+                    "recorded_by": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Email addresses of users who recorded meetings. Returns meetings recorded by any of the specified users."
+                    },
+                    "teams": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Team names to filter by. Returns meetings that belong to any of the specified teams."
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "description": "Number of items per page",
+                        "anyOf": [
+                            {"type": "integer"},
+                            {"type": "null"}
+                        ]
+                    },
+                    "next_cursor": {
+                        "description": "Cursor for retrieving the next page of results",
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "null"}
+                        ]
+                    },
+                    "items": {
+                        "type": "array",
+                        "description": "Array of meeting objects",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "properties": {
+                                "recording_id": {
+                                    "type": "integer",
+                                    "description": "The recording ID"
+                                },
+                                "title": {
+                                    "type": "string",
+                                    "description": "The meeting title"
+                                },
+                                "meeting_title": {
+                                    "description": "The scheduled meeting title",
+                                    "anyOf": [
+                                        {"type": "string"},
+                                        {"type": "null"}
+                                    ]
+                                },
+                                "url": {
+                                    "type": "string",
+                                    "description": "The Fathom video URL"
+                                },
+                                "share_url": {
+                                    "type": "string",
+                                    "description": "The shareable meeting URL"
+                                },
+                                "created_at": {
+                                    "type": "string",
+                                    "description": "Recording creation time in ISO format"
+                                },
+                                "scheduled_start_time": {
+                                    "type": "string",
+                                    "description": "Scheduled meeting start time in ISO format"
+                                },
+                                "scheduled_end_time": {
+                                    "type": "string",
+                                    "description": "Scheduled meeting end time in ISO format"
+                                },
+                                "recording_start_time": {
+                                    "type": "string",
+                                    "description": "Actual recording start time in ISO format"
+                                },
+                                "recording_end_time": {
+                                    "type": "string",
+                                    "description": "Actual recording end time in ISO format"
+                                },
+                                "calendar_invitees_domains_type": {
+                                    "type": "string",
+                                    "description": "Type of attendees (only_internal or one_or_more_external)"
+                                },
+                                "transcript_language": {
+                                    "type": "string",
+                                    "description": "Language of the transcript"
+                                },
+                                "calendar_invitees": {
+                                    "type": "array",
+                                    "description": "List of calendar invitees",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "description": "Invitee name"
+                                            },
+                                            "email": {
+                                                "type": "string",
+                                                "description": "Invitee email"
+                                            },
+                                            "email_domain": {
+                                                "type": "string",
+                                                "description": "Invitee email domain"
+                                            },
+                                            "is_external": {
+                                                "type": "boolean",
+                                                "description": "Whether invitee is external"
+                                            },
+                                            "matched_speaker_display_name": {
+                                                "description": "Matched speaker name from transcript",
+                                                "anyOf": [
+                                                    {"type": "string"},
+                                                    {"type": "null"}
+                                                ]
+                                            }
+                                        }
+                                    }
+                                },
+                                "recorded_by": {
+                                    "type": "object",
+                                    "description": "Information about who recorded the meeting",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Recorder name"
+                                        },
+                                        "email": {
+                                            "type": "string",
+                                            "description": "Recorder email"
+                                        },
+                                        "email_domain": {
+                                            "type": "string",
+                                            "description": "Recorder email domain"
+                                        },
+                                        "team": {
+                                            "description": "Recorder's team",
+                                            "anyOf": [
+                                                {"type": "string"},
+                                                {"type": "null"}
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "get_transcript": {
+            "display_name": "Get Transcript",
+            "description": "Retrieve the transcript for a specific recording with speaker attribution and timestamps.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "recording_id": {
+                        "type": "integer",
+                        "description": "The ID of the recording to get transcript for."
+                    }
+                },
+                "required": ["recording_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "recording_id": {
+                        "type": "integer",
+                        "description": "The recording ID"
+                    },
+                    "transcript": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "speaker_name": {
+                                    "type": "string",
+                                    "description": "Name of the speaker"
+                                },
+                                "timestamp": {
+                                    "type": "string",
+                                    "description": "Timestamp in format HH:MM:SS"
+                                },
+                                "text": {
+                                    "type": "string",
+                                    "description": "The spoken text"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "list_teams": {
+            "display_name": "List Teams",
+            "description": "List all teams the user has access to.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "cursor": {
+                        "type": "string",
+                        "description": "Cursor for pagination."
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "description": "Number of items per page",
+                        "anyOf": [
+                            {"type": "integer"},
+                            {"type": "null"}
+                        ]
+                    },
+                    "next_cursor": {
+                        "description": "Cursor for retrieving the next page of results",
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "null"}
+                        ]
+                    },
+                    "teams": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "The team name"
+                                },
+                                "created_at": {
+                                    "type": "string",
+                                    "description": "Team creation timestamp"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "list_team_members": {
+            "display_name": "List Team Members",
+            "description": "List all team members the user has access to, with optional filtering by team.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "cursor": {
+                        "type": "string",
+                        "description": "Cursor for pagination."
+                    },
+                    "team": {
+                        "type": "string",
+                        "description": "Team name to filter by."
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "description": "Number of items per page",
+                        "anyOf": [
+                            {"type": "integer"},
+                            {"type": "null"}
+                        ]
+                    },
+                    "next_cursor": {
+                        "description": "Cursor for retrieving the next page of results",
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "null"}
+                        ]
+                    },
+                    "team_members": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "The member name"
+                                },
+                                "email": {
+                                    "type": "string",
+                                    "description": "The member email"
+                                },
+                                "created_at": {
+                                    "type": "string",
+                                    "description": "Member creation timestamp"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,5 @@
+autohive_integrations_sdk
+python-pptx
+markdown>=3.4.0
+beautifulsoup4>=4.12.0
+Pillow
