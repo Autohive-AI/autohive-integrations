@@ -1,0 +1,635 @@
+{
+  "name": "Viator",
+  "version": "1.0.0",
+  "description": "Viator Partner API integration for tours and experiences booking platform",
+  "display_name": "Viator",
+  "entry_point": "viator.py",
+  "auth": {
+    "type": "custom",
+    "title": "Viator Partner API Key",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "format": "password",
+          "label": "API Key",
+          "help_text": "Your Viator Partner API Key. You can obtain this from the Viator Partner API portal at https://www.viator.com/partner"
+        }
+      }
+    }
+  },
+  "actions": {
+    "search_products": {
+      "display_name": "Search Products",
+      "description": "Search for tours and experiences products by location and filters",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "destination_id": {
+            "type": "integer",
+            "description": "Destination ID to search products in"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Start date for availability in YYYY-MM-DD format"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "End date for availability in YYYY-MM-DD format"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code (e.g., USD, EUR, GBP)",
+            "default": "USD"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination",
+            "default": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of results per page",
+            "default": 20
+          }
+        },
+        "required": ["destination_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "product_code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "duration": {
+                  "type": "string"
+                },
+                "price": {
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "number"
+                    },
+                    "currency": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "rating": {
+                  "type": "number"
+                },
+                "reviews_count": {
+                  "type": "integer"
+                },
+                "image_url": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "total_count": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "get_product_details": {
+      "display_name": "Get Product Details",
+      "description": "Get detailed information about a specific product",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_code": {
+            "type": "string",
+            "description": "Unique product code (e.g., 5010SYDNEY)"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code (e.g., USD, EUR, GBP)",
+            "default": "USD"
+          }
+        },
+        "required": ["product_code"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "product_code": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "string"
+          },
+          "price": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "number"
+              },
+              "currency": {
+                "type": "string"
+              }
+            }
+          },
+          "rating": {
+            "type": "number"
+          },
+          "reviews_count": {
+            "type": "integer"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "inclusions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exclusions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "meeting_point": {
+            "type": "string"
+          },
+          "cancellation_policy": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "check_availability": {
+      "display_name": "Check Availability",
+      "description": "Check real-time availability and pricing for a product",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_code": {
+            "type": "string",
+            "description": "Unique product code"
+          },
+          "travel_date": {
+            "type": "string",
+            "description": "Travel date in YYYY-MM-DD format"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code (e.g., USD, EUR, GBP)",
+            "default": "USD"
+          },
+          "adult_count": {
+            "type": "integer",
+            "description": "Number of adults",
+            "default": 1
+          },
+          "child_count": {
+            "type": "integer",
+            "description": "Number of children",
+            "default": 0
+          }
+        },
+        "required": ["product_code", "travel_date"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "product_options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "option_code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "price": {
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "number"
+                    },
+                    "currency": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "available_start_times": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "calculate_price": {
+      "display_name": "Calculate Booking Price",
+      "description": "Calculate the total price for a booking with specific travelers and options",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_code": {
+            "type": "string",
+            "description": "Unique product code"
+          },
+          "product_option_code": {
+            "type": "string",
+            "description": "Product option code"
+          },
+          "travel_date": {
+            "type": "string",
+            "description": "Travel date in YYYY-MM-DD format"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code (e.g., USD, EUR, GBP)",
+            "default": "USD"
+          },
+          "adult_count": {
+            "type": "integer",
+            "description": "Number of adults",
+            "default": 1
+          },
+          "child_count": {
+            "type": "integer",
+            "description": "Number of children",
+            "default": 0
+          },
+          "infant_count": {
+            "type": "integer",
+            "description": "Number of infants",
+            "default": 0
+          }
+        },
+        "required": ["product_code", "product_option_code", "travel_date"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "subtotal": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "breakdown": {
+            "type": "object",
+            "properties": {
+              "adult_price": {
+                "type": "number"
+              },
+              "child_price": {
+                "type": "number"
+              },
+              "infant_price": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "create_booking": {
+      "display_name": "Create Booking",
+      "description": "Create a new booking for a tour or experience",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_code": {
+            "type": "string",
+            "description": "Unique product code"
+          },
+          "product_option_code": {
+            "type": "string",
+            "description": "Product option code"
+          },
+          "travel_date": {
+            "type": "string",
+            "description": "Travel date in YYYY-MM-DD format"
+          },
+          "start_time": {
+            "type": "string",
+            "description": "Start time if applicable"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code (e.g., USD, EUR, GBP)",
+            "default": "USD"
+          },
+          "traveler_details": {
+            "type": "array",
+            "description": "Array of traveler information",
+            "items": {
+              "type": "object",
+              "properties": {
+                "first_name": {
+                  "type": "string"
+                },
+                "last_name": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "phone": {
+                  "type": "string"
+                },
+                "age_band": {
+                  "type": "string",
+                  "description": "ADULT, CHILD, INFANT, YOUTH, or SENIOR"
+                }
+              }
+            }
+          },
+          "booker_details": {
+            "type": "object",
+            "description": "Details of the person making the booking",
+            "properties": {
+              "first_name": {
+                "type": "string"
+              },
+              "last_name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": ["product_code", "product_option_code", "travel_date", "traveler_details", "booker_details"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "booking_reference": {
+            "type": "string"
+          },
+          "booking_status": {
+            "type": "string"
+          },
+          "voucher_url": {
+            "type": "string"
+          },
+          "total_price": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "confirmation_email_sent": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "get_booking": {
+      "display_name": "Get Booking Details",
+      "description": "Retrieve details of an existing booking",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "booking_reference": {
+            "type": "string",
+            "description": "Booking reference number"
+          }
+        },
+        "required": ["booking_reference"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "booking_reference": {
+            "type": "string"
+          },
+          "booking_status": {
+            "type": "string"
+          },
+          "product_code": {
+            "type": "string"
+          },
+          "product_title": {
+            "type": "string"
+          },
+          "travel_date": {
+            "type": "string"
+          },
+          "total_price": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "voucher_url": {
+            "type": "string"
+          },
+          "travelers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "first_name": {
+                  "type": "string"
+                },
+                "last_name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancel_booking": {
+      "display_name": "Cancel Booking",
+      "description": "Cancel an existing booking and get refund information",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "booking_reference": {
+            "type": "string",
+            "description": "Booking reference number to cancel"
+          },
+          "cancellation_reason_code": {
+            "type": "string",
+            "description": "Reason code for cancellation"
+          }
+        },
+        "required": ["booking_reference"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "booking_reference": {
+            "type": "string"
+          },
+          "cancellation_status": {
+            "type": "string"
+          },
+          "refund_amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "cancellation_fee": {
+            "type": "number"
+          },
+          "refund_eligible": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "get_destinations": {
+      "display_name": "Get Destinations",
+      "description": "Get list of available destinations",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "parent_destination_id": {
+            "type": "integer",
+            "description": "Parent destination ID to get child destinations"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "destinations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "destination_id": {
+                  "type": "integer"
+                },
+                "destination_name": {
+                  "type": "string"
+                },
+                "destination_type": {
+                  "type": "string"
+                },
+                "parent_id": {
+                  "type": "integer"
+                },
+                "time_zone": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "get_product_reviews": {
+      "display_name": "Get Product Reviews",
+      "description": "Get reviews and ratings for a specific product",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_code": {
+            "type": "string",
+            "description": "Unique product code"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination",
+            "default": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of reviews per page",
+            "default": 10
+          }
+        },
+        "required": ["product_code"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "product_code": {
+            "type": "string"
+          },
+          "average_rating": {
+            "type": "number"
+          },
+          "total_reviews": {
+            "type": "integer"
+          },
+          "reviews": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "review_id": {
+                  "type": "string"
+                },
+                "rating": {
+                  "type": "number"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "review_text": {
+                  "type": "string"
+                },
+                "reviewer_name": {
+                  "type": "string"
+                },
+                "review_date": {
+                  "type": "string"
+                },
+                "travel_date": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "polling_triggers": {}
+}
