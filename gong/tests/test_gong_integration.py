@@ -77,6 +77,7 @@ async def test_get_call_details_shim():
     assert data["title"] == "Demo"
     assert len(data["participants"]) == 1
     assert data["participants"][0]["name"] == "Jane"
+    assert data["crm_data"] == {"opp": 123}
 
 
 async def test_get_call_transcript_mapping():
@@ -152,6 +153,7 @@ async def test_get_call_details_private_filtered():
     assert data.get("error") == "private_call_filtered"
     assert data.get("id") == "x"
     assert data.get("duration") == 0
+    assert data.get("crm_data") == {}
 
 
 async def test_get_call_transcript_private_filtered():
