@@ -151,10 +151,10 @@ class TestBuildPostInfo:
             post_info["title"] = title[:MAX_CAPTION_LENGTH]
         if inputs.get("video_cover_timestamp_ms") is not None:
             post_info["video_cover_timestamp_ms"] = inputs["video_cover_timestamp_ms"]
-        if inputs.get("brand_content_toggle"):
-            post_info["brand_content_toggle"] = True
-        if inputs.get("brand_organic_toggle"):
-            post_info["brand_organic_toggle"] = True
+        if inputs.get("brand_content_toggle") is not None:
+            post_info["brand_content_toggle"] = bool(inputs["brand_content_toggle"])
+        if inputs.get("brand_organic_toggle") is not None:
+            post_info["brand_organic_toggle"] = bool(inputs["brand_organic_toggle"])
         return post_info
 
     def test_builds_basic_post_info(self):
@@ -178,6 +178,13 @@ class TestBuildPostInfo:
         inputs = {"brand_content_toggle": True, "brand_organic_toggle": False}
         result = self._build_post_info(inputs)
         assert result["brand_content_toggle"] is True
+        assert result["brand_organic_toggle"] is False  # Explicit False is preserved
+
+    def test_optional_fields_omitted_when_not_provided(self):
+        """Test optional boolean fields are omitted when not provided."""
+        inputs = {}
+        result = self._build_post_info(inputs)
+        assert "brand_content_toggle" not in result
         assert "brand_organic_toggle" not in result
 
     def test_cover_timestamp_included(self):
@@ -344,10 +351,14 @@ class TestBuildPostStatus:
 
     def _build_post_status(self, data):
         """Local implementation for testing post status building."""
+        # Note: "publicaly_available_post_id" is TikTok's actual field name (their typo)
+        # We preserve it for API compatibility but also provide correct spelling alias
+        post_ids = data.get("publicaly_available_post_id", [])
         return {
             "status": data.get("status", ""),
             "fail_reason": data.get("fail_reason", ""),
-            "publicaly_available_post_id": data.get("publicaly_available_post_id", []),
+            "publicaly_available_post_id": post_ids,  # TikTok's actual field name
+            "publicly_available_post_id": post_ids,   # Correctly spelled alias
             "uploaded_bytes": data.get("uploaded_bytes", 0),
             "error_code": data.get("error_code", ""),
         }
@@ -362,6 +373,8 @@ class TestBuildPostStatus:
 
         assert result["status"] == "PUBLISH_COMPLETE"
         assert "7123456789012345678" in result["publicaly_available_post_id"]
+        # Test correctly spelled alias
+        assert result["publicly_available_post_id"] == result["publicaly_available_post_id"]
 
     def test_builds_failed_response(self):
         """Test building failed status response."""
@@ -375,6 +388,145 @@ class TestBuildPostStatus:
         assert result["status"] == "FAILED"
         assert result["fail_reason"] == "Video format not supported"
         assert result["error_code"] == "video_format_invalid"
+
+
+class TestCheckApiResponse:
+    """Tests for API response error checking logic."""
+
+    class TikTokAPIError(Exception):
+        """Local exception class for testing."""
+        def __init__(self, message, error_code="", log_id=""):
+            super().__init__(message)
+            self.error_code = error_code
+            self.log_id = log_id
+
+    def _check_api_response(self, response):
+        """Local implementation for testing API response checking."""
+        # Check for error_code/error_message format (alternative error structure)
+        if "error_code" in response and response["error_code"]:
+            code = str(response["error_code"])
+            message = response.get("error_message") or response.get("message") or "Unknown error"
+            log_id = response.get("log_id", "")
+            raise self.TikTokAPIError(f"TikTok API error: {message} (code: {code})", error_code=code, log_id=log_id)
+
+        # Check for standard error object format
+        if "error" in response:
+            error = response["error"]
+            if isinstance(error, dict):
+                code = error.get("code", "unknown_error")
+                if code == "ok":
+                    return response.get("data", response)
+
+                message = error.get("message") or error.get("description") or str(error)
+                log_id = error.get("log_id", "")
+                raise self.TikTokAPIError(f"TikTok API error: {message} (code: {code}, log_id: {log_id})", error_code=code, log_id=log_id)
+            elif error:
+                raise self.TikTokAPIError(f"TikTok API error: {error}")
+
+        # Check for top-level message without error object
+        if "message" in response and not response.get("data"):
+            message = response["message"]
+            if message and message.lower() not in ("success", "ok", ""):
+                raise self.TikTokAPIError(f"TikTok API error: {message}")
+
+        return response.get("data", response)
+
+    def test_success_response_with_ok_code(self):
+        """Test successful response with error.code = 'ok'."""
+        response = {
+            "data": {"user": {"open_id": "123"}},
+            "error": {"code": "ok", "message": "", "log_id": "abc123"}
+        }
+        result = self._check_api_response(response)
+        assert result["user"]["open_id"] == "123"
+
+    def test_error_code_format(self):
+        """Test error_code/error_message format."""
+        response = {
+            "error_code": "invalid_token",
+            "error_message": "Token has expired",
+            "log_id": "xyz789"
+        }
+        with pytest.raises(self.TikTokAPIError) as exc_info:
+            self._check_api_response(response)
+        assert exc_info.value.error_code == "invalid_token"
+        assert "Token has expired" in str(exc_info.value)
+
+    def test_standard_error_object_format(self):
+        """Test standard error object format."""
+        response = {
+            "data": {},
+            "error": {"code": "rate_limit_exceeded", "message": "Too many requests", "log_id": "rl123"}
+        }
+        with pytest.raises(self.TikTokAPIError) as exc_info:
+            self._check_api_response(response)
+        assert exc_info.value.error_code == "rate_limit_exceeded"
+
+    def test_top_level_message_error(self):
+        """Test top-level message without data."""
+        response = {"message": "Unauthorized access"}
+        with pytest.raises(self.TikTokAPIError) as exc_info:
+            self._check_api_response(response)
+        assert "Unauthorized access" in str(exc_info.value)
+
+    def test_success_message_not_treated_as_error(self):
+        """Test 'success' message is not treated as error."""
+        response = {"message": "success", "data": {"result": "ok"}}
+        result = self._check_api_response(response)
+        assert result["result"] == "ok"
+
+
+class TestGetVideosValidation:
+    """Tests for get_videos input validation logic."""
+
+    def _validate_get_videos_inputs(self, inputs):
+        """Local implementation for testing get_videos validation."""
+        # Validate and clamp max_count to [1..20]
+        max_count = inputs.get("max_count", 20)
+        if not isinstance(max_count, int) or max_count < 1:
+            max_count = 1
+        max_count = min(max_count, 20)
+
+        request_body = {"max_count": max_count}
+
+        # Validate cursor type if provided
+        cursor = inputs.get("cursor")
+        if cursor is not None:
+            if not isinstance(cursor, int):
+                raise ValueError("cursor must be an integer")
+            request_body["cursor"] = cursor
+
+        return request_body
+
+    def test_default_max_count(self):
+        """Test default max_count is 20."""
+        result = self._validate_get_videos_inputs({})
+        assert result["max_count"] == 20
+
+    def test_clamps_max_count_to_20(self):
+        """Test max_count is clamped to 20."""
+        result = self._validate_get_videos_inputs({"max_count": 100})
+        assert result["max_count"] == 20
+
+    def test_clamps_zero_max_count_to_1(self):
+        """Test zero max_count is clamped to 1."""
+        result = self._validate_get_videos_inputs({"max_count": 0})
+        assert result["max_count"] == 1
+
+    def test_clamps_negative_max_count_to_1(self):
+        """Test negative max_count is clamped to 1."""
+        result = self._validate_get_videos_inputs({"max_count": -5})
+        assert result["max_count"] == 1
+
+    def test_valid_cursor(self):
+        """Test valid integer cursor is accepted."""
+        result = self._validate_get_videos_inputs({"cursor": 12345})
+        assert result["cursor"] == 12345
+
+    def test_invalid_cursor_type(self):
+        """Test non-integer cursor raises error."""
+        with pytest.raises(ValueError, match="cursor must be an integer"):
+            self._validate_get_videos_inputs({"cursor": "not_an_int"})
 
 
 # =============================================================================

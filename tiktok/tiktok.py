@@ -69,10 +69,10 @@ MAX_CAPTION_LENGTH = 2200
 class TikTokAPIError(Exception):
     """Exception raised for TikTok API errors."""
 
-    def __init__(self, message: str, error_code: str = "", response: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, error_code: str = "", log_id: str = ""):
         super().__init__(message)
         self.error_code = error_code
-        self.response = response
+        self.log_id = log_id  # Only store safe diagnostic fields, not raw response
 
 
 # =============================================================================
@@ -80,8 +80,21 @@ class TikTokAPIError(Exception):
 # =============================================================================
 
 def _check_api_response(response: Dict[str, Any]) -> Dict[str, Any]:
-    """Check API response for errors and extract data."""
-    # TikTok API returns error object even for successful responses
+    """Check API response for errors and extract data.
+
+    TikTok v2 APIs return errors in multiple formats:
+    - {"error": {"code": "...", "message": "...", "log_id": "..."}}
+    - {"error_code": "...", "error_message": "..."}
+    - {"message": "..."}
+    """
+    # Check for error_code/error_message format (alternative error structure)
+    if "error_code" in response and response["error_code"]:
+        code = str(response["error_code"])
+        message = response.get("error_message") or response.get("message") or "Unknown error"
+        log_id = response.get("log_id", "")
+        raise TikTokAPIError(f"TikTok API error: {message} (code: {code})", error_code=code, log_id=log_id)
+
+    # Check for standard error object format
     # Success: {"data": {...}, "error": {"code": "ok", "message": "", "log_id": "..."}}
     # Error: {"data": {}, "error": {"code": "error_code", "message": "...", "log_id": "..."}}
     if "error" in response:
@@ -95,15 +108,22 @@ def _check_api_response(response: Dict[str, Any]) -> Dict[str, Any]:
             message = error.get("message") or error.get("description") or str(error)
             log_id = error.get("log_id", "")
             if code == "access_token_invalid":
-                raise TikTokAPIError("Access token is invalid or expired.", error_code=code, response=response)
+                raise TikTokAPIError("Access token is invalid or expired.", error_code=code, log_id=log_id)
             elif code == "rate_limit_exceeded":
-                raise TikTokAPIError("Rate limit exceeded.", error_code=code, response=response)
+                raise TikTokAPIError("Rate limit exceeded.", error_code=code, log_id=log_id)
             elif code == "scope_not_authorized":
-                raise TikTokAPIError(f"Required scope not authorized. Code: {code}, Log ID: {log_id}", error_code=code, response=response)
+                raise TikTokAPIError(f"Required scope not authorized. Code: {code}, Log ID: {log_id}", error_code=code, log_id=log_id)
             else:
-                raise TikTokAPIError(f"TikTok API error: {message} (code: {code}, log_id: {log_id})", error_code=code, response=response)
+                raise TikTokAPIError(f"TikTok API error: {message} (code: {code}, log_id: {log_id})", error_code=code, log_id=log_id)
         elif error:  # Non-empty non-dict error
-            raise TikTokAPIError(f"TikTok API error: {error}", response=response)
+            raise TikTokAPIError(f"TikTok API error: {error}")
+
+    # Check for top-level message without error object (some endpoints)
+    if "message" in response and not response.get("data"):
+        message = response["message"]
+        if message and message.lower() not in ("success", "ok", ""):
+            raise TikTokAPIError(f"TikTok API error: {message}")
+
     return response.get("data", response)
 
 
@@ -164,10 +184,14 @@ def _build_video(video: Dict[str, Any]) -> Dict[str, Any]:
 
 def _build_post_status(data: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize post status API response."""
+    # Note: "publicaly_available_post_id" is TikTok's actual field name (their typo)
+    # We preserve it for API compatibility but also provide correct spelling alias
+    post_ids = data.get("publicaly_available_post_id", [])
     return {
         "status": data.get("status", ""),
         "fail_reason": data.get("fail_reason", ""),
-        "publicaly_available_post_id": data.get("publicaly_available_post_id", []),
+        "publicaly_available_post_id": post_ids,  # TikTok's actual field name
+        "publicly_available_post_id": post_ids,   # Correctly spelled alias
         "uploaded_bytes": data.get("uploaded_bytes", 0),
         "error_code": data.get("error_code", ""),
     }
@@ -272,10 +296,10 @@ def _build_post_info(inputs: Dict[str, Any]) -> Dict[str, Any]:
         post_info["title"] = title[:MAX_CAPTION_LENGTH]
     if inputs.get("video_cover_timestamp_ms") is not None:
         post_info["video_cover_timestamp_ms"] = inputs["video_cover_timestamp_ms"]
-    if inputs.get("brand_content_toggle"):
-        post_info["brand_content_toggle"] = True
-    if inputs.get("brand_organic_toggle"):
-        post_info["brand_organic_toggle"] = True
+    if inputs.get("brand_content_toggle") is not None:
+        post_info["brand_content_toggle"] = bool(inputs["brand_content_toggle"])
+    if inputs.get("brand_organic_toggle") is not None:
+        post_info["brand_organic_toggle"] = bool(inputs["brand_organic_toggle"])
     return post_info
 
 
@@ -467,10 +491,20 @@ class GetVideosHandler(ActionHandler):
     """List user's videos."""
 
     async def execute(self, inputs: dict, context: ExecutionContext) -> ActionResult:
-        max_count = min(inputs.get("max_count", 20), 20)
+        # Validate and clamp max_count to [1..20]
+        max_count = inputs.get("max_count", 20)
+        if not isinstance(max_count, int) or max_count < 1:
+            max_count = 1
+        max_count = min(max_count, 20)
+
         request_body: dict = {"max_count": max_count, "fields": VIDEO_FIELDS}
-        if inputs.get("cursor") is not None:
-            request_body["cursor"] = inputs["cursor"]
+
+        # Validate cursor type if provided
+        cursor = inputs.get("cursor")
+        if cursor is not None:
+            if not isinstance(cursor, int):
+                raise ValueError("cursor must be an integer")
+            request_body["cursor"] = cursor
 
         response = await context.fetch(VIDEO_LIST_ENDPOINT, method="POST", json=request_body)
         data = _check_api_response(response)

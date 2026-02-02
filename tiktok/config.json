@@ -219,7 +219,12 @@
                     "publicaly_available_post_id": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Post IDs if published successfully"
+                        "description": "Post IDs if published successfully (TikTok's field name)"
+                    },
+                    "publicly_available_post_id": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Post IDs if published successfully (correctly spelled alias)"
                     },
                     "uploaded_bytes": {"type": "integer", "description": "Number of bytes uploaded so far"},
                     "error_code": {"type": "string", "description": "Error code if failed"}
