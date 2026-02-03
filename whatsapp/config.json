@@ -5,7 +5,7 @@
     "entry_point": "whatsapp.py",
     "auth": {
         "type": "platform",
-        "provider": "whatsapp",
+        "provider": "WhatsApp Business",
         "scopes": ["whatsapp_business_messaging", "whatsapp_business_management"]
     },
     "actions": {

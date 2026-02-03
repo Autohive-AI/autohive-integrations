@@ -6,12 +6,25 @@ import json
 import re
 import os
 
-# Create the integration using the config.json
-# Get the directory where this file is located
-current_dir = os.path.dirname(os.path.abspath(__file__))
-config_path = os.path.join(current_dir, "config.json")
+whatsapp = Integration.load()
 
-whatsapp = Integration.load(config_path)
+def get_whatsapp_creds(auth: Dict[str, Any]) -> Dict[str, str]:
+    """Helper to extract credentials handling multiple naming conventions."""
+    access_token = auth.get("access_token") or auth.get("accessToken") or auth.get("token")
+    phone_number_id = auth.get("phone_number_id") or auth.get("phoneNumberId") or auth.get("id")
+    
+    if not access_token:
+        keys = list(auth.keys())
+        raise ValueError(f"Missing access_token in auth context. Available keys: {keys}")
+        
+    if not phone_number_id:
+        keys = list(auth.keys())
+        raise ValueError(f"Missing phone_number_id in auth context. Available keys: {keys}")
+        
+    return {
+        "access_token": access_token,
+        "phone_number_id": phone_number_id
+    }
 
 # ---- Action Handlers ----
 
@@ -30,12 +43,14 @@ class SendMessageAction(ActionHandler):
             })
         
         try:
+            creds = get_whatsapp_creds(context.auth)
+            
             # WhatsApp Business API endpoint for sending messages
             response = await context.fetch(
-                f"https://graph.facebook.com/v18.0/{context.auth.get('phone_number_id')}/messages",
+                f"https://graph.facebook.com/v18.0/{creds['phone_number_id']}/messages",
                 method="POST",
                 headers={
-                    "Authorization": f"Bearer {context.auth.get('access_token')}",
+                    "Authorization": f"Bearer {creds['access_token']}",
                     "Content-Type": "application/json"
                 },
                 json={
@@ -88,6 +103,8 @@ class SendTemplateMessageAction(ActionHandler):
             })
         
         try:
+            creds = get_whatsapp_creds(context.auth)
+            
             # Build template message payload
             template_payload = {
                 "messaging_product": "whatsapp",
@@ -107,10 +124,10 @@ class SendTemplateMessageAction(ActionHandler):
                 }]
             
             response = await context.fetch(
-                f"https://graph.facebook.com/v18.0/{context.auth.get('phone_number_id')}/messages",
+                f"https://graph.facebook.com/v18.0/{creds['phone_number_id']}/messages",
                 method="POST",
                 headers={
-                    "Authorization": f"Bearer {context.auth.get('access_token')}",
+                    "Authorization": f"Bearer {creds['access_token']}",
                     "Content-Type": "application/json"
                 },
                 json=template_payload
@@ -159,6 +176,8 @@ class SendMediaMessageAction(ActionHandler):
             })
         
         try:
+            creds = get_whatsapp_creds(context.auth)
+
             # Build media message payload
             media_payload = {
                 "messaging_product": "whatsapp",
@@ -178,10 +197,10 @@ class SendMediaMessageAction(ActionHandler):
             media_payload[media_type] = media_object
             
             response = await context.fetch(
-                f"https://graph.facebook.com/v18.0/{context.auth.get('phone_number_id')}/messages",
+                f"https://graph.facebook.com/v18.0/{creds['phone_number_id']}/messages",
                 method="POST",
                 headers={
-                    "Authorization": f"Bearer {context.auth.get('access_token')}",
+                    "Authorization": f"Bearer {creds['access_token']}",
                     "Content-Type": "application/json"
                 },
                 json=media_payload
@@ -229,12 +248,14 @@ class GetContactInfoAction(ActionHandler):
             })
         
         try:
+            creds = get_whatsapp_creds(context.auth)
+
             # Check if the contact is a WhatsApp user
             response = await context.fetch(
-                f"https://graph.facebook.com/v18.0/{context.auth.get('phone_number_id')}/contacts",
+                f"https://graph.facebook.com/v18.0/{creds['phone_number_id']}/contacts",
                 method="POST",
                 headers={
-                    "Authorization": f"Bearer {context.auth.get('access_token')}",
+                    "Authorization": f"Bearer {creds['access_token']}",
                     "Content-Type": "application/json"
                 },
                 json={
