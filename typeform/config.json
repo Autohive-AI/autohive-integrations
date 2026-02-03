@@ -1,0 +1,953 @@
+{
+  "name": "Typeform",
+  "display_name": "Typeform",
+  "version": "1.1.0",
+  "description": "Integration with Typeform for managing forms, responses, workspaces, themes, images, and webhooks. Rate limit handling: If an action returns error_type='rate_limit', wait retry_after_seconds and call the action again with _retry_attempt incremented. Maximum 3 retries recommended.",
+  "entry_point": "typeform.py",
+  "auth": {
+    "type": "platform",
+    "provider": "Typeform",
+    "scopes": [
+      "accounts:read",
+      "forms:read",
+      "forms:write",
+      "responses:read",
+      "responses:write",
+      "workspaces:read",
+      "workspaces:write",
+      "themes:read",
+      "themes:write",
+      "images:read",
+      "images:write",
+      "webhooks:read",
+      "webhooks:write",
+      "offline"
+    ]
+  },
+  "actions": {
+    "get_current_user": {
+      "display_name": "Get Current User",
+      "description": "Get information about the authenticated user account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "description": "User account information including user_id, email, alias, and language"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_forms": {
+      "display_name": "List Forms",
+      "description": "List all forms in your account with optional filtering by workspace",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "description": "Filter forms by workspace ID"
+          },
+          "search": {
+            "type": "string",
+            "description": "Search forms by title"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of forms per page (max 200)"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "forms": {
+            "type": "array",
+            "description": "List of forms with id, title, and metadata"
+          },
+          "total_items": {
+            "type": "integer",
+            "description": "Total number of forms"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_form": {
+      "display_name": "Get Form",
+      "description": "Get detailed information about a specific form including fields, settings, and logic",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The unique identifier of the form"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["form_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "description": "Form details including fields, settings, theme, and logic"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "create_form": {
+      "display_name": "Create Form",
+      "description": "Create a new form with specified title, fields, and settings",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title of the form"
+          },
+          "workspace_id": {
+            "type": "string",
+            "description": "Workspace ID to create the form in"
+          },
+          "fields": {
+            "type": "array",
+            "description": "Array of field objects defining the form questions"
+          },
+          "settings": {
+            "type": "object",
+            "description": "Form settings (language, is_public, progress_bar, etc.)"
+          },
+          "theme_id": {
+            "type": "string",
+            "description": "Theme ID to apply to the form"
+          },
+          "welcome_screens": {
+            "type": "array",
+            "description": "Welcome screen configurations"
+          },
+          "thankyou_screens": {
+            "type": "array",
+            "description": "Thank you screen configurations"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["title"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "description": "Created form details including id and _links"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "update_form": {
+      "display_name": "Update Form",
+      "description": "Update an existing form's title, fields, settings, or theme",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The unique identifier of the form to update"
+          },
+          "title": {
+            "type": "string",
+            "description": "New title for the form"
+          },
+          "fields": {
+            "type": "array",
+            "description": "Updated array of field objects"
+          },
+          "settings": {
+            "type": "object",
+            "description": "Updated form settings"
+          },
+          "theme_id": {
+            "type": "string",
+            "description": "New theme ID to apply"
+          },
+          "welcome_screens": {
+            "type": "array",
+            "description": "Updated welcome screen configurations"
+          },
+          "thankyou_screens": {
+            "type": "array",
+            "description": "Updated thank you screen configurations"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["form_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "description": "Updated form details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "delete_form": {
+      "display_name": "Delete Form",
+      "description": "Delete a form permanently",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The unique identifier of the form to delete"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["form_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the form was deleted"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_responses": {
+      "display_name": "List Responses",
+      "description": "Retrieve responses for a form with optional filtering by date, completion status, and pagination",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The unique identifier of the form"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of responses per page (max 1000, default 25)"
+          },
+          "since": {
+            "type": "string",
+            "description": "Filter responses submitted after this date (ISO 8601 or Unix timestamp)"
+          },
+          "until": {
+            "type": "string",
+            "description": "Filter responses submitted before this date (ISO 8601 or Unix timestamp)"
+          },
+          "after": {
+            "type": "string",
+            "description": "Pagination cursor - response token to start after"
+          },
+          "before": {
+            "type": "string",
+            "description": "Pagination cursor - response token to end before"
+          },
+          "completed": {
+            "type": "boolean",
+            "description": "Filter by completion status (true for completed only)"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort order (e.g., 'submitted_at,desc')"
+          },
+          "query": {
+            "type": "string",
+            "description": "Search responses by text content"
+          },
+          "fields": {
+            "type": "string",
+            "description": "Comma-separated list of field IDs to include in response"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["form_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "responses": {
+            "type": "array",
+            "description": "List of form responses with answers, metadata, and timestamps"
+          },
+          "total_items": {
+            "type": "integer",
+            "description": "Total number of responses"
+          },
+          "page_count": {
+            "type": "integer",
+            "description": "Total number of pages"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "delete_responses": {
+      "display_name": "Delete Responses",
+      "description": "Delete responses from a form by response IDs",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The unique identifier of the form"
+          },
+          "included_response_ids": {
+            "type": "string",
+            "description": "Comma-separated list of response IDs to delete"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["form_id", "included_response_ids"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the responses were deleted"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_workspaces": {
+      "display_name": "List Workspaces",
+      "description": "List all workspaces in your account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search": {
+            "type": "string",
+            "description": "Search workspaces by name"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of workspaces per page (max 200)"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "workspaces": {
+            "type": "array",
+            "description": "List of workspaces with id, name, and metadata"
+          },
+          "total_items": {
+            "type": "integer",
+            "description": "Total number of workspaces"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_workspace": {
+      "display_name": "Get Workspace",
+      "description": "Get details of a specific workspace",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "description": "The unique identifier of the workspace"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["workspace_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "object",
+            "description": "Workspace details including name, forms, and members"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "create_workspace": {
+      "display_name": "Create Workspace",
+      "description": "Create a new workspace",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the workspace"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "object",
+            "description": "Created workspace details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "update_workspace": {
+      "display_name": "Update Workspace",
+      "description": "Update a workspace's name",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "description": "The unique identifier of the workspace"
+          },
+          "name": {
+            "type": "string",
+            "description": "New name for the workspace"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["workspace_id", "name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "object",
+            "description": "Updated workspace details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "delete_workspace": {
+      "display_name": "Delete Workspace",
+      "description": "Delete a workspace",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "description": "The unique identifier of the workspace to delete"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["workspace_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the workspace was deleted"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_themes": {
+      "display_name": "List Themes",
+      "description": "List all themes in your account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of themes per page (max 200)"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "themes": {
+            "type": "array",
+            "description": "List of themes with id, name, colors, and fonts"
+          },
+          "total_items": {
+            "type": "integer",
+            "description": "Total number of themes"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_theme": {
+      "display_name": "Get Theme",
+      "description": "Get details of a specific theme",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "theme_id": {
+            "type": "string",
+            "description": "The unique identifier of the theme"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["theme_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "theme": {
+            "type": "object",
+            "description": "Theme details including colors, fonts, and background"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "create_theme": {
+      "display_name": "Create Theme",
+      "description": "Create a new theme with custom colors, fonts, and background",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the theme"
+          },
+          "colors": {
+            "type": "object",
+            "description": "Color settings (question, answer, button, background)"
+          },
+          "font": {
+            "type": "string",
+            "description": "Font family to use"
+          },
+          "has_transparent_button": {
+            "type": "boolean",
+            "description": "Whether buttons should be transparent"
+          },
+          "background": {
+            "type": "object",
+            "description": "Background settings (image_id, layout, brightness)"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "theme": {
+            "type": "object",
+            "description": "Created theme details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "delete_theme": {
+      "display_name": "Delete Theme",
+      "description": "Delete a theme",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "theme_id": {
+            "type": "string",
+            "description": "The unique identifier of the theme to delete"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["theme_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the theme was deleted"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_images": {
+      "display_name": "List Images",
+      "description": "List all images in your account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of images per page"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "images": {
+            "type": "array",
+            "description": "List of images with id, src, file_name, and dimensions"
+          },
+          "total_items": {
+            "type": "integer",
+            "description": "Total number of images"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_image": {
+      "display_name": "Get Image",
+      "description": "Get details of a specific image",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "image_id": {
+            "type": "string",
+            "description": "The unique identifier of the image"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["image_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "image": {
+            "type": "object",
+            "description": "Image details including src, file_name, width, height"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "delete_image": {
+      "display_name": "Delete Image",
+      "description": "Delete an image from your account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "image_id": {
+            "type": "string",
+            "description": "The unique identifier of the image to delete"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["image_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the image was deleted"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_webhooks": {
+      "display_name": "List Webhooks",
+      "description": "List all webhooks for a form",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The unique identifier of the form"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["form_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "webhooks": {
+            "type": "array",
+            "description": "List of webhooks with tag, url, enabled status"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_webhook": {
+      "display_name": "Get Webhook",
+      "description": "Get details of a specific webhook",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The unique identifier of the form"
+          },
+          "tag": {
+            "type": "string",
+            "description": "The webhook tag/identifier"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["form_id", "tag"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "webhook": {
+            "type": "object",
+            "description": "Webhook details including url, enabled, created_at"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "create_webhook": {
+      "display_name": "Create Webhook",
+      "description": "Create or update a webhook for a form",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The unique identifier of the form"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Unique tag/identifier for the webhook"
+          },
+          "url": {
+            "type": "string",
+            "description": "The webhook endpoint URL to receive payloads"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the webhook is enabled (default true)"
+          },
+          "secret": {
+            "type": "string",
+            "description": "Secret for HMAC SHA256 signature verification"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["form_id", "tag", "url"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "webhook": {
+            "type": "object",
+            "description": "Created/updated webhook details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "delete_webhook": {
+      "display_name": "Delete Webhook",
+      "description": "Delete a webhook from a form",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The unique identifier of the form"
+          },
+          "tag": {
+            "type": "string",
+            "description": "The webhook tag/identifier to delete"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
+        "required": ["form_id", "tag"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the webhook was deleted"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    }
+  }
+}
