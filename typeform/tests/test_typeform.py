@@ -1,7 +1,183 @@
 # Test suite for Typeform integration
 import asyncio
-from context import typeform
-from autohive_integrations_sdk import ExecutionContext
+import sys
+from typing import Dict, Any
+
+# Import SDK components (always available)
+from autohive_integrations_sdk import ActionResult
+from autohive_integrations_sdk.integration import RateLimitError
+
+
+# ============================================================
+# Rate Limit Unit Tests (no credentials needed)
+# ============================================================
+
+MAX_RATE_LIMIT_RETRIES = 3
+
+
+def _create_rate_limit_response(
+    retry_after_seconds: int,
+    retry_attempt: int = 0,
+    action_name: str = "",
+    empty_data: Dict[str, Any] = None
+) -> ActionResult:
+    """Copy of rate limit response function for testing."""
+    can_retry = retry_attempt < MAX_RATE_LIMIT_RETRIES
+
+    if can_retry:
+        error_message = (
+            f"Rate limit exceeded. Please wait {retry_after_seconds} seconds before retrying. "
+            f"This is attempt {retry_attempt + 1} of {MAX_RATE_LIMIT_RETRIES + 1} allowed attempts."
+        )
+        retry_instructions = (
+            f"To retry: wait at least {retry_after_seconds} seconds, then call this action again "
+            f"with _retry_attempt={retry_attempt + 1}. "
+            f"You have {MAX_RATE_LIMIT_RETRIES - retry_attempt} retries remaining."
+        )
+    else:
+        error_message = (
+            f"Rate limit exceeded and maximum retry attempts ({MAX_RATE_LIMIT_RETRIES}) exhausted. "
+            f"The Typeform API requires waiting {retry_after_seconds} seconds between requests. "
+            "Please try again later or reduce request frequency."
+        )
+        retry_instructions = (
+            "Maximum retries exceeded. Do not retry automatically. "
+            "Inform the user that the Typeform API rate limit has been reached."
+        )
+
+    response_data = {
+        **(empty_data or {}),
+        "result": False,
+        "error": error_message,
+        "error_type": "rate_limit",
+        "retry_after_seconds": retry_after_seconds,
+        "retry_attempt": retry_attempt,
+        "max_retries": MAX_RATE_LIMIT_RETRIES,
+        "can_retry": can_retry,
+        "retry_instructions": retry_instructions,
+    }
+
+    if action_name:
+        response_data["action"] = action_name
+
+    return ActionResult(data=response_data, cost_usd=0.0)
+
+
+def _is_rate_limit_error(error: Exception) -> tuple:
+    """Copy of rate limit error detection for testing."""
+    if isinstance(error, RateLimitError):
+        return True, getattr(error, 'retry_after', 60)
+
+    error_str = str(error).lower()
+    if '429' in error_str or 'rate limit' in error_str or 'too many requests' in error_str:
+        return True, 60
+
+    return False, 0
+
+
+def test_rate_limit_response_structure():
+    """Test that rate limit response has all required fields."""
+    result = _create_rate_limit_response(
+        retry_after_seconds=37,
+        retry_attempt=0,
+        action_name="list_forms",
+        empty_data={"forms": [], "total_items": 0}
+    )
+    data = result.data
+
+    required_fields = ["result", "error", "error_type", "retry_after_seconds",
+                       "retry_attempt", "max_retries", "can_retry", "retry_instructions"]
+
+    for field in required_fields:
+        assert field in data, f"Missing required field: {field}"
+
+    assert data["result"] == False
+    assert data["error_type"] == "rate_limit"
+    assert data["retry_after_seconds"] == 37
+    assert data["can_retry"] == True
+    return True
+
+
+def test_rate_limit_max_retries():
+    """Test that can_retry becomes False after max retries."""
+    result = _create_rate_limit_response(
+        retry_after_seconds=60,
+        retry_attempt=MAX_RATE_LIMIT_RETRIES,
+        action_name="get_form",
+        empty_data={"form": {}}
+    )
+    data = result.data
+
+    assert data["can_retry"] == False
+    assert "do not retry" in data["retry_instructions"].lower()
+    return True
+
+
+def test_rate_limit_error_detection():
+    """Test that rate limit errors are correctly detected."""
+    # SDK RateLimitError
+    sdk_error = RateLimitError(30, 429, "Rate limit exceeded", "")
+    is_rate_limit, _ = _is_rate_limit_error(sdk_error)
+    assert is_rate_limit, "Should detect RateLimitError"
+
+    # 429 in message
+    http_error = Exception("HTTP 429: Too Many Requests")
+    is_rate_limit, _ = _is_rate_limit_error(http_error)
+    assert is_rate_limit, "Should detect 429 in message"
+
+    # Non-rate-limit error
+    other_error = Exception("Connection timeout")
+    is_rate_limit, _ = _is_rate_limit_error(other_error)
+    assert not is_rate_limit, "Should NOT detect regular error"
+
+    return True
+
+
+def run_rate_limit_tests():
+    """Run rate limit unit tests (no credentials needed)."""
+    print("=" * 60)
+    print("Rate Limit Unit Tests (no credentials needed)")
+    print("=" * 60)
+
+    tests = [
+        ("Response Structure", test_rate_limit_response_structure),
+        ("Max Retries", test_rate_limit_max_retries),
+        ("Error Detection", test_rate_limit_error_detection),
+    ]
+
+    results = []
+    for name, test_fn in tests:
+        try:
+            passed = test_fn()
+            results.append((name, True))
+            print(f"  PASS: {name}")
+        except AssertionError as e:
+            results.append((name, False))
+            print(f"  FAIL: {name} - {e}")
+        except Exception as e:
+            results.append((name, False))
+            print(f"  ERROR: {name} - {e}")
+
+    return all(passed for _, passed in results)
+
+
+# ============================================================
+# Integration Tests (requires credentials and config)
+# ============================================================
+
+# Lazy imports for integration tests
+typeform = None
+ExecutionContext = None
+
+
+def _load_integration():
+    """Lazy load integration components."""
+    global typeform, ExecutionContext
+    if typeform is None:
+        from context import typeform as tf
+        from autohive_integrations_sdk import ExecutionContext as EC
+        typeform = tf
+        ExecutionContext = EC
 
 
 # ---- User Tests ----
@@ -520,11 +696,14 @@ async def test_delete_webhook():
 
 
 # Main test runner
-async def run_all_tests():
-    """Run all test functions."""
+async def run_integration_tests():
+    """Run integration tests (requires credentials)."""
+    print("\n" + "=" * 60)
+    print("Integration Tests (requires credentials)")
     print("=" * 60)
-    print("Typeform Integration Test Suite")
-    print("=" * 60)
+
+    # Load integration (lazy import)
+    _load_integration()
 
     test_functions = [
         # User
@@ -569,7 +748,7 @@ async def run_all_tests():
         results.append((test_name, result is not None))
 
     print("\n" + "=" * 60)
-    print("Test Summary")
+    print("Integration Test Summary")
     print("=" * 60)
     for test_name, passed in results:
         status = "PASS" if passed else "FAIL"
@@ -577,8 +756,32 @@ async def run_all_tests():
 
     passed_count = sum(1 for _, passed in results if passed)
     print(f"\nTotal: {passed_count}/{len(results)} tests passed")
-    print("=" * 60)
+    return passed_count == len(results)
 
 
 if __name__ == "__main__":
-    asyncio.run(run_all_tests())
+    # Parse arguments
+    run_integration = "--integration" in sys.argv or "-i" in sys.argv
+    run_unit = "--unit" in sys.argv or "-u" in sys.argv or (not run_integration)
+
+    print("Typeform Test Suite")
+    print("=" * 60)
+
+    all_passed = True
+
+    # Always run unit tests (no credentials needed)
+    if run_unit:
+        unit_passed = run_rate_limit_tests()
+        all_passed = all_passed and unit_passed
+
+    # Run integration tests only if requested
+    if run_integration:
+        integration_passed = asyncio.run(run_integration_tests())
+        all_passed = all_passed and integration_passed
+
+    print("\n" + "=" * 60)
+    if not run_integration:
+        print("Note: Run with --integration to run API tests (requires credentials)")
+    print("=" * 60)
+
+    sys.exit(0 if all_passed else 1)
