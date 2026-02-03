@@ -65,11 +65,24 @@ def _create_rate_limit_response(
 
 def _is_rate_limit_error(error: Exception) -> tuple:
     """Copy of rate limit error detection for testing."""
+    import re
+
     if isinstance(error, RateLimitError):
         return True, getattr(error, 'retry_after', 60)
 
-    error_str = str(error).lower()
-    if '429' in error_str or 'rate limit' in error_str or 'too many requests' in error_str:
+    error_str = str(error)
+    error_lower = error_str.lower()
+    if '429' in error_str or 'rate limit' in error_lower or 'too many requests' in error_lower:
+        # Try to extract retry_after from error message
+        patterns = [
+            r'retry[- ]?after[:\s]+(\d+)',
+            r'wait\s+(\d+)\s*s',
+            r'(\d+)\s*seconds?\s+wait',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, error_str, re.IGNORECASE)
+            if match:
+                return True, int(match.group(1))
         return True, 60
 
     return False, 0
@@ -114,16 +127,30 @@ def test_rate_limit_max_retries():
 
 
 def test_rate_limit_error_detection():
-    """Test that rate limit errors are correctly detected."""
+    """Test that rate limit errors are correctly detected and retry_after extracted."""
     # SDK RateLimitError
     sdk_error = RateLimitError(30, 429, "Rate limit exceeded", "")
-    is_rate_limit, _ = _is_rate_limit_error(sdk_error)
+    is_rate_limit, retry_after = _is_rate_limit_error(sdk_error)
     assert is_rate_limit, "Should detect RateLimitError"
+    assert retry_after == 30, "Should extract retry_after from SDK error"
 
-    # 429 in message
-    http_error = Exception("HTTP 429: Too Many Requests")
-    is_rate_limit, _ = _is_rate_limit_error(http_error)
+    # 429 in message with Retry-After header
+    http_error = Exception("HTTP 429: Too Many Requests. Retry-After: 45")
+    is_rate_limit, retry_after = _is_rate_limit_error(http_error)
     assert is_rate_limit, "Should detect 429 in message"
+    assert retry_after == 45, f"Should extract retry_after=45, got {retry_after}"
+
+    # Rate limit with "wait X seconds" pattern
+    wait_error = Exception("Rate limit exceeded. Please wait 30 seconds before retrying.")
+    is_rate_limit, retry_after = _is_rate_limit_error(wait_error)
+    assert is_rate_limit, "Should detect rate limit message"
+    assert retry_after == 30, f"Should extract retry_after=30, got {retry_after}"
+
+    # 429 without retry info (should default to 60)
+    simple_error = Exception("HTTP 429")
+    is_rate_limit, retry_after = _is_rate_limit_error(simple_error)
+    assert is_rate_limit, "Should detect simple 429"
+    assert retry_after == 60, f"Should default to 60, got {retry_after}"
 
     # Non-rate-limit error
     other_error = Exception("Connection timeout")

@@ -103,15 +103,29 @@ def is_rate_limit_error(error: Exception) -> tuple[bool, int]:
     Returns:
         Tuple of (is_rate_limit, retry_after_seconds)
     """
+    import re
+
     # Check for SDK RateLimitError
     if isinstance(error, RateLimitError):
         return True, getattr(error, 'retry_after', 60)
 
     # Check error message for 429 indicators
-    error_str = str(error).lower()
-    if '429' in error_str or 'rate limit' in error_str or 'too many requests' in error_str:
-        # Try to extract retry_after from error message, default to 60s
-        # Typeform typically requires 30-60 second waits
+    error_str = str(error)
+    error_lower = error_str.lower()
+    if '429' in error_str or 'rate limit' in error_lower or 'too many requests' in error_lower:
+        # Try to extract retry_after from error message
+        # Look for patterns like "retry after 30", "Retry-After: 30", "wait 30 seconds"
+        patterns = [
+            r'retry[- ]?after[:\s]+(\d+)',  # "Retry-After: 30" or "retry after 30"
+            r'wait\s+(\d+)\s*s',             # "wait 30 seconds" or "wait 30s"
+            r'(\d+)\s*seconds?\s+wait',      # "30 seconds wait"
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, error_str, re.IGNORECASE)
+            if match:
+                return True, int(match.group(1))
+
+        # Default to 60s if no retry_after found (Typeform typically requires 30-60s waits)
         return True, 60
 
     return False, 0
