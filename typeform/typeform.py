@@ -1,6 +1,7 @@
 from autohive_integrations_sdk import (
     Integration, ExecutionContext, ActionHandler, ActionResult
 )
+from autohive_integrations_sdk.integration import RateLimitError
 from typing import Dict, Any
 
 # Create the integration
@@ -13,6 +14,11 @@ TYPEFORM_API_BASE_URL = "https://api.typeform.com"
 # These are returned by GET but must be removed before PUT
 FORM_READONLY_FIELDS = {"id", "_links", "created_at", "last_updated_at", "published_at", "self"}
 
+# Rate limit configuration
+# Typeform rate limits can require 30+ second waits, which exceeds Lambda timeout.
+# Instead of retrying internally, we return structured rate limit info to the LLM.
+MAX_RATE_LIMIT_RETRIES = 3  # Maximum recommended retries for rate limit errors
+
 # Note: Authentication is handled automatically by the platform OAuth integration.
 # The context.fetch method automatically includes the OAuth token in requests.
 #
@@ -22,6 +28,93 @@ FORM_READONLY_FIELDS = {"id", "_links", "created_at", "last_updated_at", "publis
 # - webhooks:read/write, offline
 #
 # Rate Limiting: Typeform API has rate limits that vary by plan.
+# When a 429 is encountered, the integration returns a structured response
+# with retry_after_seconds to allow the LLM to wait and retry.
+
+
+def create_rate_limit_response(
+    retry_after_seconds: int,
+    retry_attempt: int = 0,
+    action_name: str = "",
+    empty_data: Dict[str, Any] = None
+) -> ActionResult:
+    """
+    Create a structured rate limit response for the LLM.
+
+    This allows the LLM to:
+    1. Know this is a retryable rate limit error (not a permanent failure)
+    2. Wait the appropriate amount of time before retrying
+    3. Track retry attempts to avoid infinite loops
+
+    Args:
+        retry_after_seconds: How long the LLM should wait before retrying
+        retry_attempt: Current retry attempt (0 = first try, 1 = first retry, etc.)
+        action_name: Name of the action that hit the rate limit
+        empty_data: Default empty data structure for the action
+
+    Returns:
+        ActionResult with structured rate limit information
+    """
+    can_retry = retry_attempt < MAX_RATE_LIMIT_RETRIES
+
+    if can_retry:
+        error_message = (
+            f"Rate limit exceeded. Please wait {retry_after_seconds} seconds before retrying. "
+            f"This is attempt {retry_attempt + 1} of {MAX_RATE_LIMIT_RETRIES + 1} allowed attempts."
+        )
+        retry_instructions = (
+            f"To retry: wait at least {retry_after_seconds} seconds, then call this action again "
+            f"with _retry_attempt={retry_attempt + 1}. "
+            f"You have {MAX_RATE_LIMIT_RETRIES - retry_attempt} retries remaining."
+        )
+    else:
+        error_message = (
+            f"Rate limit exceeded and maximum retry attempts ({MAX_RATE_LIMIT_RETRIES}) exhausted. "
+            f"The Typeform API requires waiting {retry_after_seconds} seconds between requests. "
+            "Please try again later or reduce request frequency."
+        )
+        retry_instructions = (
+            "Maximum retries exceeded. Do not retry automatically. "
+            "Inform the user that the Typeform API rate limit has been reached."
+        )
+
+    response_data = {
+        **(empty_data or {}),
+        "result": False,
+        "error": error_message,
+        "error_type": "rate_limit",
+        "retry_after_seconds": retry_after_seconds,
+        "retry_attempt": retry_attempt,
+        "max_retries": MAX_RATE_LIMIT_RETRIES,
+        "can_retry": can_retry,
+        "retry_instructions": retry_instructions,
+    }
+
+    if action_name:
+        response_data["action"] = action_name
+
+    return ActionResult(data=response_data, cost_usd=0.0)
+
+
+def is_rate_limit_error(error: Exception) -> tuple[bool, int]:
+    """
+    Check if an exception is a rate limit error and extract retry_after.
+
+    Returns:
+        Tuple of (is_rate_limit, retry_after_seconds)
+    """
+    # Check for SDK RateLimitError
+    if isinstance(error, RateLimitError):
+        return True, getattr(error, 'retry_after', 60)
+
+    # Check error message for 429 indicators
+    error_str = str(error).lower()
+    if '429' in error_str or 'rate limit' in error_str or 'too many requests' in error_str:
+        # Try to extract retry_after from error message, default to 60s
+        # Typeform typically requires 30-60 second waits
+        return True, 60
+
+    return False, 0
 
 
 # ---- User/Account Handlers ----
@@ -31,6 +124,8 @@ class GetCurrentUserAction(ActionHandler):
     """Get information about the authenticated user account."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             response = await context.fetch(
                 f"{TYPEFORM_API_BASE_URL}/me",
@@ -43,6 +138,15 @@ class GetCurrentUserAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="get_current_user",
+                    empty_data={"user": {}}
+                )
+
             return ActionResult(
                 data={"user": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -56,6 +160,8 @@ class ListFormsAction(ActionHandler):
     """List all forms in your account."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             params = {}
             if inputs.get("workspace_id"):
@@ -82,6 +188,15 @@ class ListFormsAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="list_forms",
+                    empty_data={"forms": [], "total_items": 0}
+                )
+
             return ActionResult(
                 data={"forms": [], "total_items": 0, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -93,6 +208,8 @@ class GetFormAction(ActionHandler):
     """Get detailed information about a specific form."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             form_id = inputs["form_id"]
 
@@ -107,6 +224,15 @@ class GetFormAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="get_form",
+                    empty_data={"form": {}}
+                )
+
             return ActionResult(
                 data={"form": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -118,6 +244,8 @@ class CreateFormAction(ActionHandler):
     """Create a new form."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             body = {"title": inputs["title"]}
 
@@ -146,6 +274,15 @@ class CreateFormAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="create_form",
+                    empty_data={"form": {}}
+                )
+
             return ActionResult(
                 data={"form": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -163,6 +300,8 @@ class UpdateFormAction(ActionHandler):
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             form_id = inputs["form_id"]
 
@@ -203,6 +342,15 @@ class UpdateFormAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="update_form",
+                    empty_data={"form": {}}
+                )
+
             return ActionResult(
                 data={"form": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -214,6 +362,8 @@ class DeleteFormAction(ActionHandler):
     """Delete a form permanently."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             form_id = inputs["form_id"]
 
@@ -228,6 +378,15 @@ class DeleteFormAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="delete_form",
+                    empty_data={"deleted": False}
+                )
+
             return ActionResult(
                 data={"deleted": False, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -241,6 +400,8 @@ class ListResponsesAction(ActionHandler):
     """Retrieve responses for a form."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             form_id = inputs["form_id"]
             params = {}
@@ -274,6 +435,15 @@ class ListResponsesAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="list_responses",
+                    empty_data={"responses": [], "total_items": 0, "page_count": 0}
+                )
+
             return ActionResult(
                 data={"responses": [], "total_items": 0, "page_count": 0, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -285,6 +455,8 @@ class DeleteResponsesAction(ActionHandler):
     """Delete responses from a form."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             form_id = inputs["form_id"]
             included_response_ids = inputs["included_response_ids"]
@@ -301,6 +473,15 @@ class DeleteResponsesAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="delete_responses",
+                    empty_data={"deleted": False}
+                )
+
             return ActionResult(
                 data={"deleted": False, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -314,6 +495,8 @@ class ListWorkspacesAction(ActionHandler):
     """List all workspaces in your account."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             params = {}
             if inputs.get("search"):
@@ -338,6 +521,15 @@ class ListWorkspacesAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="list_workspaces",
+                    empty_data={"workspaces": [], "total_items": 0}
+                )
+
             return ActionResult(
                 data={"workspaces": [], "total_items": 0, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -349,6 +541,8 @@ class GetWorkspaceAction(ActionHandler):
     """Get details of a specific workspace."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             workspace_id = inputs["workspace_id"]
 
@@ -363,6 +557,15 @@ class GetWorkspaceAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="get_workspace",
+                    empty_data={"workspace": {}}
+                )
+
             return ActionResult(
                 data={"workspace": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -374,6 +577,8 @@ class CreateWorkspaceAction(ActionHandler):
     """Create a new workspace."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             body = {"name": inputs["name"]}
 
@@ -389,6 +594,15 @@ class CreateWorkspaceAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="create_workspace",
+                    empty_data={"workspace": {}}
+                )
+
             return ActionResult(
                 data={"workspace": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -400,6 +614,8 @@ class UpdateWorkspaceAction(ActionHandler):
     """Update a workspace's name using JSON Patch format."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             workspace_id = inputs["workspace_id"]
 
@@ -432,6 +648,15 @@ class UpdateWorkspaceAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="update_workspace",
+                    empty_data={"workspace": {}}
+                )
+
             return ActionResult(
                 data={"workspace": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -443,6 +668,8 @@ class DeleteWorkspaceAction(ActionHandler):
     """Delete a workspace."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             workspace_id = inputs["workspace_id"]
 
@@ -457,6 +684,15 @@ class DeleteWorkspaceAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="delete_workspace",
+                    empty_data={"deleted": False}
+                )
+
             return ActionResult(
                 data={"deleted": False, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -470,6 +706,8 @@ class ListThemesAction(ActionHandler):
     """List all themes in your account."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             params = {}
             if inputs.get("page") is not None:
@@ -492,6 +730,15 @@ class ListThemesAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="list_themes",
+                    empty_data={"themes": [], "total_items": 0}
+                )
+
             return ActionResult(
                 data={"themes": [], "total_items": 0, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -503,6 +750,8 @@ class GetThemeAction(ActionHandler):
     """Get details of a specific theme."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             theme_id = inputs["theme_id"]
 
@@ -517,6 +766,15 @@ class GetThemeAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="get_theme",
+                    empty_data={"theme": {}}
+                )
+
             return ActionResult(
                 data={"theme": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -528,6 +786,8 @@ class CreateThemeAction(ActionHandler):
     """Create a new theme."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             body = {"name": inputs["name"]}
 
@@ -552,6 +812,15 @@ class CreateThemeAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="create_theme",
+                    empty_data={"theme": {}}
+                )
+
             return ActionResult(
                 data={"theme": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -563,6 +832,8 @@ class DeleteThemeAction(ActionHandler):
     """Delete a theme."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             theme_id = inputs["theme_id"]
 
@@ -577,6 +848,15 @@ class DeleteThemeAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="delete_theme",
+                    empty_data={"deleted": False}
+                )
+
             return ActionResult(
                 data={"deleted": False, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -590,6 +870,8 @@ class ListImagesAction(ActionHandler):
     """List all images in your account."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             params = {}
             if inputs.get("page") is not None:
@@ -612,6 +894,15 @@ class ListImagesAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="list_images",
+                    empty_data={"images": [], "total_items": 0}
+                )
+
             return ActionResult(
                 data={"images": [], "total_items": 0, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -623,6 +914,8 @@ class GetImageAction(ActionHandler):
     """Get details of a specific image."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             image_id = inputs["image_id"]
 
@@ -637,6 +930,15 @@ class GetImageAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="get_image",
+                    empty_data={"image": {}}
+                )
+
             return ActionResult(
                 data={"image": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -648,6 +950,8 @@ class DeleteImageAction(ActionHandler):
     """Delete an image from your account."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             image_id = inputs["image_id"]
 
@@ -662,6 +966,15 @@ class DeleteImageAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="delete_image",
+                    empty_data={"deleted": False}
+                )
+
             return ActionResult(
                 data={"deleted": False, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -675,6 +988,8 @@ class ListWebhooksAction(ActionHandler):
     """List all webhooks for a form."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             form_id = inputs["form_id"]
 
@@ -691,6 +1006,15 @@ class ListWebhooksAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="list_webhooks",
+                    empty_data={"webhooks": []}
+                )
+
             return ActionResult(
                 data={"webhooks": [], "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -702,6 +1026,8 @@ class GetWebhookAction(ActionHandler):
     """Get details of a specific webhook."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             form_id = inputs["form_id"]
             tag = inputs["tag"]
@@ -717,6 +1043,15 @@ class GetWebhookAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="get_webhook",
+                    empty_data={"webhook": {}}
+                )
+
             return ActionResult(
                 data={"webhook": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -728,6 +1063,8 @@ class CreateWebhookAction(ActionHandler):
     """Create or update a webhook for a form."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             form_id = inputs["form_id"]
             tag = inputs["tag"]
@@ -751,6 +1088,15 @@ class CreateWebhookAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="create_webhook",
+                    empty_data={"webhook": {}}
+                )
+
             return ActionResult(
                 data={"webhook": {}, "result": False, "error": str(e)},
                 cost_usd=0.0
@@ -762,6 +1108,8 @@ class DeleteWebhookAction(ActionHandler):
     """Delete a webhook from a form."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        retry_attempt = inputs.get("_retry_attempt", 0)
+
         try:
             form_id = inputs["form_id"]
             tag = inputs["tag"]
@@ -777,6 +1125,15 @@ class DeleteWebhookAction(ActionHandler):
             )
 
         except Exception as e:
+            is_rate_limit, retry_after = is_rate_limit_error(e)
+            if is_rate_limit:
+                return create_rate_limit_response(
+                    retry_after_seconds=retry_after,
+                    retry_attempt=retry_attempt,
+                    action_name="delete_webhook",
+                    empty_data={"deleted": False}
+                )
+
             return ActionResult(
                 data={"deleted": False, "result": False, "error": str(e)},
                 cost_usd=0.0

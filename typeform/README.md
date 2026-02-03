@@ -47,6 +47,42 @@ All actions return a standardized response structure:
 - `error` (string, optional): Contains error message if the action failed
 - Additional action-specific data fields
 
+## Rate Limit Handling
+
+Typeform API has rate limits that can require 30+ second waits. Since this exceeds Lambda timeout limits, the integration returns structured rate limit information instead of retrying internally.
+
+### Rate Limit Response
+
+When a 429 (rate limit) error occurs, the action returns:
+
+```json
+{
+  "result": false,
+  "error": "Rate limit exceeded. Please wait 37 seconds before retrying...",
+  "error_type": "rate_limit",
+  "retry_after_seconds": 37,
+  "retry_attempt": 0,
+  "max_retries": 3,
+  "can_retry": true,
+  "retry_instructions": "To retry: wait at least 37 seconds, then call this action again with _retry_attempt=1..."
+}
+```
+
+### Retry Mechanism
+
+All actions accept an optional `_retry_attempt` parameter:
+
+1. **First call**: Omit `_retry_attempt` or set to `0`
+2. **On rate limit**: Wait `retry_after_seconds`, then call with `_retry_attempt=1`
+3. **Continue**: Increment `_retry_attempt` on each retry
+4. **Max retries**: After 3 retries, `can_retry` becomes `false`
+
+### Agent Instructions
+
+For agents using this integration, include guidance like:
+
+> "If a Typeform action returns `error_type: 'rate_limit'`, wait the specified `retry_after_seconds` and retry with `_retry_attempt` incremented. Do not retry more than 3 times."
+
 ## Actions (24 Total)
 
 ### User (1 action)
@@ -444,6 +480,12 @@ Typeform supports 24+ question types including:
 - Apply themes across multiple forms
 
 ## Version History
+
+- **1.1.0** - Rate limit handling
+  - Added structured rate limit responses for all actions
+  - Added `_retry_attempt` parameter for retry tracking
+  - Returns `error_type: 'rate_limit'` with `retry_after_seconds` on 429 errors
+  - Supports up to 3 automatic retries with LLM coordination
 
 - **1.0.0** - Initial release with 24 actions
   - User: get_current_user (1 action)

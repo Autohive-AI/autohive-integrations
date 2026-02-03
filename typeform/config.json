@@ -1,8 +1,8 @@
 {
   "name": "Typeform",
   "display_name": "Typeform",
-  "version": "1.0.0",
-  "description": "Integration with Typeform for managing forms, responses, workspaces, themes, images, and webhooks",
+  "version": "1.1.0",
+  "description": "Integration with Typeform for managing forms, responses, workspaces, themes, images, and webhooks. Rate limit handling: If an action returns error_type='rate_limit', wait retry_after_seconds and call the action again with _retry_attempt incremented. Maximum 3 retries recommended.",
   "entry_point": "typeform.py",
   "auth": {
     "type": "platform",
@@ -30,7 +30,12 @@
       "description": "Get information about the authenticated user account",
       "input_schema": {
         "type": "object",
-        "properties": {},
+        "properties": {
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
+          }
+        },
         "required": []
       },
       "output_schema": {
@@ -68,6 +73,10 @@
           "page_size": {
             "type": "integer",
             "description": "Number of forms per page (max 200)"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": []
@@ -99,6 +108,10 @@
           "form_id": {
             "type": "string",
             "description": "The unique identifier of the form"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["form_id"]
@@ -150,6 +163,10 @@
           "thankyou_screens": {
             "type": "array",
             "description": "Thank you screen configurations"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["title"]
@@ -201,6 +218,10 @@
           "thankyou_screens": {
             "type": "array",
             "description": "Updated thank you screen configurations"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["form_id"]
@@ -228,6 +249,10 @@
           "form_id": {
             "type": "string",
             "description": "The unique identifier of the form to delete"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["form_id"]
@@ -291,6 +316,10 @@
           "fields": {
             "type": "string",
             "description": "Comma-separated list of field IDs to include in response"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["form_id"]
@@ -330,6 +359,10 @@
           "included_response_ids": {
             "type": "string",
             "description": "Comma-separated list of response IDs to delete"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["form_id", "included_response_ids"]
@@ -365,6 +398,10 @@
           "page_size": {
             "type": "integer",
             "description": "Number of workspaces per page (max 200)"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": []
@@ -396,6 +433,10 @@
           "workspace_id": {
             "type": "string",
             "description": "The unique identifier of the workspace"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["workspace_id"]
@@ -423,6 +464,10 @@
           "name": {
             "type": "string",
             "description": "Name of the workspace"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["name"]
@@ -454,6 +499,10 @@
           "name": {
             "type": "string",
             "description": "New name for the workspace"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["workspace_id", "name"]
@@ -481,6 +530,10 @@
           "workspace_id": {
             "type": "string",
             "description": "The unique identifier of the workspace to delete"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["workspace_id"]
@@ -512,6 +565,10 @@
           "page_size": {
             "type": "integer",
             "description": "Number of themes per page (max 200)"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": []
@@ -543,6 +600,10 @@
           "theme_id": {
             "type": "string",
             "description": "The unique identifier of the theme"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["theme_id"]
@@ -586,6 +647,10 @@
           "background": {
             "type": "object",
             "description": "Background settings (image_id, layout, brightness)"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["name"]
@@ -613,6 +678,10 @@
           "theme_id": {
             "type": "string",
             "description": "The unique identifier of the theme to delete"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["theme_id"]
@@ -644,6 +713,10 @@
           "page_size": {
             "type": "integer",
             "description": "Number of images per page"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": []
@@ -675,6 +748,10 @@
           "image_id": {
             "type": "string",
             "description": "The unique identifier of the image"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["image_id"]
@@ -702,6 +779,10 @@
           "image_id": {
             "type": "string",
             "description": "The unique identifier of the image to delete"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["image_id"]
@@ -729,6 +810,10 @@
           "form_id": {
             "type": "string",
             "description": "The unique identifier of the form"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["form_id"]
@@ -760,6 +845,10 @@
           "tag": {
             "type": "string",
             "description": "The webhook tag/identifier"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["form_id", "tag"]
@@ -803,6 +892,10 @@
           "secret": {
             "type": "string",
             "description": "Secret for HMAC SHA256 signature verification"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["form_id", "tag", "url"]
@@ -834,6 +927,10 @@
           "tag": {
             "type": "string",
             "description": "The webhook tag/identifier to delete"
+          },
+          "_retry_attempt": {
+            "type": "integer",
+            "description": "Rate limit retry attempt counter. Start at 0, increment on each retry after a rate limit error. Max 3 retries."
           }
         },
         "required": ["form_id", "tag"]
