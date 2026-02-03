@@ -1,7 +1,7 @@
 {
     "name": "X",
     "display_name": "X (formerly Twitter)",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "X integration for posting, managing interactions, and engaging with users",
     "entry_point": "x.py",
     "supports_connected_account": true,
@@ -23,13 +23,23 @@
     "actions": {
         "create_tweet": {
             "display_name": "Create Post",
-            "description": "Creates a new post on X.",
+            "description": "Creates a new post on X, optionally with media (image, GIF, or video).",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "text": {
                         "type": "string",
                         "description": "The text content of the post (max 280 characters for standard accounts)"
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "Media file to upload and attach to the post (optional)",
+                        "properties": {
+                            "content": {"type": "string", "description": "Base64-encoded file content"},
+                            "name": {"type": "string", "description": "Filename"},
+                            "contentType": {"type": "string", "description": "MIME type (image/jpeg, image/png, image/gif, video/mp4, etc.)"}
+                        },
+                        "required": ["content", "name", "contentType"]
                     },
                     "reply_to": {
                         "type": "string",
@@ -38,13 +48,6 @@
                     "quote_tweet_id": {
                         "type": "string",
                         "description": "Post ID to quote (optional)"
-                    },
-                    "media_ids": {
-                        "type": "array",
-                        "description": "Array of media IDs to attach (optional)",
-                        "items": {
-                            "type": "string"
-                        }
                     },
                     "poll_options": {
                         "type": "array",
@@ -67,55 +70,9 @@
                         "type": "object",
                         "description": "Created post details"
                     },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["post", "result"]
-            }
-        },
-        "post_with_media": {
-            "display_name": "Post with Media",
-            "description": "Create a post with an image, GIF, or video in a single action. Automatically uploads the media and creates the post.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "text": {
-                        "type": "string",
-                        "description": "The text content of the post (max 280 characters for standard accounts)"
-                    },
-                    "file": {
-                        "type": "object",
-                        "description": "The media file to upload and attach to the post",
-                        "properties": {
-                            "content": {"type": "string", "description": "Base64-encoded file content"},
-                            "name": {"type": "string", "description": "Filename"},
-                            "contentType": {"type": "string", "description": "MIME type (image/jpeg, image/png, image/gif, video/mp4, etc.)"}
-                        },
-                        "required": ["content", "name", "contentType"]
-                    },
-                    "reply_to": {
-                        "type": "string",
-                        "description": "Post ID to reply to (optional)"
-                    }
-                },
-                "required": ["text", "file"]
-            },
-            "output_schema": {
-                "type": "object",
-                "properties": {
-                    "post": {
-                        "type": "object",
-                        "description": "Created post details"
-                    },
                     "media_id": {
                         "type": "string",
-                        "description": "The media ID that was uploaded"
+                        "description": "The media ID that was uploaded (if media was included)"
                     },
                     "result": {
                         "type": "boolean",

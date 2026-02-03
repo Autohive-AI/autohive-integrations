@@ -86,15 +86,39 @@
         "required": ["result"]
       }
     },
-    "share_content": {
-      "display_name": "Share Content",
-      "description": "Share a text post on LinkedIn as the authenticated user. Uses the LinkedIn Posts API with version 202601.",
+    "create_post": {
+      "display_name": "Create Post",
+      "description": "Create a LinkedIn post with optional images. Supports text-only posts, single image posts, and multi-image posts (up to 20 images). This is the recommended action for creating posts with images.",
       "input_schema": {
         "type": "object",
         "properties": {
-          "content": {
+          "text": {
             "type": "string",
-            "description": "The text content/commentary to share in the post."
+            "description": "The text content/commentary for the post. Optional if images are provided."
+          },
+          "file": {
+            "type": "object",
+            "description": "Single file object for the post image.",
+            "properties": {
+              "content": {"type": "string", "description": "Base64-encoded file content"},
+              "name": {"type": "string", "description": "Filename"},
+              "contentType": {"type": "string", "description": "MIME type (image/jpeg, image/png, image/gif)"}
+            },
+            "required": ["content", "name", "contentType"]
+          },
+          "files": {
+            "type": "array",
+            "description": "Array of file objects for multi-image posts (up to 20 images).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "content": {"type": "string", "description": "Base64-encoded file content"},
+                "name": {"type": "string", "description": "Filename"},
+                "contentType": {"type": "string", "description": "MIME type (image/jpeg, image/png, image/gif)"}
+              },
+              "required": ["content", "name", "contentType"]
+            },
+            "maxItems": 20
           },
           "visibility": {
             "type": "string",
@@ -112,22 +136,26 @@
             "default": false
           }
         },
-        "required": ["content"]
+        "required": []
       },
       "output_schema": {
         "type": "object",
         "properties": {
           "result": {
             "type": "string",
-            "description": "Result of the sharing action."
+            "description": "Result of the post creation action."
           },
           "post_id": {
             "type": ["string", "null"],
             "description": "The URN of the created post (e.g., urn:li:share:123456)."
           },
-          "post_data": {
-            "type": ["object", "null"],
-            "description": "The full post data returned by LinkedIn API."
+          "post_url": {
+            "type": ["string", "null"],
+            "description": "Direct URL to the post on LinkedIn."
+          },
+          "images_uploaded": {
+            "type": "integer",
+            "description": "Number of images successfully uploaded."
           },
           "details": {
             "type": ["string", "object", "null"],
@@ -185,9 +213,9 @@
             "type": ["string", "null"],
             "description": "The URN of the created post."
           },
-          "post_data": {
-            "type": ["object", "null"],
-            "description": "The full post data returned by LinkedIn API."
+          "post_url": {
+            "type": ["string", "null"],
+            "description": "Direct URL to the post on LinkedIn."
           },
           "details": {
             "type": ["string", "object", "null"],
@@ -236,9 +264,9 @@
             "type": ["string", "null"],
             "description": "The URN of the created reshare post."
           },
-          "post_data": {
-            "type": ["object", "null"],
-            "description": "The full post data returned by LinkedIn API."
+          "post_url": {
+            "type": ["string", "null"],
+            "description": "Direct URL to the post on LinkedIn."
           },
           "details": {
             "type": ["string", "object", "null"],
