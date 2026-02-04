@@ -1,7 +1,6 @@
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from urllib.parse import quote
-import asyncio
 
 microsoft_excel = Integration.load()
 
@@ -86,7 +85,7 @@ class GetWorkbook(ActionHandler):
             file_url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}"
             file_data = await context.fetch(file_url, method="GET")
 
-            # Get worksheets
+            # Get worksheets (non-fatal: continue with empty list if API call fails)
             worksheets_url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/worksheets"
             worksheets = []
             try:
@@ -99,9 +98,10 @@ class GetWorkbook(ActionHandler):
                         "visibility": ws.get("visibility"),
                     })
             except Exception:
+                # API error handled - return partial data without worksheets
                 pass
 
-            # Get tables
+            # Get tables (non-fatal: continue with empty list if API call fails)
             tables_url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/tables"
             tables = []
             try:
@@ -115,9 +115,10 @@ class GetWorkbook(ActionHandler):
                         "style": table.get("style"),
                     })
             except Exception:
+                # API error handled - return partial data without tables
                 pass
 
-            # Get named ranges
+            # Get named ranges (non-fatal: continue with empty list if API call fails)
             names_url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/names"
             named_ranges = []
             try:
@@ -129,6 +130,7 @@ class GetWorkbook(ActionHandler):
                         "type": name.get("type"),
                     })
             except Exception:
+                # API error handled - return partial data without named ranges
                 pass
 
             return ActionResult(data={
@@ -372,13 +374,14 @@ class AddTableRow(ActionHandler):
 
             await context.fetch(url, method="POST", json=body)
 
-            # Get updated table range
+            # Get updated table range (non-fatal: return empty string if API call fails)
             range_url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/tables/{encoded_table}/range"
             table_range = ""
             try:
                 range_data = await context.fetch(range_url, method="GET")
                 table_range = range_data.get("address", "")
             except Exception:
+                # API error handled - rows were added, range info is optional
                 pass
 
             return ActionResult(data={
