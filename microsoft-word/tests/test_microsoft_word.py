@@ -8,18 +8,19 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 class MockActionResult:
     """Mock ActionResult that mimics the SDK's ActionResult class."""
-    def __init__(self, is_success: bool, data: dict = None, error: str = None):
+    def __init__(self, is_success: bool = True, data: dict = None, error: str = None, cost_usd: float = 0.0):
         self.is_success = is_success
         self.data = data or {}
         self.error = error
-    
+        self.cost_usd = cost_usd
+
     @classmethod
-    def success(cls, data: dict = None):
-        return cls(is_success=True, data=data or {})
-    
+    def success(cls, data: dict = None, cost_usd: float = 0.0):
+        return cls(is_success=True, data=data or {}, cost_usd=cost_usd)
+
     @classmethod
-    def failure(cls, error: str = None):
-        return cls(is_success=False, error=error)
+    def failure(cls, error: str = None, cost_usd: float = 0.0):
+        return cls(is_success=False, error=error, cost_usd=cost_usd)
 
 
 mock_integration = MagicMock()
@@ -206,12 +207,12 @@ class TestGetDocument:
     @pytest.mark.asyncio
     async def test_get_document_not_found(self, mock_context):
         mock_context.fetch.side_effect = Exception("Resource not found")
-        
+
         action = GetDocument()
         result = await action.execute({'document_id': 'invalid'}, mock_context)
-        
-        assert result.is_success is False
-        assert result.error is not None
+
+        assert result.data['result'] is False
+        assert 'error' in result.data
 
 
 class TestGetContent:

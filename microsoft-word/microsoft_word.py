@@ -1,8 +1,11 @@
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
-from typing import Dict, Any
+from typing import Dict, Any, Tuple, Optional
 import io
 import base64
 import re
+import html
+import urllib.parse
+import asyncio
 
 microsoft_word = Integration.load()
 
@@ -31,11 +34,12 @@ def count_characters(text: str) -> int:
 def parse_docx_content(docx_bytes: bytes) -> Dict[str, Any]:
     """
     Parse a .docx file and extract text content, paragraphs, and tables.
-    
+
     Uses the python-docx library pattern via zipfile and XML parsing.
+    Uses defusedxml to protect against XXE attacks.
     """
     import zipfile
-    from xml.etree import ElementTree as ET
+    from defusedxml import ElementTree as ET
     
     WORD_NS = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
     
@@ -158,22 +162,22 @@ def _parse_table(table_element, ns: str, index: int) -> Dict[str, Any]:
 def create_docx_from_text(text: str) -> bytes:
     """
     Create a minimal .docx file from plain text.
-    
+
     Note: This creates a basic document without styles, headers, footers, etc.
     Formatting from original documents will not be preserved.
     """
     import zipfile
-    from xml.etree import ElementTree as ET
-    
+
     WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
     REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships'
     CT_NS = 'http://schemas.openxmlformats.org/package/2006/content-types'
-    
+
     paragraphs = text.split('\n') if text else ['']
-    
+
     body_content = ''
     for para in paragraphs:
-        escaped_text = para.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+        # Use html.escape for proper XML escaping (escapes &, <, >, ", ')
+        escaped_text = html.escape(para)
         body_content += f'''
         <w:p xmlns:w="{WORD_NS}">
             <w:r>
@@ -210,82 +214,91 @@ def create_docx_from_text(text: str) -> bytes:
     return output.getvalue()
 
 
-def modify_docx_content(docx_bytes: bytes, modifications: Dict[str, Any]) -> bytes:
+def modify_docx_content(docx_bytes: bytes, modifications: Dict[str, Any]) -> Tuple[bytes, int]:
     """
     Modify a .docx file with the given modifications.
-    
+
     Supports:
     - replace_all: Replace entire content with new text
     - search_replace: Find and replace text (safe XML-aware replacement)
+
+    Returns:
+        Tuple of (modified_bytes, replacement_count)
     """
     import zipfile
+    from defusedxml import ElementTree as DefusedET
     from xml.etree import ElementTree as ET
-    
+
     WORD_NS = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
-    
+
     if 'replace_all' in modifications:
         new_text = modifications['replace_all']
         new_docx = create_docx_from_text(new_text)
-        return new_docx
-    
-    with zipfile.ZipFile(io.BytesIO(docx_bytes), 'r') as docx_zip:
-        file_list = docx_zip.namelist()
-        files = {name: docx_zip.read(name) for name in file_list}
-    
-    if 'word/document.xml' not in files:
-        raise ValueError("Invalid docx: missing word/document.xml")
-    
-    if 'search_replace' in modifications:
-        sr = modifications['search_replace']
-        search_text = sr['search_text']
-        replace_text = sr['replace_text']
-        match_case = sr.get('match_case', False)
-        replace_all_occurrences = sr.get('replace_all', True)
-        
-        if not search_text:
-            raise ValueError("search_text cannot be empty")
-        
-        tree = ET.fromstring(files['word/document.xml'])
-        replacement_count = 0
-        
-        for text_elem in tree.iter(f'{WORD_NS}t'):
-            if text_elem.text is None:
-                continue
-            
-            original_text = text_elem.text
-            
-            if match_case:
-                if search_text in original_text:
-                    if replace_all_occurrences:
-                        text_elem.text = original_text.replace(search_text, replace_text)
-                        replacement_count += original_text.count(search_text)
-                    else:
-                        if replacement_count == 0:
-                            text_elem.text = original_text.replace(search_text, replace_text, 1)
-                            replacement_count = 1
-            else:
-                pattern = re.compile(re.escape(search_text), re.IGNORECASE)
-                matches = pattern.findall(original_text)
-                if matches:
-                    if replace_all_occurrences:
-                        text_elem.text = pattern.sub(replace_text, original_text)
-                        replacement_count += len(matches)
-                    else:
-                        if replacement_count == 0:
-                            text_elem.text = pattern.sub(replace_text, original_text, count=1)
-                            replacement_count = 1
-        
-        ET.register_namespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main')
-        modified_xml = ET.tostring(tree, encoding='unicode')
-        xml_declaration = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-        files['word/document.xml'] = (xml_declaration + modified_xml).encode('utf-8')
-    
+        return new_docx, 0
+
+    replacement_count = 0
+
+    # Stream files directly instead of loading all into memory
     output = io.BytesIO()
-    with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as docx_zip:
-        for name, content in files.items():
-            docx_zip.writestr(name, content)
-    
-    return output.getvalue()
+    with zipfile.ZipFile(io.BytesIO(docx_bytes), 'r') as docx_zip_in:
+        if 'word/document.xml' not in docx_zip_in.namelist():
+            raise ValueError("Invalid docx: missing word/document.xml")
+
+        with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as docx_zip_out:
+            for name in docx_zip_in.namelist():
+                if name == 'word/document.xml' and 'search_replace' in modifications:
+                    # Process document.xml for search/replace
+                    document_xml = docx_zip_in.read(name)
+
+                    sr = modifications['search_replace']
+                    search_text = sr['search_text']
+                    replace_text = sr['replace_text']
+                    match_case = sr.get('match_case', False)
+                    replace_all_occurrences = sr.get('replace_all', True)
+
+                    if not search_text:
+                        raise ValueError("search_text cannot be empty")
+
+                    # Use defusedxml for parsing (XXE protection)
+                    tree = DefusedET.fromstring(document_xml)
+
+                    for text_elem in tree.iter(f'{WORD_NS}t'):
+                        if text_elem.text is None:
+                            continue
+
+                        original_text = text_elem.text
+
+                        if match_case:
+                            if search_text in original_text:
+                                if replace_all_occurrences:
+                                    text_elem.text = original_text.replace(search_text, replace_text)
+                                    replacement_count += original_text.count(search_text)
+                                else:
+                                    if replacement_count == 0:
+                                        text_elem.text = original_text.replace(search_text, replace_text, 1)
+                                        replacement_count = 1
+                        else:
+                            pattern = re.compile(re.escape(search_text), re.IGNORECASE)
+                            matches = pattern.findall(original_text)
+                            if matches:
+                                if replace_all_occurrences:
+                                    text_elem.text = pattern.sub(replace_text, original_text)
+                                    replacement_count += len(matches)
+                                else:
+                                    if replacement_count == 0:
+                                        text_elem.text = pattern.sub(replace_text, original_text, count=1)
+                                        replacement_count = 1
+
+                    # Use standard ET for serialization
+                    ET.register_namespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main')
+                    modified_xml = ET.tostring(tree, encoding='unicode')
+                    xml_declaration = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                    docx_zip_out.writestr(name, (xml_declaration + modified_xml).encode('utf-8'))
+                else:
+                    # Stream other files directly without holding in memory
+                    docx_zip_out.writestr(name, docx_zip_in.read(name))
+
+    return output.getvalue(), replacement_count
 
 
 def text_to_html(text: str) -> str:
@@ -294,7 +307,7 @@ def text_to_html(text: str) -> str:
     html_parts = ['<html><body>']
     for para in paragraphs:
         if para.strip():
-            escaped = para.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            escaped = html.escape(para)
             html_parts.append(f'<p>{escaped}</p>')
     html_parts.append('</body></html>')
     return '\n'.join(html_parts)
@@ -324,7 +337,8 @@ class ListDocuments(ActionHandler):
             else:
                 if folder_path:
                     folder_path = folder_path.strip('/')
-                    url = f"{GRAPH_API_BASE}/me/drive/root:/{folder_path}:/children"
+                    encoded_path = urllib.parse.quote(folder_path)
+                    url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_path}:/children"
                 else:
                     url = f"{GRAPH_API_BASE}/me/drive/root/children"
                 
@@ -393,43 +407,49 @@ class GetDocument(ActionHandler):
 @microsoft_word.action("word_get_content")
 class GetContent(ActionHandler):
     """Read the text content from a Word document."""
-    
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             document_id = inputs['document_id']
             output_format = inputs.get('format', 'text')
             include_metadata = inputs.get('include_metadata', False)
-            
+
             content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
-            
-            response = await context.fetch(content_url, method="GET")
-            
+            meta_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}"
+
+            # Parallelize independent API calls when metadata is requested
+            if include_metadata:
+                content_task = context.fetch(content_url, method="GET")
+                meta_task = context.fetch(meta_url, method="GET")
+                response, metadata = await asyncio.gather(content_task, meta_task)
+            else:
+                response = await context.fetch(content_url, method="GET")
+                metadata = None
+
             if not isinstance(response, bytes):
                 return ActionResult(data={'result': False, 'error': 'Failed to download document content'}, cost_usd=0.0)
 
             docx_bytes = response
-            
+
             parsed = parse_docx_content(docx_bytes)
-            
+
             if output_format == 'html':
                 content = text_to_html(parsed['full_text'])
             elif output_format == 'markdown':
                 content = text_to_markdown(parsed['full_text'])
             else:
                 content = parsed['full_text']
-            
+
             result_data = {
                 'content': content,
                 'word_count': parsed['word_count'],
                 'character_count': parsed['character_count'],
                 'paragraph_count': parsed['paragraph_count']
             }
-            
-            if include_metadata:
-                meta_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}"
-                metadata = await context.fetch(meta_url, method="GET")
+
+            if metadata is not None:
                 result_data['metadata'] = metadata
-            
+
             result_data['result'] = True
             return ActionResult(data=result_data, cost_usd=0.0)
 
@@ -440,91 +460,102 @@ class GetContent(ActionHandler):
 @microsoft_word.action("word_create_document")
 class CreateDocument(ActionHandler):
     """Create a new Word document with optional initial content."""
-    
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             name = ensure_docx_extension(inputs['name'])
             folder_path = inputs.get('folder_path', '')
             content = inputs.get('content', '')
             template_id = inputs.get('template_id')
-            
+
             if template_id:
                 copy_url = f"{GRAPH_API_BASE}/me/drive/items/{template_id}/copy"
-                
+
                 copy_body = {'name': name}
                 if folder_path:
                     folder_path = folder_path.strip('/')
-                    folder_url = f"{GRAPH_API_BASE}/me/drive/root:/{folder_path}"
+                    encoded_path = urllib.parse.quote(folder_path)
+                    folder_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_path}"
                     folder_info = await context.fetch(folder_url, method="GET")
                     copy_body['parentReference'] = {
                         'driveId': folder_info.get('parentReference', {}).get('driveId'),
                         'id': folder_info.get('id')
                     }
-                
+
                 await context.fetch(copy_url, method="POST", json=copy_body)
-                
-                await _wait_for_copy(context, name, folder_path)
-            
+
+                # _wait_for_copy now returns the document info directly
+                new_doc = await _wait_for_copy(context, name, folder_path)
+
+                if new_doc is None:
+                    return ActionResult(data={
+                        'result': False,
+                        'error': 'Copy operation timed out'
+                    }, cost_usd=0.0)
+
+                return ActionResult(data={
+                    'document_id': new_doc.get('id'),
+                    'name': new_doc.get('name'),
+                    'webUrl': new_doc.get('webUrl'),
+                    'result': True
+                }, cost_usd=0.0)
+
             else:
                 docx_bytes = create_docx_from_text(content)
-                
+
+                # URL-encode folder path and filename
+                encoded_name = urllib.parse.quote(name)
                 if folder_path:
                     folder_path = folder_path.strip('/')
-                    upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{folder_path}/{name}:/content"
+                    encoded_path = urllib.parse.quote(folder_path)
+                    upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_path}/{encoded_name}:/content"
                 else:
-                    upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{name}:/content"
-                
+                    upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_name}:/content"
+
                 headers = {
                     'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                 }
-                
+
                 response = await context.fetch(
                     upload_url,
                     method="PUT",
                     headers=headers,
                     data=docx_bytes
                 )
-                
+
                 return ActionResult(data={
                     'document_id': response.get('id'),
                     'name': response.get('name'),
                     'webUrl': response.get('webUrl'),
                     'result': True
                 }, cost_usd=0.0)
-            
-            if folder_path:
-                search_url = f"{GRAPH_API_BASE}/me/drive/root:/{folder_path}/{name}"
-            else:
-                search_url = f"{GRAPH_API_BASE}/me/drive/root:/{name}"
-            
-            new_doc = await context.fetch(search_url, method="GET")
-            
-            return ActionResult(data={
-                'document_id': new_doc.get('id'),
-                'name': new_doc.get('name'),
-                'webUrl': new_doc.get('webUrl'),
-                'result': True
-            }, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={'result': False, 'error': str(e)}, cost_usd=0.0)
 
 
-async def _wait_for_copy(context: ExecutionContext, name: str, folder_path: str, max_attempts: int = 10):
-    """Wait for copy operation to complete (poll for file existence)."""
-    import asyncio
-    
+async def _wait_for_copy(context: ExecutionContext, name: str, folder_path: str, max_attempts: int = 10) -> Optional[Dict[str, Any]]:
+    """Wait for copy operation to complete and return the document info.
+
+    Uses exponential backoff for polling.
+    """
+    delay = 0.5
+    encoded_name = urllib.parse.quote(name)
+
     for _ in range(max_attempts):
         try:
             if folder_path:
-                check_url = f"{GRAPH_API_BASE}/me/drive/root:/{folder_path}/{name}"
+                encoded_path = urllib.parse.quote(folder_path.strip('/'))
+                check_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_path}/{encoded_name}"
             else:
-                check_url = f"{GRAPH_API_BASE}/me/drive/root:/{name}"
-            
-            await context.fetch(check_url, method="GET")
-            return
+                check_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_name}"
+
+            return await context.fetch(check_url, method="GET")
         except Exception:
-            await asyncio.sleep(1)
+            await asyncio.sleep(delay)
+            delay = min(delay * 1.5, 5.0)  # Cap at 5 seconds
+
+    return None
 
 
 @microsoft_word.action("word_update_content")
@@ -540,11 +571,11 @@ class UpdateContent(ActionHandler):
             if preserve_formatting:
                 content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
                 existing_bytes = await context.fetch(content_url, method="GET")
-                
+
                 if not isinstance(existing_bytes, bytes):
                     return ActionResult(data={'result': False, 'error': 'Failed to download document content'}, cost_usd=0.0)
-                
-                docx_bytes = modify_docx_content(existing_bytes, {'replace_all': content})
+
+                docx_bytes, _ = modify_docx_content(existing_bytes, {'replace_all': content})
             else:
                 docx_bytes = create_docx_from_text(content)
             
@@ -680,7 +711,7 @@ class GetParagraphs(ActionHandler):
 @microsoft_word.action("word_search_replace")
 class SearchReplace(ActionHandler):
     """Find and replace text throughout the document."""
-    
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             document_id = inputs['document_id']
@@ -689,36 +720,33 @@ class SearchReplace(ActionHandler):
             match_case = inputs.get('match_case', False)
             match_whole_word = inputs.get('match_whole_word', False)
             replace_all = inputs.get('replace_all', True)
-            
+
             if not search_text:
                 return ActionResult(data={'result': False, 'error': 'search_text cannot be empty'}, cost_usd=0.0)
-            
+
             content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
             docx_bytes = await context.fetch(content_url, method="GET")
-            
+
             if not isinstance(docx_bytes, bytes):
                 return ActionResult(data={'result': False, 'error': 'Failed to download document content'}, cost_usd=0.0)
 
-            parsed_before = parse_docx_content(docx_bytes)
-            text_before = parsed_before['full_text']
-            
+            # For match_whole_word, we need to handle it differently
+            # since modify_docx_content doesn't support word boundaries
             if match_whole_word:
-                pattern = re.compile(r'\b' + re.escape(search_text) + r'\b', 
+                parsed = parse_docx_content(docx_bytes)
+                text = parsed['full_text']
+                pattern = re.compile(r'\b' + re.escape(search_text) + r'\b',
                                      0 if match_case else re.IGNORECASE)
-                count_before = len(pattern.findall(text_before))
-            elif match_case:
-                count_before = text_before.count(search_text)
-            else:
-                count_before = text_before.lower().count(search_text.lower())
-            
-            if count_before == 0:
-                return ActionResult(data={
-                    'replaced': False,
-                    'replacement_count': 0,
-                    'document_id': document_id,
-                    'result': True
-                }, cost_usd=0.0)
-            
+                count_before = len(pattern.findall(text))
+
+                if count_before == 0:
+                    return ActionResult(data={
+                        'replaced': False,
+                        'replacement_count': 0,
+                        'document_id': document_id,
+                        'result': True
+                    }, cost_usd=0.0)
+
             modifications = {
                 'search_replace': {
                     'search_text': search_text,
@@ -727,31 +755,28 @@ class SearchReplace(ActionHandler):
                     'replace_all': replace_all
                 }
             }
-            
-            modified_bytes = modify_docx_content(docx_bytes, modifications)
-            
-            parsed_after = parse_docx_content(modified_bytes)
-            text_after = parsed_after['full_text']
-            
-            if match_whole_word:
-                count_after = len(pattern.findall(text_after))
-            elif match_case:
-                count_after = text_after.count(search_text)
-            else:
-                count_after = text_after.lower().count(search_text.lower())
-            
-            actual_replacements = count_before - count_after
-            
+
+            # modify_docx_content now returns (bytes, replacement_count)
+            modified_bytes, replacement_count = modify_docx_content(docx_bytes, modifications)
+
+            if replacement_count == 0:
+                return ActionResult(data={
+                    'replaced': False,
+                    'replacement_count': 0,
+                    'document_id': document_id,
+                    'result': True
+                }, cost_usd=0.0)
+
             upload_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
             headers = {
                 'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             }
-            
+
             await context.fetch(upload_url, method="PUT", headers=headers, data=modified_bytes)
-            
+
             return ActionResult(data={
-                'replaced': actual_replacements > 0,
-                'replacement_count': actual_replacements,
+                'replaced': replacement_count > 0,
+                'replacement_count': replacement_count,
                 'document_id': document_id,
                 'result': True
             }, cost_usd=0.0)
@@ -791,12 +816,15 @@ class ExportPdf(ActionHandler):
                 
                 if not output_name.lower().endswith('.pdf'):
                     output_name += '.pdf'
-                
+
+                # URL-encode folder path and output name
+                encoded_output = urllib.parse.quote(output_name)
                 if folder_path:
                     folder_path = folder_path.strip('/')
-                    upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{folder_path}/{output_name}:/content"
+                    encoded_path = urllib.parse.quote(folder_path)
+                    upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_path}/{encoded_output}:/content"
                 else:
-                    upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{output_name}:/content"
+                    upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_output}:/content"
                 
                 headers = {'Content-Type': 'application/pdf'}
                 
