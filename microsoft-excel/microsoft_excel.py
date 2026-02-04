@@ -297,6 +297,7 @@ class GetTableData(ActionHandler):
             select_columns = inputs.get("select_columns")
             top = inputs.get("top")
             skip = inputs.get("skip")
+            max_rows = inputs.get("max_rows", 5000)
 
             encoded_table = encode_path_segment(table_name)
 
@@ -318,6 +319,13 @@ class GetTableData(ActionHandler):
             rows_url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/tables/{encoded_table}/dataBodyRange"
             rows_data = await context.fetch(rows_url, method="GET")
             all_rows = rows_data.get("values", [])
+
+            # Check max_rows safety limit
+            if max_rows and len(all_rows) > max_rows:
+                return ActionResult(data={
+                    "result": False,
+                    "error": f"Table has {len(all_rows)} rows, exceeding max_rows limit of {max_rows}. Use pagination (top/skip) or increase max_rows.",
+                }, cost_usd=0.0)
 
             # Filter columns if specified
             if select_columns:
