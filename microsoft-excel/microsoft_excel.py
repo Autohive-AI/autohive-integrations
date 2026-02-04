@@ -13,6 +13,11 @@ def encode_path_segment(segment: str) -> str:
     return quote(segment, safe="")
 
 
+def encode_folder_path(path: str) -> str:
+    """URL-encode a folder path, preserving slashes for nested paths."""
+    return quote(path.strip("/"), safe="/")
+
+
 def encode_range_address(address: str) -> str:
     """URL-encode a range address, preserving A1 notation characters."""
     return quote(address, safe=":")
@@ -28,7 +33,7 @@ class ListWorkbooks(ActionHandler):
             page_token = inputs.get("page_token")
 
             if folder_path:
-                encoded_path = encode_path_segment(folder_path)
+                encoded_path = encode_folder_path(folder_path)
                 url = f"{GRAPH_BASE_URL}/me/drive/root:/{encoded_path}:/children"
             else:
                 url = f"{GRAPH_BASE_URL}/me/drive/root/children"
@@ -412,6 +417,7 @@ class GetUsedRange(ActionHandler):
             workbook_id = inputs["workbook_id"]
             worksheet_name = inputs["worksheet_name"]
             values_only = inputs.get("values_only", False)
+            max_cells = inputs.get("max_cells", 100000)
 
             encoded_ws = encode_path_segment(worksheet_name)
             if values_only:
@@ -421,11 +427,21 @@ class GetUsedRange(ActionHandler):
 
             response = await context.fetch(url, method="GET")
             values = response.get("values", [])
+            row_count = response.get("rowCount", len(values))
+            column_count = response.get("columnCount", len(values[0]) if values else 0)
+            cell_count = row_count * column_count
+
+            # Check max_cells safety limit
+            if max_cells and cell_count > max_cells:
+                return ActionResult(data={
+                    "result": False,
+                    "error": f"Used range has {cell_count} cells ({row_count} rows x {column_count} cols), exceeding max_cells limit of {max_cells}. Use excel_read_range with a specific range instead.",
+                }, cost_usd=0.0)
 
             return ActionResult(data={
                 "range": response.get("address", ""),
-                "row_count": response.get("rowCount", len(values)),
-                "column_count": response.get("columnCount", len(values[0]) if values else 0),
+                "row_count": row_count,
+                "column_count": column_count,
                 "values": values,
                 "result": True,
             }, cost_usd=0.0)
@@ -622,6 +638,13 @@ class ApplyFilter(ActionHandler):
                 }, cost_usd=0.0)
 
             column_id = columns[column_index].get("id")
+            if not column_id:
+                return ActionResult(data={
+                    "filtered": False,
+                    "result": False,
+                    "error": f"Column at index {column_index} has no ID",
+                }, cost_usd=0.0)
+
             url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/tables/{encoded_table}/columns/{column_id}/filter/apply"
 
             body = {"criteria": filter_criteria}

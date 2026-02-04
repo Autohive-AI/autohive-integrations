@@ -311,6 +311,10 @@
           "values_only": {
             "type": "boolean",
             "description": "Only include cells with values (default: false)."
+          },
+          "max_cells": {
+            "type": "integer",
+            "description": "Safety limit for range size (default: 100000). Returns error if used range exceeds this limit."
           }
         },
         "required": ["workbook_id", "worksheet_name"]
