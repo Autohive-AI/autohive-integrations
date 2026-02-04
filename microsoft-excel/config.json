@@ -6,7 +6,7 @@
   "description": "Read, write, and manipulate Excel workbooks stored in OneDrive/SharePoint via Microsoft Graph API.",
   "auth": {
     "type": "platform",
-    "provider": "Microsoft 365",
+    "provider": "Microsoft Excel",
     "scopes": [
       "Files.Read",
       "Files.ReadWrite",
@@ -210,7 +210,7 @@
     },
     "excel_get_table_data": {
       "display_name": "Get Table Data",
-      "description": "Read all rows from a table including headers.",
+      "description": "Read rows from a table including headers. For large tables (>5000 rows), use max_rows parameter or range-based reading.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -225,15 +225,19 @@
           "select_columns": {
             "type": "array",
             "items": { "type": "string" },
-            "description": "Specific column names to return."
+            "description": "Specific column names to return. Returns error if column not found."
           },
           "top": {
             "type": "integer",
-            "description": "Maximum rows to return."
+            "description": "Maximum rows to return (0 returns empty array)."
           },
           "skip": {
             "type": "integer",
             "description": "Rows to skip (for pagination)."
+          },
+          "max_rows": {
+            "type": "integer",
+            "description": "Safety limit for table size (default: 5000). Returns error if table exceeds this limit."
           }
         },
         "required": ["workbook_id", "table_name"]
