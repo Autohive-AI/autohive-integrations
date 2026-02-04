@@ -1,5 +1,5 @@
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 import io
 import base64
 import re

@@ -6,7 +6,7 @@
   "description": "Read, create, and manipulate Word documents (.docx) stored in OneDrive for Business, SharePoint, or Group drives via Microsoft Graph API.",
   "auth": {
     "type": "platform",
-    "provider": "Microsoft 365",
+    "provider": "Microsoft Word",
     "scopes": [
       "Files.Read",
       "Files.ReadWrite",
