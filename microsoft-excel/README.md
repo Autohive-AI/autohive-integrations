@@ -28,8 +28,6 @@ Required scopes:
 
 ## Actions
 
-### Phase 1 - Basic Features
-
 | Action | Description |
 |--------|-------------|
 | `excel_list_workbooks` | Find accessible Excel workbooks in OneDrive/SharePoint |
@@ -42,11 +40,6 @@ Required scopes:
 | `excel_add_table_row` | Append one or more rows to an existing table |
 | `excel_create_worksheet` | Add a new worksheet tab |
 | `excel_delete_worksheet` | Remove a worksheet |
-
-### Phase 2 - Advanced Features
-
-| Action | Description |
-|--------|-------------|
 | `excel_create_table` | Convert a range to an Excel table |
 | `excel_update_table_row` | Update values in an existing table row |
 | `excel_delete_table_row` | Remove a row from a table |
