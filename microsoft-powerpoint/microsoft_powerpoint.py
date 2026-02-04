@@ -213,7 +213,7 @@ class GetSlidesAction(ActionHandler):
                             "height": size_data.get('height')
                         }
                 except Exception:
-                    pass
+                    pass  # Thumbnail fetch is non-critical - continue without thumbnails
 
             for i, slide in enumerate(prs.slides):
                 slide_info = {
@@ -300,7 +300,7 @@ class GetSlideAction(ActionHandler):
                         result_data["thumbnailHeight"] = size_data.get('height')
                         result_data["thumbnailNote"] = "Thumbnail is for entire presentation, not individual slide"
                 except Exception:
-                    pass
+                    pass  # Thumbnail fetch is non-critical - continue without thumbnail
 
             return ActionResult(
                 data=result_data,

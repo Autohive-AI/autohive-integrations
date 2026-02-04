@@ -6,7 +6,7 @@
     "entry_point": "microsoft_powerpoint.py",
     "auth": {
         "type": "platform",
-        "provider": "Microsoft 365",
+        "provider": "Microsoft PowerPoint",
         "scopes": [
             "Files.Read",
             "Files.ReadWrite",
