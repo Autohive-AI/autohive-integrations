@@ -136,6 +136,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [google-sheets](google-sheets): Connects to Google Sheets and Drive APIs to list accessible spreadsheets, read and write A1 ranges, append rows, apply formatting, freeze panes, run batch updates, and duplicate spreadsheets. Uses Google OAuth2 platform authentication with appropriate scopes for Sheets and Drive.
 
+### Microsoft Excel
+
+[microsoft-excel](microsoft-excel): Comprehensive integration with Microsoft Excel workbooks stored in OneDrive for Business or SharePoint via Microsoft Graph API. Supports listing and searching Excel workbooks, reading and writing cell ranges using A1 notation, worksheet management (create, delete, list), full table operations (create, read, add/update/delete rows), sorting and filtering data, and applying formatting (font, fill, alignment, number format). Features named range access, used range detection, and support for both workbook-level and worksheet-level table operations. Uses OAuth2 platform authentication with Microsoft 365 and Files.ReadWrite scope. Ideal for automating Excel-based workflows, data extraction, reporting automation, and spreadsheet manipulation.
+
 ### Google Tasks
 
 [google-tasks](google-tasks): Integrates with Google Tasks API for comprehensive task management within Autohive workflows. Supports listing and accessing task lists, and full CRUD operations for tasks including creating tasks with due dates and notes, managing subtasks with parent-child relationships, updating task status and properties, repositioning tasks, and filtering by completion status and date ranges. Features secure OAuth2 authentication, pagination support for large task collections (up to 2,000 lists and 20,000 tasks per list), and comprehensive error handling for productivity and workflow automation.
