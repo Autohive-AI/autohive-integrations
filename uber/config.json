@@ -12,10 +12,7 @@
         "scopes": [
             "profile",
             "history",
-            "places",
-            "request",
-            "request_receipt",
-            "offline_access"
+            "places"
         ]
     },
     "actions": {
