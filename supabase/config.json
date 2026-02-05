@@ -1,0 +1,545 @@
+{
+  "name": "Supabase",
+  "display_name": "Supabase",
+  "version": "1.0.0",
+  "description": "Integration with Supabase for database operations, storage, and authentication management",
+  "entry_point": "supabase.py",
+  "auth": {
+    "type": "custom",
+    "title": "Supabase API Credentials",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "label": "Project URL",
+          "help_text": "Your Supabase project URL (e.g., https://xxxx.supabase.co)"
+        },
+        "service_role_secret": {
+          "type": "string",
+          "format": "password",
+          "label": "Service Role Secret",
+          "help_text": "The service_role API key from Project Settings > API"
+        }
+      }
+    }
+  },
+  "actions": {
+    "select_records": {
+      "display_name": "Select Records",
+      "description": "Query records from a table with optional filtering, ordering, and pagination",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "table": {
+            "type": "string",
+            "description": "Name of the table to query"
+          },
+          "select": {
+            "type": "string",
+            "description": "Columns to select (default: * for all). Use comma-separated list or PostgREST syntax"
+          },
+          "filters": {
+            "type": "object",
+            "description": "Filter conditions as key-value pairs (e.g., {\"status\": \"eq.active\", \"age\": \"gt.18\"})"
+          },
+          "order": {
+            "type": "string",
+            "description": "Order by column (e.g., 'created_at.desc' or 'name.asc')"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of records to return"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of records to skip (for pagination)"
+          }
+        },
+        "required": ["table"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "description": "Array of matching records"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of records returned"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "insert_records": {
+      "display_name": "Insert Records",
+      "description": "Insert one or more records into a table",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "table": {
+            "type": "string",
+            "description": "Name of the table to insert into"
+          },
+          "records": {
+            "type": "array",
+            "description": "Array of record objects to insert"
+          },
+          "return_records": {
+            "type": "boolean",
+            "description": "Whether to return the inserted records (default: true)"
+          },
+          "on_conflict": {
+            "type": "string",
+            "description": "Column(s) for upsert conflict resolution (enables upsert mode)"
+          }
+        },
+        "required": ["table", "records"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "description": "Inserted records (if return_records is true)"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of records inserted"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "update_records": {
+      "display_name": "Update Records",
+      "description": "Update records in a table matching filter conditions",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "table": {
+            "type": "string",
+            "description": "Name of the table to update"
+          },
+          "data": {
+            "type": "object",
+            "description": "Object with column-value pairs to update"
+          },
+          "filters": {
+            "type": "object",
+            "description": "Filter conditions to match records (e.g., {\"id\": \"eq.123\"})"
+          },
+          "return_records": {
+            "type": "boolean",
+            "description": "Whether to return the updated records (default: true)"
+          }
+        },
+        "required": ["table", "data", "filters"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "description": "Updated records (if return_records is true)"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of records updated"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "delete_records": {
+      "display_name": "Delete Records",
+      "description": "Delete records from a table matching filter conditions",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "table": {
+            "type": "string",
+            "description": "Name of the table to delete from"
+          },
+          "filters": {
+            "type": "object",
+            "description": "Filter conditions to match records (e.g., {\"id\": \"eq.123\"})"
+          },
+          "return_records": {
+            "type": "boolean",
+            "description": "Whether to return the deleted records (default: false)"
+          }
+        },
+        "required": ["table", "filters"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "description": "Deleted records (if return_records is true)"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of records deleted"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "call_function": {
+      "display_name": "Call Database Function",
+      "description": "Call a PostgreSQL function (RPC) with optional parameters",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "function_name": {
+            "type": "string",
+            "description": "Name of the function to call"
+          },
+          "params": {
+            "type": "object",
+            "description": "Parameters to pass to the function"
+          }
+        },
+        "required": ["function_name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "any",
+            "description": "Function return value"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_buckets": {
+      "display_name": "List Storage Buckets",
+      "description": "List all storage buckets in the project",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "buckets": {
+            "type": "array",
+            "description": "List of storage buckets"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_bucket": {
+      "display_name": "Get Storage Bucket",
+      "description": "Get details of a specific storage bucket",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "bucket_id": {
+            "type": "string",
+            "description": "ID of the bucket"
+          }
+        },
+        "required": ["bucket_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "type": "object",
+            "description": "Bucket details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "create_bucket": {
+      "display_name": "Create Storage Bucket",
+      "description": "Create a new storage bucket",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the bucket (must be unique)"
+          },
+          "public": {
+            "type": "boolean",
+            "description": "Whether the bucket is publicly accessible (default: false)"
+          },
+          "file_size_limit": {
+            "type": "integer",
+            "description": "Maximum file size in bytes (optional)"
+          },
+          "allowed_mime_types": {
+            "type": "array",
+            "description": "Array of allowed MIME types (optional)"
+          }
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "type": "object",
+            "description": "Created bucket details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "delete_bucket": {
+      "display_name": "Delete Storage Bucket",
+      "description": "Delete a storage bucket (must be empty)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "bucket_id": {
+            "type": "string",
+            "description": "ID of the bucket to delete"
+          }
+        },
+        "required": ["bucket_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the bucket was deleted"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_files": {
+      "display_name": "List Files",
+      "description": "List files in a storage bucket",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "bucket_id": {
+            "type": "string",
+            "description": "ID of the bucket"
+          },
+          "path": {
+            "type": "string",
+            "description": "Folder path within the bucket (optional)"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of files to return"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of files to skip"
+          },
+          "search": {
+            "type": "string",
+            "description": "Search string to filter files"
+          }
+        },
+        "required": ["bucket_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "description": "List of files and folders"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "delete_files": {
+      "display_name": "Delete Files",
+      "description": "Delete one or more files from a storage bucket",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "bucket_id": {
+            "type": "string",
+            "description": "ID of the bucket"
+          },
+          "paths": {
+            "type": "array",
+            "description": "Array of file paths to delete"
+          }
+        },
+        "required": ["bucket_id", "paths"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "array",
+            "description": "List of deleted file paths"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_public_url": {
+      "display_name": "Get Public URL",
+      "description": "Get the public URL for a file in a public bucket",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "bucket_id": {
+            "type": "string",
+            "description": "ID of the bucket"
+          },
+          "path": {
+            "type": "string",
+            "description": "Path to the file within the bucket"
+          }
+        },
+        "required": ["bucket_id", "path"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "public_url": {
+            "type": "string",
+            "description": "Public URL of the file"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_users": {
+      "display_name": "List Auth Users",
+      "description": "List all authenticated users (requires service_role)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "Page number (default: 1)"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Users per page (default: 50, max: 1000)"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "array",
+            "description": "List of user objects"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of users"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_user": {
+      "display_name": "Get Auth User",
+      "description": "Get a user by their ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "The user's UUID"
+          }
+        },
+        "required": ["user_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "description": "User details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "delete_user": {
+      "display_name": "Delete Auth User",
+      "description": "Delete a user by their ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "The user's UUID"
+          }
+        },
+        "required": ["user_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the user was deleted"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    }
+  }
+}
