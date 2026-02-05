@@ -78,10 +78,22 @@ class TestValidationHelpers:
         """Test seat count validation and normalization."""
         assert validate_seat_count(1) == 1
         assert validate_seat_count(2) == 2
-        assert validate_seat_count(0) == 1
-        assert validate_seat_count(3) == 2
-        assert validate_seat_count(None) == 2
-        assert validate_seat_count("invalid") == 2
+        assert validate_seat_count(0) == 1  # Clamped to minimum 1
+        assert validate_seat_count(3) == 2  # Clamped to maximum 2
+        assert validate_seat_count(None) == 2  # Default when not provided
+
+    def test_validate_seat_count_invalid_type(self):
+        """Test seat count raises error for invalid types."""
+        from context import UberAPIError
+        import pytest
+
+        with pytest.raises(UberAPIError) as exc_info:
+            validate_seat_count("invalid")
+        assert "seat_count must be an integer" in str(exc_info.value)
+
+        with pytest.raises(UberAPIError) as exc_info:
+            validate_seat_count(1.5)
+        assert "seat_count must be an integer" in str(exc_info.value)
 
     def test_validate_limit(self):
         """Test limit validation and normalization."""
@@ -162,6 +174,20 @@ class TestValidationHelpers:
         assert "invalid characters" in error
 
         error = validate_id("id\\backslash", "request_id")
+        assert "invalid characters" in error
+
+    def test_validate_id_url_injection(self):
+        """Test ID validation blocks URL metacharacters."""
+        error = validate_id("id?force=true", "request_id")
+        assert "invalid characters" in error
+
+        error = validate_id("id&param=value", "request_id")
+        assert "invalid characters" in error
+
+        error = validate_id("id#fragment", "request_id")
+        assert "invalid characters" in error
+
+        error = validate_id("id%20encoded", "request_id")
         assert "invalid characters" in error
 
 

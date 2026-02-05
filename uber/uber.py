@@ -125,16 +125,25 @@ def validate_coordinates(
     return None
 
 
-def validate_seat_count(seat_count: Optional[int]) -> int:
+def validate_seat_count(seat_count: Any) -> int:
     """
     Validate and normalize seat count for POOL products.
 
     Note: Uber POOL only supports 1-2 seats. Values outside this range
     are clamped. For non-POOL products, seat_count is ignored by the API.
     This matches the schema constraint (maximum: 2).
+
+    Raises UberAPIError if seat_count is not None and not an integer.
     """
-    if seat_count is None or not isinstance(seat_count, int):
-        return 2
+    if seat_count is None:
+        return 2  # Default to 2 seats when not provided
+
+    if not isinstance(seat_count, int):
+        raise UberAPIError(
+            "seat_count must be an integer (1 or 2)",
+            "validation_error"
+        )
+
     return max(1, min(seat_count, 2))
 
 
@@ -164,7 +173,7 @@ def validate_required_string(value: Any, field_name: str) -> Optional[str]:
 def validate_id(value: Any, field_name: str) -> Optional[str]:
     """
     Validate that a value is a valid ID.
-    Prevents path traversal attacks by blocking '/', '\\', and '..'.
+    Prevents path traversal and parameter injection attacks.
     Returns error message if invalid.
     """
     if value is None:
@@ -172,10 +181,11 @@ def validate_id(value: Any, field_name: str) -> Optional[str]:
     if not isinstance(value, str) or not value.strip():
         return f"{field_name} must be a non-empty string"
 
-    # Block path traversal characters rather than strict allowlist
-    # This allows legitimate IDs while preventing injection
+    # Block path traversal and URL metacharacters
+    # This prevents injection while allowing most legitimate ID formats
     v = value.strip()
-    if "/" in v or "\\" in v or ".." in v:
+    dangerous_chars = ['/', '\\', '..', '?', '&', '#', '%']
+    if any(char in v for char in dangerous_chars):
         return f"{field_name} contains invalid characters"
 
     return None
