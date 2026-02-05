@@ -131,6 +131,10 @@ class TestValidationHelpers:
         assert validate_id("ABC-123", "request_id") is None
         assert validate_id("abc_123", "request_id") is None
         assert validate_id("a1111c8c-c720-46c3-8534-2fcdd730040d", "request_id") is None
+        # Now allows more characters (not strict allowlist)
+        assert validate_id("id@domain", "request_id") is None
+        assert validate_id("id:colon", "request_id") is None
+        assert validate_id("id.dot", "request_id") is None
 
     def test_validate_id_invalid_missing(self):
         """Test ID validation with missing values."""
@@ -157,15 +161,7 @@ class TestValidationHelpers:
         error = validate_id("id/with/slashes", "request_id")
         assert "invalid characters" in error
 
-    def test_validate_id_special_characters(self):
-        """Test ID validation blocks special characters."""
-        error = validate_id("id@domain", "request_id")
-        assert "invalid characters" in error
-
-        error = validate_id("id#hash", "request_id")
-        assert "invalid characters" in error
-
-        error = validate_id("id?query=1", "request_id")
+        error = validate_id("id\\backslash", "request_id")
         assert "invalid characters" in error
 
 

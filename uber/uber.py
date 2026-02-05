@@ -126,7 +126,13 @@ def validate_coordinates(
 
 
 def validate_seat_count(seat_count: Optional[int]) -> int:
-    """Validate and normalize seat count for POOL products."""
+    """
+    Validate and normalize seat count for POOL products.
+
+    Note: Uber POOL only supports 1-2 seats. Values outside this range
+    are clamped. For non-POOL products, seat_count is ignored by the API.
+    This matches the schema constraint (maximum: 2).
+    """
     if seat_count is None or not isinstance(seat_count, int):
         return 2
     return max(1, min(seat_count, 2))
@@ -157,8 +163,8 @@ def validate_required_string(value: Any, field_name: str) -> Optional[str]:
 
 def validate_id(value: Any, field_name: str) -> Optional[str]:
     """
-    Validate that a value is a valid ID (alphanumeric, hyphens, underscores only).
-    Prevents path traversal attacks with characters like '../'.
+    Validate that a value is a valid ID.
+    Prevents path traversal attacks by blocking '/', '\\', and '..'.
     Returns error message if invalid.
     """
     if value is None:
@@ -166,8 +172,10 @@ def validate_id(value: Any, field_name: str) -> Optional[str]:
     if not isinstance(value, str) or not value.strip():
         return f"{field_name} must be a non-empty string"
 
-    # Allow alphanumeric, hyphens, and underscores only
-    if not re.match(r'^[a-zA-Z0-9\-_]+$', value.strip()):
+    # Block path traversal characters rather than strict allowlist
+    # This allows legitimate IDs while preventing injection
+    v = value.strip()
+    if "/" in v or "\\" in v or ".." in v:
         return f"{field_name} contains invalid characters"
 
     return None
@@ -195,8 +203,9 @@ async def uber_fetch(
 ) -> Dict[str, Any]:
     """
     Centralized Uber API request handler.
-    
-    Raises UberAPIError on failure.
+
+    Exceptions from context.fetch() bubble up to the caller.
+    Use @handle_uber_errors decorator on actions for error classification.
     """
     url = f"{UBER_API_BASE_URL}/{API_VERSION}/{path.lstrip('/')}"
     
@@ -224,16 +233,16 @@ class GetProductsAction(ActionHandler):
 
     @handle_uber_errors("get_products")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        coord_error = validate_coordinates(
-            inputs.get("latitude"),
-            inputs.get("longitude")
-        )
+        lat = inputs.get("latitude")
+        lng = inputs.get("longitude")
+
+        coord_error = validate_coordinates(lat, lng)
         if coord_error:
             raise UberAPIError(coord_error, "validation_error")
 
         params = {
-            "latitude": inputs["latitude"],
-            "longitude": inputs["longitude"]
+            "latitude": lat,
+            "longitude": lng
         }
 
         response = await uber_fetch(context, "products", params=params)
@@ -254,31 +263,29 @@ class GetPriceEstimateAction(ActionHandler):
 
     @handle_uber_errors("get_price_estimate")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        start_error = validate_coordinates(
-            inputs.get("start_latitude"),
-            inputs.get("start_longitude"),
-            "start_"
-        )
+        start_lat = inputs.get("start_latitude")
+        start_lng = inputs.get("start_longitude")
+        end_lat = inputs.get("end_latitude")
+        end_lng = inputs.get("end_longitude")
+
+        start_error = validate_coordinates(start_lat, start_lng, "start_")
         if start_error:
             raise UberAPIError(start_error, "validation_error")
 
-        end_error = validate_coordinates(
-            inputs.get("end_latitude"),
-            inputs.get("end_longitude"),
-            "end_"
-        )
+        end_error = validate_coordinates(end_lat, end_lng, "end_")
         if end_error:
             raise UberAPIError(end_error, "validation_error")
 
         params = {
-            "start_latitude": inputs["start_latitude"],
-            "start_longitude": inputs["start_longitude"],
-            "end_latitude": inputs["end_latitude"],
-            "end_longitude": inputs["end_longitude"]
+            "start_latitude": start_lat,
+            "start_longitude": start_lng,
+            "end_latitude": end_lat,
+            "end_longitude": end_lng
         }
 
-        if inputs.get("seat_count") is not None:
-            params["seat_count"] = validate_seat_count(inputs["seat_count"])
+        seat_count = inputs.get("seat_count")
+        if seat_count is not None:
+            params["seat_count"] = validate_seat_count(seat_count)
 
         response = await uber_fetch(context, "estimates/price", params=params)
 
@@ -294,17 +301,16 @@ class GetTimeEstimateAction(ActionHandler):
 
     @handle_uber_errors("get_time_estimate")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        coord_error = validate_coordinates(
-            inputs.get("start_latitude"),
-            inputs.get("start_longitude"),
-            "start_"
-        )
+        start_lat = inputs.get("start_latitude")
+        start_lng = inputs.get("start_longitude")
+
+        coord_error = validate_coordinates(start_lat, start_lng, "start_")
         if coord_error:
             raise UberAPIError(coord_error, "validation_error")
 
         params = {
-            "start_latitude": inputs["start_latitude"],
-            "start_longitude": inputs["start_longitude"]
+            "start_latitude": start_lat,
+            "start_longitude": start_lng
         }
 
         product_id = inputs.get("product_id")
@@ -329,36 +335,35 @@ class GetRideEstimateAction(ActionHandler):
 
     @handle_uber_errors("get_ride_estimate")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        product_error = validate_id(inputs.get("product_id"), "product_id")
+        product_id = inputs.get("product_id")
+        start_lat = inputs.get("start_latitude")
+        start_lng = inputs.get("start_longitude")
+        end_lat = inputs.get("end_latitude")
+        end_lng = inputs.get("end_longitude")
+
+        product_error = validate_id(product_id, "product_id")
         if product_error:
             raise UberAPIError(product_error, "validation_error")
 
-        start_error = validate_coordinates(
-            inputs.get("start_latitude"),
-            inputs.get("start_longitude"),
-            "start_"
-        )
+        start_error = validate_coordinates(start_lat, start_lng, "start_")
         if start_error:
             raise UberAPIError(start_error, "validation_error")
 
-        end_error = validate_coordinates(
-            inputs.get("end_latitude"),
-            inputs.get("end_longitude"),
-            "end_"
-        )
+        end_error = validate_coordinates(end_lat, end_lng, "end_")
         if end_error:
             raise UberAPIError(end_error, "validation_error")
 
         body = {
-            "product_id": inputs["product_id"].strip(),
-            "start_latitude": inputs["start_latitude"],
-            "start_longitude": inputs["start_longitude"],
-            "end_latitude": inputs["end_latitude"],
-            "end_longitude": inputs["end_longitude"]
+            "product_id": product_id.strip(),
+            "start_latitude": start_lat,
+            "start_longitude": start_lng,
+            "end_latitude": end_lat,
+            "end_longitude": end_lng
         }
 
-        if inputs.get("seat_count") is not None:
-            body["seat_count"] = validate_seat_count(inputs["seat_count"])
+        seat_count = inputs.get("seat_count")
+        if seat_count is not None:
+            body["seat_count"] = validate_seat_count(seat_count)
 
         response = await uber_fetch(
             context, "requests/estimate", method="POST", json_body=body
@@ -380,32 +385,30 @@ class RequestRideAction(ActionHandler):
 
     @handle_uber_errors("request_ride")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        product_error = validate_id(inputs.get("product_id"), "product_id")
+        product_id = inputs.get("product_id")
+        start_lat = inputs.get("start_latitude")
+        start_lng = inputs.get("start_longitude")
+        end_lat = inputs.get("end_latitude")
+        end_lng = inputs.get("end_longitude")
+
+        product_error = validate_id(product_id, "product_id")
         if product_error:
             raise UberAPIError(product_error, "validation_error")
 
-        start_error = validate_coordinates(
-            inputs.get("start_latitude"),
-            inputs.get("start_longitude"),
-            "start_"
-        )
+        start_error = validate_coordinates(start_lat, start_lng, "start_")
         if start_error:
             raise UberAPIError(start_error, "validation_error")
 
-        end_error = validate_coordinates(
-            inputs.get("end_latitude"),
-            inputs.get("end_longitude"),
-            "end_"
-        )
+        end_error = validate_coordinates(end_lat, end_lng, "end_")
         if end_error:
             raise UberAPIError(end_error, "validation_error")
 
         body: Dict[str, Any] = {
-            "product_id": inputs["product_id"].strip(),
-            "start_latitude": inputs["start_latitude"],
-            "start_longitude": inputs["start_longitude"],
-            "end_latitude": inputs["end_latitude"],
-            "end_longitude": inputs["end_longitude"]
+            "product_id": product_id.strip(),
+            "start_latitude": start_lat,
+            "start_longitude": start_lng,
+            "end_latitude": end_lat,
+            "end_longitude": end_lng
         }
 
         optional_string_fields = [
@@ -417,8 +420,9 @@ class RequestRideAction(ActionHandler):
             if value and isinstance(value, str) and value.strip():
                 body[field] = value.strip()
 
-        if inputs.get("seat_count") is not None:
-            body["seat_count"] = validate_seat_count(inputs["seat_count"])
+        seat_count = inputs.get("seat_count")
+        if seat_count is not None:
+            body["seat_count"] = validate_seat_count(seat_count)
 
         response = await uber_fetch(context, "requests", method="POST", json_body=body)
 
