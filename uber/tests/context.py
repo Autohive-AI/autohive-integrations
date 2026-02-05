@@ -44,4 +44,6 @@ validate_seat_count = uber_module.validate_seat_count
 validate_limit = uber_module.validate_limit
 validate_offset = uber_module.validate_offset
 validate_required_string = uber_module.validate_required_string
+validate_id = uber_module.validate_id
+classify_error = uber_module.classify_error
 UberAPIError = uber_module.UberAPIError

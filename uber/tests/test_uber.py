@@ -19,7 +19,9 @@ from context import (
     validate_seat_count,
     validate_limit,
     validate_offset,
-    validate_required_string
+    validate_required_string,
+    validate_id,
+    classify_error
 )
 
 
@@ -122,6 +124,97 @@ class TestValidationHelpers:
 
         error = validate_required_string(123, "request_id")
         assert "non-empty string" in error
+
+    def test_validate_id_valid(self):
+        """Test ID validation with valid input."""
+        assert validate_id("abc123", "request_id") is None
+        assert validate_id("ABC-123", "request_id") is None
+        assert validate_id("abc_123", "request_id") is None
+        assert validate_id("a1111c8c-c720-46c3-8534-2fcdd730040d", "request_id") is None
+
+    def test_validate_id_invalid_missing(self):
+        """Test ID validation with missing values."""
+        error = validate_id(None, "request_id")
+        assert "request_id is required" in error
+
+        error = validate_id("", "request_id")
+        assert "non-empty string" in error
+
+        error = validate_id("   ", "request_id")
+        assert "non-empty string" in error
+
+    def test_validate_id_path_traversal(self):
+        """Test ID validation blocks path traversal attacks."""
+        error = validate_id("../history", "request_id")
+        assert "invalid characters" in error
+
+        error = validate_id("../../etc/passwd", "request_id")
+        assert "invalid characters" in error
+
+        error = validate_id("request/../other", "request_id")
+        assert "invalid characters" in error
+
+        error = validate_id("id/with/slashes", "request_id")
+        assert "invalid characters" in error
+
+    def test_validate_id_special_characters(self):
+        """Test ID validation blocks special characters."""
+        error = validate_id("id@domain", "request_id")
+        assert "invalid characters" in error
+
+        error = validate_id("id#hash", "request_id")
+        assert "invalid characters" in error
+
+        error = validate_id("id?query=1", "request_id")
+        assert "invalid characters" in error
+
+
+class TestClassifyError:
+    """Tests for error classification function."""
+
+    def test_classify_401_auth_error(self):
+        """Test 401 is classified as auth_error."""
+        assert classify_error("401 Unauthorized") == "auth_error"
+        assert classify_error("HTTP 401: Authentication required") == "auth_error"
+        assert classify_error("Error: unauthorized access") == "auth_error"
+
+    def test_classify_429_rate_limited(self):
+        """Test 429 is classified as rate_limited."""
+        assert classify_error("429 Too Many Requests") == "rate_limited"
+        assert classify_error("Rate limit exceeded") == "rate_limited"
+        assert classify_error("too many requests") == "rate_limited"
+
+    def test_classify_rate_not_too_broad(self):
+        """Test that 'rate' alone doesn't match (prevents false positives)."""
+        # Words containing 'rate' should not be misclassified
+        assert classify_error("accelerate your request") == "api_error"
+        assert classify_error("prorate the amount") == "api_error"
+        assert classify_error("separate error occurred") == "api_error"
+
+    def test_classify_400_422_validation_error(self):
+        """Test 400 and 422 are classified as validation_error."""
+        assert classify_error("400 Bad Request") == "validation_error"
+        assert classify_error("422 Unprocessable Entity") == "validation_error"
+        assert classify_error("Validation failed") == "validation_error"
+        assert classify_error("Invalid request format") == "validation_error"
+
+    def test_classify_404_not_found(self):
+        """Test 404 is classified as not_found."""
+        assert classify_error("404 Not Found") == "not_found"
+        assert classify_error("Resource not found") == "not_found"
+
+    def test_classify_5xx_server_error(self):
+        """Test 5xx errors are correctly classified as server_error."""
+        assert classify_error("500 Internal Server Error") == "server_error"
+        assert classify_error("502 Bad Gateway") == "server_error"
+        assert classify_error("503 Service Unavailable") == "server_error"
+        assert classify_error("API Error: 500") == "server_error"
+        assert classify_error("Error 504: Gateway Timeout") == "server_error"
+
+    def test_classify_unknown_api_error(self):
+        """Test unknown errors default to api_error."""
+        assert classify_error("Unknown error occurred") == "api_error"
+        assert classify_error("Connection refused") == "api_error"
 
 
 # ---- Product Tests ----
@@ -380,6 +473,24 @@ class TestGetTimeEstimate:
         call_args = mock_context.fetch.call_args
         assert "product_id" not in call_args[1]["params"]
 
+    @pytest.mark.asyncio
+    async def test_product_id_path_traversal_blocked(self, mock_context):
+        """Test path traversal in product_id is blocked."""
+        action = GetTimeEstimateAction()
+        result = await action.execute(
+            {
+                "start_latitude": 37.7752315,
+                "start_longitude": -122.418075,
+                "product_id": "../products"
+            },
+            mock_context
+        )
+
+        assert result.data["result"] is False
+        assert "invalid characters" in result.data["error"]
+        assert result.data["error_type"] == "validation_error"
+        mock_context.fetch.assert_not_called()
+
 
 # ---- Ride Estimate Tests ----
 
@@ -445,6 +556,26 @@ class TestGetRideEstimate:
         call_args = mock_context.fetch.call_args
         assert call_args[1]["method"] == "POST"
         assert "json" in call_args[1]
+
+    @pytest.mark.asyncio
+    async def test_product_id_path_traversal_blocked(self, mock_context):
+        """Test path traversal in product_id is blocked."""
+        action = GetRideEstimateAction()
+        result = await action.execute(
+            {
+                "product_id": "../requests",
+                "start_latitude": 37.7752315,
+                "start_longitude": -122.418075,
+                "end_latitude": 37.7752415,
+                "end_longitude": -122.518075
+            },
+            mock_context
+        )
+
+        assert result.data["result"] is False
+        assert "invalid characters" in result.data["error"]
+        assert result.data["error_type"] == "validation_error"
+        mock_context.fetch.assert_not_called()
 
 
 # ---- Request Ride Tests ----
@@ -546,6 +677,26 @@ class TestRequestRide:
         assert result.data["error_type"] == "validation_error"
 
     @pytest.mark.asyncio
+    async def test_product_id_path_traversal_blocked(self, mock_context):
+        """Test path traversal in product_id is blocked."""
+        action = RequestRideAction()
+        result = await action.execute(
+            {
+                "product_id": "../history",
+                "start_latitude": 37.7752315,
+                "start_longitude": -122.418075,
+                "end_latitude": 37.7752415,
+                "end_longitude": -122.518075
+            },
+            mock_context
+        )
+
+        assert result.data["result"] is False
+        assert "invalid characters" in result.data["error"]
+        assert result.data["error_type"] == "validation_error"
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_partial_response_handling(self, mock_context):
         """Test handling of response without driver/vehicle (initial state)."""
         mock_context.fetch.return_value = {
@@ -623,6 +774,47 @@ class TestGetRideStatus:
         assert result.data["result"] is False
         assert result.data["error_type"] == "not_found"
 
+    @pytest.mark.asyncio
+    async def test_request_id_path_traversal_blocked(self, mock_context):
+        """Test path traversal in request_id is blocked."""
+        action = GetRideStatusAction()
+        result = await action.execute({"request_id": "../history"}, mock_context)
+
+        assert result.data["result"] is False
+        assert "invalid characters" in result.data["error"]
+        assert result.data["error_type"] == "validation_error"
+        mock_context.fetch.assert_not_called()
+
+
+# ---- Ride Map Tests ----
+
+class TestGetRideMap:
+    """Tests for get_ride_map action."""
+
+    @pytest.mark.asyncio
+    async def test_success(self, mock_context):
+        """Test successful ride map retrieval."""
+        mock_context.fetch.return_value = {
+            "href": "https://trip.uber.com/abc123"
+        }
+
+        action = GetRideMapAction()
+        result = await action.execute({"request_id": "req_123"}, mock_context)
+
+        assert result.data["result"] is True
+        assert result.data["href"] == "https://trip.uber.com/abc123"
+
+    @pytest.mark.asyncio
+    async def test_request_id_path_traversal_blocked(self, mock_context):
+        """Test path traversal in request_id is blocked."""
+        action = GetRideMapAction()
+        result = await action.execute({"request_id": "../history"}, mock_context)
+
+        assert result.data["result"] is False
+        assert "invalid characters" in result.data["error"]
+        assert result.data["error_type"] == "validation_error"
+        mock_context.fetch.assert_not_called()
+
 
 # ---- Cancel Ride Tests ----
 
@@ -658,6 +850,17 @@ class TestCancelRide:
 
         assert result.data["result"] is False
 
+    @pytest.mark.asyncio
+    async def test_request_id_path_traversal_blocked(self, mock_context):
+        """Test path traversal in request_id is blocked."""
+        action = CancelRideAction()
+        result = await action.execute({"request_id": "../history"}, mock_context)
+
+        assert result.data["result"] is False
+        assert "invalid characters" in result.data["error"]
+        assert result.data["error_type"] == "validation_error"
+        mock_context.fetch.assert_not_called()
+
 
 # ---- Receipt Tests ----
 
@@ -677,6 +880,17 @@ class TestGetRideReceipt:
 
         assert result.data["result"] is True
         assert result.data["receipt"]["total_charged"] == 15.50
+
+    @pytest.mark.asyncio
+    async def test_request_id_path_traversal_blocked(self, mock_context):
+        """Test path traversal in request_id is blocked."""
+        action = GetRideReceiptAction()
+        result = await action.execute({"request_id": "../history"}, mock_context)
+
+        assert result.data["result"] is False
+        assert "invalid characters" in result.data["error"]
+        assert result.data["error_type"] == "validation_error"
+        mock_context.fetch.assert_not_called()
 
 
 # ---- User Profile Tests ----

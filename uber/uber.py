@@ -17,11 +17,16 @@ from autohive_integrations_sdk import (
 )
 from typing import Dict, Any, Optional, Callable, TypeVar
 from functools import wraps
+import os
+import re
 
 
 uber = Integration.load()
 
-UBER_API_BASE_URL = "https://api.uber.com"
+# Support sandbox environment via environment variable
+# Production: https://api.uber.com
+# Sandbox: https://sandbox-api.uber.com
+UBER_API_BASE_URL = os.getenv("UBER_API_BASE_URL", "https://api.uber.com")
 API_VERSION = "v1.2"
 
 T = TypeVar('T')
@@ -76,18 +81,22 @@ def handle_uber_errors(action_name: str):
 def classify_error(error_str: str) -> str:
     """Classify error string into error type."""
     error_lower = error_str.lower()
-    
-    if "401" in error_str or "unauthorized" in error_lower:
+
+    # Extract HTTP status code if present (e.g., "401", "500 Server Error", "API Error: 429")
+    status_match = re.search(r'\b([45]\d{2})\b', error_str)
+    status_code = status_match.group(1) if status_match else None
+
+    if status_code == "401" or "unauthorized" in error_lower:
         return "auth_error"
-    elif "429" in error_str or "rate" in error_lower:
+    elif status_code == "429" or "too many requests" in error_lower or "rate limit" in error_lower:
         return "rate_limited"
-    elif "400" in error_str or "422" in error_str or "validation" in error_lower:
+    elif status_code in ("400", "422") or "validation" in error_lower or "invalid" in error_lower:
         return "validation_error"
-    elif "404" in error_str or "not found" in error_lower:
+    elif status_code == "404" or "not found" in error_lower:
         return "not_found"
-    elif error_str[:1] == "5":
+    elif status_code and status_code.startswith("5"):
         return "server_error"
-    
+
     return "api_error"
 
 
@@ -143,6 +152,24 @@ def validate_required_string(value: Any, field_name: str) -> Optional[str]:
         return f"{field_name} is required"
     if not isinstance(value, str) or not value.strip():
         return f"{field_name} must be a non-empty string"
+    return None
+
+
+def validate_id(value: Any, field_name: str) -> Optional[str]:
+    """
+    Validate that a value is a valid ID (alphanumeric, hyphens, underscores only).
+    Prevents path traversal attacks with characters like '../'.
+    Returns error message if invalid.
+    """
+    if value is None:
+        return f"{field_name} is required"
+    if not isinstance(value, str) or not value.strip():
+        return f"{field_name} must be a non-empty string"
+
+    # Allow alphanumeric, hyphens, and underscores only
+    if not re.match(r'^[a-zA-Z0-9\-_]+$', value.strip()):
+        return f"{field_name} contains invalid characters"
+
     return None
 
 
@@ -282,6 +309,10 @@ class GetTimeEstimateAction(ActionHandler):
 
         product_id = inputs.get("product_id")
         if product_id and isinstance(product_id, str) and product_id.strip():
+            # Validate product_id to prevent path traversal
+            product_id_error = validate_id(product_id, "product_id")
+            if product_id_error:
+                raise UberAPIError(product_id_error, "validation_error")
             params["product_id"] = product_id.strip()
 
         response = await uber_fetch(context, "estimates/time", params=params)
@@ -298,7 +329,7 @@ class GetRideEstimateAction(ActionHandler):
 
     @handle_uber_errors("get_ride_estimate")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        product_error = validate_required_string(inputs.get("product_id"), "product_id")
+        product_error = validate_id(inputs.get("product_id"), "product_id")
         if product_error:
             raise UberAPIError(product_error, "validation_error")
 
@@ -349,7 +380,7 @@ class RequestRideAction(ActionHandler):
 
     @handle_uber_errors("request_ride")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        product_error = validate_required_string(inputs.get("product_id"), "product_id")
+        product_error = validate_id(inputs.get("product_id"), "product_id")
         if product_error:
             raise UberAPIError(product_error, "validation_error")
 
@@ -408,7 +439,7 @@ class GetRideStatusAction(ActionHandler):
 
     @handle_uber_errors("get_ride_status")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        request_id_error = validate_required_string(inputs.get("request_id"), "request_id")
+        request_id_error = validate_id(inputs.get("request_id"), "request_id")
         if request_id_error:
             raise UberAPIError(request_id_error, "validation_error")
 
@@ -427,7 +458,7 @@ class GetRideMapAction(ActionHandler):
 
     @handle_uber_errors("get_ride_map")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        request_id_error = validate_required_string(inputs.get("request_id"), "request_id")
+        request_id_error = validate_id(inputs.get("request_id"), "request_id")
         if request_id_error:
             raise UberAPIError(request_id_error, "validation_error")
 
@@ -446,7 +477,7 @@ class CancelRideAction(ActionHandler):
 
     @handle_uber_errors("cancel_ride")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        request_id_error = validate_required_string(inputs.get("request_id"), "request_id")
+        request_id_error = validate_id(inputs.get("request_id"), "request_id")
         if request_id_error:
             raise UberAPIError(request_id_error, "validation_error")
 
@@ -462,7 +493,7 @@ class GetRideReceiptAction(ActionHandler):
 
     @handle_uber_errors("get_ride_receipt")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        request_id_error = validate_required_string(inputs.get("request_id"), "request_id")
+        request_id_error = validate_id(inputs.get("request_id"), "request_id")
         if request_id_error:
             raise UberAPIError(request_id_error, "validation_error")
 

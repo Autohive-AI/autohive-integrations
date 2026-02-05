@@ -235,6 +235,18 @@ Use the sandbox environment for testing:
 - Base URL: `https://sandbox-api.uber.com/v1.2`
 - Rides auto-progress through statuses
 
+To use the sandbox environment, set the `UBER_API_BASE_URL` environment variable:
+
+```bash
+# Linux/macOS
+export UBER_API_BASE_URL="https://sandbox-api.uber.com"
+
+# Windows
+set UBER_API_BASE_URL=https://sandbox-api.uber.com
+```
+
+If not set, the integration defaults to the production URL (`https://api.uber.com`).
+
 ## API Documentation
 
 - [Uber Riders API](https://developer.uber.com/docs/riders/introduction)
