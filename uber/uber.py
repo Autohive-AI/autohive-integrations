@@ -62,17 +62,17 @@ def handle_uber_errors(action_name: str):
                     "result": False,
                     "error": e.message,
                     "error_type": e.error_type
-                })
-                
+                }, cost_usd=0.0)
+
             except Exception as e:
                 error_str = str(e)
                 error_type = classify_error(error_str)
-                
+
                 return ActionResult(data={
                     "result": False,
                     "error": f"Uber API error in {action_name}: {error_str}",
                     "error_type": error_type
-                })
+                }, cost_usd=0.0)
         
         return wrapper
     return decorator
@@ -241,7 +241,7 @@ class GetProductsAction(ActionHandler):
         return ActionResult(data={
             "products": response.get("products", []),
             "result": True
-        })
+        }, cost_usd=0.0)
 
 
 # =============================================================================
@@ -285,7 +285,7 @@ class GetPriceEstimateAction(ActionHandler):
         return ActionResult(data={
             "prices": response.get("prices", []),
             "result": True
-        })
+        }, cost_usd=0.0)
 
 
 @uber.action("get_time_estimate")
@@ -320,7 +320,7 @@ class GetTimeEstimateAction(ActionHandler):
         return ActionResult(data={
             "times": response.get("times", []),
             "result": True
-        })
+        }, cost_usd=0.0)
 
 
 @uber.action("get_ride_estimate")
@@ -367,7 +367,7 @@ class GetRideEstimateAction(ActionHandler):
         return ActionResult(data={
             "estimate": response,
             "result": True
-        })
+        }, cost_usd=0.0)
 
 
 # =============================================================================
@@ -430,7 +430,7 @@ class RequestRideAction(ActionHandler):
             "driver": response.get("driver"),
             "vehicle": response.get("vehicle"),
             "result": True
-        })
+        }, cost_usd=0.0)
 
 
 @uber.action("get_ride_status")
@@ -449,7 +449,7 @@ class GetRideStatusAction(ActionHandler):
         return ActionResult(data={
             "ride": response,
             "result": True
-        })
+        }, cost_usd=0.0)
 
 
 @uber.action("get_ride_map")
@@ -468,7 +468,7 @@ class GetRideMapAction(ActionHandler):
         return ActionResult(data={
             "href": response.get("href"),
             "result": True
-        })
+        }, cost_usd=0.0)
 
 
 @uber.action("cancel_ride")
@@ -484,7 +484,7 @@ class CancelRideAction(ActionHandler):
         request_id = inputs["request_id"].strip()
         await uber_fetch(context, f"requests/{request_id}", method="DELETE")
 
-        return ActionResult(data={"result": True})
+        return ActionResult(data={"result": True}, cost_usd=0.0)
 
 
 @uber.action("get_ride_receipt")
@@ -503,7 +503,7 @@ class GetRideReceiptAction(ActionHandler):
         return ActionResult(data={
             "receipt": response,
             "result": True
-        })
+        }, cost_usd=0.0)
 
 
 # =============================================================================
@@ -521,7 +521,7 @@ class GetUserProfileAction(ActionHandler):
         return ActionResult(data={
             "user": response,
             "result": True
-        })
+        }, cost_usd=0.0)
 
 
 @uber.action("get_ride_history")
@@ -544,7 +544,7 @@ class GetRideHistoryAction(ActionHandler):
             "history": response.get("history", []),
             "count": response.get("count", 0),
             "result": True
-        })
+        }, cost_usd=0.0)
 
 
 @uber.action("get_payment_methods")
@@ -559,4 +559,4 @@ class GetPaymentMethodsAction(ActionHandler):
             "payment_methods": response.get("payment_methods", []),
             "last_used": response.get("last_used"),
             "result": True
-        })
+        }, cost_usd=0.0)
