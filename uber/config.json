@@ -12,7 +12,8 @@
         "scopes": [
             "profile",
             "history",
-            "places"
+            "places",
+            "partner-loyalty.link-account"
         ]
     },
     "actions": {
@@ -593,6 +594,167 @@
                     "last_used": {
                         "type": "string",
                         "description": "ID of last used payment method"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "link_loyalty_account": {
+            "display_name": "Link Loyalty Account",
+            "description": "Link a partner loyalty account to the user's Uber account",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "partner_id": {
+                        "type": "string",
+                        "description": "The partner's unique identifier"
+                    },
+                    "member_id": {
+                        "type": "string",
+                        "description": "The user's member ID with the partner"
+                    },
+                    "first_name": {
+                        "type": "string",
+                        "description": "Optional: User's first name"
+                    },
+                    "last_name": {
+                        "type": "string",
+                        "description": "Optional: User's last name"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Optional: User's email address"
+                    }
+                },
+                "required": ["partner_id", "member_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "linked": {
+                        "type": "boolean",
+                        "description": "Whether the account was successfully linked"
+                    },
+                    "response": {
+                        "type": "object",
+                        "description": "Response from Uber API"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "unlink_loyalty_account": {
+            "display_name": "Unlink Loyalty Account",
+            "description": "Unlink a partner loyalty account from the user's Uber account",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "partner_id": {
+                        "type": "string",
+                        "description": "The partner's unique identifier"
+                    }
+                },
+                "required": ["partner_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "unlinked": {
+                        "type": "boolean",
+                        "description": "Whether the account was successfully unlinked"
+                    },
+                    "response": {
+                        "type": "object",
+                        "description": "Response from Uber API"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
+                    }
+                }
+            }
+        },
+        "submit_flight_booking_data": {
+            "display_name": "Submit Flight Booking Data",
+            "description": "Submit flight booking data for partner loyalty integration",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "partner_id": {
+                        "type": "string",
+                        "description": "The partner's unique identifier"
+                    },
+                    "booking_id": {
+                        "type": "string",
+                        "description": "The flight booking ID"
+                    },
+                    "flight_number": {
+                        "type": "string",
+                        "description": "Optional: Flight number"
+                    },
+                    "departure_airport": {
+                        "type": "string",
+                        "description": "Optional: Departure airport code"
+                    },
+                    "arrival_airport": {
+                        "type": "string",
+                        "description": "Optional: Arrival airport code"
+                    },
+                    "departure_time": {
+                        "type": "string",
+                        "description": "Optional: Departure time (ISO 8601 format)"
+                    },
+                    "arrival_time": {
+                        "type": "string",
+                        "description": "Optional: Arrival time (ISO 8601 format)"
+                    },
+                    "passenger_name": {
+                        "type": "string",
+                        "description": "Optional: Passenger name"
+                    }
+                },
+                "required": ["partner_id", "booking_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "submitted": {
+                        "type": "boolean",
+                        "description": "Whether the data was successfully submitted"
+                    },
+                    "response": {
+                        "type": "object",
+                        "description": "Response from Uber API"
                     },
                     "result": {
                         "type": "boolean",

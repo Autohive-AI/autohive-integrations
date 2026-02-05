@@ -574,3 +574,144 @@ class GetPaymentMethodsAction(ActionHandler):
             "last_used": response.get("last_used"),
             "result": True
         }, cost_usd=0.0)
+
+
+# =============================================================================
+# PARTNER LOYALTY ACTIONS (v1 API)
+# =============================================================================
+
+async def uber_fetch_v1(
+    context: ExecutionContext,
+    path: str,
+    method: str = "POST",
+    json_body: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Uber API request handler for v1 Partner Loyalty endpoints.
+
+    Exceptions from context.fetch() bubble up to the caller.
+    Use @handle_uber_errors decorator on actions for error classification.
+    """
+    url = f"{UBER_API_BASE_URL}/v1/{path.lstrip('/')}"
+
+    kwargs: Dict[str, Any] = {
+        "method": method,
+        "headers": get_common_headers(),
+    }
+
+    if json_body:
+        kwargs["json"] = json_body
+
+    response = await context.fetch(url, **kwargs)
+    return response
+
+
+@uber.action("link_loyalty_account")
+class LinkLoyaltyAccountAction(ActionHandler):
+    """Link a partner loyalty account to the user's Uber account."""
+
+    @handle_uber_errors("link_loyalty_account")
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        partner_id = inputs.get("partner_id")
+        member_id = inputs.get("member_id")
+
+        partner_error = validate_id(partner_id, "partner_id")
+        if partner_error:
+            raise UberAPIError(partner_error, "validation_error")
+
+        member_error = validate_required_string(member_id, "member_id")
+        if member_error:
+            raise UberAPIError(member_error, "validation_error")
+
+        body = {
+            "partner_id": partner_id.strip(),
+            "member_id": member_id.strip()
+        }
+
+        # Add optional fields
+        if inputs.get("first_name"):
+            body["first_name"] = inputs["first_name"].strip()
+        if inputs.get("last_name"):
+            body["last_name"] = inputs["last_name"].strip()
+        if inputs.get("email"):
+            body["email"] = inputs["email"].strip()
+
+        response = await uber_fetch_v1(
+            context, "partner-loyalty/link-account", method="POST", json_body=body
+        )
+
+        return ActionResult(data={
+            "linked": True,
+            "response": response,
+            "result": True
+        }, cost_usd=0.0)
+
+
+@uber.action("unlink_loyalty_account")
+class UnlinkLoyaltyAccountAction(ActionHandler):
+    """Unlink a partner loyalty account from the user's Uber account."""
+
+    @handle_uber_errors("unlink_loyalty_account")
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        partner_id = inputs.get("partner_id")
+
+        partner_error = validate_id(partner_id, "partner_id")
+        if partner_error:
+            raise UberAPIError(partner_error, "validation_error")
+
+        body = {
+            "partner_id": partner_id.strip()
+        }
+
+        response = await uber_fetch_v1(
+            context, "partner-loyalty/unlink-account", method="POST", json_body=body
+        )
+
+        return ActionResult(data={
+            "unlinked": True,
+            "response": response,
+            "result": True
+        }, cost_usd=0.0)
+
+
+@uber.action("submit_flight_booking_data")
+class SubmitFlightBookingDataAction(ActionHandler):
+    """Submit flight booking data for partner loyalty integration."""
+
+    @handle_uber_errors("submit_flight_booking_data")
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        partner_id = inputs.get("partner_id")
+        booking_id = inputs.get("booking_id")
+
+        partner_error = validate_id(partner_id, "partner_id")
+        if partner_error:
+            raise UberAPIError(partner_error, "validation_error")
+
+        booking_error = validate_required_string(booking_id, "booking_id")
+        if booking_error:
+            raise UberAPIError(booking_error, "validation_error")
+
+        body: Dict[str, Any] = {
+            "partner_id": partner_id.strip(),
+            "booking_id": booking_id.strip()
+        }
+
+        # Add optional flight details
+        optional_fields = [
+            "flight_number", "departure_airport", "arrival_airport",
+            "departure_time", "arrival_time", "passenger_name"
+        ]
+        for field in optional_fields:
+            value = inputs.get(field)
+            if value and isinstance(value, str) and value.strip():
+                body[field] = value.strip()
+
+        response = await uber_fetch_v1(
+            context, "partner-loyalty/flight-booking-data", method="POST", json_body=body
+        )
+
+        return ActionResult(data={
+            "submitted": True,
+            "response": response,
+            "result": True
+        }, cost_usd=0.0)
