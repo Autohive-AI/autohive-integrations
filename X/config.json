@@ -1,7 +1,7 @@
 {
     "name": "X",
     "display_name": "X (formerly Twitter)",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "X integration for posting, managing interactions, and engaging with users",
     "entry_point": "x.py",
     "supports_connected_account": true,
@@ -17,6 +17,8 @@
             "follows.read",
             "follows.write",
             "like.read",
+            "bookmark.read",
+            "bookmark.write",
             "offline.access"
         ]
     },
@@ -316,6 +318,126 @@
                     }
                 },
                 "required": ["posts", "result"]
+            }
+        },
+        "get_bookmarks": {
+            "display_name": "Get Bookmarks",
+            "description": "Retrieves the authenticated user's bookmarked posts.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The ID of the authenticated user"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results (1-100, default: 10)"
+                    },
+                    "pagination_token": {
+                        "type": "string",
+                        "description": "Pagination token from previous response"
+                    }
+                },
+                "required": ["user_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "posts": {
+                        "type": "array",
+                        "description": "List of bookmarked posts"
+                    },
+                    "includes": {
+                        "type": "object",
+                        "description": "Additional data like user information"
+                    },
+                    "meta": {
+                        "type": "object",
+                        "description": "Metadata including pagination tokens"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["posts", "result"]
+            }
+        },
+        "bookmark_tweet": {
+            "display_name": "Bookmark Post",
+            "description": "Bookmarks a post for the authenticated user.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The ID of the authenticated user"
+                    },
+                    "post_id": {
+                        "type": "string",
+                        "description": "The ID of the post to bookmark"
+                    }
+                },
+                "required": ["user_id", "post_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "bookmarked": {
+                        "type": "boolean",
+                        "description": "Whether the post was bookmarked"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["bookmarked", "result"]
+            }
+        },
+        "remove_bookmark": {
+            "display_name": "Remove Bookmark",
+            "description": "Removes a bookmark for the authenticated user.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The ID of the authenticated user"
+                    },
+                    "post_id": {
+                        "type": "string",
+                        "description": "The ID of the bookmarked post to remove"
+                    }
+                },
+                "required": ["user_id", "post_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "removed": {
+                        "type": "boolean",
+                        "description": "Whether the bookmark was removed"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["removed", "result"]
             }
         },
         "retweet": {

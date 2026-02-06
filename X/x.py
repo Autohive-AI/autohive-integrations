@@ -430,6 +430,120 @@ class GetLikedTweetsAction(ActionHandler):
             )
 
 
+@x.action("get_bookmarks")
+class GetBookmarksAction(ActionHandler):
+    """Get the authenticated user's bookmarked posts."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            user_id = inputs['user_id']
+            params = {
+                "tweet.fields": "created_at,public_metrics,author_id",
+                "expansions": "author_id",
+                "user.fields": "username,name,verified",
+                "max_results": inputs.get('max_results', 10)
+            }
+
+            if inputs.get('pagination_token'):
+                params['pagination_token'] = inputs['pagination_token']
+
+            response = await context.fetch(
+                f"{X_API_BASE_URL}/users/{user_id}/bookmarks",
+                method="GET",
+                params=params
+            )
+
+            if isinstance(response, dict) and "errors" in response:
+                error_msg = response.get("errors", [{}])[0].get("message", str(response))
+                return ActionResult(
+                    data={"posts": [], "result": False, "error": error_msg},
+                    cost_usd=0.0
+                )
+
+            return ActionResult(
+                data={
+                    "posts": response.get('data', []),
+                    "includes": response.get('includes', {}),
+                    "meta": response.get('meta', {}),
+                    "result": True
+                },
+                cost_usd=0.0
+            )
+
+        except Exception as e:
+            return ActionResult(
+                data={"posts": [], "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
+
+
+@x.action("bookmark_tweet")
+class BookmarkTweetAction(ActionHandler):
+    """Bookmark a post for the authenticated user."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            user_id = inputs['user_id']
+            post_id = inputs['post_id']
+
+            response = await context.fetch(
+                f"{X_API_BASE_URL}/users/{user_id}/bookmarks",
+                method="POST",
+                json={"tweet_id": post_id}
+            )
+
+            if isinstance(response, dict) and "errors" in response:
+                error_msg = response.get("errors", [{}])[0].get("message", str(response))
+                return ActionResult(
+                    data={"bookmarked": False, "result": False, "error": error_msg},
+                    cost_usd=0.0
+                )
+
+            return ActionResult(
+                data={"bookmarked": response.get('data', {}).get('bookmarked', True), "result": True},
+                cost_usd=0.0
+            )
+
+        except Exception as e:
+            return ActionResult(
+                data={"bookmarked": False, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
+
+
+@x.action("remove_bookmark")
+class RemoveBookmarkAction(ActionHandler):
+    """Remove a bookmark for the authenticated user."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            user_id = inputs['user_id']
+            post_id = inputs['post_id']
+
+            response = await context.fetch(
+                f"{X_API_BASE_URL}/users/{user_id}/bookmarks/{post_id}",
+                method="DELETE"
+            )
+
+            if isinstance(response, dict) and "errors" in response:
+                error_msg = response.get("errors", [{}])[0].get("message", str(response))
+                return ActionResult(
+                    data={"removed": False, "result": False, "error": error_msg},
+                    cost_usd=0.0
+                )
+
+            return ActionResult(
+                data={"removed": not response.get('data', {}).get('bookmarked', True), "result": True},
+                cost_usd=0.0
+            )
+
+        except Exception as e:
+            return ActionResult(
+                data={"removed": False, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
+
+
 # ---- Repost Handlers ----
 
 @x.action("retweet")
