@@ -5,6 +5,7 @@ This module contains shared utility functions used across multiple action files.
 """
 
 from autohive_integrations_sdk import ActionResult, ExecutionContext
+from typing import Dict
 
 # Humanitix API configuration
 HUMANITIX_API_BASE = "https://api.humanitix.com/v1"
