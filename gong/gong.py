@@ -1,5 +1,5 @@
 from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler
+    Integration, ExecutionContext, ActionHandler, ActionResult, ConnectedAccountHandler, ConnectedAccountInfo
 )
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta, timezone
@@ -92,18 +92,18 @@ class ListCallsAction(ActionHandler):
             # Sort calls by start time, newest first
             calls.sort(key=lambda x: x.get("started", ""), reverse=True)
             
-            return {
+            return ActionResult(data={
                 "calls": calls,
                 "has_more": response.get("hasMore", False),
                 "next_cursor": response.get("nextCursor")
-            }
+            })
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "calls": [],
                 "has_more": False,
                 "next_cursor": None,
                 "error": str(e)
-            }
+            })
 
 @gong.action("get_call_transcript")
 class GetCallTranscriptAction(ActionHandler):
@@ -112,10 +112,22 @@ class GetCallTranscriptAction(ActionHandler):
         call_id = inputs["call_id"]
         
         try:
-            # First get call details with parties/participants
-            call_data = {
+            response = await client._make_request(f"calls/{call_id}")
+            call_data = response.get("call", response)
+            
+            if bool(call_data.get("isPrivate", False)):
+                return ActionResult(data={
+                    "call_id": call_id,
+                    "transcript": [],
+                    "error": "private_call_filtered"
+                })
+
+            speaker_map = {}
+            
+            ext_data = {
                 "filter": {
-                    "callIds": [call_id]
+                    "callIds": [call_id],
+                    "fromDateTime": "2015-01-01T00:00:00Z"
                 },
                 "contentSelector": {
                     "exposedFields": {
@@ -123,83 +135,68 @@ class GetCallTranscriptAction(ActionHandler):
                     }
                 }
             }
-            call_response = await client._make_request("calls/extensive", method="POST", data=call_data)
             
-            # Block access to private calls
-            calls = call_response.get("calls", [])
-            if calls and bool(calls[0].get("isPrivate", False)):
-                return {
-                    "call_id": call_id,
-                    "transcript": [],
-                    "error": "private_call_filtered"
-                }
-
-            # Build speaker mapping from call data
-            speaker_map = {}
-            if calls:
-                call_data = calls[0]
-                # Check multiple possible locations for participant data
-                participants = (call_data.get("parties") or 
-                              call_data.get("participants") or 
-                              call_data.get("users") or [])
+            try:
+                ext_response = await client._make_request("calls/extensive", method="POST", data=ext_data)
+                ext_calls = ext_response.get("calls", [])
                 
-                for participant in participants:
-                    # Extract speaker ID and name using multiple possible field names
-                    speaker_id = str(participant.get("speakerId") or 
-                                   participant.get("userId") or 
-                                   participant.get("id") or "")
+                if ext_calls:
+                    ext_call = ext_calls[0]
+                    participants = ext_call.get("parties", [])
                     
-                    # Try different name field combinations
-                    name = (participant.get("name") or 
-                           participant.get("title") or
-                           f"{participant.get('firstName', '')} {participant.get('lastName', '')}".strip() or
-                           participant.get("emailAddress") or
-                           participant.get("email") or "")
-                    
-                    if speaker_id and name:
-                        speaker_map[speaker_id] = name
-            
-            # Get transcript data
+                    for participant in participants:
+                        speaker_id = str(participant.get("speakerId") or 
+                                       participant.get("userId") or 
+                                       participant.get("id") or "")
+                        
+                        name = (participant.get("name") or 
+                               participant.get("title") or
+                               f"{participant.get('firstName', '')} {participant.get('lastName', '')}".strip() or
+                               participant.get("emailAddress") or
+                               participant.get("email") or "")
+                        
+                        if speaker_id and name:
+                            speaker_map[speaker_id] = name
+            except Exception as e:
+                print(f"Warning: Failed to fetch speaker details: {e}")
+
             transcript_data = {
                 "filter": {
-                    "callIds": [call_id]
+                    "callIds": [call_id],
+                    "fromDateTime": "2015-01-01T00:00:00.000Z"
                 }
             }
             response = await client._make_request("calls/transcript", method="POST", data=transcript_data)
             
             transcript = []
-            # Response structure: {"callTranscripts": [{"callId": "...", "transcript": [...]}]}
             call_transcripts = response.get("callTranscripts", [])
             if call_transcripts:
                 for segment in call_transcripts[0].get("transcript", []):
-                    # Normalize speaker_id to string for schema and mapping consistency
                     raw_speaker_id = segment.get("speakerId", "")
                     speaker_id = str(raw_speaker_id) if raw_speaker_id is not None else ""
                     topic = segment.get("topic", "")
                     
-                    # Use speaker mapping or fallback to ID
                     speaker_name = speaker_map.get(speaker_id, f"Speaker {speaker_id}" if speaker_id else "Unknown Speaker")
                     
-                    # Process sentences within each segment
                     for sentence in segment.get("sentences", []):
                         transcript.append({
-                            "speaker_id": speaker_id,  # Original Gong speaker ID
-                            "speaker_name": speaker_name,  # Temporary speaker name
-                            "start_time": sentence.get("start", 0) / 1000,  # Convert ms to seconds
-                            "end_time": sentence.get("end", 0) / 1000,  # Convert ms to seconds
+                            "speaker_id": speaker_id,
+                            "speaker_name": speaker_name,
+                            "start_time": sentence.get("start", 0) / 1000,
+                            "end_time": sentence.get("end", 0) / 1000,
                             "text": sentence.get("text", "")
                         })
             
-            return {
+            return ActionResult(data={
                 "call_id": call_id,
                 "transcript": transcript
-            }
+            })
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "call_id": call_id,
                 "transcript": [],
                 "error": str(e)
-            }
+            })
 
 @gong.action("get_call_details")
 class GetCallDetailsAction(ActionHandler):
@@ -208,52 +205,68 @@ class GetCallDetailsAction(ActionHandler):
         call_id = inputs["call_id"]
         
         try:
-            # Use calls/extensive endpoint with specific call ID filter
-            data = {
-                "filter": {
-                    "callIds": [call_id]
-                }
-            }
-            response = await client._make_request("calls/extensive", method="POST", data=data)
+            response = await client._make_request(f"calls/{call_id}")
+            call = response.get("call", response)
             
-            # Extract first call from response
-            calls = response.get("calls", [])
-            if calls:
-                call = calls[0]
-                # Block access to private calls
-                if bool(call.get("isPrivate", False)):
-                    return {
-                        "id": call_id,
-                        "title": "",
-                        "started": "",
-                        "duration": 0,
-                        "participants": [],
-                        "outcome": "",
-                        "crm_data": {},
-                        "error": "private_call_filtered"
-                    }
-                return {
-                    "id": call.get("id", call_id),
-                    "title": call.get("title", "Unknown Call"),
-                    "started": call.get("started", ""),
-                    "duration": call.get("duration", 0),
-                    "participants": call.get("participants", []),
-                    "outcome": call.get("outcome", ""),
-                    "crm_data": call.get("crmData", {})
-                }
-            else:
-                # Call not found, return empty but valid structure
-                return {
+            if bool(call.get("isPrivate", False)):
+                return ActionResult(data={
                     "id": call_id,
-                    "title": "Call Not Found",
+                    "title": "",
                     "started": "",
                     "duration": 0,
                     "participants": [],
                     "outcome": "",
-                    "crm_data": {}
-                }
+                    "crm_data": {},
+                    "error": "private_call_filtered"
+                })
+
+            participants = []
+            crm_data = call.get("crmData", {})
+            
+            started_str = call.get("started")
+            if started_str:
+                try:
+                    extensive_data = {
+                        "filter": {
+                            "callIds": [call_id],
+                            "fromDateTime": "2015-01-01T00:00:00Z"
+                        },
+                        "contentSelector": {
+                            "context": "Extended",
+                            "exposedFields": {
+                                "parties": True,
+                                "content": {
+                                    "callOutcome": True
+                                }
+                            }
+                        }
+                    }
+                    
+                    if started_str:
+                         extensive_data["filter"]["fromDateTime"] = "2015-01-01T00:00:00Z" 
+                    
+                    ext_response = await client._make_request("calls/extensive", method="POST", data=extensive_data)
+                    ext_calls = ext_response.get("calls", [])
+                    if ext_calls:
+                        ext_call = ext_calls[0]
+                        participants = ext_call.get("parties", [])
+                        crm_data = ext_call.get("crmData", crm_data)
+                        if not call.get("outcome"):
+                            call["outcome"] = ext_call.get("outcome", "")
+                except Exception as e:
+                    print(f"Warning: Failed to fetch extensive details: {e}")
+
+            return ActionResult(data={
+                "id": call.get("id", call_id),
+                "title": call.get("title", "Unknown Call"),
+                "started": call.get("started", ""),
+                "duration": call.get("duration", 0),
+                "participants": participants,
+                "outcome": call.get("outcome", ""),
+                "crm_data": crm_data
+            })
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "id": call_id,
                 "title": "",
                 "started": "",
@@ -262,7 +275,7 @@ class GetCallDetailsAction(ActionHandler):
                 "outcome": "",
                 "crm_data": {},
                 "error": str(e)
-            }
+            })
 
 @gong.action("search_calls")
 class SearchCallsAction(ActionHandler):
@@ -275,11 +288,15 @@ class SearchCallsAction(ActionHandler):
                 "fromDateTime": None,
                 "toDateTime": None
             },
-            "contentSelector": [
-                "highlights", 
-                "topics", 
-                "keyPoints"
-            ]
+            "contentSelector": {
+                "context": "Extended",
+                "exposedFields": {
+                    "content": {
+                        "topics": True,
+                        "pointsOfInterest": True
+                    }
+                }
+            }
         }
         
         if inputs.get("from_date"):
@@ -318,42 +335,50 @@ class SearchCallsAction(ActionHandler):
                 
                 # Check various content fields for the search query
                 content_fields = call.get("content", {})
-                highlights = content_fields.get("highlights", [])
+                
+                # Let's try to match the original logic as much as possible but with valid API request structure.
                 topics = content_fields.get("topics", [])
                 
-                # Search in highlights
-                for highlight in highlights:
-                    if query in highlight.get("text", "").lower():
+                # Since I requested pointsOfInterest, let's use that if highlights is empty
+                points_of_interest = content_fields.get("pointsOfInterest", [])
+                
+                # Search in points_of_interest (assuming it has text field)
+                for poi in points_of_interest:
+                     if query in poi.get("action", "").lower() or query in poi.get("concept", "").lower():
                         content_match = True
                         matched_segments.append({
-                            "text": highlight.get("text", ""),
-                            "start_time": highlight.get("startTime", 0)
+                            "text": f"{poi.get('action', '')} {poi.get('concept', '')}",
+                            "start_time": poi.get("startTime", 0)
                         })
-                
+
                 # Search in topics
                 for topic in topics:
-                    if query in topic.get("value", "").lower():
-                        content_match = True
+                    if query in topic.get("name", "").lower():
+                         content_match = True
                 
+                # Fallback to simple title search if nothing else
+                if query in call.get("title", "").lower():
+                    content_match = True
+
                 if content_match:
                     results.append({
                         "call_id": call.get("id"),
                         "title": call.get("title", ""),
                         "started": call.get("started"),
-                        "relevance_score": len(matched_segments),  # Use number of matches as relevance
+                        "relevance_score": len(matched_segments) + (1 if query in call.get("title", "").lower() else 0), 
                         "matched_segments": matched_segments
                     })
             
-            return {
+            return ActionResult(data={
                 "results": results,
                 "total_count": len(results)
-            }
+            })
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "results": [],
                 "total_count": 0,
                 "error": str(e)
-            }
+            })
 
 @gong.action("list_users")
 class ListUsersAction(ActionHandler):
@@ -380,15 +405,15 @@ class ListUsersAction(ActionHandler):
                     "active": user.get("active", True)
                 })
             
-            return {
+            return ActionResult(data={
                 "users": users,
                 "has_more": response.get("hasMore", False),
                 "next_cursor": response.get("nextCursor")
-            }
+            })
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "users": [],
                 "has_more": False,
                 "next_cursor": None,
                 "error": str(e)
-            }
+            })

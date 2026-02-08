@@ -1,5 +1,5 @@
 # Notion Integration Dependencies
-autohive-integrations-sdk>=0.1.2
+autohive-integrations-sdk~=1.0.2
 aiohttp>=3.12.0
 jsonschema>=4.17.0
 attrs>=25.0.0

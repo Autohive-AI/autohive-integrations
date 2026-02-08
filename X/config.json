@@ -1,0 +1,529 @@
+{
+    "name": "X",
+    "display_name": "X (formerly Twitter)",
+    "version": "1.0.2",
+    "description": "X integration for posting, managing interactions, and engaging with users",
+    "entry_point": "x.py",
+    "supports_connected_account": true,
+    "auth": {
+        "type": "platform",
+        "provider": "X",
+        "use_pkce": true,
+        "scopes": [
+            "tweet.read",
+            "tweet.write",
+            "media.write",
+            "users.read",
+            "follows.read",
+            "follows.write",
+            "like.read",
+            "offline.access"
+        ]
+    },
+    "actions": {
+        "create_tweet": {
+            "display_name": "Create Post",
+            "description": "Creates a new post on X, optionally with media (image, GIF, or video).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "The text content of the post (max 280 characters for standard accounts)"
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "Media file to upload and attach to the post (optional)",
+                        "properties": {
+                            "content": {"type": "string", "description": "Base64-encoded file content"},
+                            "name": {"type": "string", "description": "Filename"},
+                            "contentType": {"type": "string", "description": "MIME type (image/jpeg, image/png, image/gif, video/mp4, etc.)"}
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
+                    "reply_to": {
+                        "type": "string",
+                        "description": "Post ID to reply to (optional)"
+                    },
+                    "quote_tweet_id": {
+                        "type": "string",
+                        "description": "Post ID to quote (optional)"
+                    },
+                    "poll_options": {
+                        "type": "array",
+                        "description": "Poll options (2-4 options, optional)",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "poll_duration_minutes": {
+                        "type": "integer",
+                        "description": "Poll duration in minutes (default: 1440 = 24 hours)"
+                    }
+                },
+                "required": ["text"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "post": {
+                        "type": "object",
+                        "description": "Created post details"
+                    },
+                    "media_id": {
+                        "type": "string",
+                        "description": "The media ID that was uploaded (if media was included)"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["post", "result"]
+            }
+        },
+        "get_tweet": {
+            "display_name": "Get Post",
+            "description": "Retrieves details of a specific post by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "post_id": {
+                        "type": "string",
+                        "description": "The ID of the post to retrieve"
+                    },
+                    "include_user": {
+                        "type": "boolean",
+                        "description": "Include author user information"
+                    },
+                    "include_metrics": {
+                        "type": "boolean",
+                        "description": "Include engagement metrics"
+                    }
+                },
+                "required": ["post_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "post": {
+                        "type": "object",
+                        "description": "Post details"
+                    },
+                    "includes": {
+                        "type": "object",
+                        "description": "Additional data like user information"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["post", "result"]
+            }
+        },
+        "delete_tweet": {
+            "display_name": "Delete Post",
+            "description": "Deletes a post permanently.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "post_id": {
+                        "type": "string",
+                        "description": "The ID of the post to delete"
+                    }
+                },
+                "required": ["post_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "deleted": {
+                        "type": "boolean",
+                        "description": "Whether the post was deleted"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["deleted", "result"]
+            }
+        },
+        "search_tweets": {
+            "display_name": "Search Posts",
+            "description": "Searches for posts matching a query.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query (use X search operators)"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results (10-100, default: 10)"
+                    },
+                    "start_time": {
+                        "type": "string",
+                        "description": "Start time in ISO 8601 format (YYYY-MM-DDTHH:mm:ssZ)"
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "End time in ISO 8601 format (YYYY-MM-DDTHH:mm:ssZ)"
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from previous response"
+                    }
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "posts": {
+                        "type": "array",
+                        "description": "List of matching posts"
+                    },
+                    "includes": {
+                        "type": "object",
+                        "description": "Additional data like user information"
+                    },
+                    "meta": {
+                        "type": "object",
+                        "description": "Metadata including pagination tokens"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["posts", "result"]
+            }
+        },
+        "get_user_tweets": {
+            "display_name": "Get User Posts",
+            "description": "Retrieves posts from a user's timeline.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The ID of the user"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results (5-100, default: 10)"
+                    },
+                    "exclude_replies": {
+                        "type": "boolean",
+                        "description": "Exclude replies"
+                    },
+                    "exclude_retweets": {
+                        "type": "boolean",
+                        "description": "Exclude reposts"
+                    },
+                    "pagination_token": {
+                        "type": "string",
+                        "description": "Pagination token from previous response"
+                    }
+                },
+                "required": ["user_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "posts": {
+                        "type": "array",
+                        "description": "List of posts"
+                    },
+                    "meta": {
+                        "type": "object",
+                        "description": "Metadata including pagination tokens"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["posts", "result"]
+            }
+        },
+        "get_liked_tweets": {
+            "display_name": "Get Liked Posts",
+            "description": "Retrieves posts liked by a user.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The ID of the user"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results (5-100, default: 10)"
+                    },
+                    "pagination_token": {
+                        "type": "string",
+                        "description": "Pagination token from previous response"
+                    }
+                },
+                "required": ["user_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "posts": {
+                        "type": "array",
+                        "description": "List of liked posts"
+                    },
+                    "includes": {
+                        "type": "object",
+                        "description": "Additional data like user information"
+                    },
+                    "meta": {
+                        "type": "object",
+                        "description": "Metadata including pagination tokens"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["posts", "result"]
+            }
+        },
+        "retweet": {
+            "display_name": "Repost",
+            "description": "Reposts a post on X.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The ID of the authenticated user"
+                    },
+                    "post_id": {
+                        "type": "string",
+                        "description": "The ID of the post to repost"
+                    }
+                },
+                "required": ["user_id", "post_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "reposted": {
+                        "type": "boolean",
+                        "description": "Whether the post was reposted"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["reposted", "result"]
+            }
+        },
+        "unretweet": {
+            "display_name": "Undo Repost",
+            "description": "Removes a repost.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The ID of the authenticated user"
+                    },
+                    "post_id": {
+                        "type": "string",
+                        "description": "The ID of the post to undo repost"
+                    }
+                },
+                "required": ["user_id", "post_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "unreposted": {
+                        "type": "boolean",
+                        "description": "Whether the repost was removed"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["unreposted", "result"]
+            }
+        },
+        "get_user": {
+            "display_name": "Get User",
+            "description": "Retrieves user profile information by ID or username on X.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The ID of the user (required if username not provided)"
+                    },
+                    "username": {
+                        "type": "string",
+                        "description": "The username of the user (required if user_id not provided)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "object",
+                        "description": "User profile details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["user", "result"]
+            }
+        },
+        "get_me": {
+            "display_name": "Get Authenticated User",
+            "description": "Retrieves the authenticated user's profile information on X.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "object",
+                        "description": "Authenticated user's profile details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["user", "result"]
+            }
+        },
+        "follow_user": {
+            "display_name": "Follow User",
+            "description": "Follows a user on X.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "source_user_id": {
+                        "type": "string",
+                        "description": "The ID of the authenticated user (follower)"
+                    },
+                    "target_user_id": {
+                        "type": "string",
+                        "description": "The ID of the user to follow"
+                    }
+                },
+                "required": ["source_user_id", "target_user_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "followed": {
+                        "type": "boolean",
+                        "description": "Whether the user was followed"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["followed", "result"]
+            }
+        },
+        "unfollow_user": {
+            "display_name": "Unfollow User",
+            "description": "Unfollows a user on X.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "source_user_id": {
+                        "type": "string",
+                        "description": "The ID of the authenticated user (follower)"
+                    },
+                    "target_user_id": {
+                        "type": "string",
+                        "description": "The ID of the user to unfollow"
+                    }
+                },
+                "required": ["source_user_id", "target_user_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "unfollowed": {
+                        "type": "boolean",
+                        "description": "Whether the user was unfollowed"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["unfollowed", "result"]
+            }
+        }
+    }
+}
