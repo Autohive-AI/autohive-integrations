@@ -2,7 +2,7 @@
 """Test context for Uber integration tests."""
 import sys
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, parent_dir)
