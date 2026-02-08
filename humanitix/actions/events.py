@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import get_api_headers, build_url, build_error_result
+from helpers import get_api_headers, build_url, build_error_result, build_paginated_result
 
 
 @humanitix.action("get_events")
@@ -71,12 +71,4 @@ class GetEventsAction(ActionHandler):
 
             if error := build_error_result(response): return error
 
-            events = response.get("events", []) if isinstance(response, dict) else []
-
-            return ActionResult(data={
-                "result": True,
-                "events": events,
-                "total": response.get("total", len(events)) if isinstance(response, dict) else len(events),
-                "page": response.get("page", page) if isinstance(response, dict) else page,
-                "pageSize": response.get("pageSize", page_size or 100) if isinstance(response, dict) else (page_size or 100)
-            })
+            return build_paginated_result(response, "events", page, page_size)

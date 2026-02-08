@@ -40,6 +40,18 @@ def build_url(path: str, params: Dict[str, Any] | None = None) -> str:
     return url
 
 
+def build_paginated_result(response, key: str, page: int, page_size: int | None = None) -> ActionResult:
+    items = response.get(key, []) if isinstance(response, dict) else []
+    is_dict = isinstance(response, dict)
+    return ActionResult(data={
+        "result": True,
+        key: items,
+        "total": response.get("total", len(items)) if is_dict else len(items),
+        "page": response.get("page", page) if is_dict else page,
+        "pageSize": response.get("pageSize", page_size or 100) if is_dict else (page_size or 100),
+    })
+
+
 def build_error_result(response) -> ActionResult | None:
     if not isinstance(response, dict) or "statusCode" not in response:
         return None

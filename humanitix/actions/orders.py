@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import get_api_headers, build_url, build_error_result
+from helpers import get_api_headers, build_url, build_error_result, build_paginated_result
 
 
 @humanitix.action("get_orders")
@@ -76,12 +76,4 @@ class GetOrdersAction(ActionHandler):
 
             if error := build_error_result(response): return error
 
-            orders = response.get("orders", []) if isinstance(response, dict) else []
-
-            return ActionResult(data={
-                "result": True,
-                "orders": orders,
-                "total": response.get("total", len(orders)) if isinstance(response, dict) else len(orders),
-                "page": response.get("page", page) if isinstance(response, dict) else page,
-                "pageSize": response.get("pageSize", page_size or 100) if isinstance(response, dict) else (page_size or 100)
-            })
+            return build_paginated_result(response, "orders", page, page_size)
