@@ -230,7 +230,20 @@
             "description": "Retrieve all tags from your Humanitix account. Tags are used to categorize and filter events.",
             "input_schema": {
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "tag_id": {
+                        "type": "string",
+                        "description": "Optional: Specific tag ID to retrieve. If provided, fetches that single tag directly and the page_size and page parameters are ignored. If omitted, returns a paginated list of tags."
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Page size of results (1-100, default 100). Only used when listing tags (ignored if tag_id is provided)."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number to fetch (starts at 1). Only used when listing tags (ignored if tag_id is provided)."
+                    }
+                },
                 "required": []
             },
             "output_schema": {

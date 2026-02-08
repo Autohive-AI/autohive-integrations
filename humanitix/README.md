@@ -84,7 +84,17 @@ When `ticket_id` is omitted, the action returns a paginated list of tickets with
 ### Tags
 
 #### `get_tags`
-Retrieve all tags from your account. Tags are used to categorize and filter events.
+Retrieve tags from your Humanitix account. Fetch a single tag by ID, or list tags with pagination.
+
+When `tag_id` is provided, the action fetches that single tag directly. The `page_size` and `page` parameters are ignored in this mode.
+
+When `tag_id` is omitted, the action returns a paginated list of tags.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `tag_id` | No | Specific tag ID. If provided, fetches that single tag directly. |
+| `page_size` | No | Results per page, 1–100 (default 100). List mode only. |
+| `page` | No | Page number, starts at 1 (default 1). List mode only. |
 
 **Outputs:** Tag ID, name, color
 
