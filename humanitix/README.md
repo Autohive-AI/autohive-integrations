@@ -37,12 +37,21 @@ When `event_id` is omitted, the action returns a paginated list of events with o
 ### Orders
 
 #### `get_orders`
-Retrieve orders for a specific event.
+Retrieve orders for a specific event. Fetch a single order by ID, or list orders with pagination and filtering.
+
+When `order_id` is provided, the action fetches that single order directly. The `page_size`, `since`, and `page` parameters are ignored in this mode — only `override_location` and `event_date_id` are supported.
+
+When `order_id` is omitted, the action returns a paginated list of orders with optional filtering.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `event_id` | Yes | The event ID to get orders for |
-| `order_id` | No | Specific order ID (omit to list all) |
+| `event_id` | Yes | The event ID to get orders for. |
+| `order_id` | No | Specific order ID. If provided, fetches that single order directly. |
+| `override_location` | No | ISO 3166-1 alpha-2 country code to override user location (e.g. `AU`). Works for both single and list queries. |
+| `event_date_id` | No | Filter by a specific event date ID. Works for both single and list queries. |
+| `page_size` | No | Results per page, 1–100 (default 100). List mode only. |
+| `since` | No | ISO 8601 date-time to filter orders since (e.g. `2021-02-01T23:26:13.485Z`). List mode only. |
+| `page` | No | Page number, starts at 1 (default 1). List mode only. |
 
 **Outputs:** Order ID, order number, status, buyer info, total amount, currency, ticket count
 

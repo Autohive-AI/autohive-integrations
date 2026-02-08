@@ -92,11 +92,31 @@
                 "properties": {
                     "event_id": {
                         "type": "string",
-                        "description": "The event ID to get orders for"
+                        "description": "The event ID to get orders for."
                     },
                     "order_id": {
                         "type": "string",
-                        "description": "Optional: Specific order ID to retrieve. If omitted, returns all orders for the event."
+                        "description": "Optional: Specific order ID to retrieve. If provided, fetches that single order directly and the page_size, since, and page parameters are ignored. If omitted, returns a paginated list of orders."
+                    },
+                    "override_location": {
+                        "type": "string",
+                        "description": "Override the user location for the query. ISO 3166-1 alpha-2 country code (e.g. 'AU', 'NZ', 'US'). Applies to both single order and list queries."
+                    },
+                    "event_date_id": {
+                        "type": "string",
+                        "description": "Optional: Filter by a specific event date ID. Applies to both single order and list queries."
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Page size of results (1-100, default 100). Only used when listing orders (ignored if order_id is provided)."
+                    },
+                    "since": {
+                        "type": "string",
+                        "description": "Return orders since this date-time (ISO 8601, e.g. '2021-02-01T23:26:13.485Z'). Only used when listing orders (ignored if order_id is provided)."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number to fetch (starts at 1). Only used when listing orders (ignored if order_id is provided)."
                     }
                 },
                 "required": ["event_id"]
