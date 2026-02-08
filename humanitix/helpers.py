@@ -5,7 +5,6 @@ This module contains shared utility functions used across multiple action files.
 """
 
 from autohive_integrations_sdk import ActionResult, ExecutionContext
-from typing import Dict, Any
 
 # Humanitix API configuration
 HUMANITIX_API_BASE = "https://api.humanitix.com/v1"
@@ -42,21 +41,3 @@ def build_error_result(response) -> ActionResult | None:
         "message": response.get("message", "")
     })
 
-
-
-
-def _build_tag_response(tag: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Normalize a tag object from the Humanitix API into a consistent response format.
-
-    Args:
-        tag: Raw tag data from the API
-
-    Returns:
-        Normalized tag object with consistent field names
-    """
-    return {
-        "id": tag.get("_id", ""),
-        "name": tag.get("name", ""),
-        "color": tag.get("color", "")
-    }

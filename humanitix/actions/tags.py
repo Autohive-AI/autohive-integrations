@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import HUMANITIX_API_BASE, get_api_headers, _build_tag_response
+from helpers import HUMANITIX_API_BASE, get_api_headers, build_error_result
 
 
 @humanitix.action("get_tags")
@@ -38,8 +38,12 @@ class GetTagsAction(ActionHandler):
                 headers=headers
             )
 
-            tag_data = response if isinstance(response, dict) else {}
-            tags = [_build_tag_response(tag_data)]
+            if error := build_error_result(response): return error
+
+            return ActionResult(data={
+                "result": True,
+                "tag": response
+            })
         else:
             page_size = inputs.get("page_size")
             page = inputs.get("page", 1)
@@ -58,7 +62,12 @@ class GetTagsAction(ActionHandler):
                 headers=headers
             )
 
-            tags_data = response if isinstance(response, list) else response.get("tags", [])
-            tags = [_build_tag_response(t) for t in tags_data]
+            tags = response.get("tags", []) if isinstance(response, dict) else []
 
-        return ActionResult(data={"tags": tags})
+            return ActionResult(data={
+                "result": True,
+                "tags": tags,
+                "total": response.get("total", len(tags)) if isinstance(response, dict) else len(tags),
+                "page": response.get("page", page) if isinstance(response, dict) else page,
+                "pageSize": response.get("pageSize", page_size or 100) if isinstance(response, dict) else (page_size or 100)
+            })

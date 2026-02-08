@@ -136,7 +136,10 @@ When `tag_id` is omitted, the action returns a paginated list of tags.
 | `page_size` | No | Results per page, 1–100 (default 100). List mode only. |
 | `page` | No | Page number, starts at 1 (default 1). List mode only. |
 
-**Outputs:** Tag ID, name, color
+**Outputs:**
+- **On success (single):** `result`, `tag` (raw tag object from Humanitix API)
+- **On success (list):** `result`, `total`, `page`, `pageSize`, `tags` array (raw tag objects)
+- **On error (single only):** `result` (false), `statusCode`, `error`, `message`
 
 ---
 

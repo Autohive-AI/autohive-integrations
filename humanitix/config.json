@@ -220,20 +220,24 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
+                    "result": {"type": "boolean", "description": "Whether the request was successful"},
+                    "statusCode": {"type": "integer", "description": "HTTP status code on error (e.g. 401, 404)"},
+                    "error": {"type": "string", "description": "Error type on failure (e.g. 'Unauthorized', 'Not Found')"},
+                    "message": {"type": "string", "description": "Detailed error message on failure"},
+                    "total": {"type": "integer", "description": "Total number of tags matching the query"},
+                    "page": {"type": "integer", "description": "Current page number"},
+                    "pageSize": {"type": "integer", "description": "Page size of the results"},
+                    "tag": {
+                        "type": "object",
+                        "description": "Single tag object returned directly from the Humanitix API (returned when tag_id is provided)"
+                    },
                     "tags": {
                         "type": "array",
-                        "description": "List of tags",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "id": {"type": "string", "description": "Unique tag ID"},
-                                "name": {"type": "string", "description": "Tag name"},
-                                "color": {"type": "string", "description": "Tag color"}
-                            }
-                        }
+                        "description": "Array of tag objects returned directly from the Humanitix API (returned when listing tags without tag_id)",
+                        "items": {"type": "object"}
                     }
                 },
-                "required": ["tags"]
+                "required": ["result"]
             }
         },
         "check_in": {
