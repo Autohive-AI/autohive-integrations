@@ -8,12 +8,19 @@ class MockExecutionContext:
     def __init__(self, responses: Dict[str, Any]):
         # mimic SDK context shape expected by gong.py
         self.auth = {}  # OAuth handled by SDK
+        self.metadata = {"api_base_url": "https://api.gong.io"}
         self._responses = responses
 
     async def fetch(self, url: str, method: str = "GET", params: Optional[Dict[str, Any]] = None, json: Any = None, headers: Optional[Dict[str, str]] = None, **kwargs):
         # Route by endpoint suffix for simplicity
         if url.endswith("/calls") and method == "GET":
             return self._responses.get("GET /calls", {"calls": [], "hasMore": False})
+        
+        # Match GET /calls/{id}
+        if "/calls/" in url and method == "GET" and not url.endswith("/calls"):
+             # Simple ID extraction or just return a default "GET /calls/{id}" mock
+            return self._responses.get("GET /calls/{id}", {})
+            
         if url.endswith("/calls/extensive") and method == "POST":
             return self._responses.get("POST /calls/extensive", {"calls": []})
         if url.endswith("/calls/transcript") and method == "POST":
@@ -36,34 +43,47 @@ async def test_list_calls_basic():
     }
     context = MockExecutionContext(responses)
     result = await gong.execute_action("list_calls", {"limit": 2}, context)
-    assert "calls" in result and len(result["calls"]) == 2
-    assert result["calls"][0]["id"] == "2"  # sorted newest first
+    data = result.result.data
+    assert "calls" in data and len(data["calls"]) == 2
+    assert data["calls"][0]["id"] == "2"  # sorted newest first
 
 
 async def test_get_call_details_shim():
     responses = {
+        "GET /calls/{id}": {
+            "call": {
+                "id": "abc",
+                "title": "Demo",
+                "started": "2025-01-01T00:00:00Z",
+                "duration": 60,
+                # Basic GET doesn't return parties in this scenario
+            }
+        },
         "POST /calls/extensive": {
             "calls": [
                 {
                     "id": "abc",
-                    "title": "Demo",
-                    "started": "2025-01-01T00:00:00Z",
-                    "duration": 60,
-                    "participants": [{"user_id": "u1", "name": "Jane"}],
-                    "outcome": "Won",
+                    "parties": [{"userId": "u1", "name": "Jane"}],
                     "crmData": {"opp": 123},
+                    "outcome": "Won"
                 }
             ]
         }
     }
     context = MockExecutionContext(responses)
     result = await gong.execute_action("get_call_details", {"call_id": "abc"}, context)
-    assert result["id"] == "abc"
-    assert result["title"] == "Demo"
+    data = result.result.data
+    assert data["id"] == "abc"
+    assert data["title"] == "Demo"
+    assert len(data["participants"]) == 1
+    assert data["participants"][0]["name"] == "Jane"
 
 
 async def test_get_call_transcript_mapping():
     responses = {
+        "GET /calls/{id}": {
+            "call": {"id": "xyz", "started": "2025-01-01T00:00:00Z"}
+        },
         "POST /calls/extensive": {
             "calls": [
                 {"parties": [{"speakerId": 1, "name": "Alice"}, {"speakerId": 2, "name": "Bob"}]}
@@ -80,8 +100,9 @@ async def test_get_call_transcript_mapping():
     }
     context = MockExecutionContext(responses)
     result = await gong.execute_action("get_call_transcript", {"call_id": "xyz"}, context)
-    assert len(result["transcript"]) == 2
-    assert result["transcript"][0]["speaker_name"] == "Alice"
+    data = result.result.data
+    assert len(data["transcript"]) == 2
+    assert data["transcript"][0]["speaker_name"] == "Alice"
 
 
 async def test_list_users():
@@ -96,7 +117,8 @@ async def test_list_users():
     }
     context = MockExecutionContext(responses)
     result = await gong.execute_action("list_users", {"limit": 1}, context)
-    assert result["users"][0]["id"] == "u1"
+    data = result.result.data
+    assert data["users"][0]["id"] == "u1"
 
 
 async def test_list_calls_filters_private():
@@ -112,37 +134,38 @@ async def test_list_calls_filters_private():
     }
     context = MockExecutionContext(responses)
     result = await gong.execute_action("list_calls", {"limit": 10}, context)
-    ids = [c["id"] for c in result["calls"]]
+    data = result.result.data
+    ids = [c["id"] for c in data["calls"]]
     assert "p1" not in ids and "pub" in ids
 
 
 async def test_get_call_details_private_filtered():
     responses = {
-        "POST /calls/extensive": {
-            "calls": [
-                {"id": "x", "isPrivate": True}
-            ]
+        "GET /calls/{id}": {
+            "id": "x",
+            "isPrivate": True
         }
     }
     context = MockExecutionContext(responses)
     result = await gong.execute_action("get_call_details", {"call_id": "x"}, context)
-    assert result.get("error") == "private_call_filtered"
-    assert result.get("id") == "x"
-    assert result.get("duration") == 0
+    data = result.result.data
+    assert data.get("error") == "private_call_filtered"
+    assert data.get("id") == "x"
+    assert data.get("duration") == 0
 
 
 async def test_get_call_transcript_private_filtered():
     responses = {
-        "POST /calls/extensive": {
-            "calls": [
-                {"id": "y", "isPrivate": True}
-            ]
+        "GET /calls/{id}": {
+            "id": "y",
+            "isPrivate": True
         }
     }
     context = MockExecutionContext(responses)
     result = await gong.execute_action("get_call_transcript", {"call_id": "y"}, context)
-    assert result.get("error") == "private_call_filtered"
-    assert result.get("transcript") == []
+    data = result.result.data
+    assert data.get("error") == "private_call_filtered"
+    assert data.get("transcript") == []
 
 
 async def test_search_calls_skips_private():
@@ -152,21 +175,22 @@ async def test_search_calls_skips_private():
                 {
                     "id": "priv",
                     "isPrivate": True,
-                    "content": {"highlights": [{"text": "demo pricing", "startTime": 0}]}
+                    "content": {"pointsOfInterest": [{"action": "demo pricing", "startTime": 0}]}
                 },
                 {
                     "id": "pub",
                     "isPrivate": False,
                     "title": "Public",
                     "started": "2025-01-01T00:00:00Z",
-                    "content": {"highlights": [{"text": "product demo pricing", "startTime": 10}]}
+                    "content": {"pointsOfInterest": [{"action": "product demo pricing", "startTime": 10}]}
                 }
             ]
         }
     }
     context = MockExecutionContext(responses)
     result = await gong.execute_action("search_calls", {"query": "pricing"}, context)
-    ids = [r["call_id"] for r in result["results"]]
+    data = result.result.data
+    ids = [r["call_id"] for r in data["results"]]
     assert ids == ["pub"]
 
 

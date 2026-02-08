@@ -146,25 +146,54 @@ def parse_date_range(range_name_str: str) -> Dict[str, str]:
 
 # ---- Data Fetching Functions ----
 
-def fetch_campaign_data(client, customer_id, date_ranges_input):
-    """Fetches campaign performance data from Google Ads API."""
+def fetch_campaign_data(client, customer_id, date_ranges_input, campaign_type=None):
+    """Fetches campaign performance data from Google Ads API.
+    
+    Args:
+        client: GoogleAdsClient instance.
+        customer_id: The Google Ads customer ID.
+        date_ranges_input: Date ranges to query.
+        campaign_type: Optional campaign type filter. 
+            'VIDEO' includes video-specific metrics (average_cpv).
+            'SEARCH', 'DISPLAY', 'PERFORMANCE_MAX', or 'ALL' use universal metrics only.
+            Defaults to 'ALL' (universal metrics safe for all campaign types).
+    """
     ga_service = client.get_service("GoogleAdsService")
 
-    query_template = """
-    SELECT
+    # Base fields that work for all campaign types
+    base_fields = """
         campaign.id, campaign.status, campaign.name, campaign_budget.amount_micros,
         customer.currency_code, campaign.bidding_strategy_system_status,
         campaign.optimization_score, customer.descriptive_name,
-        campaign.advertising_channel_type, metrics.average_cpv, metrics.interactions,
+        campaign.advertising_channel_type, metrics.interactions,
         metrics.interaction_rate, metrics.average_cost, metrics.cost_micros,
         metrics.impressions, campaign.bidding_strategy_type, metrics.clicks,
         metrics.conversions_value, metrics.cost_per_all_conversions,
-        metrics.all_conversions, metrics.average_cpc, metrics.cost_per_conversion
+        metrics.all_conversions, metrics.average_cpc, metrics.cost_per_conversion"""
+
+    # Video-specific metrics (only valid for VIDEO campaigns)
+    video_fields = ", metrics.average_cpv"
+
+    # Build query based on campaign type
+    include_video_metrics = campaign_type and campaign_type.upper() == 'VIDEO'
+    
+    select_fields = base_fields
+    if include_video_metrics:
+        select_fields += video_fields
+
+    query_template = f"""
+    SELECT{select_fields}
     FROM campaign
-    WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
+    WHERE segments.date BETWEEN '{{start_date}}' AND '{{end_date}}'
         AND campaign.status = 'ENABLED'
         AND campaign.bidding_strategy_system_status != 'PAUSED'
     """
+    
+    # Add campaign type filter if specified (and not 'ALL')
+    if campaign_type and campaign_type.upper() not in ['ALL', 'VIDEO']:
+        query_template += f"\n        AND campaign.advertising_channel_type = '{campaign_type.upper()}'"
+    elif campaign_type and campaign_type.upper() == 'VIDEO':
+        query_template += "\n        AND campaign.advertising_channel_type = 'VIDEO'"
 
     all_results = []
     parsed_date_ranges = []
@@ -224,7 +253,6 @@ def fetch_campaign_data(client, customer_id, date_ranges_input):
                 "Optimization score": campaign.get('optimization_score', 'N/A'),
                 "Account": customer.get('descriptive_name', 'N/A'),
                 "Campaign type": campaign.get('advertising_channel_type', 'N/A'),
-                "Avg. CPV": micros_to_currency(metrics.get('average_cpv')),
                 "Interactions": metrics.get('interactions', 'N/A'),
                 "Interaction rate": metrics.get('interaction_rate', 'N/A'),
                 "Avg. cost": micros_to_currency(metrics.get('average_cost')),
@@ -239,6 +267,10 @@ def fetch_campaign_data(client, customer_id, date_ranges_input):
                 "Cost / conv.": micros_to_currency(metrics.get('cost_per_conversion')),
                 "All Conversions Rate": all_conversions_rate
             }
+            
+            # Only include video-specific metrics when querying VIDEO campaigns
+            if include_video_metrics:
+                data["Avg. CPV"] = micros_to_currency(metrics.get('average_cpv'))
             date_range_result['data'].append(data)
         all_results.append(date_range_result)
     return all_results
@@ -406,9 +438,11 @@ class RetrieveCampaignMetricsAction(ActionHandler):
         date_ranges_input = inputs.get('date_ranges')
         if not date_ranges_input:
             raise Exception("'date_ranges' is required.")
+        
+        campaign_type = inputs.get('campaign_type', 'ALL')
 
         try:
-            results = fetch_campaign_data(client, customer_id, date_ranges_input)
+            results = fetch_campaign_data(client, customer_id, date_ranges_input, campaign_type)
             logger.info("Successfully retrieved campaign data.")
             return ActionResult(data=results, cost_usd=0.00)
         except Exception as e:
@@ -460,6 +494,13 @@ class CreateCampaignAction(ActionHandler):
 
         campaign_name = inputs.get('campaign_name')
         budget_amount_micros = inputs.get('budget_amount_micros')
+
+        # Validate required inputs
+        if not campaign_name:
+            raise Exception("campaign_name is required")
+        if not budget_amount_micros:
+            raise Exception("budget_amount_micros is required")
+
         budget_name = inputs.get('budget_name', f"Budget for {campaign_name}")
         bidding_strategy = inputs.get('bidding_strategy', 'MANUAL_CPC')
         
@@ -499,20 +540,49 @@ class CreateCampaignAction(ActionHandler):
             campaign.end_date = end_date
 
             # Set bidding strategy
+            # Note: For smart bidding strategies, we only set optional constraints if provided
+            # Setting values to 0 can cause API errors; omitting them lets Google optimize automatically
+            # Uses client.copy_from() as per Google Ads Python library best practices
             if bidding_strategy == 'MANUAL_CPC':
-                campaign.manual_cpc.enhanced_cpc_enabled = False
+                campaign.manual_cpc.enhanced_cpc_enabled = inputs.get('enhanced_cpc_enabled', False)
             elif bidding_strategy == 'TARGET_SPEND':
-                campaign.target_spend.target_spend_micros = 0
+                # TARGET_SPEND = Maximize clicks within budget
+                target_spend_micros = inputs.get('target_spend_micros')
+                if target_spend_micros is not None:
+                    campaign.target_spend.target_spend_micros = target_spend_micros
+                else:
+                    # Enable strategy without specific target (Google optimizes automatically)
+                    client.copy_from(campaign.target_spend, client.get_type("TargetSpend")())
             elif bidding_strategy == 'MAXIMIZE_CONVERSIONS':
-                campaign.maximize_conversions.target_cpa_micros = 0
+                # MAXIMIZE_CONVERSIONS with optional target CPA
+                target_cpa_micros = inputs.get('target_cpa_micros')
+                if target_cpa_micros is not None:
+                    campaign.maximize_conversions.target_cpa_micros = target_cpa_micros
+                else:
+                    # Enable strategy without specific target CPA
+                    client.copy_from(campaign.maximize_conversions, client.get_type("MaximizeConversions")())
             elif bidding_strategy == 'MAXIMIZE_CLICKS':
-                campaign.maximize_clicks.cpc_bid_ceiling_micros = 0
+                # MAXIMIZE_CLICKS with optional bid ceiling
+                cpc_bid_ceiling_micros = inputs.get('cpc_bid_ceiling_micros')
+                if cpc_bid_ceiling_micros is not None:
+                    campaign.maximize_clicks.cpc_bid_ceiling_micros = cpc_bid_ceiling_micros
+                else:
+                    # Enable strategy without bid ceiling
+                    client.copy_from(campaign.maximize_clicks, client.get_type("MaximizeClicks")())
 
             # Network settings
             campaign.network_settings.target_google_search = True
             campaign.network_settings.target_search_network = True
             campaign.network_settings.target_content_network = False
             campaign.network_settings.target_partner_search_network = False
+
+            # EU Political Advertising compliance (required field as of API v19.2+)
+            # Convert boolean input to Google Ads API enum value
+            is_political = inputs.get('contains_eu_political_advertising', False)
+            if is_political:
+                campaign.contains_eu_political_advertising = client.enums.EuPoliticalAdvertisingStatusEnum.CONTAINS_EU_POLITICAL_ADVERTISING
+            else:
+                campaign.contains_eu_political_advertising = client.enums.EuPoliticalAdvertisingStatusEnum.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING
 
             campaign_response = campaign_service.mutate_campaigns(
                 customer_id=customer_id,

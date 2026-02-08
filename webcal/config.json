@@ -1,0 +1,161 @@
+{
+  "name": "Webcal",
+  "version": "1.0.0",
+  "description": "WebCalendar API integration for fetching and processing calendar events.",
+  "display_name": "Webcal",
+  "entry_point": "webcal.py",
+  "actions": {
+    "fetch_events": {
+      "display_name": "Fetch Calendar Events",
+      "description": "Retrieve events from a webcal URL within a specified time range",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "webcal_url": {
+            "type": "string",
+            "description": "URL of the webcal/ical calendar (starting with webcal:// or https://)"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Timezone to display events in (e.g., 'UTC', 'America/New_York')",
+            "default": "UTC"
+          },
+          "look_ahead_days": {
+            "type": "integer",
+            "description": "Number of days to look ahead for events",
+            "default": 7
+          }
+        },
+        "required": ["webcal_url"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "description": "The timezone used for event times"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": ["string", "null"]
+                },
+                "location": {
+                  "type": ["string", "null"]
+                },
+                "start_time": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "end_time": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "all_day": {
+                  "type": "boolean"
+                },
+                "organizer": {
+                  "type": ["string", "null"]
+                },
+                "attendees": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "url": {
+                  "type": ["string", "null"]
+                },
+                "recurring": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "search_events": {
+      "display_name": "Search Calendar Events",
+      "description": "Search for specific events in a webcal feed based on keywords",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "webcal_url": {
+            "type": "string",
+            "description": "URL of the webcal/ical calendar (starting with webcal:// or https://)"
+          },
+          "search_term": {
+            "type": "string",
+            "description": "Term to search for in event summary, description, or location"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Timezone to display events in (e.g., 'UTC', 'America/New_York')",
+            "default": "UTC"
+          },
+          "look_ahead_days": {
+            "type": "integer",
+            "description": "Number of days to look ahead for events",
+            "default": 30
+          },
+          "case_sensitive": {
+            "type": "boolean",
+            "description": "Whether the search should be case sensitive",
+            "default": false
+          }
+        },
+        "required": ["webcal_url", "search_term"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "timezone": {
+            "type": "string"
+          },
+          "search_term": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": ["string", "null"]
+                },
+                "location": {
+                  "type": ["string", "null"]
+                },
+                "start_time": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "end_time": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "all_day": {
+                  "type": "boolean"
+                },
+                "match_field": {
+                  "type": "string",
+                  "description": "Field where the search term was found (summary, description, location)"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -5,12 +5,10 @@
     "entry_point": "heygen.py",
     "supports_billing": true,
     "auth": {
-        "type": "oauth2",
-        "authorization_url": "https://app.heygen.com/oauth/authorize",
-        "token_url": "https://api2.heygen.com/v1/oauth/token",
-        "refresh_url": "https://api2.heygen.com/v1/oauth/refresh_token",
-        "scopes": [],
-        "pkce": true
+        "type": "platform",
+        "provider": "HeyGen",
+        "use_pkce": true,
+        "scopes": []
     },
     "actions": {
         "generate_photo_avatar": {

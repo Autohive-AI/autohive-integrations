@@ -1,0 +1,241 @@
+{
+  "name": "Netlify",
+  "display_name": "Netlify",
+  "version": "1.0.0",
+  "description": "Integration with Netlify for managing sites, deployments, and hosting",
+  "entry_point": "netlify.py",
+  "auth": {
+    "type": "platform",
+    "provider": "Netlify",
+    "scopes": []
+  },
+  "actions": {
+    "list_sites": {
+      "display_name": "List Sites",
+      "description": "List all sites for the authenticated user",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "sites": {
+            "type": "array",
+            "description": "List of sites"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "create_site": {
+      "display_name": "Create Site",
+      "description": "Create a new site",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Site name"
+          },
+          "custom_domain": {
+            "type": "string",
+            "description": "Custom domain (optional)"
+          }
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "object",
+            "description": "Created site details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_site": {
+      "display_name": "Get Site",
+      "description": "Get details of a specific site",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "string",
+            "description": "Site ID"
+          }
+        },
+        "required": ["site_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "object",
+            "description": "Site details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "delete_site": {
+      "display_name": "Delete Site",
+      "description": "Delete a site",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "string",
+            "description": "Site ID"
+          }
+        },
+        "required": ["site_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_deploys": {
+      "display_name": "List Deploys",
+      "description": "List all deploys for a site",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "string",
+            "description": "Site ID"
+          }
+        },
+        "required": ["site_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deploys": {
+            "type": "array",
+            "description": "List of deploys"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "create_deploy": {
+      "display_name": "Create Deploy",
+      "description": "Create a new deploy for a site with files",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "string",
+            "description": "Site ID"
+          },
+          "files": {
+            "type": "object",
+            "description": "Files to deploy (path: content mapping)"
+          }
+        },
+        "required": ["site_id", "files"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deploy": {
+            "type": "object",
+            "description": "Deploy details"
+          },
+          "deploy_url": {
+            "type": "string",
+            "description": "URL of the deployed site"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_deploy": {
+      "display_name": "Get Deploy",
+      "description": "Get details of a specific deploy",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "deploy_id": {
+            "type": "string",
+            "description": "Deploy ID"
+          }
+        },
+        "required": ["deploy_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deploy": {
+            "type": "object",
+            "description": "Deploy details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "update_site": {
+      "display_name": "Update Site",
+      "description": "Update site settings",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "string",
+            "description": "Site ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "New site name (optional)"
+          },
+          "custom_domain": {
+            "type": "string",
+            "description": "Custom domain (optional)"
+          }
+        },
+        "required": ["site_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "object",
+            "description": "Updated site details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    }
+  }
+}

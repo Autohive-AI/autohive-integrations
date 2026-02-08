@@ -22,9 +22,10 @@ async def test_get_available_connections():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await xero.execute_action("get_available_connections", inputs, context)
-            print(f"Success: Retrieved {len(result.get('companies', []))} available connections")
-            if result.get('companies'):
-                for company in result['companies']:
+            data = result.result.data
+            print(f"Success: Retrieved {len(data.get('companies', []))} available connections")
+            if data.get('companies'):
+                for company in data['companies']:
                     print(f"  - ID: {company.get('tenant_id')}, Name: {company.get('company_name')}")
             return result
         except Exception as e:
@@ -37,12 +38,12 @@ async def test_get_invoices_with_specific_tenant():
     """
     # First get available connections
     connections_result = await test_get_available_connections()
-    if not connections_result or not connections_result.get('companies'):
+    if not connections_result or not connections_result.result.data.get('companies'):
         print("Cannot test invoices without tenant information")
         return
 
     # Use the first available tenant
-    tenant_id = connections_result['companies'][0]['tenant_id']
+    tenant_id = connections_result.result.data['companies'][0]['tenant_id']
     print(f"Using tenant ID: {tenant_id}")
 
     auth = {}
@@ -56,9 +57,10 @@ async def test_get_invoices_with_specific_tenant():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await xero.execute_action("get_invoices", inputs, context)
-            print(f"Success: Retrieved {len(result.get('Invoices', []))} invoices")
-            if result.get('Invoices'):
-                for invoice in result['Invoices'][:3]:  # Show first 3
+            data = result.result.data
+            print(f"Success: Retrieved {len(data.get('Invoices', []))} invoices")
+            if data.get('Invoices'):
+                for invoice in data['Invoices'][:3]:  # Show first 3
                     print(f"  - Invoice: {invoice.get('InvoiceNumber')} - Status: {invoice.get('Status')} - Total: {invoice.get('Total')}")
             return result
         except Exception as e:
@@ -71,12 +73,12 @@ async def test_get_specific_invoice():
     """
     # First get available connections
     connections_result = await test_get_available_connections()
-    if not connections_result or not connections_result.get('companies'):
+    if not connections_result or not connections_result.result.data.get('companies'):
         print("Cannot test specific invoice without tenant information")
         return
 
     # Use the first available tenant
-    tenant_id = connections_result['companies'][0]['tenant_id']
+    tenant_id = connections_result.result.data['companies'][0]['tenant_id']
     print(f"Using tenant ID: {tenant_id}")
 
     auth = {}
@@ -88,9 +90,10 @@ async def test_get_specific_invoice():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await xero.execute_action("get_invoices", inputs, context)
+            data = result.result.data
             print(f"Success: Retrieved specific invoice")
-            if result.get('Invoices'):
-                invoice = result['Invoices'][0]
+            if data.get('Invoices'):
+                invoice = data['Invoices'][0]
                 print(f"  - Invoice: {invoice.get('InvoiceNumber')} - Status: {invoice.get('Status')}")
             return result
         except Exception as e:
@@ -103,22 +106,22 @@ async def test_get_invoice_pdf_with_specific_tenant():
     """
     # First get available connections
     connections_result = await test_get_available_connections()
-    if not connections_result or not connections_result.get('companies'):
+    if not connections_result or not connections_result.result.data.get('companies'):
         print("Cannot test invoice PDF without tenant information")
         return
 
     # Use the first available tenant
-    tenant_id = connections_result['companies'][0]['tenant_id']
+    tenant_id = connections_result.result.data['companies'][0]['tenant_id']
     print(f"Using tenant ID: {tenant_id}")
 
     # First get some invoices to get a valid invoice ID
     invoices_result = await test_get_invoices_with_specific_tenant()
-    if not invoices_result or not invoices_result.get('Invoices'):
+    if not invoices_result or not invoices_result.result.data.get('Invoices'):
         print("Cannot test PDF download without invoice information")
         return
 
     # Use the first invoice
-    invoice_id = invoices_result['Invoices'][0]['InvoiceID']
+    invoice_id = invoices_result.result.data['Invoices'][0]['InvoiceID']
     print(f"Using invoice ID: {invoice_id}")
 
     auth = {}
@@ -130,13 +133,14 @@ async def test_get_invoice_pdf_with_specific_tenant():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await xero.execute_action("get_invoice_pdf", inputs, context)
-            if result.get("success"):
+            data = result.result.data
+            if data.get("success"):
                 print(f"Success: Downloaded invoice PDF")
-                print(f"  - File name: {result['file']['name']}")
-                print(f"  - Content type: {result['file']['contentType']}")
-                print(f"  - Content size: {len(result['file']['content'])} characters (base64)")
+                print(f"  - File name: {data['file']['name']}")
+                print(f"  - Content type: {data['file']['contentType']}")
+                print(f"  - Content size: {len(data['file']['content'])} characters (base64)")
             else:
-                print(f"Failed: {result.get('error')}")
+                print(f"Failed: {data.get('error')}")
             return result
         except Exception as e:
             print(f"Error testing invoice PDF download: {str(e)}")
@@ -148,12 +152,12 @@ async def test_get_aged_payables_with_specific_tenant():
     """
     # First get available connections
     connections_result = await test_get_available_connections()
-    if not connections_result or not connections_result.get('companies'):
+    if not connections_result or not connections_result.result.data.get('companies'):
         print("Cannot test aged payables without tenant information")
         return
 
     # Use the first available tenant
-    tenant_id = connections_result['companies'][0]['tenant_id']
+    tenant_id = connections_result.result.data['companies'][0]['tenant_id']
     print(f"Using tenant ID: {tenant_id}")
 
     auth = {}
@@ -421,12 +425,12 @@ async def test_find_contact_rate_limit_exception_handling():
         
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("find_contact_by_name", inputs, context)
-            
-            assert result["success"] is False
-            assert result["error_type"] == "rate_limit_exceeded"
-            assert result["tenant_id"] == "test-tenant"
-            assert result["retry_delay_seconds"] == 120
-            assert "exceeds maximum" in result["message"]
+            data = result.result.data
+            assert data["success"] is False
+            assert data["error_type"] == "rate_limit_exceeded"
+            assert data["tenant_id"] == "test-tenant"
+            assert data["retry_delay_seconds"] == 120
+            assert "exceeds maximum" in data["message"]
 
 
 class MockRateLimitError(Exception):
@@ -649,12 +653,12 @@ async def test_find_contact_rate_limit_exception_handling():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("find_contact_by_name", inputs, context)
-
-            assert result["success"] is False
-            assert result["error_type"] == "rate_limit_exceeded"
-            assert result["tenant_id"] == "test-tenant"
-            assert result["retry_delay_seconds"] == 120
-            assert "exceeds maximum" in result["message"]
+            data = result.result.data
+            assert data["success"] is False
+            assert data["error_type"] == "rate_limit_exceeded"
+            assert data["tenant_id"] == "test-tenant"
+            assert data["retry_delay_seconds"] == 120
+            assert "exceeds maximum" in data["message"]
 
 
 @pytest.mark.asyncio
@@ -682,12 +686,12 @@ async def test_get_invoices_rate_limit_exception_handling():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("get_invoices", inputs, context)
-
-            assert result["success"] is False
-            assert result["error_type"] == "rate_limit_exceeded"
-            assert result["tenant_id"] == "test-tenant"
-            assert result["retry_delay_seconds"] == 180
-            assert "exceeds maximum" in result["message"]
+            data = result.result.data
+            assert data["success"] is False
+            assert data["error_type"] == "rate_limit_exceeded"
+            assert data["tenant_id"] == "test-tenant"
+            assert data["retry_delay_seconds"] == 180
+            assert "exceeds maximum" in data["message"]
 
 
 @pytest.mark.asyncio
@@ -714,12 +718,12 @@ async def test_get_specific_invoice_rate_limit_exception_handling():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("get_invoices", inputs, context)
-
-            assert result["success"] is False
-            assert result["error_type"] == "rate_limit_exceeded"
-            assert result["tenant_id"] == "test-tenant"
-            assert result["retry_delay_seconds"] == 90
-            assert "exceeds maximum" in result["message"]
+            data = result.result.data
+            assert data["success"] is False
+            assert data["error_type"] == "rate_limit_exceeded"
+            assert data["tenant_id"] == "test-tenant"
+            assert data["retry_delay_seconds"] == 90
+            assert "exceeds maximum" in data["message"]
 
 
 @pytest.mark.asyncio
@@ -758,13 +762,13 @@ async def test_attach_file_to_invoice_with_base64():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("attach_file_to_invoice", inputs, context)
-
+            data = result.result.data
             # Verify the attachment was successful
-            assert "Attachments" in result
-            assert len(result["Attachments"]) == 1
-            assert result["Attachments"][0]["FileName"] == "test-attachment.pdf"
-            assert result["Attachments"][0]["MimeType"] == "application/pdf"
-            assert result["Attachments"][0]["ContentLength"] == len(test_content)
+            assert "Attachments" in data
+            assert len(data["Attachments"]) == 1
+            assert data["Attachments"][0]["FileName"] == "test-attachment.pdf"
+            assert data["Attachments"][0]["MimeType"] == "application/pdf"
+            assert data["Attachments"][0]["ContentLength"] == len(test_content)
 
             # Verify the rate limiter was called with decoded bytes
             mock_limiter.make_request.assert_called_once()
@@ -811,12 +815,12 @@ async def test_attach_file_to_bill_with_base64():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("attach_file_to_bill", inputs, context)
-
+            data = result.result.data
             # Verify the attachment was successful
-            assert "Attachments" in result
-            assert len(result["Attachments"]) == 1
-            assert result["Attachments"][0]["FileName"] == "supplier-invoice.pdf"
-            assert result["Attachments"][0]["ContentLength"] == len(test_content)
+            assert "Attachments" in data
+            assert len(data["Attachments"]) == 1
+            assert data["Attachments"][0]["FileName"] == "supplier-invoice.pdf"
+            assert data["Attachments"][0]["ContentLength"] == len(test_content)
 
             # Verify the rate limiter was called with decoded bytes
             mock_limiter.make_request.assert_called_once()
@@ -860,13 +864,13 @@ async def test_get_invoice_pdf_success():
     with patch('aiohttp.ClientSession', return_value=mock_session):
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("get_invoice_pdf", inputs, context)
-
+            data = result.result.data
             # Verify the PDF was successfully downloaded
-            assert result["success"] is True
-            assert result["file"]["name"] == "invoice_test-invoice-789.pdf"
-            assert result["file"]["contentType"] == "application/pdf"
-            assert result["file"]["content"] == base64_pdf
-            assert "error" not in result or result.get("error") is None
+            assert data["success"] is True
+            assert data["file"]["name"] == "invoice_test-invoice-789.pdf"
+            assert data["file"]["contentType"] == "application/pdf"
+            assert data["file"]["content"] == base64_pdf
+            assert "error" not in data or data.get("error") is None
 
 
 @pytest.mark.asyncio
@@ -897,12 +901,12 @@ async def test_get_invoice_pdf_not_found():
     with patch('aiohttp.ClientSession', return_value=mock_session):
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("get_invoice_pdf", inputs, context)
-
+            data = result.result.data
             # Verify the error is properly handled
-            assert result["success"] is False
-            assert "error" in result
-            assert "404" in result["error"]
-            assert result["file"]["content"] == ""
+            assert data["success"] is False
+            assert "error" in data
+            assert "404" in data["error"]
+            assert data["file"]["content"] == ""
 
 
 @pytest.mark.asyncio
@@ -949,13 +953,13 @@ async def test_get_purchase_orders_success():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("get_purchase_orders", inputs, context)
-
+            data = result.result.data
             # Verify the purchase orders were retrieved
-            assert "PurchaseOrders" in result
-            assert len(result["PurchaseOrders"]) == 1
-            assert result["PurchaseOrders"][0]["PurchaseOrderNumber"] == "PO-001"
-            assert result["PurchaseOrders"][0]["Status"] == "AUTHORISED"
-            assert result["PurchaseOrders"][0]["Total"] == 500.00
+            assert "PurchaseOrders" in data
+            assert len(data["PurchaseOrders"]) == 1
+            assert data["PurchaseOrders"][0]["PurchaseOrderNumber"] == "PO-001"
+            assert data["PurchaseOrders"][0]["Status"] == "AUTHORISED"
+            assert data["PurchaseOrders"][0]["Total"] == 500.00
 
             # Verify the rate limiter was called correctly
             mock_limiter.make_request.assert_called_once()
@@ -995,10 +999,10 @@ async def test_get_purchase_orders_by_id():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("get_purchase_orders", inputs, context)
-
+            data = result.result.data
             # Verify the specific purchase order was retrieved
-            assert "PurchaseOrders" in result
-            assert result["PurchaseOrders"][0]["PurchaseOrderID"] == "po-specific-789"
+            assert "PurchaseOrders" in data
+            assert data["PurchaseOrders"][0]["PurchaseOrderID"] == "po-specific-789"
 
             # Verify the URL includes the purchase order ID
             call_args = mock_limiter.make_request.call_args
@@ -1026,12 +1030,12 @@ async def test_get_purchase_orders_rate_limit_handling():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("get_purchase_orders", inputs, context)
-
+            data = result.result.data
             # Verify the error is properly handled
-            assert result["success"] is False
-            assert result["error_type"] == "rate_limit_exceeded"
-            assert result["tenant_id"] == "test-tenant-123"
-            assert result["retry_delay_seconds"] == 150
+            assert data["success"] is False
+            assert data["error_type"] == "rate_limit_exceeded"
+            assert data["tenant_id"] == "test-tenant-123"
+            assert data["retry_delay_seconds"] == 150
 
 
 @pytest.mark.asyncio
@@ -1093,11 +1097,11 @@ async def test_create_purchase_order_success():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("create_purchase_order", inputs, context)
-
+            data = result.result.data
             # Verify the purchase order was created
-            assert "PurchaseOrders" in result
-            assert len(result["PurchaseOrders"]) == 1
-            po = result["PurchaseOrders"][0]
+            assert "PurchaseOrders" in data
+            assert len(data["PurchaseOrders"]) == 1
+            po = data["PurchaseOrders"][0]
             assert po["PurchaseOrderNumber"] == "PO-NEW-001"
             assert po["Status"] == "DRAFT"
             assert po["Reference"] == "PO-REF-001"
@@ -1195,9 +1199,9 @@ async def test_create_purchase_order_with_optional_fields():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("create_purchase_order", inputs, context)
-
+            data = result.result.data
             # Verify optional fields were included
-            po = result["PurchaseOrders"][0]
+            po = data["PurchaseOrders"][0]
             assert po["DeliveryAddress"] == "123 Test St, Test City"
             assert po["AttentionTo"] == "John Doe"
             assert po["Telephone"] == "+1-555-1234"
@@ -1234,12 +1238,12 @@ async def test_create_purchase_order_rate_limit_handling():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("create_purchase_order", inputs, context)
-
+            data = result.result.data
             # Verify the error is properly handled
-            assert result["success"] is False
-            assert result["error_type"] == "rate_limit_exceeded"
-            assert result["tenant_id"] == "test-tenant-123"
-            assert result["retry_delay_seconds"] == 200
+            assert data["success"] is False
+            assert data["error_type"] == "rate_limit_exceeded"
+            assert data["tenant_id"] == "test-tenant-123"
+            assert data["retry_delay_seconds"] == 200
 
 
 @pytest.mark.asyncio
@@ -1270,9 +1274,9 @@ async def test_update_purchase_order_success():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("update_purchase_order", inputs, context)
-
+            data = result.result.data
             # Verify the purchase order was updated
-            po = result["PurchaseOrders"][0]
+            po = data["PurchaseOrders"][0]
             assert po["Status"] == "AUTHORISED"
             assert po["Reference"] == "UPDATED-REF"
 
@@ -1308,10 +1312,10 @@ async def test_add_note_to_purchase_order_success():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("add_note_to_purchase_order", inputs, context)
-
+            data = result.result.data
             # Verify the note was added
-            assert "HistoryRecords" in result
-            assert result["HistoryRecords"][0]["Details"] == "This is a test note for the purchase order"
+            assert "HistoryRecords" in data
+            assert data["HistoryRecords"][0]["Details"] == "This is a test note for the purchase order"
 
             # Verify the rate limiter was called with PUT method
             mock_limiter.make_request.assert_called_once()
@@ -1374,12 +1378,12 @@ async def test_get_purchase_order_history_success():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("get_purchase_order_history", inputs, context)
-
+            data = result.result.data
             # Verify the history was retrieved
-            assert "HistoryRecords" in result
-            assert len(result["HistoryRecords"]) == 2
-            assert result["HistoryRecords"][0]["Details"] == "Purchase order created"
-            assert result["HistoryRecords"][1]["Details"] == "Purchase order approved"
+            assert "HistoryRecords" in data
+            assert len(data["HistoryRecords"]) == 2
+            assert data["HistoryRecords"][0]["Details"] == "Purchase order created"
+            assert data["HistoryRecords"][1]["Details"] == "Purchase order approved"
 
             # Verify the correct endpoint was called
             call_args = mock_limiter.make_request.call_args
@@ -1412,9 +1416,9 @@ async def test_delete_purchase_order_success():
 
         async with ExecutionContext(auth=auth) as context:
             result = await xero.execute_action("delete_purchase_order", inputs, context)
-
+            data = result.result.data
             # Verify the purchase order was deleted
-            po = result["PurchaseOrders"][0]
+            po = data["PurchaseOrders"][0]
             assert po["Status"] == "DELETED"
 
             # Verify the payload sets status to DELETED

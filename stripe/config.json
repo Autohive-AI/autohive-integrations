@@ -10,7 +10,20 @@
         "type": "platform",
         "provider": "stripe",
         "scopes": [
-            "read_write"
+            "customer_read",
+            "customer_write",
+            "invoice_read",
+            "invoice_write",
+            "product_read",
+            "product_write",
+            "price_read",
+            "price_write",
+            "subscription_read",
+            "subscription_write",
+            "payment_method_read",
+            "payment_method_write",
+            "invoice_item_read",
+            "invoice_item_write"
         ]
     },
     "actions": {

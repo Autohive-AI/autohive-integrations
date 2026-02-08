@@ -1,0 +1,634 @@
+{
+    "name": "Productboard",
+    "display_name": "Productboard",
+    "version": "1.0.0",
+    "description": "Productboard integration for managing features, products, components, notes, and feedback",
+    "entry_point": "productboard.py",
+    "auth": {
+        "type": "platform",
+        "provider": "Productboard",
+        "scopes": [
+            "product_hierarchy_data:read",
+            "product_hierarchy_data:create",
+            "product_hierarchy_data:manage",
+            "custom_fields:read",
+            "notes:read",
+            "notes:create",
+            "notes:manage",
+            "users:read",
+            "companies:read",
+            "companies:create",
+            "companies:manage"
+        ]
+    },
+    "actions": {
+        "list_entities": {
+            "display_name": "List Entities",
+            "description": "Retrieves a paginated list of entities (features, products, components, initiatives, objectives, releases, etc.)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "description": "Entity type to filter by (feature, product, component, subfeature, initiative, objective, keyResult, release, releaseGroup)",
+                        "enum": ["feature", "product", "component", "subfeature", "initiative", "objective", "keyResult", "release", "releaseGroup"]
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Filter by archived status"
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Comma-separated list of fields to return, or 'all' for all fields"
+                    },
+                    "page_cursor": {
+                        "type": "string",
+                        "description": "Cursor for pagination"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "entities": {
+                        "type": "array",
+                        "description": "List of entities"
+                    },
+                    "next_cursor": {
+                        "type": "string",
+                        "description": "Cursor for next page"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["entities", "result"]
+            }
+        },
+        "get_entity": {
+            "display_name": "Get Entity",
+            "description": "Retrieves details of a specific entity by its ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "entity_id": {
+                        "type": "string",
+                        "description": "The UUID of the entity to retrieve"
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Comma-separated list of fields to return, or 'all' for all fields"
+                    }
+                },
+                "required": ["entity_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "entity": {
+                        "type": "object",
+                        "description": "Entity details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["entity", "result"]
+            }
+        },
+        "create_entity": {
+            "display_name": "Create Entity",
+            "description": "Creates a new entity (feature, product, component, initiative, etc.)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "description": "Entity type to create",
+                        "enum": ["feature", "product", "component", "subfeature", "initiative", "objective", "keyResult", "release", "releaseGroup"]
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the entity"
+                    },
+                    "parent_id": {
+                        "type": "string",
+                        "description": "Parent entity ID (required for some entity types)"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Status of the entity"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description of the entity"
+                    },
+                    "custom_fields": {
+                        "type": "object",
+                        "description": "Custom field values as key-value pairs"
+                    }
+                },
+                "required": ["type", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "entity": {
+                        "type": "object",
+                        "description": "Created entity details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["entity", "result"]
+            }
+        },
+        "update_entity": {
+            "display_name": "Update Entity",
+            "description": "Updates an existing entity",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "entity_id": {
+                        "type": "string",
+                        "description": "The UUID of the entity to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated name"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Updated status"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Updated description"
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Archive or unarchive the entity"
+                    },
+                    "custom_fields": {
+                        "type": "object",
+                        "description": "Custom field values to update"
+                    }
+                },
+                "required": ["entity_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "entity": {
+                        "type": "object",
+                        "description": "Updated entity details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["entity", "result"]
+            }
+        },
+        "get_entity_configuration": {
+            "display_name": "Get Entity Configuration",
+            "description": "Returns metadata for a specific entity type including supported fields and validation rules",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "description": "Entity type to get configuration for",
+                        "enum": ["feature", "product", "component", "subfeature", "initiative", "objective", "keyResult", "release", "releaseGroup"]
+                    }
+                },
+                "required": ["type"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "configuration": {
+                        "type": "object",
+                        "description": "Entity configuration including fields and validation rules"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["configuration", "result"]
+            }
+        },
+        "list_notes": {
+            "display_name": "List Notes",
+            "description": "Retrieves a list of notes (feedback, conversations, opportunities) from your workspace",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Filter notes by archived status"
+                    },
+                    "processed": {
+                        "type": "boolean",
+                        "description": "Filter notes by processed status"
+                    },
+                    "owner_email": {
+                        "type": "string",
+                        "description": "Filter notes by owner email"
+                    },
+                    "owner_id": {
+                        "type": "string",
+                        "description": "Filter notes by owner UUID"
+                    },
+                    "creator_email": {
+                        "type": "string",
+                        "description": "Filter notes by creator email"
+                    },
+                    "source_record_id": {
+                        "type": "string",
+                        "description": "Filter notes by external source record ID"
+                    },
+                    "created_from": {
+                        "type": "string",
+                        "description": "Filter notes created on or after this date/time (ISO-8601)"
+                    },
+                    "created_to": {
+                        "type": "string",
+                        "description": "Filter notes created on or before this date/time (ISO-8601)"
+                    },
+                    "updated_from": {
+                        "type": "string",
+                        "description": "Filter notes updated on or after this date/time (ISO-8601)"
+                    },
+                    "updated_to": {
+                        "type": "string",
+                        "description": "Filter notes updated on or before this date/time (ISO-8601)"
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Comma-separated list of fields to return, or 'all' for all fields"
+                    },
+                    "page_cursor": {
+                        "type": "string",
+                        "description": "Cursor for pagination"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "notes": {
+                        "type": "array",
+                        "description": "List of notes"
+                    },
+                    "next_cursor": {
+                        "type": "string",
+                        "description": "Cursor for next page"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["notes", "result"]
+            }
+        },
+        "get_note": {
+            "display_name": "Get Note",
+            "description": "Retrieves details of a specific note by its ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "note_id": {
+                        "type": "string",
+                        "description": "The UUID of the note to retrieve"
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Comma-separated list of fields to return, or 'all' for all fields"
+                    }
+                },
+                "required": ["note_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "note": {
+                        "type": "object",
+                        "description": "Note details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["note", "result"]
+            }
+        },
+        "create_note": {
+            "display_name": "Create Note",
+            "description": "Creates a new note (simple or conversation type)",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "description": "Note type (simple or conversation)",
+                        "enum": ["simple", "conversation"]
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name/title of the note"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content of the note (for simple notes)"
+                    },
+                    "messages": {
+                        "type": "array",
+                        "description": "Array of message objects for conversation notes",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "role": {
+                                    "type": "string",
+                                    "description": "Role (user, agent, etc.)"
+                                },
+                                "text": {
+                                    "type": "string",
+                                    "description": "Message text"
+                                }
+                            }
+                        }
+                    },
+                    "owner_email": {
+                        "type": "string",
+                        "description": "Email of the note owner"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "description": "Array of tag names",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "source": {
+                        "type": "object",
+                        "description": "Source information including recordId and origin"
+                    },
+                    "customer_email": {
+                        "type": "string",
+                        "description": "Email of the customer associated with this note"
+                    },
+                    "company_id": {
+                        "type": "string",
+                        "description": "ID of the company associated with this note"
+                    }
+                },
+                "required": ["type", "name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "note": {
+                        "type": "object",
+                        "description": "Created note details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["note", "result"]
+            }
+        },
+        "update_note": {
+            "display_name": "Update Note",
+            "description": "Updates an existing note",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "note_id": {
+                        "type": "string",
+                        "description": "The UUID of the note to update"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated name/title"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Updated content (for simple notes)"
+                    },
+                    "owner_email": {
+                        "type": "string",
+                        "description": "Updated owner email"
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Archive or unarchive the note"
+                    },
+                    "processed": {
+                        "type": "boolean",
+                        "description": "Mark note as processed or unprocessed"
+                    },
+                    "tags_to_add": {
+                        "type": "array",
+                        "description": "Tags to add to the note",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "tags_to_remove": {
+                        "type": "array",
+                        "description": "Tags to remove from the note",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["note_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "note": {
+                        "type": "object",
+                        "description": "Updated note details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["note", "result"]
+            }
+        },
+        "get_note_configuration": {
+            "display_name": "Get Note Configuration",
+            "description": "Returns metadata for notes including available fields and validation rules",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "configuration": {
+                        "type": "object",
+                        "description": "Note configuration including fields and validation rules"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["configuration", "result"]
+            }
+        },
+        "list_analytics_reports": {
+            "display_name": "List Analytics Reports",
+            "description": "Retrieves available analytics reports",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page_cursor": {
+                        "type": "string",
+                        "description": "Cursor for pagination"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "reports": {
+                        "type": "array",
+                        "description": "List of analytics reports"
+                    },
+                    "next_cursor": {
+                        "type": "string",
+                        "description": "Cursor for next page"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["reports", "result"]
+            }
+        },
+        "get_analytics_report": {
+            "display_name": "Get Analytics Report",
+            "description": "Retrieves details of a specific analytics report",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "report_id": {
+                        "type": "string",
+                        "description": "The ID of the analytics report to retrieve"
+                    }
+                },
+                "required": ["report_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "report": {
+                        "type": "object",
+                        "description": "Analytics report details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["report", "result"]
+            }
+        },
+        "get_current_user": {
+            "display_name": "Get Current User",
+            "description": "Retrieves information about the currently authenticated user",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "object",
+                        "description": "Current user details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["user", "result"]
+            }
+        }
+    }
+}

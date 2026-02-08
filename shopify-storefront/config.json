@@ -1,0 +1,375 @@
+{
+    "name": "ShopifyStorefront",
+    "display_name": "Shopify Storefront API",
+    "version": "1.0.0",
+    "description": "Shopify Storefront API integration for customer-facing e-commerce operations - products, collections, cart, and customer accounts",
+    "entry_point": "shopify_storefront.py",
+    "auth": {
+        "type": "platform",
+        "provider": "ShopifyStorefront",
+        "scopes": [
+            "unauthenticated_read_product_listings",
+            "unauthenticated_read_product_inventory",
+            "unauthenticated_read_checkouts",
+            "unauthenticated_write_checkouts",
+            "unauthenticated_read_customers",
+            "unauthenticated_write_customers"
+        ]
+    },
+    "actions": {
+        "storefront_list_products": {
+            "display_name": "List Products",
+            "description": "Browse products available in the storefront with pagination and filtering",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "first": {"type": "integer", "description": "Number of products to return (max 250)", "label": "Count", "default": 20},
+                    "after": {"type": "string", "description": "Cursor for pagination", "label": "After Cursor"},
+                    "query": {"type": "string", "description": "Filter query (e.g., 'title:*shirt*' or 'tag:sale')", "label": "Query Filter"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "products": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "has_next_page": {"type": "boolean"},
+                    "end_cursor": {"type": "string"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_get_product": {
+            "display_name": "Get Product",
+            "description": "Get detailed product information by handle or ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "handle": {"type": "string", "description": "Product handle (URL slug)", "label": "Handle"},
+                    "product_id": {"type": "string", "description": "Product GraphQL ID", "label": "Product ID"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "product": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_search_products": {
+            "display_name": "Search Products",
+            "description": "Search products by keyword",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query", "label": "Search Query"},
+                    "first": {"type": "integer", "description": "Number of results", "label": "Count", "default": 20}
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "products": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "total_count": {"type": "integer"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_list_collections": {
+            "display_name": "List Collections",
+            "description": "Browse product collections in the storefront",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "first": {"type": "integer", "description": "Number of collections to return", "label": "Count", "default": 20},
+                    "after": {"type": "string", "description": "Cursor for pagination", "label": "After Cursor"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "collections": {"type": "array"},
+                    "count": {"type": "integer"},
+                    "has_next_page": {"type": "boolean"},
+                    "end_cursor": {"type": "string"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_get_collection": {
+            "display_name": "Get Collection",
+            "description": "Get collection details with products",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "handle": {"type": "string", "description": "Collection handle", "label": "Handle"},
+                    "collection_id": {"type": "string", "description": "Collection GraphQL ID", "label": "Collection ID"},
+                    "products_first": {"type": "integer", "description": "Number of products to include", "label": "Products Count", "default": 20}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "collection": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_create_cart": {
+            "display_name": "Create Cart",
+            "description": "Create a new shopping cart, optionally with initial items",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "lines": {"type": "array", "description": "Initial cart items [{merchandiseId, quantity}]", "label": "Line Items"},
+                    "buyer_identity": {"type": "object", "description": "Buyer info {email, countryCode}", "label": "Buyer Identity"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "cart": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_get_cart": {
+            "display_name": "Get Cart",
+            "description": "Retrieve cart contents and checkout URL",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"}
+                },
+                "required": ["cart_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "cart": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_add_to_cart": {
+            "display_name": "Add to Cart",
+            "description": "Add items to an existing cart",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
+                    "lines": {"type": "array", "description": "Items to add [{merchandiseId, quantity}]", "label": "Line Items"}
+                },
+                "required": ["cart_id", "lines"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "cart": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_update_cart_line": {
+            "display_name": "Update Cart Line",
+            "description": "Update quantity of items in cart",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
+                    "lines": {"type": "array", "description": "Lines to update [{id, quantity}]", "label": "Line Updates"}
+                },
+                "required": ["cart_id", "lines"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "cart": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_remove_from_cart": {
+            "display_name": "Remove from Cart",
+            "description": "Remove items from cart",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
+                    "line_ids": {"type": "array", "description": "Line IDs to remove", "label": "Line IDs", "items": {"type": "string"}}
+                },
+                "required": ["cart_id", "line_ids"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "cart": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_apply_discount": {
+            "display_name": "Apply Discount Code",
+            "description": "Apply discount codes to cart",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
+                    "discount_codes": {"type": "array", "description": "Discount codes to apply", "label": "Discount Codes", "items": {"type": "string"}}
+                },
+                "required": ["cart_id", "discount_codes"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "cart": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_create_customer": {
+            "display_name": "Create Customer",
+            "description": "Create a new customer account",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "email": {"type": "string", "format": "email", "description": "Customer email", "label": "Email"},
+                    "password": {"type": "string", "description": "Account password", "label": "Password"},
+                    "first_name": {"type": "string", "description": "First name", "label": "First Name"},
+                    "last_name": {"type": "string", "description": "Last name", "label": "Last Name"},
+                    "phone": {"type": "string", "description": "Phone number", "label": "Phone"},
+                    "accepts_marketing": {"type": "boolean", "description": "Accept marketing emails", "label": "Accepts Marketing"}
+                },
+                "required": ["email", "password"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "customer": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_customer_login": {
+            "display_name": "Customer Login",
+            "description": "Login customer and get access token",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "email": {"type": "string", "format": "email", "description": "Customer email", "label": "Email"},
+                    "password": {"type": "string", "description": "Password", "label": "Password"}
+                },
+                "required": ["email", "password"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "customer_access_token": {"type": "string"},
+                    "expires_at": {"type": "string"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_get_customer": {
+            "display_name": "Get Customer",
+            "description": "Get customer profile using access token",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "customer_access_token": {"type": "string", "description": "Customer access token from login", "label": "Access Token"}
+                },
+                "required": ["customer_access_token"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "customer": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_recover_customer": {
+            "display_name": "Recover Customer Password",
+            "description": "Send password recovery email",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "email": {"type": "string", "format": "email", "description": "Customer email", "label": "Email"}
+                },
+                "required": ["email"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_update_customer": {
+            "display_name": "Update Customer",
+            "description": "Update customer profile using access token",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "customer_access_token": {"type": "string", "description": "Customer access token from login", "label": "Access Token"},
+                    "first_name": {"type": "string", "description": "First name", "label": "First Name"},
+                    "last_name": {"type": "string", "description": "Last name", "label": "Last Name"},
+                    "email": {"type": "string", "format": "email", "description": "New email address", "label": "Email"},
+                    "phone": {"type": "string", "description": "Phone number", "label": "Phone"},
+                    "password": {"type": "string", "description": "New password", "label": "Password"},
+                    "accepts_marketing": {"type": "boolean", "description": "Accept marketing emails", "label": "Accepts Marketing"}
+                },
+                "required": ["customer_access_token"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "customer": {"type": "object"},
+                    "customer_access_token": {"type": "string"},
+                    "expires_at": {"type": "string"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        }
+    }
+}
