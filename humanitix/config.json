@@ -112,33 +112,24 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
+                    "result": {"type": "boolean", "description": "Whether the request was successful"},
+                    "statusCode": {"type": "integer", "description": "HTTP status code on error (e.g. 401, 404, 500)"},
+                    "error": {"type": "string", "description": "Error type on failure (e.g. 'Unauthorized', 'Not Found')"},
+                    "message": {"type": "string", "description": "Detailed error message on failure"},
+                    "total": {"type": "integer", "description": "Total number of orders matching the query"},
+                    "page": {"type": "integer", "description": "Current page number"},
+                    "pageSize": {"type": "integer", "description": "Page size of the results"},
+                    "order": {
+                        "type": "object",
+                        "description": "Single order object returned directly from the Humanitix API (returned when order_id is provided)"
+                    },
                     "orders": {
                         "type": "array",
-                        "description": "List of orders (single item if order_id specified)",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "id": {"type": "string", "description": "Unique order ID"},
-                                "order_number": {"type": "string", "description": "Buyer-facing order number"},
-                                "status": {"type": "string", "description": "Order status"},
-                                "created_at": {"type": "string", "description": "Order creation timestamp"},
-                                "buyer": {
-                                    "type": "object",
-                                    "description": "Buyer information",
-                                    "properties": {
-                                        "first_name": {"type": "string"},
-                                        "last_name": {"type": "string"},
-                                        "email": {"type": "string"}
-                                    }
-                                },
-                                "total_amount": {"type": "number", "description": "Total order amount"},
-                                "currency": {"type": "string", "description": "Currency code"},
-                                "ticket_count": {"type": "integer", "description": "Number of tickets in order"}
-                            }
-                        }
+                        "description": "Array of order objects returned directly from the Humanitix API (returned when listing orders without order_id)",
+                        "items": {"type": "object"}
                     }
                 },
-                "required": ["orders"]
+                "required": ["result"]
             }
         },
         "get_tickets": {

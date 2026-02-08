@@ -57,7 +57,10 @@ When `order_id` is omitted, the action returns a paginated list of orders with o
 | `since` | No | ISO 8601 date-time to filter orders since (e.g. `2021-02-01T23:26:13.485Z`). List mode only. |
 | `page` | No | Page number, starts at 1 (default 1). List mode only. |
 
-**Outputs:** Order ID, order number, status, buyer info, total amount, currency, ticket count
+**Outputs:**
+- **On success (single):** `result`, `order` (raw order object from Humanitix API)
+- **On success (list):** `result`, `total`, `page`, `pageSize`, `orders` array (raw order objects)
+- **On error:** `result` (false), `statusCode`, `error`, `message`
 
 ---
 

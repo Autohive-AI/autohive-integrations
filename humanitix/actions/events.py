@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import HUMANITIX_API_BASE, get_api_headers
+from helpers import HUMANITIX_API_BASE, get_api_headers, build_error_result
 
 
 @humanitix.action("get_events")
@@ -46,13 +46,7 @@ class GetEventsAction(ActionHandler):
                 headers=headers
             )
 
-            if isinstance(response, dict) and "statusCode" in response:
-                return ActionResult(data={
-                    "result": False,
-                    "statusCode": response.get("statusCode"),
-                    "error": response.get("error", ""),
-                    "message": response.get("message", "")
-                })
+            if error := build_error_result(response): return error
 
             return ActionResult(data={
                 "result": True,
@@ -79,13 +73,7 @@ class GetEventsAction(ActionHandler):
                 headers=headers
             )
 
-            if isinstance(response, dict) and "statusCode" in response:
-                return ActionResult(data={
-                    "result": False,
-                    "statusCode": response.get("statusCode"),
-                    "error": response.get("error", ""),
-                    "message": response.get("message", "")
-                })
+            if error := build_error_result(response): return error
 
             events = response.get("events", []) if isinstance(response, dict) else []
 

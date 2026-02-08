@@ -4,7 +4,7 @@ Humanitix integration helper functions.
 This module contains shared utility functions used across multiple action files.
 """
 
-from autohive_integrations_sdk import ExecutionContext
+from autohive_integrations_sdk import ActionResult, ExecutionContext
 from typing import Dict, Any
 
 # Humanitix API configuration
@@ -32,34 +32,17 @@ def get_api_headers(context: ExecutionContext) -> Dict[str, str]:
     }
 
 
+def build_error_result(response) -> ActionResult | None:
+    if not isinstance(response, dict) or "statusCode" not in response:
+        return None
+    return ActionResult(data={
+        "result": False,
+        "statusCode": response.get("statusCode"),
+        "error": response.get("error", ""),
+        "message": response.get("message", "")
+    })
 
-def _build_order_response(order: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Normalize an order object from the Humanitix API into a consistent response format.
 
-    Args:
-        order: Raw order data from the API
-
-    Returns:
-        Normalized order object with consistent field names
-    """
-    buyer = order.get("buyer", {}) or order.get("contact", {}) or {}
-    tickets = order.get("tickets", []) or []
-
-    return {
-        "id": order.get("_id", ""),
-        "order_number": order.get("orderNumber") or order.get("orderId", ""),
-        "status": order.get("status", ""),
-        "created_at": order.get("createdAt") or order.get("created_at", ""),
-        "buyer": {
-            "first_name": buyer.get("firstName") or buyer.get("first_name", ""),
-            "last_name": buyer.get("lastName") or buyer.get("last_name", ""),
-            "email": buyer.get("email", "")
-        },
-        "total_amount": order.get("totalAmount") or order.get("total", 0),
-        "currency": order.get("currency", ""),
-        "ticket_count": len(tickets) if isinstance(tickets, list) else order.get("ticketCount", 0)
-    }
 
 
 def _build_ticket_response(ticket: Dict[str, Any]) -> Dict[str, Any]:
