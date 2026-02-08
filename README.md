@@ -162,7 +162,6 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Microsoft PowerPoint
 
-
 [microsoft-powerpoint](microsoft-powerpoint): Comprehensive PowerPoint integration for reading, creating, and manipulating presentations in OneDrive/SharePoint via Microsoft Graph API. Supports listing and searching .pptx files with filtering, retrieving presentation metadata including author and timestamps, accessing slide thumbnails in multiple sizes, creating new presentations from scratch or templates, full slide CRUD operations (add, update, delete slides with layout and content control), exporting presentations to PDF format, and generating slide images. Features the python-pptx library for slide content manipulation (title, body text, speaker notes), automatic file download/upload for modifications, thumbnail API integration, and OAuth2 authentication with Files.Read, Files.ReadWrite, and User.Read scopes. Includes 10 actions covering presentation discovery, metadata access, slide management, content editing, and export operations. Ideal for marketing automation, sales deck generation, training content management, and programmatic presentation workflows.
 
 
