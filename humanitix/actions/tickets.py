@@ -2,11 +2,11 @@
 Humanitix Tickets action - Retrieve ticket information for events.
 """
 
-from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionContext
+from autohive_integrations_sdk import ActionHandler, ExecutionContext
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import get_api_headers, build_url, build_error_result, build_paginated_result, fetch_single_resource
+from helpers import get_api_headers, build_url, build_paginated_result, fetch_single_resource
 
 
 @humanitix.action("get_tickets")
@@ -31,37 +31,36 @@ class GetTicketsAction(ActionHandler):
         ticket_id = inputs.get("ticket_id")
         override_location = inputs.get("override_location")
 
-        headers = get_api_headers(context)
         params = {}
         if override_location:
             params["overrideLocation"] = override_location
 
         if ticket_id:
             return await fetch_single_resource(context, f"events/{event_id}/tickets/{ticket_id}", params, "ticket")
-        else:
-            event_date_id = inputs.get("event_date_id")
-            page_size = inputs.get("page_size")
-            since = inputs.get("since")
-            status = inputs.get("status")
-            page = inputs.get("page", 1)
 
-            params["page"] = page
+        event_date_id = inputs.get("event_date_id")
+        page_size = inputs.get("page_size")
+        since = inputs.get("since")
+        status = inputs.get("status")
+        page = inputs.get("page", 1)
 
-            if event_date_id:
-                params["eventDateId"] = event_date_id
-            if page_size is not None:
-                params["pageSize"] = page_size
-            if since:
-                params["since"] = since
-            if status:
-                params["status"] = status
+        params["page"] = page
 
-            url = build_url(f"events/{event_id}/tickets", params)
+        if event_date_id:
+            params["eventDateId"] = event_date_id
+        if page_size is not None:
+            params["pageSize"] = page_size
+        if since:
+            params["since"] = since
+        if status:
+            params["status"] = status
 
-            response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers
-            )
+        url = build_url(f"events/{event_id}/tickets", params)
 
-            return build_paginated_result(response, "tickets", page, page_size)
+        response = await context.fetch(
+            url,
+            method="GET",
+            headers=get_api_headers(context)
+        )
+
+        return build_paginated_result(response, "tickets", page, page_size)

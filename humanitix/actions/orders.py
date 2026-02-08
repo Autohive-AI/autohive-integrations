@@ -2,7 +2,7 @@
 Humanitix Orders action - Retrieve order information for events.
 """
 
-from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionContext
+from autohive_integrations_sdk import ActionHandler, ExecutionContext
 from typing import Dict, Any
 
 from humanitix import humanitix
@@ -32,7 +32,6 @@ class GetOrdersAction(ActionHandler):
         override_location = inputs.get("override_location")
         event_date_id = inputs.get("event_date_id")
 
-        headers = get_api_headers(context)
         params = {}
         if override_location:
             params["overrideLocation"] = override_location
@@ -41,26 +40,26 @@ class GetOrdersAction(ActionHandler):
 
         if order_id:
             return await fetch_single_resource(context, f"events/{event_id}/orders/{order_id}", params, "order")
-        else:
-            page_size = inputs.get("page_size")
-            since = inputs.get("since")
-            page = inputs.get("page", 1)
 
-            params["page"] = page
+        page_size = inputs.get("page_size")
+        since = inputs.get("since")
+        page = inputs.get("page", 1)
 
-            if page_size is not None:
-                params["pageSize"] = page_size
-            if since:
-                params["since"] = since
+        params["page"] = page
 
-            url = build_url(f"events/{event_id}/orders", params)
+        if page_size is not None:
+            params["pageSize"] = page_size
+        if since:
+            params["since"] = since
 
-            response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers
-            )
+        url = build_url(f"events/{event_id}/orders", params)
 
-            if error := build_error_result(response): return error
+        response = await context.fetch(
+            url,
+            method="GET",
+            headers=get_api_headers(context)
+        )
 
-            return build_paginated_result(response, "orders", page, page_size)
+        if error := build_error_result(response): return error
+
+        return build_paginated_result(response, "orders", page, page_size)

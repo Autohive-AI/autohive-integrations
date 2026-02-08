@@ -139,7 +139,7 @@ When `tag_id` is omitted, the action returns a paginated list of tags.
 **Outputs:**
 - **On success (single):** `result`, `tag` (raw tag object from Humanitix API)
 - **On success (list):** `result`, `total`, `page`, `pageSize`, `tags` array (raw tag objects)
-- **On error (single only):** `result` (false), `statusCode`, `error`, `message`
+- **On error:** `result` (false), `statusCode`, `error`, `message`
 
 ---
 

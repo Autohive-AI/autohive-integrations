@@ -27,27 +27,25 @@ class GetTagsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         tag_id = inputs.get("tag_id")
 
-        headers = get_api_headers(context)
-
         if tag_id:
             return await fetch_single_resource(context, f"tags/{tag_id}", {}, "tag")
-        else:
-            page_size = inputs.get("page_size")
-            page = inputs.get("page", 1)
 
-            params = {"page": page}
+        page_size = inputs.get("page_size")
+        page = inputs.get("page", 1)
 
-            if page_size is not None:
-                params["pageSize"] = page_size
+        params = {"page": page}
 
-            url = build_url("tags", params)
+        if page_size is not None:
+            params["pageSize"] = page_size
 
-            response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers
-            )
+        url = build_url("tags", params)
 
-            if error := build_error_result(response): return error
+        response = await context.fetch(
+            url,
+            method="GET",
+            headers=get_api_headers(context)
+        )
 
-            return build_paginated_result(response, "tags", page, page_size)
+        if error := build_error_result(response): return error
+
+        return build_paginated_result(response, "tags", page, page_size)
