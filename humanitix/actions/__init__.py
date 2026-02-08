@@ -8,3 +8,4 @@ from actions.events import GetEventsAction
 from actions.orders import GetOrdersAction
 from actions.tickets import GetTicketsAction
 from actions.tags import GetTagsAction
+from actions.checkin import CheckInAction, CheckOutAction

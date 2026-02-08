@@ -9,6 +9,7 @@ Humanitix integration for Autohive. Manage events, orders, tickets, and tags fro
 | **Events** | Retrieve event details including dates, venue, and status |
 | **Orders** | Access order information with buyer details and payment status |
 | **Tickets** | View ticket details, attendee info, and check-in status |
+| **Check In / Check Out** | Check in or check out attendees for an event |
 | **Tags** | Retrieve tags for event categorization |
 
 ## Actions
@@ -81,6 +82,32 @@ When `ticket_id` is omitted, the action returns a paginated list of tickets with
 
 ---
 
+### Check In / Check Out
+
+#### `check_in`
+Check in a ticket for an event. Marks the attendee as checked in and returns any scanning messages configured for the ticket.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `event_id` | Yes | The event ID the ticket belongs to. |
+| `ticket_id` | Yes | The ticket ID to check in. |
+| `override_location` | No | ISO 3166-1 alpha-2 country code to override user location (e.g. `AU`). |
+
+**Outputs:** Scanning messages (header, message)
+
+#### `check_out`
+Check out a ticket for an event. Marks the attendee as checked out and returns any scanning messages configured for the ticket.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `event_id` | Yes | The event ID the ticket belongs to. |
+| `ticket_id` | Yes | The ticket ID to check out. |
+| `override_location` | No | ISO 3166-1 alpha-2 country code to override user location (e.g. `AU`). |
+
+**Outputs:** Scanning messages (header, message)
+
+---
+
 ### Tags
 
 #### `get_tags`
@@ -138,6 +165,7 @@ humanitix/
 │   ├── events.py        # Event retrieval actions
 │   ├── orders.py        # Order retrieval actions
 │   ├── tickets.py       # Ticket retrieval actions
+│   ├── checkin.py       # Check in / check out actions
 │   └── tags.py          # Tag retrieval actions
 └── requirements.txt     # Python dependencies
 ```

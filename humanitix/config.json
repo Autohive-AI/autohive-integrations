@@ -264,6 +264,84 @@
                 },
                 "required": ["tags"]
             }
+        },
+        "check_in": {
+            "display_name": "Check In",
+            "description": "Check in a ticket for an event. Marks the attendee as checked in and returns any scanning messages configured for the ticket.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The event ID the ticket belongs to."
+                    },
+                    "ticket_id": {
+                        "type": "string",
+                        "description": "The ticket ID to check in."
+                    },
+                    "override_location": {
+                        "type": "string",
+                        "description": "Override the user location for the query. ISO 3166-1 alpha-2 country code (e.g. 'AU', 'NZ', 'US')."
+                    }
+                },
+                "required": ["event_id", "ticket_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "scanning_messages": {
+                        "type": "array",
+                        "description": "Scanning messages configured for the ticket",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "header": {"type": "string", "description": "Scanning message header"},
+                                "message": {"type": "string", "description": "Scanning message body (may contain HTML)"}
+                            }
+                        }
+                    }
+                },
+                "required": ["scanning_messages"]
+            }
+        },
+        "check_out": {
+            "display_name": "Check Out",
+            "description": "Check out a ticket for an event. Marks the attendee as checked out and returns any scanning messages configured for the ticket.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The event ID the ticket belongs to."
+                    },
+                    "ticket_id": {
+                        "type": "string",
+                        "description": "The ticket ID to check out."
+                    },
+                    "override_location": {
+                        "type": "string",
+                        "description": "Override the user location for the query. ISO 3166-1 alpha-2 country code (e.g. 'AU', 'NZ', 'US')."
+                    }
+                },
+                "required": ["event_id", "ticket_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "scanning_messages": {
+                        "type": "array",
+                        "description": "Scanning messages configured for the ticket",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "header": {"type": "string", "description": "Scanning message header"},
+                                "message": {"type": "string", "description": "Scanning message body (may contain HTML)"}
+                            }
+                        }
+                    }
+                },
+                "required": ["scanning_messages"]
+            }
         }
     }
 }
