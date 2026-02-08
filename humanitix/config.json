@@ -52,36 +52,24 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
+                    "result": {"type": "boolean", "description": "Whether the request was successful"},
+                    "statusCode": {"type": "integer", "description": "HTTP status code on error (e.g. 400, 401, 500)"},
+                    "error": {"type": "string", "description": "Error type on failure (e.g. 'Bad Request', 'Unauthorized')"},
+                    "message": {"type": "string", "description": "Detailed error message on failure"},
+                    "total": {"type": "integer", "description": "Total number of events matching the query"},
+                    "page": {"type": "integer", "description": "Current page number"},
+                    "pageSize": {"type": "integer", "description": "Page size of the results"},
+                    "event": {
+                        "type": "object",
+                        "description": "Single event object returned directly from the Humanitix API (returned when event_id is provided)"
+                    },
                     "events": {
                         "type": "array",
-                        "description": "List of events (single item if event_id specified)",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "id": {"type": "string", "description": "Unique event ID"},
-                                "name": {"type": "string", "description": "Event name"},
-                                "slug": {"type": "string", "description": "URL-friendly event slug"},
-                                "status": {"type": "string", "description": "Event status"},
-                                "timezone": {"type": "string", "description": "Event timezone"},
-                                "start_date": {"type": "string", "description": "Event start date/time"},
-                                "end_date": {"type": "string", "description": "Event end date/time"},
-                                "venue": {
-                                    "type": "object",
-                                    "description": "Venue details",
-                                    "properties": {
-                                        "name": {"type": "string"},
-                                        "address": {"type": "string"},
-                                        "city": {"type": "string"},
-                                        "state": {"type": "string"},
-                                        "country": {"type": "string"}
-                                    }
-                                },
-                                "url": {"type": "string", "description": "Public event URL"}
-                            }
-                        }
+                        "description": "Array of event objects returned directly from the Humanitix API (returned when listing events without event_id)",
+                        "items": {"type": "object"}
                     }
                 },
-                "required": ["events"]
+                "required": ["result"]
             }
         },
         "get_orders": {

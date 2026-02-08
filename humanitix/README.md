@@ -31,7 +31,10 @@ When `event_id` is omitted, the action returns a paginated list of events with o
 | `since` | No | ISO 8601 date-time to filter events since (e.g. `2021-02-01T23:26:13.485Z`). List mode only. |
 | `page` | No | Page number, starts at 1 (default 1). List mode only. |
 
-**Outputs:** Event ID, name, slug, status, timezone, dates, venue, URL
+**Outputs:**
+- **On success (single):** `result`, `event` (raw event object from Humanitix API)
+- **On success (list):** `result`, `total`, `page`, `pageSize`, `events` array (raw event objects)
+- **On error:** `result` (false), `statusCode`, `error`, `message`
 
 ---
 

@@ -32,41 +32,6 @@ def get_api_headers(context: ExecutionContext) -> Dict[str, str]:
     }
 
 
-def _build_event_response(event: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Normalize an event object from the Humanitix API into a consistent response format.
-
-    Args:
-        event: Raw event data from the API
-
-    Returns:
-        Normalized event object with consistent field names
-    """
-    # Handle nested location/venue data
-    location = event.get("location", {}) or {}
-    venue = event.get("venue", {}) or {}
-
-    # Merge location and venue info
-    venue_info = {
-        "name": venue.get("name") or location.get("name", ""),
-        "address": location.get("address") or venue.get("address", ""),
-        "city": location.get("city", ""),
-        "state": location.get("state", ""),
-        "country": location.get("country", "")
-    }
-
-    return {
-        "id": event.get("_id", ""),
-        "name": event.get("name", ""),
-        "slug": event.get("slug", ""),
-        "status": event.get("status", ""),
-        "timezone": event.get("timezone", ""),
-        "start_date": event.get("startDate") or event.get("start_date", ""),
-        "end_date": event.get("endDate") or event.get("end_date", ""),
-        "venue": venue_info,
-        "url": event.get("eventUrl") or event.get("url", "")
-    }
-
 
 def _build_order_response(order: Dict[str, Any]) -> Dict[str, Any]:
     """

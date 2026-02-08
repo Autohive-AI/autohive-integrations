@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import HUMANITIX_API_BASE, get_api_headers, _build_event_response
+from helpers import HUMANITIX_API_BASE, get_api_headers
 
 
 @humanitix.action("get_events")
@@ -46,15 +46,25 @@ class GetEventsAction(ActionHandler):
                 headers=headers
             )
 
-            event_data = response if isinstance(response, dict) else {}
-            events = [_build_event_response(event_data)]
+            if isinstance(response, dict) and "statusCode" in response:
+                return ActionResult(data={
+                    "result": False,
+                    "statusCode": response.get("statusCode"),
+                    "error": response.get("error", ""),
+                    "message": response.get("message", "")
+                })
+
+            return ActionResult(data={
+                "result": True,
+                "event": response
+            })
         else:
             page_size = inputs.get("page_size")
             since = inputs.get("since")
             page = inputs.get("page", 1)
 
             params["page"] = page
-            
+
             if page_size is not None:
                 params["pageSize"] = page_size
             if since:
@@ -69,7 +79,20 @@ class GetEventsAction(ActionHandler):
                 headers=headers
             )
 
-            events_data = response if isinstance(response, list) else response.get("events", [])
-            events = [_build_event_response(e) for e in events_data]
+            if isinstance(response, dict) and "statusCode" in response:
+                return ActionResult(data={
+                    "result": False,
+                    "statusCode": response.get("statusCode"),
+                    "error": response.get("error", ""),
+                    "message": response.get("message", "")
+                })
 
-        return ActionResult(data={"events": events})
+            events = response.get("events", []) if isinstance(response, dict) else []
+
+            return ActionResult(data={
+                "result": True,
+                "events": events,
+                "total": response.get("total", len(events)) if isinstance(response, dict) else len(events),
+                "page": response.get("page", page) if isinstance(response, dict) else page,
+                "pageSize": response.get("pageSize", page_size or 100) if isinstance(response, dict) else (page_size or 100)
+            })
