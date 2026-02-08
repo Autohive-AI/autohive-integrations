@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import get_api_headers, build_url, build_error_result, build_paginated_result
+from helpers import get_api_headers, build_url, build_error_result, build_paginated_result, fetch_single_resource
 
 
 @humanitix.action("get_orders")
@@ -40,20 +40,7 @@ class GetOrdersAction(ActionHandler):
             params["eventDateId"] = event_date_id
 
         if order_id:
-            url = build_url(f"events/{event_id}/orders/{order_id}", params or None)
-
-            response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers
-            )
-
-            if error := build_error_result(response): return error
-
-            return ActionResult(data={
-                "result": True,
-                "order": response
-            })
+            return await fetch_single_resource(context, f"events/{event_id}/orders/{order_id}", params, "order")
         else:
             page_size = inputs.get("page_size")
             since = inputs.get("since")

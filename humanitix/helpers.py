@@ -40,6 +40,13 @@ def build_url(path: str, params: Dict[str, Any] | None = None) -> str:
     return url
 
 
+async def fetch_single_resource(context: ExecutionContext, path: str, params: Dict[str, Any], result_key: str) -> ActionResult:
+    url = build_url(path, params or None)
+    response = await context.fetch(url, method="GET", headers=get_api_headers(context))
+    if error := build_error_result(response): return error
+    return ActionResult(data={"result": True, result_key: response})
+
+
 def build_paginated_result(response, key: str, page: int, page_size: int | None = None) -> ActionResult:
     items = response.get(key, []) if isinstance(response, dict) else []
     is_dict = isinstance(response, dict)

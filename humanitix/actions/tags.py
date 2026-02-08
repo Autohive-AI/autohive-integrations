@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import get_api_headers, build_url, build_error_result, build_paginated_result
+from helpers import get_api_headers, build_url, build_error_result, build_paginated_result, fetch_single_resource
 
 
 @humanitix.action("get_tags")
@@ -30,20 +30,7 @@ class GetTagsAction(ActionHandler):
         headers = get_api_headers(context)
 
         if tag_id:
-            url = build_url(f"tags/{tag_id}")
-
-            response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers
-            )
-
-            if error := build_error_result(response): return error
-
-            return ActionResult(data={
-                "result": True,
-                "tag": response
-            })
+            return await fetch_single_resource(context, f"tags/{tag_id}", {}, "tag")
         else:
             page_size = inputs.get("page_size")
             page = inputs.get("page", 1)
