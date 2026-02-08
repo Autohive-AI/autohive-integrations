@@ -14,7 +14,7 @@
                     "type": "string",
                     "format": "password",
                     "label": "API Key",
-                    "help_text": "Your Humanitix API Key. Generate it from Account > Advanced > Public API Key in the Humanitix console."
+                    "help_text": "Your Humanitix API Key. Generate it from Account > Advanced > API Key in the Humanitix Host Console."
                 }
             }
         }
@@ -28,7 +28,23 @@
                 "properties": {
                     "event_id": {
                         "type": "string",
-                        "description": "Optional: Specific event ID to retrieve. If omitted, returns all events."
+                        "description": "Optional: Specific event ID to retrieve. If provided, fetches that single event directly and the page_size, since, and page parameters are ignored. If omitted, returns a paginated list of events."
+                    },
+                    "override_location": {
+                        "type": "string",
+                        "description": "Override the user location for the query. ISO 3166-1 alpha-2 country code (e.g. 'AU', 'NZ', 'US'). Applies to both single event and list queries."
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Page size of results (1-100, default 100). Only used when listing events (ignored if event_id is provided)."
+                    },
+                    "since": {
+                        "type": "string",
+                        "description": "Return events since this date-time (ISO 8601, e.g. '2021-02-01T23:26:13.485Z'). Only used when listing events (ignored if event_id is provided)."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number to fetch (starts at 1). Only used when listing events (ignored if event_id is provided)."
                     }
                 },
                 "required": []

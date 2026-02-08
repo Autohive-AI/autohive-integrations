@@ -1,14 +1,9 @@
 """
 Humanitix Integration for Autohive
 
-This module provides event management functionality including:
-- Event retrieval (single or list)
-- Order management for events
-- Ticket information and check-in status
-- Tag categorization
+This module provides retrieval functionality for events, orders, tickets, and tags.
 
 All actions use the Humanitix Public API v1.
-Humanitix is a non-profit ticketing platform where 100% of profits go to charity.
 """
 
 from autohive_integrations_sdk import Integration

@@ -2,8 +2,6 @@
 
 Humanitix integration for Autohive. Manage events, orders, tickets, and tags from a unified interface.
 
-Humanitix is a non-profit ticketing platform where 100% of profits from booking fees go to charities providing education, healthcare, and basic necessities worldwide.
-
 ## Features
 
 | Category | Capabilities |
@@ -18,11 +16,19 @@ Humanitix is a non-profit ticketing platform where 100% of profits from booking 
 ### Events
 
 #### `get_events`
-Retrieve events from your Humanitix account. Fetch a single event or list all events.
+Retrieve events from your Humanitix account. Fetch a single event by ID, or list events with pagination and filtering.
+
+When `event_id` is provided, the action fetches that single event directly. The `page_size`, `since`, and `page` parameters are ignored in this mode — only `override_location` is supported.
+
+When `event_id` is omitted, the action returns a paginated list of events with optional filtering.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `event_id` | No | Specific event ID (omit to list all) |
+| `event_id` | No | Specific event ID. If provided, fetches that single event directly. |
+| `override_location` | No | ISO 3166-1 alpha-2 country code to override user location (e.g. `AU`). Works for both single and list queries. |
+| `page_size` | No | Results per page, 1–100 (default 100). List mode only. |
+| `since` | No | ISO 8601 date-time to filter events since (e.g. `2021-02-01T23:26:13.485Z`). List mode only. |
+| `page` | No | Page number, starts at 1 (default 1). List mode only. |
 
 **Outputs:** Event ID, name, slug, status, timezone, dates, venue, URL
 
@@ -72,7 +78,7 @@ This integration uses API Key authentication.
 ### Getting Your API Key
 
 1. Log into your Humanitix account
-2. Navigate to **Account > Advanced > Public API Key**
+2. Navigate to **Account > Advanced > API Key**
 3. Generate your API key
 
 **Important:**
