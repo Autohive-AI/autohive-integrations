@@ -116,6 +116,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [heartbeat](heartbeat): Connects to Heartbeat.chat community platform for comprehensive access to channels, threads, comments, users, and events. Supports retrieving channel information, managing thread discussions, creating and viewing comments, accessing user profiles, and viewing community events. Includes full CRUD operations for community engagement and content management.
 
+### Humanitix
+
+[humanitix](humanitix): Event management integration with Humanitix Public API v1 for retrieving events, orders, tickets, and attendee check-ins. Supports event retrieval (single event by ID or paginated list with date filtering), order retrieval with buyer details and payment status, ticket access with attendee information and check-in status filtering, attendee check-in and check-out operations with scanning message support, and tag retrieval for event categorization. Features API key authentication, location override with ISO 3166-1 alpha-2 country codes, pagination support (up to 100 results per page), and date-time filtering with ISO 8601. Includes 6 actions covering events, orders, tickets, check-in/check-out, and tags. Ideal for event operations, attendee tracking, and ticketing workflows.
+
 ### HeyGen
 
 [heygen](heygen): AI-powered video avatar integration for creating realistic talking avatar videos. Supports generating AI photo avatars, creating and training avatar groups, generating new looks, creating videos with avatars and voice synthesis, and checking generation/video status. Includes voice and avatar discovery, motion and sound effects, and avatar group management. Features 19 actions with API key authentication.
