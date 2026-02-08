@@ -161,11 +161,35 @@
                 "properties": {
                     "event_id": {
                         "type": "string",
-                        "description": "The event ID to get tickets for"
+                        "description": "The event ID to get tickets for."
                     },
                     "ticket_id": {
                         "type": "string",
-                        "description": "Optional: Specific ticket ID to retrieve. If omitted, returns all tickets for the event."
+                        "description": "Optional: Specific ticket ID to retrieve. If provided, fetches that single ticket directly and the page_size, since, status, event_date_id, and page parameters are ignored. If omitted, returns a paginated list of tickets."
+                    },
+                    "override_location": {
+                        "type": "string",
+                        "description": "Override the user location for the query. ISO 3166-1 alpha-2 country code (e.g. 'AU', 'NZ', 'US'). Applies to both single ticket and list queries."
+                    },
+                    "event_date_id": {
+                        "type": "string",
+                        "description": "Optional: Filter by a specific event date ID. Only used when listing tickets (ignored if ticket_id is provided)."
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Page size of results (1-100, default 100). Only used when listing tickets (ignored if ticket_id is provided)."
+                    },
+                    "since": {
+                        "type": "string",
+                        "description": "Return tickets since this date-time (ISO 8601, e.g. '2021-02-01T23:26:13.485Z'). Only used when listing tickets (ignored if ticket_id is provided)."
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by ticket status ('complete' or 'cancelled'). Only used when listing tickets (ignored if ticket_id is provided)."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number to fetch (starts at 1). Only used when listing tickets (ignored if ticket_id is provided)."
                     }
                 },
                 "required": ["event_id"]

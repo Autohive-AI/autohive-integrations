@@ -60,12 +60,22 @@ When `order_id` is omitted, the action returns a paginated list of orders with o
 ### Tickets
 
 #### `get_tickets`
-Retrieve tickets for a specific event.
+Retrieve tickets for a specific event. Fetch a single ticket by ID, or list tickets with pagination and filtering.
+
+When `ticket_id` is provided, the action fetches that single ticket directly. The `page_size`, `since`, `status`, `event_date_id`, and `page` parameters are ignored in this mode — only `override_location` is supported.
+
+When `ticket_id` is omitted, the action returns a paginated list of tickets with optional filtering.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `event_id` | Yes | The event ID to get tickets for |
-| `ticket_id` | No | Specific ticket ID (omit to list all) |
+| `event_id` | Yes | The event ID to get tickets for. |
+| `ticket_id` | No | Specific ticket ID. If provided, fetches that single ticket directly. |
+| `override_location` | No | ISO 3166-1 alpha-2 country code to override user location (e.g. `AU`). Works for both single and list queries. |
+| `event_date_id` | No | Filter by a specific event date ID. List mode only. |
+| `page_size` | No | Results per page, 1–100 (default 100). List mode only. |
+| `since` | No | ISO 8601 date-time to filter tickets since (e.g. `2021-02-01T23:26:13.485Z`). List mode only. |
+| `status` | No | Filter by ticket status (`complete` or `cancelled`). List mode only. |
+| `page` | No | Page number, starts at 1 (default 1). List mode only. |
 
 **Outputs:** Ticket ID, type, status, check-in status, attendee info, order ID
 
