@@ -2,7 +2,7 @@
 Humanitix Tags action - Retrieve tag information.
 """
 
-from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionContext
+from autohive_integrations_sdk import ActionHandler, ExecutionContext
 from typing import Dict, Any
 
 from humanitix import humanitix
@@ -47,5 +47,7 @@ class GetTagsAction(ActionHandler):
                 method="GET",
                 headers=headers
             )
+
+            if error := build_error_result(response): return error
 
             return build_paginated_result(response, "tags", page, page_size)
