@@ -176,32 +176,24 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
+                    "result": {"type": "boolean", "description": "Whether the request was successful"},
+                    "statusCode": {"type": "integer", "description": "HTTP status code on error (e.g. 401, 404)"},
+                    "error": {"type": "string", "description": "Error type on failure (e.g. 'Unauthorized', 'Not Found')"},
+                    "message": {"type": "string", "description": "Detailed error message on failure"},
+                    "total": {"type": "integer", "description": "Total number of tickets matching the query"},
+                    "page": {"type": "integer", "description": "Current page number"},
+                    "pageSize": {"type": "integer", "description": "Page size of the results"},
+                    "ticket": {
+                        "type": "object",
+                        "description": "Single ticket object returned directly from the Humanitix API (returned when ticket_id is provided)"
+                    },
                     "tickets": {
                         "type": "array",
-                        "description": "List of tickets (single item if ticket_id specified)",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "id": {"type": "string", "description": "Unique ticket ID"},
-                                "ticket_type": {"type": "string", "description": "Ticket type name"},
-                                "status": {"type": "string", "description": "Ticket status"},
-                                "checked_in": {"type": "boolean", "description": "Whether ticket has been checked in"},
-                                "checked_in_at": {"type": "string", "description": "Check-in timestamp if checked in"},
-                                "attendee": {
-                                    "type": "object",
-                                    "description": "Attendee information",
-                                    "properties": {
-                                        "first_name": {"type": "string"},
-                                        "last_name": {"type": "string"},
-                                        "email": {"type": "string"}
-                                    }
-                                },
-                                "order_id": {"type": "string", "description": "Associated order ID"}
-                            }
-                        }
+                        "description": "Array of ticket objects returned directly from the Humanitix API (returned when listing tickets without ticket_id)",
+                        "items": {"type": "object"}
                     }
                 },
-                "required": ["tickets"]
+                "required": ["result"]
             }
         },
         "get_tags": {
@@ -268,7 +260,11 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "scanning_messages": {
+                    "result": {"type": "boolean", "description": "Whether the request was successful"},
+                    "statusCode": {"type": "integer", "description": "HTTP status code on error (e.g. 400, 401)"},
+                    "error": {"type": "string", "description": "Error type on failure (e.g. 'Bad Request', 'Unauthorized')"},
+                    "message": {"type": "string", "description": "Detailed error message on failure"},
+                    "scanningMessages": {
                         "type": "array",
                         "description": "Scanning messages configured for the ticket",
                         "items": {
@@ -280,7 +276,7 @@
                         }
                     }
                 },
-                "required": ["scanning_messages"]
+                "required": ["result"]
             }
         },
         "check_out": {
@@ -307,7 +303,11 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "scanning_messages": {
+                    "result": {"type": "boolean", "description": "Whether the request was successful"},
+                    "statusCode": {"type": "integer", "description": "HTTP status code on error (e.g. 400, 401)"},
+                    "error": {"type": "string", "description": "Error type on failure (e.g. 'Bad Request', 'Unauthorized')"},
+                    "message": {"type": "string", "description": "Detailed error message on failure"},
+                    "scanningMessages": {
                         "type": "array",
                         "description": "Scanning messages configured for the ticket",
                         "items": {
@@ -319,7 +319,7 @@
                         }
                     }
                 },
-                "required": ["scanning_messages"]
+                "required": ["result"]
             }
         }
     }

@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import HUMANITIX_API_BASE, get_api_headers
+from helpers import HUMANITIX_API_BASE, get_api_headers, build_error_result
 
 
 @humanitix.action("check_in")
@@ -37,11 +37,12 @@ class CheckInAction(ActionHandler):
             headers=headers
         )
 
-        scanning_messages = []
-        if isinstance(response, dict):
-            scanning_messages = response.get("scanningMessages", [])
+        if error := build_error_result(response): return error
 
-        return ActionResult(data={"scanning_messages": scanning_messages})
+        return ActionResult(data={
+            "result": True,
+            "scanningMessages": response.get("scanningMessages", []) if isinstance(response, dict) else []
+        })
 
 
 @humanitix.action("check_out")
@@ -72,8 +73,9 @@ class CheckOutAction(ActionHandler):
             headers=headers
         )
 
-        scanning_messages = []
-        if isinstance(response, dict):
-            scanning_messages = response.get("scanningMessages", [])
+        if error := build_error_result(response): return error
 
-        return ActionResult(data={"scanning_messages": scanning_messages})
+        return ActionResult(data={
+            "result": True,
+            "scanningMessages": response.get("scanningMessages", []) if isinstance(response, dict) else []
+        })

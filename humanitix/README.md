@@ -84,7 +84,10 @@ When `ticket_id` is omitted, the action returns a paginated list of tickets with
 | `status` | No | Filter by ticket status (`complete` or `cancelled`). List mode only. |
 | `page` | No | Page number, starts at 1 (default 1). List mode only. |
 
-**Outputs:** Ticket ID, type, status, check-in status, attendee info, order ID
+**Outputs:**
+- **On success (single):** `result`, `ticket` (raw ticket object from Humanitix API)
+- **On success (list):** `result`, `total`, `page`, `pageSize`, `tickets` array (raw ticket objects)
+- **On error (single only):** `result` (false), `statusCode`, `error`, `message`
 
 ---
 
@@ -99,7 +102,9 @@ Check in a ticket for an event. Marks the attendee as checked in and returns any
 | `ticket_id` | Yes | The ticket ID to check in. |
 | `override_location` | No | ISO 3166-1 alpha-2 country code to override user location (e.g. `AU`). |
 
-**Outputs:** Scanning messages (header, message)
+**Outputs:**
+- **On success:** `result`, `scanningMessages` array (each with `header` and `message`)
+- **On error:** `result` (false), `statusCode`, `error`, `message`
 
 #### `check_out`
 Check out a ticket for an event. Marks the attendee as checked out and returns any scanning messages configured for the ticket.
@@ -110,7 +115,9 @@ Check out a ticket for an event. Marks the attendee as checked out and returns a
 | `ticket_id` | Yes | The ticket ID to check out. |
 | `override_location` | No | ISO 3166-1 alpha-2 country code to override user location (e.g. `AU`). |
 
-**Outputs:** Scanning messages (header, message)
+**Outputs:**
+- **On success:** `result`, `scanningMessages` array (each with `header` and `message`)
+- **On error:** `result` (false), `statusCode`, `error`, `message`
 
 ---
 
