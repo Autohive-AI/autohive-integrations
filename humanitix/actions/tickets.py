@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import HUMANITIX_API_BASE, get_api_headers, build_error_result
+from helpers import get_api_headers, build_url, build_error_result
 
 
 @humanitix.action("get_tickets")
@@ -37,10 +37,7 @@ class GetTicketsAction(ActionHandler):
             params["overrideLocation"] = override_location
 
         if ticket_id:
-            url = f"{HUMANITIX_API_BASE}/events/{event_id}/tickets/{ticket_id}"
-            if params:
-                query_string = "&".join(f"{k}={v}" for k, v in params.items())
-                url = f"{url}?{query_string}"
+            url = build_url(f"events/{event_id}/tickets/{ticket_id}", params or None)
 
             response = await context.fetch(
                 url,
@@ -72,8 +69,7 @@ class GetTicketsAction(ActionHandler):
             if status:
                 params["status"] = status
 
-            query_string = "&".join(f"{k}={v}" for k, v in params.items())
-            url = f"{HUMANITIX_API_BASE}/events/{event_id}/tickets?{query_string}"
+            url = build_url(f"events/{event_id}/tickets", params)
 
             response = await context.fetch(
                 url,

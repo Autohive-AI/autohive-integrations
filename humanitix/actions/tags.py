@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import HUMANITIX_API_BASE, get_api_headers, build_error_result
+from helpers import get_api_headers, build_url, build_error_result
 
 
 @humanitix.action("get_tags")
@@ -30,7 +30,7 @@ class GetTagsAction(ActionHandler):
         headers = get_api_headers(context)
 
         if tag_id:
-            url = f"{HUMANITIX_API_BASE}/tags/{tag_id}"
+            url = build_url(f"tags/{tag_id}")
 
             response = await context.fetch(
                 url,
@@ -53,8 +53,7 @@ class GetTagsAction(ActionHandler):
             if page_size is not None:
                 params["pageSize"] = page_size
 
-            query_string = "&".join(f"{k}={v}" for k, v in params.items())
-            url = f"{HUMANITIX_API_BASE}/tags?{query_string}"
+            url = build_url("tags", params)
 
             response = await context.fetch(
                 url,

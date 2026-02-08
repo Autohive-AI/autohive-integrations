@@ -5,7 +5,8 @@ This module contains shared utility functions used across multiple action files.
 """
 
 from autohive_integrations_sdk import ActionResult, ExecutionContext
-from typing import Dict
+from typing import Any, Dict
+from urllib.parse import urlencode
 
 # Humanitix API configuration
 HUMANITIX_API_BASE = "https://api.humanitix.com/v1"
@@ -30,6 +31,13 @@ def get_api_headers(context: ExecutionContext) -> Dict[str, str]:
         "x-api-key": api_key,
         "Accept": "application/json"
     }
+
+
+def build_url(path: str, params: Dict[str, Any] | None = None) -> str:
+    url = f"{HUMANITIX_API_BASE}/{path}"
+    if params:
+        url = f"{url}?{urlencode(params)}"
+    return url
 
 
 def build_error_result(response) -> ActionResult | None:

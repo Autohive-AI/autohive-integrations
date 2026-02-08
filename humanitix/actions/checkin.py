@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import HUMANITIX_API_BASE, get_api_headers, build_error_result
+from helpers import get_api_headers, build_url, build_error_result
 
 
 @humanitix.action("check_in")
@@ -27,9 +27,8 @@ class CheckInAction(ActionHandler):
         headers = get_api_headers(context)
         headers["Content-Type"] = "application/json"
 
-        url = f"{HUMANITIX_API_BASE}/events/{event_id}/tickets/{ticket_id}/check-in"
-        if override_location:
-            url = f"{url}?overrideLocation={override_location}"
+        params = {"overrideLocation": override_location} if override_location else None
+        url = build_url(f"events/{event_id}/tickets/{ticket_id}/check-in", params)
 
         response = await context.fetch(
             url,
@@ -63,9 +62,8 @@ class CheckOutAction(ActionHandler):
         headers = get_api_headers(context)
         headers["Content-Type"] = "application/json"
 
-        url = f"{HUMANITIX_API_BASE}/events/{event_id}/tickets/{ticket_id}/check-out"
-        if override_location:
-            url = f"{url}?overrideLocation={override_location}"
+        params = {"overrideLocation": override_location} if override_location else None
+        url = build_url(f"events/{event_id}/tickets/{ticket_id}/check-out", params)
 
         response = await context.fetch(
             url,
