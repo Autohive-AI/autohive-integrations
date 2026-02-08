@@ -45,36 +45,6 @@ def build_error_result(response) -> ActionResult | None:
 
 
 
-def _build_ticket_response(ticket: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Normalize a ticket object from the Humanitix API into a consistent response format.
-
-    Args:
-        ticket: Raw ticket data from the API
-
-    Returns:
-        Normalized ticket object with consistent field names
-    """
-    attendee = ticket.get("attendee", {}) or ticket.get("ticketHolder", {}) or {}
-
-    checked_in = ticket.get("checkedIn", False) or ticket.get("checked_in", False)
-    checked_in_at = ticket.get("checkedInAt") or ticket.get("checked_in_at")
-
-    return {
-        "id": ticket.get("_id", ""),
-        "ticket_type": ticket.get("ticketType") or ticket.get("ticketTypeName", ""),
-        "status": ticket.get("status", ""),
-        "checked_in": checked_in,
-        "checked_in_at": checked_in_at if checked_in else None,
-        "attendee": {
-            "first_name": attendee.get("firstName") or attendee.get("first_name", ""),
-            "last_name": attendee.get("lastName") or attendee.get("last_name", ""),
-            "email": attendee.get("email", "")
-        },
-        "order_id": ticket.get("orderId") or ticket.get("order_id", "")
-    }
-
-
 def _build_tag_response(tag: Dict[str, Any]) -> Dict[str, Any]:
     """
     Normalize a tag object from the Humanitix API into a consistent response format.

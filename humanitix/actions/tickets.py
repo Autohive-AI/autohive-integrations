@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import HUMANITIX_API_BASE, get_api_headers, _build_ticket_response
+from helpers import HUMANITIX_API_BASE, get_api_headers, build_error_result
 
 
 @humanitix.action("get_tickets")
@@ -48,8 +48,12 @@ class GetTicketsAction(ActionHandler):
                 headers=headers
             )
 
-            ticket_data = response if isinstance(response, dict) else {}
-            tickets = [_build_ticket_response(ticket_data)]
+            if error := build_error_result(response): return error
+
+            return ActionResult(data={
+                "result": True,
+                "ticket": response
+            })
         else:
             event_date_id = inputs.get("event_date_id")
             page_size = inputs.get("page_size")
@@ -77,7 +81,12 @@ class GetTicketsAction(ActionHandler):
                 headers=headers
             )
 
-            tickets_data = response if isinstance(response, list) else response.get("tickets", [])
-            tickets = [_build_ticket_response(t) for t in tickets_data]
+            tickets = response.get("tickets", []) if isinstance(response, dict) else []
 
-        return ActionResult(data={"tickets": tickets})
+            return ActionResult(data={
+                "result": True,
+                "tickets": tickets,
+                "total": response.get("total", len(tickets)) if isinstance(response, dict) else len(tickets),
+                "page": response.get("page", page) if isinstance(response, dict) else page,
+                "pageSize": response.get("pageSize", page_size or 100) if isinstance(response, dict) else (page_size or 100)
+            })
