@@ -6,7 +6,7 @@ Connects Autohive to the X API to enable posting, engagement management, user in
 
 This integration provides a comprehensive connection to X's social media platform. It allows users to automate post creation, search and retrieve posts, manage likes and reposts, follow/unfollow users, and retrieve user information directly from Autohive.
 
-The integration uses X API v2 with OAuth 2.0 authentication and implements 12 actions covering posts, reposts, and users.
+The integration uses X API v2 with OAuth 2.0 authentication and implements 15 actions covering posts, bookmarks, reposts, and users.
 
 ## Setup & Authentication
 
@@ -21,7 +21,7 @@ X supports multiple authentication methods:
    - Users authorize access to their account
    - Tokens are managed automatically by the platform
    - Recommended for multi-user integrations
-   - Required scopes: `tweet.read`, `tweet.write`, `media.write`, `users.read`, `follows.read`, `follows.write`, `like.read`, `offline.access`
+   - Required scopes: `tweet.read`, `tweet.write`, `media.write`, `users.read`, `follows.read`, `follows.write`, `like.read`, `bookmark.read`, `bookmark.write`, `offline.access`
 
 2. **OAuth 1.0a** (Alternative method)
    - Uses API Key, API Secret, Access Token, and Access Token Secret
@@ -200,6 +200,53 @@ Retrieves posts liked by a user.
 
 ---
 
+### Bookmarks (3 actions)
+
+#### `get_bookmarks`
+Retrieves the authenticated user's bookmarked posts.
+
+**Inputs:**
+- `user_id` (required): The ID of the authenticated user
+- `max_results` (optional): Maximum number of results (1-100, default: 10)
+- `pagination_token` (optional): Pagination token from previous response
+
+**Outputs:**
+- `posts`: Array of bookmarked posts
+- `includes`: Additional data like user information
+- `meta`: Metadata including pagination tokens
+- `result`: Success status (boolean)
+- `error`: Error message if action failed (optional)
+
+---
+
+#### `bookmark_tweet`
+Bookmarks a post for the authenticated user.
+
+**Inputs:**
+- `user_id` (required): The ID of the authenticated user
+- `post_id` (required): The ID of the post to bookmark
+
+**Outputs:**
+- `bookmarked`: Whether the post was bookmarked (boolean)
+- `result`: Success status (boolean)
+- `error`: Error message if action failed (optional)
+
+---
+
+#### `remove_bookmark`
+Removes a bookmark for the authenticated user.
+
+**Inputs:**
+- `user_id` (required): The ID of the authenticated user
+- `post_id` (required): The ID of the bookmarked post to remove
+
+**Outputs:**
+- `removed`: Whether the bookmark was removed (boolean)
+- `result`: Success status (boolean)
+- `error`: Error message if action failed (optional)
+
+---
+
 ### Reposts (2 actions)
 
 #### `retweet`
@@ -355,6 +402,10 @@ To test the integration:
 4. Escalate issues based on keywords
 
 ## Version History
+
+- **1.0.3** - Added bookmark actions
+  - Added get_bookmarks, bookmark_tweet, and remove_bookmark actions
+  - Added bookmark.read and bookmark.write OAuth scopes
 
 - **1.0.2** - Merged post actions
   - Merged `post_with_media` into `create_tweet` (file parameter is now optional)
