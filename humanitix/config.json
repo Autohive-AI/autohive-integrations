@@ -1,0 +1,330 @@
+{
+    "name": "Humanitix",
+    "display_name": "Humanitix",
+    "version": "1.0.0",
+    "description": "Humanitix integration for managing events, orders, tickets, and tags",
+    "entry_point": "humanitix.py",
+    "auth": {
+        "type": "custom",
+        "title": "Humanitix API Key",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Key",
+                    "help_text": "Your Humanitix API Key. Generate it from Account > Advanced > API Key in the Humanitix Host Console."
+                }
+            }
+        }
+    },
+    "actions": {
+        "get_events": {
+            "display_name": "Get Events",
+            "description": "Retrieve events from your Humanitix account. Fetch a single event by ID, or list all events. Returns event details including name, dates, venue, and ticket information.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "Optional: Specific event ID to retrieve. If provided, fetches that single event directly and the page_size, since, and page parameters are ignored. If omitted, returns a paginated list of events."
+                    },
+                    "override_location": {
+                        "type": "string",
+                        "description": "Override the user location for the query. ISO 3166-1 alpha-2 country code (e.g. 'AU', 'NZ', 'US'). Applies to both single event and list queries."
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Page size of results (1-100, default 100). Only used when listing events (ignored if event_id is provided)."
+                    },
+                    "since": {
+                        "type": "string",
+                        "description": "Return events since this date-time (ISO 8601, e.g. '2021-02-01T23:26:13.485Z'). Only used when listing events (ignored if event_id is provided)."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number to fetch (starts at 1). Only used when listing events (ignored if event_id is provided)."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean", "description": "Whether the request was successful"},
+                    "statusCode": {"type": "integer", "description": "HTTP status code on error (e.g. 400, 401, 500)"},
+                    "error": {"type": "string", "description": "Error type on failure (e.g. 'Bad Request', 'Unauthorized')"},
+                    "message": {"type": "string", "description": "Detailed error message on failure"},
+                    "total": {"type": "integer", "description": "Total number of events matching the query"},
+                    "page": {"type": "integer", "description": "Current page number"},
+                    "pageSize": {"type": "integer", "description": "Page size of the results"},
+                    "event": {
+                        "type": "object",
+                        "description": "Single event object returned directly from the Humanitix API (returned when event_id is provided)"
+                    },
+                    "events": {
+                        "type": "array",
+                        "description": "Array of event objects returned directly from the Humanitix API (returned when listing events without event_id)",
+                        "items": {"type": "object"}
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_orders": {
+            "display_name": "Get Orders",
+            "description": "Retrieve orders for a specific event. Returns order details including buyer information, ticket quantities, and payment status.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The event ID to get orders for."
+                    },
+                    "order_id": {
+                        "type": "string",
+                        "description": "Optional: Specific order ID to retrieve. If provided, fetches that single order directly and the page_size, since, and page parameters are ignored. If omitted, returns a paginated list of orders."
+                    },
+                    "override_location": {
+                        "type": "string",
+                        "description": "Override the user location for the query. ISO 3166-1 alpha-2 country code (e.g. 'AU', 'NZ', 'US'). Applies to both single order and list queries."
+                    },
+                    "event_date_id": {
+                        "type": "string",
+                        "description": "Optional: Filter by a specific event date ID. Applies to both single order and list queries."
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Page size of results (1-100, default 100). Only used when listing orders (ignored if order_id is provided)."
+                    },
+                    "since": {
+                        "type": "string",
+                        "description": "Return orders since this date-time (ISO 8601, e.g. '2021-02-01T23:26:13.485Z'). Only used when listing orders (ignored if order_id is provided)."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number to fetch (starts at 1). Only used when listing orders (ignored if order_id is provided)."
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean", "description": "Whether the request was successful"},
+                    "statusCode": {"type": "integer", "description": "HTTP status code on error (e.g. 401, 404, 500)"},
+                    "error": {"type": "string", "description": "Error type on failure (e.g. 'Unauthorized', 'Not Found')"},
+                    "message": {"type": "string", "description": "Detailed error message on failure"},
+                    "total": {"type": "integer", "description": "Total number of orders matching the query"},
+                    "page": {"type": "integer", "description": "Current page number"},
+                    "pageSize": {"type": "integer", "description": "Page size of the results"},
+                    "order": {
+                        "type": "object",
+                        "description": "Single order object returned directly from the Humanitix API (returned when order_id is provided)"
+                    },
+                    "orders": {
+                        "type": "array",
+                        "description": "Array of order objects returned directly from the Humanitix API (returned when listing orders without order_id)",
+                        "items": {"type": "object"}
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_tickets": {
+            "display_name": "Get Tickets",
+            "description": "Retrieve tickets for a specific event. Returns ticket details including attendee information, ticket type, and check-in status.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The event ID to get tickets for."
+                    },
+                    "ticket_id": {
+                        "type": "string",
+                        "description": "Optional: Specific ticket ID to retrieve. If provided, fetches that single ticket directly and the page_size, since, status, event_date_id, and page parameters are ignored. If omitted, returns a paginated list of tickets."
+                    },
+                    "override_location": {
+                        "type": "string",
+                        "description": "Override the user location for the query. ISO 3166-1 alpha-2 country code (e.g. 'AU', 'NZ', 'US'). Applies to both single ticket and list queries."
+                    },
+                    "event_date_id": {
+                        "type": "string",
+                        "description": "Optional: Filter by a specific event date ID. Only used when listing tickets (ignored if ticket_id is provided)."
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Page size of results (1-100, default 100). Only used when listing tickets (ignored if ticket_id is provided)."
+                    },
+                    "since": {
+                        "type": "string",
+                        "description": "Return tickets since this date-time (ISO 8601, e.g. '2021-02-01T23:26:13.485Z'). Only used when listing tickets (ignored if ticket_id is provided)."
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by ticket status ('complete' or 'cancelled'). Only used when listing tickets (ignored if ticket_id is provided)."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number to fetch (starts at 1). Only used when listing tickets (ignored if ticket_id is provided)."
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean", "description": "Whether the request was successful"},
+                    "statusCode": {"type": "integer", "description": "HTTP status code on error (e.g. 401, 404)"},
+                    "error": {"type": "string", "description": "Error type on failure (e.g. 'Unauthorized', 'Not Found')"},
+                    "message": {"type": "string", "description": "Detailed error message on failure"},
+                    "total": {"type": "integer", "description": "Total number of tickets matching the query"},
+                    "page": {"type": "integer", "description": "Current page number"},
+                    "pageSize": {"type": "integer", "description": "Page size of the results"},
+                    "ticket": {
+                        "type": "object",
+                        "description": "Single ticket object returned directly from the Humanitix API (returned when ticket_id is provided)"
+                    },
+                    "tickets": {
+                        "type": "array",
+                        "description": "Array of ticket objects returned directly from the Humanitix API (returned when listing tickets without ticket_id)",
+                        "items": {"type": "object"}
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "get_tags": {
+            "display_name": "Get Tags",
+            "description": "Retrieve all tags from your Humanitix account. Tags are used to categorize and filter events.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tag_id": {
+                        "type": "string",
+                        "description": "Optional: Specific tag ID to retrieve. If provided, fetches that single tag directly and the page_size and page parameters are ignored. If omitted, returns a paginated list of tags."
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Page size of results (1-100, default 100). Only used when listing tags (ignored if tag_id is provided)."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number to fetch (starts at 1). Only used when listing tags (ignored if tag_id is provided)."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean", "description": "Whether the request was successful"},
+                    "statusCode": {"type": "integer", "description": "HTTP status code on error (e.g. 401, 404)"},
+                    "error": {"type": "string", "description": "Error type on failure (e.g. 'Unauthorized', 'Not Found')"},
+                    "message": {"type": "string", "description": "Detailed error message on failure"},
+                    "total": {"type": "integer", "description": "Total number of tags matching the query"},
+                    "page": {"type": "integer", "description": "Current page number"},
+                    "pageSize": {"type": "integer", "description": "Page size of the results"},
+                    "tag": {
+                        "type": "object",
+                        "description": "Single tag object returned directly from the Humanitix API (returned when tag_id is provided)"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "description": "Array of tag objects returned directly from the Humanitix API (returned when listing tags without tag_id)",
+                        "items": {"type": "object"}
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "check_in": {
+            "display_name": "Check In",
+            "description": "Check in a ticket for an event. Marks the attendee as checked in and returns any scanning messages configured for the ticket.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The event ID the ticket belongs to."
+                    },
+                    "ticket_id": {
+                        "type": "string",
+                        "description": "The ticket ID to check in."
+                    },
+                    "override_location": {
+                        "type": "string",
+                        "description": "Override the user location for the query. ISO 3166-1 alpha-2 country code (e.g. 'AU', 'NZ', 'US')."
+                    }
+                },
+                "required": ["event_id", "ticket_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean", "description": "Whether the request was successful"},
+                    "statusCode": {"type": "integer", "description": "HTTP status code on error (e.g. 400, 401)"},
+                    "error": {"type": "string", "description": "Error type on failure (e.g. 'Bad Request', 'Unauthorized')"},
+                    "message": {"type": "string", "description": "Detailed error message on failure"},
+                    "scanningMessages": {
+                        "type": "array",
+                        "description": "Scanning messages configured for the ticket",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "header": {"type": "string", "description": "Scanning message header"},
+                                "message": {"type": "string", "description": "Scanning message body (may contain HTML)"}
+                            }
+                        }
+                    }
+                },
+                "required": ["result"]
+            }
+        },
+        "check_out": {
+            "display_name": "Check Out",
+            "description": "Check out a ticket for an event. Marks the attendee as checked out and returns any scanning messages configured for the ticket.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The event ID the ticket belongs to."
+                    },
+                    "ticket_id": {
+                        "type": "string",
+                        "description": "The ticket ID to check out."
+                    },
+                    "override_location": {
+                        "type": "string",
+                        "description": "Override the user location for the query. ISO 3166-1 alpha-2 country code (e.g. 'AU', 'NZ', 'US')."
+                    }
+                },
+                "required": ["event_id", "ticket_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean", "description": "Whether the request was successful"},
+                    "statusCode": {"type": "integer", "description": "HTTP status code on error (e.g. 400, 401)"},
+                    "error": {"type": "string", "description": "Error type on failure (e.g. 'Bad Request', 'Unauthorized')"},
+                    "message": {"type": "string", "description": "Detailed error message on failure"},
+                    "scanningMessages": {
+                        "type": "array",
+                        "description": "Scanning messages configured for the ticket",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "header": {"type": "string", "description": "Scanning message header"},
+                                "message": {"type": "string", "description": "Scanning message body (may contain HTML)"}
+                            }
+                        }
+                    }
+                },
+                "required": ["result"]
+            }
+        }
+    }
+}
