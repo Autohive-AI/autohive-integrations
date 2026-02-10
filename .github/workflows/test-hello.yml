@@ -1,0 +1,6 @@
+name: Test Hello
+on: [push]
+
+jobs:
+  call-hello:
+    uses: Autohive-AI/autohive-integrations-tooling/.github/workflows/hello-world.yml@master
