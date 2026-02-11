@@ -3,7 +3,6 @@ from autohive_integrations_sdk import (
 )
 from typing import Dict, Any
 import re
-import os
 
 whatsapp = Integration.load()
 
