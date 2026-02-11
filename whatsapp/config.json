@@ -1,5 +1,6 @@
 {
     "name": "WhatsApp Business",
+    "display_name": "WhatsApp Business",
     "version": "1.0.0",
     "description": "WhatsApp Business API integration for sending messages and managing conversations",
     "entry_point": "whatsapp.py",
@@ -103,7 +104,7 @@
                     },
                     "media_url": {
                         "type": "string",
-                        "description": "URL or file path of the media to send"
+                        "description": "URL of the media to send (must be publicly accessible HTTPS URL)"
                     },
                     "caption": {
                         "type": "string",

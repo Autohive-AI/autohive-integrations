@@ -1,12 +1,11 @@
 from autohive_integrations_sdk import (
     Integration, ExecutionContext, ActionHandler, ActionResult
 )
-from typing import Dict, Any, List, Optional
-import json
+from typing import Dict, Any
 import re
 import os
 
-whatsapp = Integration.load(os.path.join(os.path.dirname(__file__), "config.json"))
+whatsapp = Integration.load()
 
 def get_whatsapp_creds(auth: Dict[str, Any]) -> Dict[str, str]:
     """Helper to extract credentials handling multiple naming conventions."""
@@ -27,6 +26,10 @@ def validate_phone_number(phone: str) -> bool:
     """Validate that the phone number is in E.164 format."""
     pattern = r'^\+[1-9]\d{1,14}$'
     return bool(re.match(pattern, phone))
+
+def validate_media_url(url: str) -> bool:
+    """Validate that the media URL is a valid HTTPS URL."""
+    return url.startswith("https://")
 
 # ---- Action Handlers ----
 
@@ -183,6 +186,14 @@ class SendMediaMessageAction(ActionHandler):
                 "message_id": "",
                 "success": False,
                 "error": "Invalid phone number format. Use format: +1234567890"
+            })
+            
+        # Validate media URL
+        if not validate_media_url(media_url):
+            return ActionResult(data={
+                "message_id": "",
+                "success": False,
+                "error": "Invalid media URL. Must be a publicly accessible HTTPS URL."
             })
         
         try:

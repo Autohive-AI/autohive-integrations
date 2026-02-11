@@ -107,6 +107,34 @@ async def test_phone_validation():
                 print(f"Error testing phone validation for {phone}: {e}")
 
 
+async def test_media_url_validation():
+    """Test media URL validation logic with invalid inputs."""
+    print("Testing media URL validation...")
+    
+    # Test invalid media URLs
+    invalid_urls = ["http://example.com/image.png", "ftp://example.com/image.png", "/local/path/image.png", "C:\\image.png", "example.com/image.png"]
+    
+    # Use a valid phone number to bypass phone validation
+    valid_phone = "+1234567890"
+    
+    for url in invalid_urls:
+        inputs = {
+            "to": valid_phone,
+            "media_type": "image",
+            "media_url": url,
+            "phone_number_id": PHONE_NUMBER_ID
+        }
+        async with ExecutionContext(auth=AUTH) as context:
+            try:
+                result = await whatsapp.execute_action("send_media_message", inputs, context)
+                print(f"URL {url}: {result}")
+                data = result.result.data
+                assert not data["success"]
+                assert "Invalid media URL" in data["error"]
+            except Exception as e:
+                print(f"Error testing media URL validation for {url}: {e}")
+
+
 async def main():
     print("Testing WhatsApp Business Integration")
     print("====================================")
@@ -117,7 +145,8 @@ async def main():
         "test_send_template_message": test_send_template_message,
         "test_send_media_message": test_send_media_message,
         "test_get_phone_number_health": test_get_phone_number_health,
-        "test_phone_validation": test_phone_validation
+        "test_phone_validation": test_phone_validation,
+        "test_media_url_validation": test_media_url_validation
     }
 
     # Check for specific test to run from command line args
