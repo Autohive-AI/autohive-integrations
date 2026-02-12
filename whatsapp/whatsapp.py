@@ -324,7 +324,6 @@ class GetPhoneNumberHealthAction(ActionHandler):
                     "success": True
                 })
             else:
-                error_msg = "Unknown error"
                 if isinstance(response, dict):
                     error_msg = response.get("error", {}).get("message", "Unknown error")
                 else:
