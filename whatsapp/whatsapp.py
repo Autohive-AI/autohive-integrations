@@ -85,7 +85,7 @@ class SendMessageAction(ActionHandler):
             )
             
             # Check for successful response containing message ID
-            if "messages" in response and response["messages"]:
+            if isinstance(response, dict) and "messages" in response and response["messages"]:
                 message_id = response["messages"][0]["id"]
                 return ActionResult(data={
                     "message_id": message_id,
@@ -93,10 +93,16 @@ class SendMessageAction(ActionHandler):
                 })
             else:
                 # Handle API errors or unexpected response structure
+                error_msg = "Unknown error"
+                if isinstance(response, dict):
+                    error_msg = response.get("error", {}).get("message", "Unknown error")
+                else:
+                    error_msg = f"Unexpected response: {response}"
+                
                 return ActionResult(data={
                     "message_id": None,
                     "success": False,
-                    "error": response.get("error", {}).get("message", "Unknown error")
+                    "error": error_msg
                 })
                 
         except Exception as e:
@@ -319,11 +325,17 @@ class GetPhoneNumberHealthAction(ActionHandler):
                     "success": True
                 })
             else:
+                error_msg = "Unknown error"
+                if isinstance(response, dict):
+                    error_msg = response.get("error", {}).get("message", "Unknown error")
+                else:
+                    error_msg = f"Unexpected response: {response}"
+                
                 return ActionResult(data={
                     "status": "UNKNOWN",
                     "quality_rating": "UNKNOWN",
                     "success": False,
-                    "error": response.get("error", {}).get("message", "Unknown error")
+                    "error": error_msg
                 })
                 
         except Exception as e:
