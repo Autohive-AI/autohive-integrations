@@ -2240,27 +2240,32 @@ class FindMeetingTimesAction(ActionHandler):
             start_dt = inputs.get("start_datetime")
             end_dt = inputs.get("end_datetime")
 
+            # Build time constraint with proper defaults
             if start_dt or end_dt:
-                time_slots = {}
-                if start_dt:
-                    time_slots["start"] = {
+                from datetime import datetime, timedelta
+
+                # Default start to now if not provided
+                if not start_dt:
+                    start_parsed = datetime.utcnow()
+                    start_dt = start_parsed.isoformat() + "Z"
+                else:
+                    start_parsed = datetime.fromisoformat(start_dt.replace("Z", ""))
+
+                # Default end to 7 days from start if not provided
+                if not end_dt:
+                    end_parsed = start_parsed + timedelta(days=7)
+                    end_dt = end_parsed.isoformat() + "Z"
+
+                time_slots = {
+                    "start": {
                         "dateTime": start_dt.replace("Z", ""),
                         "timeZone": "UTC"
-                    }
-                if end_dt:
-                    time_slots["end"] = {
+                    },
+                    "end": {
                         "dateTime": end_dt.replace("Z", ""),
                         "timeZone": "UTC"
                     }
-                elif start_dt:
-                    # Default to 7 days from start
-                    from datetime import datetime, timedelta
-                    start_parsed = datetime.fromisoformat(start_dt.replace("Z", ""))
-                    end_parsed = start_parsed + timedelta(days=7)
-                    time_slots["end"] = {
-                        "dateTime": end_parsed.isoformat(),
-                        "timeZone": "UTC"
-                    }
+                }
                 time_constraint = {"timeslots": [time_slots]}
 
             # Build request body
@@ -2287,16 +2292,11 @@ class FindMeetingTimesAction(ActionHandler):
                     }]
                 }
 
-            # Add time preference if specified
-            time_pref = inputs.get("meeting_duration_preference")
-            if time_pref:
-                # Map friendly names to activityDomain values
-                pref_map = {
-                    "morning": "work",
-                    "afternoon": "work",
-                    "evening": "personal"
-                }
-                body["activityDomain"] = pref_map.get(time_pref, "unrestricted")
+            # Note: meeting_duration_preference is not implemented via activityDomain
+            # because activityDomain controls work/personal preference, not time-of-day.
+            # To properly implement time-of-day filtering, you would need to adjust
+            # the time constraint hours (e.g., morning: 8-12, afternoon: 12-17, evening: 17-21).
+            # This is left as a future enhancement.
 
             response = await context.fetch(
                 f"{GRAPH_API_BASE}/me/findMeetingTimes",
