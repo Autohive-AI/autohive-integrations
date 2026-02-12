@@ -93,7 +93,6 @@ class SendMessageAction(ActionHandler):
                 })
             else:
                 # Handle API errors or unexpected response structure
-                error_msg = "Unknown error"
                 if isinstance(response, dict):
                     error_msg = response.get("error", {}).get("message", "Unknown error")
                 else:
