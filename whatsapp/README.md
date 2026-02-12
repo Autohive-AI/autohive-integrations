@@ -118,6 +118,8 @@ Configure the integration within Autohive using platform authentication for What
 }
 ```
 
+Note: Only media via a Public URL is supported through the WhatsApp API. Not locally uploaded media (e.g. through an agent chat). Images and PDF's can be sent.
+
 ## Testing
 
 To run the tests:
