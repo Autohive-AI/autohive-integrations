@@ -3,6 +3,7 @@ from autohive_integrations_sdk import (
 )
 from typing import Dict, Any
 import re
+from urllib.parse import urlparse
 
 whatsapp = Integration.load()
 
@@ -21,13 +22,16 @@ def get_whatsapp_creds(auth: Dict[str, Any]) -> Dict[str, str]:
     }
 
 def validate_phone_number(phone: str) -> bool:
-    """Validate that the phone number is in E.164 format."""
-    pattern = r'^\+[1-9]\d{1,14}$'
+    """Validate that the phone number is in E.164 format (with or without + prefix)."""
+    pattern = r'^\+?[1-9]\d{1,14}$'
     return bool(re.match(pattern, phone))
 
 def validate_media_url(url: str) -> bool:
-    """Validate that the media URL is a valid HTTPS URL."""
-    return url.startswith("https://")
+    try:
+        u = urlparse(url)
+        return u.scheme == "https" and bool(u.netloc)
+    except Exception:
+        return False
 
 def validate_phone_number_id(phone_number_id: str) -> bool:
     """Validate that the phone number ID is a numeric string."""
@@ -58,7 +62,7 @@ class SendMessageAction(ActionHandler):
             return ActionResult(data={
                 "message_id": None,
                 "success": False,
-                "error": "Invalid phone number format. Use format: +1234567890"
+                "error": "Invalid phone number format. Use format: +1234567890 or 1234567890"
             })
         
         try:
@@ -129,7 +133,7 @@ class SendTemplateMessageAction(ActionHandler):
             return ActionResult(data={
                 "message_id": None,
                 "success": False,
-                "error": "Invalid phone number format. Use format: +1234567890"
+                "error": "Invalid phone number format. Use format: +1234567890 or 1234567890"
             })
         
         try:
@@ -211,7 +215,7 @@ class SendMediaMessageAction(ActionHandler):
             return ActionResult(data={
                 "message_id": None,
                 "success": False,
-                "error": "Invalid phone number format. Use format: +1234567890"
+                "error": "Invalid phone number format. Use format: +1234567890 or 1234567890"
             })
             
         # Validate media URL

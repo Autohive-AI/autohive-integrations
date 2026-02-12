@@ -54,7 +54,7 @@ async def test_send_media_message():
     inputs = {
         "to": TEST_RECIPIENT_PHONE,
         "media_type": "image",
-        "media_url": "https://cdn.prod.website-files.com/67f5c4ac73ceeeb74774a8ee/691b8e27af0bfbc9290f345d_bee-left.webp",
+        "media_url": "https://fastly.picsum.photos/id/184/640/320.jpg?hmac=Zu0guI3nKOcrdKw3FDso83cEaPL-6BltxGz8mrSEErg",
         "caption": "Test image from WhatsApp integration",
         "phone_number_id": PHONE_NUMBER_ID
     }

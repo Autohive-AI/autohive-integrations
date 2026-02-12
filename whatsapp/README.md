@@ -35,6 +35,7 @@ Configure the integration within Autohive using platform authentication for What
 - **Inputs:**
   - `to` (required): Recipient's phone number in E.164 format (e.g., +1234567890)
   - `message` (required): Text content of the message to send
+  - `phone_number_id` (required): The Phone Number ID associated with the WhatsApp Business account
 - **Outputs:**
   - `message_id`: Unique WhatsApp message identifier if successful
   - `success`: Boolean indicating if the message was sent successfully
@@ -46,6 +47,7 @@ Configure the integration within Autohive using platform authentication for What
 - **Inputs:**
   - `to` (required): Recipient's phone number in E.164 format
   - `template_name` (required): Name of the approved message template
+  - `phone_number_id` (required): The Phone Number ID associated with the WhatsApp Business account
   - `language_code` (optional): Template language code (default: "en")
   - `parameters` (optional): Array of string parameters for template substitution
 - **Outputs:**
@@ -60,6 +62,7 @@ Configure the integration within Autohive using platform authentication for What
   - `to` (required): Recipient's phone number in E.164 format
   - `media_type` (required): Media type - "image", "document", "audio", or "video"
   - `media_url` (required): HTTPS URL of the media content to send
+  - `phone_number_id` (required): The Phone Number ID associated with the WhatsApp Business account
   - `caption` (optional): Text caption for the media (images, videos, documents)
   - `filename` (optional): Custom filename for document type media
 - **Outputs:**
@@ -89,7 +92,8 @@ Configure the integration within Autohive using platform authentication for What
 ```json
 {
   "to": "+1234567890",
-  "message": "Welcome to our service! Thank you for signing up."
+  "message": "Welcome to our service! Thank you for signing up.",
+  "phone_number_id": "123456789012345"
 }
 ```
 
@@ -99,6 +103,7 @@ Configure the integration within Autohive using platform authentication for What
 {
   "to": "+1234567890",
   "template_name": "customer_welcome",
+  "phone_number_id": "123456789012345",
   "language_code": "en",
   "parameters": ["John Doe", "Premium"]
 }
@@ -111,6 +116,7 @@ Configure the integration within Autohive using platform authentication for What
   "to": "+1234567890",
   "media_type": "document",
   "media_url": "https://yourdomain.com/invoices/invoice-123.pdf",
+  "phone_number_id": "123456789012345",
   "filename": "Invoice-123.pdf",
   "caption": "Your invoice for Order #123"
 }
