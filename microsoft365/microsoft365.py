@@ -2264,11 +2264,12 @@ class FindMeetingTimesAction(ActionHandler):
                 end_dt = end_parsed.isoformat() + "Z"
             else:
                 # Handle Microsoft Graph timestamps with fractional seconds
+                # Validate format by parsing (but don't need the result)
                 clean_dt = end_dt.replace("Z", "")
                 if "." in clean_dt:
                     base, frac = clean_dt.split(".")
                     clean_dt = f"{base}.{frac[:6]}"
-                end_parsed = datetime.fromisoformat(clean_dt)
+                datetime.fromisoformat(clean_dt)  # Validation only
 
             # Create single time constraint for the date range
             # Graph API will automatically filter to working hours
