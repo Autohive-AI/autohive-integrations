@@ -2235,28 +2235,31 @@ class FindMeetingTimesAction(ActionHandler):
                     }
                 })
 
-            # Build time constraint
-            time_constraint = {}
+            # Build time constraint with defaults
+            # Microsoft Graph's findMeetingTimes API automatically respects:
+            # - User's working hours configured in Outlook
+            # - User's timezone settings
+            # - Calendar availability
+            from datetime import datetime, timedelta
+
             start_dt = inputs.get("start_datetime")
             end_dt = inputs.get("end_datetime")
 
-            # Build time constraint with proper defaults
-            if start_dt or end_dt:
-                from datetime import datetime, timedelta
+            # Always apply defaults as documented in schema
+            if not start_dt:
+                start_parsed = datetime.utcnow()
+                start_dt = start_parsed.isoformat() + "Z"
+            else:
+                start_parsed = datetime.fromisoformat(start_dt.replace("Z", ""))
 
-                # Default start to now if not provided
-                if not start_dt:
-                    start_parsed = datetime.utcnow()
-                    start_dt = start_parsed.isoformat() + "Z"
-                else:
-                    start_parsed = datetime.fromisoformat(start_dt.replace("Z", ""))
+            if not end_dt:
+                end_parsed = start_parsed + timedelta(days=7)
+                end_dt = end_parsed.isoformat() + "Z"
 
-                # Default end to 7 days from start if not provided
-                if not end_dt:
-                    end_parsed = start_parsed + timedelta(days=7)
-                    end_dt = end_parsed.isoformat() + "Z"
-
-                time_slots = {
+            # Create single time constraint for the date range
+            # Graph API will automatically filter to working hours
+            time_constraint = {
+                "timeslots": [{
                     "start": {
                         "dateTime": start_dt.replace("Z", ""),
                         "timeZone": "UTC"
@@ -2265,8 +2268,8 @@ class FindMeetingTimesAction(ActionHandler):
                         "dateTime": end_dt.replace("Z", ""),
                         "timeZone": "UTC"
                     }
-                }
-                time_constraint = {"timeslots": [time_slots]}
+                }]
+            }
 
             # Build request body
             body = {
@@ -2292,11 +2295,6 @@ class FindMeetingTimesAction(ActionHandler):
                     }]
                 }
 
-            # Note: meeting_duration_preference is not implemented via activityDomain
-            # because activityDomain controls work/personal preference, not time-of-day.
-            # To properly implement time-of-day filtering, you would need to adjust
-            # the time constraint hours (e.g., morning: 8-12, afternoon: 12-17, evening: 17-21).
-            # This is left as a future enhancement.
 
             response = await context.fetch(
                 f"{GRAPH_API_BASE}/me/findMeetingTimes",

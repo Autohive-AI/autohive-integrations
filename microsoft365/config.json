@@ -40,7 +40,10 @@
                     "body_type": {
                         "type": "string",
                         "description": "Body content type (Text or HTML)",
-                        "enum": ["Text", "HTML"],
+                        "enum": [
+                            "Text",
+                            "HTML"
+                        ],
                         "default": "Text"
                     },
                     "cc": {
@@ -58,7 +61,11 @@
                         }
                     }
                 },
-                "required": ["to", "subject", "body"]
+                "required": [
+                    "to",
+                    "subject",
+                    "body"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -72,7 +79,9 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         },
         "create_calendar_event": {
@@ -109,7 +118,11 @@
                         }
                     }
                 },
-                "required": ["subject", "start_time", "end_time"]
+                "required": [
+                    "subject",
+                    "start_time",
+                    "end_time"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -131,7 +144,11 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "id", "webLink"]
+                "required": [
+                    "result",
+                    "id",
+                    "webLink"
+                ]
             }
         },
         "upload_file": {
@@ -159,7 +176,10 @@
                         "default": "/"
                     }
                 },
-                "required": ["filename", "content"]
+                "required": [
+                    "filename",
+                    "content"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -185,7 +205,12 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "id", "webUrl", "size"]
+                "required": [
+                    "result",
+                    "id",
+                    "webUrl",
+                    "size"
+                ]
             }
         },
         "list_files": {
@@ -251,7 +276,10 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["files", "result"]
+                "required": [
+                    "files",
+                    "result"
+                ]
             }
         },
         "update_calendar_event": {
@@ -292,7 +320,9 @@
                         }
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -314,7 +344,11 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "id", "webLink"]
+                "required": [
+                    "result",
+                    "id",
+                    "webLink"
+                ]
             }
         },
         "list_calendar_events": {
@@ -428,11 +462,14 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["events", "result"]
+                "required": [
+                    "events",
+                    "result"
+                ]
             }
         },
         "list_emails": {
-            "display_name": "List Emails", 
+            "display_name": "List Emails",
             "description": "List emails for a specific date range and folder. Defaults to last 24 hours if no date specified.",
             "input_schema": {
                 "type": "object",
@@ -522,7 +559,10 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["emails", "result"]
+                "required": [
+                    "emails",
+                    "result"
+                ]
             }
         },
         "list_emails_from_contact": {
@@ -546,7 +586,9 @@
                         "default": "Inbox"
                     }
                 },
-                "required": ["contact_email"]
+                "required": [
+                    "contact_email"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -609,7 +651,11 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["emails", "contact_email", "result"]
+                "required": [
+                    "emails",
+                    "contact_email",
+                    "result"
+                ]
             }
         },
         "mark_email_read": {
@@ -627,7 +673,10 @@
                         "description": "True to mark as read, false to mark as unread"
                     }
                 },
-                "required": ["email_id", "is_read"]
+                "required": [
+                    "email_id",
+                    "is_read"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -653,7 +702,12 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "id", "isRead", "lastModifiedDateTime"]
+                "required": [
+                    "result",
+                    "id",
+                    "isRead",
+                    "lastModifiedDateTime"
+                ]
             }
         },
         "list_mail_folders": {
@@ -731,7 +785,11 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["folders", "total_count", "result"]
+                "required": [
+                    "folders",
+                    "total_count",
+                    "result"
+                ]
             }
         },
         "get_mail_folder": {
@@ -745,7 +803,9 @@
                         "description": "Folder ID or well-known folder name (lowercase, no spaces). Examples: 'inbox', 'drafts', 'deleteditems', 'junkemail', 'archive'"
                     }
                 },
-                "required": ["folder_id"]
+                "required": [
+                    "folder_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -793,7 +853,10 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["folder", "result"]
+                "required": [
+                    "folder",
+                    "result"
+                ]
             }
         },
         "move_email": {
@@ -811,7 +874,10 @@
                         "description": "Destination folder ID (from list_mail_folders) OR a well-known folder name (lowercase, no spaces). Well-known names: inbox, drafts, sentitems, deleteditems, junkemail, archive, outbox, clutter, scheduled. For custom folders like 'Clients' or 'Projects', you MUST use list_mail_folders first to get the folder ID."
                     }
                 },
-                "required": ["email_id", "destination_folder_id"]
+                "required": [
+                    "email_id",
+                    "destination_folder_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -837,7 +903,9 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         },
         "read_email": {
@@ -856,7 +924,9 @@
                         "default": true
                     }
                 },
-                "required": ["email_id"]
+                "required": [
+                    "email_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -865,12 +935,30 @@
                         "type": "object",
                         "description": "Email details",
                         "properties": {
-                            "id": {"type": "string", "description": "Email ID"},
-                            "subject": {"type": "string", "description": "Email subject"},
-                            "sender": {"type": "object", "description": "Sender information"},
-                            "receivedDateTime": {"type": "string", "description": "Time email was received"},
-                            "body": {"type": "object", "description": "Email body with content and type"},
-                            "hasAttachments": {"type": "boolean", "description": "Whether email has attachments"}
+                            "id": {
+                                "type": "string",
+                                "description": "Email ID"
+                            },
+                            "subject": {
+                                "type": "string",
+                                "description": "Email subject"
+                            },
+                            "sender": {
+                                "type": "object",
+                                "description": "Sender information"
+                            },
+                            "receivedDateTime": {
+                                "type": "string",
+                                "description": "Time email was received"
+                            },
+                            "body": {
+                                "type": "object",
+                                "description": "Email body with content and type"
+                            },
+                            "hasAttachments": {
+                                "type": "boolean",
+                                "description": "Whether email has attachments"
+                            }
                         }
                     },
                     "attachments": {
@@ -879,18 +967,43 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string", "description": "Attachment ID"},
-                                "name": {"type": "string", "description": "Attachment filename"},
-                                "size": {"type": "integer", "description": "Attachment size in bytes"},
-                                "contentType": {"type": "string", "description": "MIME type of attachment"},
-                                "message": {"type": "string", "description": "Information about attachment handling"}
+                                "id": {
+                                    "type": "string",
+                                    "description": "Attachment ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Attachment filename"
+                                },
+                                "size": {
+                                    "type": "integer",
+                                    "description": "Attachment size in bytes"
+                                },
+                                "contentType": {
+                                    "type": "string",
+                                    "description": "MIME type of attachment"
+                                },
+                                "message": {
+                                    "type": "string",
+                                    "description": "Information about attachment handling"
+                                }
                             }
                         }
                     },
-                    "result": {"type": "boolean", "description": "Whether the operation was successful"},
-                    "error": {"type": "string", "description": "Error message if the operation failed"}
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
                 },
-                "required": ["email", "attachments", "result"]
+                "required": [
+                    "email",
+                    "attachments",
+                    "result"
+                ]
             }
         },
         "read_contacts": {
@@ -1006,7 +1119,11 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["contacts", "result", "message"]
+                "required": [
+                    "contacts",
+                    "result",
+                    "message"
+                ]
             }
         },
         "search_onedrive_files": {
@@ -1025,7 +1142,9 @@
                         "default": 10
                     }
                 },
-                "required": ["query"]
+                "required": [
+                    "query"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1080,7 +1199,11 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["files", "query", "result"]
+                "required": [
+                    "files",
+                    "query",
+                    "result"
+                ]
             }
         },
         "read_onedrive_file_content": {
@@ -1094,7 +1217,9 @@
                         "description": "The ID of the file to read (obtained from search or list operations)"
                     }
                 },
-                "required": ["file_id"]
+                "required": [
+                    "file_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1115,7 +1240,11 @@
                                 "description": "Content type of the returned file (application/pdf for converted Office docs, original mime type for others)"
                             }
                         },
-                        "required": ["content", "name", "contentType"]
+                        "required": [
+                            "content",
+                            "name",
+                            "contentType"
+                        ]
                     },
                     "metadata": {
                         "type": "object",
@@ -1141,7 +1270,10 @@
                                 "description": "Web URL to access the file"
                             }
                         },
-                        "required": ["id", "name"]
+                        "required": [
+                            "id",
+                            "name"
+                        ]
                     },
                     "result": {
                         "type": "boolean",
@@ -1152,7 +1284,11 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["file", "metadata", "result"]
+                "required": [
+                    "file",
+                    "metadata",
+                    "result"
+                ]
             }
         },
         "create_draft_email": {
@@ -1171,7 +1307,10 @@
                     },
                     "body_type": {
                         "type": "string",
-                        "enum": ["Text", "HTML"],
+                        "enum": [
+                            "Text",
+                            "HTML"
+                        ],
                         "description": "Content type of the email body",
                         "default": "Text"
                     },
@@ -1180,14 +1319,22 @@
                         "description": "List of email recipients",
                         "items": {
                             "oneOf": [
-                                {"type": "string"},
+                                {
+                                    "type": "string"
+                                },
                                 {
                                     "type": "object",
                                     "properties": {
-                                        "address": {"type": "string"},
-                                        "name": {"type": "string"}
+                                        "address": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        }
                                     },
-                                    "required": ["address"]
+                                    "required": [
+                                        "address"
+                                    ]
                                 }
                             ]
                         }
@@ -1197,14 +1344,22 @@
                         "description": "List of CC recipients",
                         "items": {
                             "oneOf": [
-                                {"type": "string"},
+                                {
+                                    "type": "string"
+                                },
                                 {
                                     "type": "object",
                                     "properties": {
-                                        "address": {"type": "string"},
-                                        "name": {"type": "string"}
+                                        "address": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        }
                                     },
-                                    "required": ["address"]
+                                    "required": [
+                                        "address"
+                                    ]
                                 }
                             ]
                         }
@@ -1214,26 +1369,42 @@
                         "description": "List of BCC recipients",
                         "items": {
                             "oneOf": [
-                                {"type": "string"},
+                                {
+                                    "type": "string"
+                                },
                                 {
                                     "type": "object",
                                     "properties": {
-                                        "address": {"type": "string"},
-                                        "name": {"type": "string"}
+                                        "address": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        }
                                     },
-                                    "required": ["address"]
+                                    "required": [
+                                        "address"
+                                    ]
                                 }
                             ]
                         }
                     },
                     "importance": {
                         "type": "string",
-                        "enum": ["Low", "Normal", "High"],
+                        "enum": [
+                            "Low",
+                            "Normal",
+                            "High"
+                        ],
                         "description": "Email importance level",
                         "default": "Normal"
                     }
                 },
-                "required": ["subject", "body", "to_recipients"]
+                "required": [
+                    "subject",
+                    "body",
+                    "to_recipients"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1263,7 +1434,9 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         },
         "send_draft_email": {
@@ -1277,7 +1450,9 @@
                         "description": "ID of the draft to send"
                     }
                 },
-                "required": ["draft_id"]
+                "required": [
+                    "draft_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1299,7 +1474,10 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "draft_id"]
+                "required": [
+                    "result",
+                    "draft_id"
+                ]
             }
         },
         "reply_to_email": {
@@ -1317,7 +1495,9 @@
                         "description": "Reply message text"
                     }
                 },
-                "required": ["message_id"]
+                "required": [
+                    "message_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1343,7 +1523,11 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "message_id", "operation"]
+                "required": [
+                    "result",
+                    "message_id",
+                    "operation"
+                ]
             }
         },
         "forward_email": {
@@ -1361,14 +1545,22 @@
                         "description": "List of recipients to forward to",
                         "items": {
                             "oneOf": [
-                                {"type": "string"},
+                                {
+                                    "type": "string"
+                                },
                                 {
                                     "type": "object",
                                     "properties": {
-                                        "address": {"type": "string"},
-                                        "name": {"type": "string"}
+                                        "address": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        }
                                     },
-                                    "required": ["address"]
+                                    "required": [
+                                        "address"
+                                    ]
                                 }
                             ]
                         }
@@ -1378,7 +1570,10 @@
                         "description": "Additional message text to include"
                     }
                 },
-                "required": ["message_id", "to_recipients"]
+                "required": [
+                    "message_id",
+                    "to_recipients"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1404,7 +1599,11 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "message_id", "operation"]
+                "required": [
+                    "result",
+                    "message_id",
+                    "operation"
+                ]
             }
         },
         "download_email_attachment": {
@@ -1427,7 +1626,10 @@
                         "default": true
                     }
                 },
-                "required": ["message_id", "attachment_id"]
+                "required": [
+                    "message_id",
+                    "attachment_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1448,7 +1650,11 @@
                                 "description": "MIME type of the attachment"
                             }
                         },
-                        "required": ["content", "name", "contentType"]
+                        "required": [
+                            "content",
+                            "name",
+                            "contentType"
+                        ]
                     },
                     "metadata": {
                         "type": "object",
@@ -1478,7 +1684,14 @@
                                 "description": "Whether attachment is inline"
                             }
                         },
-                        "required": ["id", "name", "size", "contentType", "message_id", "is_inline"]
+                        "required": [
+                            "id",
+                            "name",
+                            "size",
+                            "contentType",
+                            "message_id",
+                            "is_inline"
+                        ]
                     },
                     "result": {
                         "type": "boolean",
@@ -1489,7 +1702,11 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["file", "metadata", "result"]
+                "required": [
+                    "file",
+                    "metadata",
+                    "result"
+                ]
             }
         },
         "search_emails": {
@@ -1514,7 +1731,9 @@
                         "default": false
                     }
                 },
-                "required": ["query"]
+                "required": [
+                    "query"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1569,7 +1788,12 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "query", "total_results", "messages"]
+                "required": [
+                    "result",
+                    "query",
+                    "total_results",
+                    "messages"
+                ]
             }
         },
         "search_sharepoint_sites": {
@@ -1588,7 +1812,9 @@
                         "default": false
                     }
                 },
-                "required": ["query"]
+                "required": [
+                    "query"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1647,7 +1873,12 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "query", "sites", "total_sites"]
+                "required": [
+                    "result",
+                    "query",
+                    "sites",
+                    "total_sites"
+                ]
             }
         },
         "get_sharepoint_site_details": {
@@ -1661,7 +1892,9 @@
                         "description": "The ID of the SharePoint site"
                     }
                 },
-                "required": ["site_id"]
+                "required": [
+                    "site_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1706,14 +1939,21 @@
                                 "description": "Whether this is a personal site"
                             }
                         },
-                        "required": ["id", "name", "web_url"]
+                        "required": [
+                            "id",
+                            "name",
+                            "web_url"
+                        ]
                     },
                     "error": {
                         "type": "string",
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "site"]
+                "required": [
+                    "result",
+                    "site"
+                ]
             }
         },
         "list_sharepoint_libraries": {
@@ -1735,7 +1975,9 @@
                         "description": "Comma-separated list of fields to return"
                     }
                 },
-                "required": ["site_id"]
+                "required": [
+                    "site_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1794,7 +2036,12 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "site_id", "libraries", "total_libraries"]
+                "required": [
+                    "result",
+                    "site_id",
+                    "libraries",
+                    "total_libraries"
+                ]
             }
         },
         "search_sharepoint_documents": {
@@ -1817,7 +2064,10 @@
                         "default": 10
                     }
                 },
-                "required": ["site_id", "query"]
+                "required": [
+                    "site_id",
+                    "query"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1899,7 +2149,13 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "site_id", "query", "files", "total_files"]
+                "required": [
+                    "result",
+                    "site_id",
+                    "query",
+                    "files",
+                    "total_files"
+                ]
             }
         },
         "read_sharepoint_document": {
@@ -1921,7 +2177,10 @@
                         "description": "Optional: The ID of the specific document library (drive) containing the file. If not provided, uses the site's default drive."
                     }
                 },
-                "required": ["site_id", "file_id"]
+                "required": [
+                    "site_id",
+                    "file_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1942,7 +2201,11 @@
                                 "description": "Content type of the returned file"
                             }
                         },
-                        "required": ["content", "name", "contentType"]
+                        "required": [
+                            "content",
+                            "name",
+                            "contentType"
+                        ]
                     },
                     "metadata": {
                         "type": "object",
@@ -1976,7 +2239,11 @@
                                 "description": "The ID of the document library (drive) containing the file"
                             }
                         },
-                        "required": ["id", "name", "site_id"]
+                        "required": [
+                            "id",
+                            "name",
+                            "site_id"
+                        ]
                     },
                     "result": {
                         "type": "boolean",
@@ -1987,7 +2254,11 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["file", "metadata", "result"]
+                "required": [
+                    "file",
+                    "metadata",
+                    "result"
+                ]
             }
         },
         "list_sharepoint_pages": {
@@ -2013,7 +2284,9 @@
                         "description": "Comma-separated list of fields to return"
                     }
                 },
-                "required": ["site_id"]
+                "required": [
+                    "site_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2072,7 +2345,12 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "site_id", "pages", "total_pages"]
+                "required": [
+                    "result",
+                    "site_id",
+                    "pages",
+                    "total_pages"
+                ]
             }
         },
         "read_sharepoint_page_content": {
@@ -2095,7 +2373,10 @@
                         "default": true
                     }
                 },
-                "required": ["site_id", "page_id"]
+                "required": [
+                    "site_id",
+                    "page_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2144,14 +2425,23 @@
                                 "description": "Page content structure with web parts (only present if include_content=true)"
                             }
                         },
-                        "required": ["id", "name", "title", "web_url"]
+                        "required": [
+                            "id",
+                            "name",
+                            "title",
+                            "web_url"
+                        ]
                     },
                     "error": {
                         "type": "string",
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result", "site_id", "page"]
+                "required": [
+                    "result",
+                    "site_id",
+                    "page"
+                ]
             }
         },
         "find_meeting_times": {
@@ -2190,11 +2480,6 @@
                         "description": "Whether the organizer is optional for the meeting (default: false)",
                         "default": false
                     },
-                    "meeting_duration_preference": {
-                        "type": "string",
-                        "description": "Preference for time of day: morning, afternoon, or evening",
-                        "enum": ["morning", "afternoon", "evening"]
-                    },
                     "location_constraint": {
                         "type": "string",
                         "description": "Room or location email address to include as a required resource"
@@ -2205,7 +2490,9 @@
                         "default": 100
                     }
                 },
-                "required": ["attendees"]
+                "required": [
+                    "attendees"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2282,7 +2569,9 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         },
         "get_schedule": {
@@ -2312,7 +2601,11 @@
                         "default": 30
                     }
                 },
-                "required": ["schedules", "start_datetime", "end_datetime"]
+                "required": [
+                    "schedules",
+                    "start_datetime",
+                    "end_datetime"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2405,7 +2698,9 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         },
         "list_rooms": {
@@ -2417,7 +2712,11 @@
                     "list_type": {
                         "type": "string",
                         "description": "What to list: 'rooms' for all rooms, 'room_lists' for room lists/buildings, 'rooms_in_list' for rooms in a specific room list",
-                        "enum": ["rooms", "room_lists", "rooms_in_list"],
+                        "enum": [
+                            "rooms",
+                            "room_lists",
+                            "rooms_in_list"
+                        ],
                         "default": "rooms"
                     },
                     "room_list_email": {
@@ -2504,7 +2803,9 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         },
         "check_room_availability": {
@@ -2529,7 +2830,11 @@
                         "description": "End of the time range to check (ISO 8601 UTC, e.g., 2024-08-01T15:00:00Z)"
                     }
                 },
-                "required": ["room_emails", "start_datetime", "end_datetime"]
+                "required": [
+                    "room_emails",
+                    "start_datetime",
+                    "end_datetime"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2603,7 +2908,9 @@
                         "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         }
     }
