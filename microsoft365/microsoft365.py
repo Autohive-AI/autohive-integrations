@@ -2250,11 +2250,25 @@ class FindMeetingTimesAction(ActionHandler):
                 start_parsed = datetime.utcnow()
                 start_dt = start_parsed.isoformat() + "Z"
             else:
-                start_parsed = datetime.fromisoformat(start_dt.replace("Z", ""))
+                # Handle Microsoft Graph timestamps with fractional seconds (e.g., 2024-08-20T10:00:00.0000000Z)
+                # Python's fromisoformat doesn't accept more than 6 fractional digits
+                clean_dt = start_dt.replace("Z", "")
+                if "." in clean_dt:
+                    # Truncate fractional seconds to 6 digits max
+                    base, frac = clean_dt.split(".")
+                    clean_dt = f"{base}.{frac[:6]}"
+                start_parsed = datetime.fromisoformat(clean_dt)
 
             if not end_dt:
                 end_parsed = start_parsed + timedelta(days=7)
                 end_dt = end_parsed.isoformat() + "Z"
+            else:
+                # Handle Microsoft Graph timestamps with fractional seconds
+                clean_dt = end_dt.replace("Z", "")
+                if "." in clean_dt:
+                    base, frac = clean_dt.split(".")
+                    clean_dt = f"{base}.{frac[:6]}"
+                end_parsed = datetime.fromisoformat(clean_dt)
 
             # Create single time constraint for the date range
             # Graph API will automatically filter to working hours
@@ -2582,10 +2596,11 @@ class CheckRoomAvailabilityAction(ActionHandler):
                 schedule_items = schedule.get("scheduleItems", [])
 
                 # Check for conflicts (any non-free items)
+                # Treat "unknown" status as unavailable (cannot determine occupancy)
                 conflicts = []
                 for item in schedule_items:
                     status = item.get("status", "")
-                    if status in ("busy", "tentative", "oof", "workingElsewhere"):
+                    if status in ("busy", "tentative", "oof", "workingElsewhere", "unknown"):
                         start_info = item.get("start", {})
                         end_info = item.get("end", {})
                         conflicts.append({
