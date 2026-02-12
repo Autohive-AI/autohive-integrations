@@ -231,7 +231,7 @@ def fetch_campaign_data(client, customer_id, date_ranges_input, campaign_type=No
             budget = row_dict.get('campaign_budget', {})
 
             conversions_value = metrics.get('conversions_value', 0.0)
-            cost_micros = metrics.get('cost_micros', 1)
+            cost_micros = metrics.get('cost_micros', 0)
             cost = micros_to_currency(cost_micros)
             
             roas = 0
@@ -444,7 +444,7 @@ class RetrieveCampaignMetricsAction(ActionHandler):
         try:
             results = fetch_campaign_data(client, customer_id, date_ranges_input, campaign_type)
             logger.info("Successfully retrieved campaign data.")
-            return ActionResult(data=results, cost_usd=0.00)
+            return ActionResult(data={"results": results}, cost_usd=0.00)
         except Exception as e:
             logger.exception(f"Exception during campaign data retrieval: {str(e)}")
             raise
@@ -472,7 +472,7 @@ class RetrieveKeywordMetricsAction(ActionHandler):
         try:
             results = fetch_keyword_data(client, customer_id, date_ranges_input, campaign_ids, ad_group_ids)
             logger.info("Successfully retrieved keyword data.")
-            return ActionResult(data=results, cost_usd=0.00)
+            return ActionResult(data={"results": results}, cost_usd=0.00)
         except Exception as e:
             logger.exception(f"Exception during keyword data retrieval: {str(e)}")
             raise
