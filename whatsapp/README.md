@@ -81,8 +81,6 @@ Configure the integration within Autohive using platform authentication for What
 ## Requirements
 
 - `autohive-integrations-sdk`
-- `requests>=2.32.0`
-- `aiohttp>=3.8.0`
 
 ## Usage Examples
 

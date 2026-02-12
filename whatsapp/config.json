@@ -34,7 +34,7 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "message_id": {"type": "string"},
+                    "message_id": {"type": ["string", "null"]},
                     "success": {"type": "boolean"},
                     "error": {"type": "string"}
                 },
@@ -76,7 +76,7 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "message_id": {"type": "string"},
+                    "message_id": {"type": ["string", "null"]},
                     "success": {"type": "boolean"},
                     "error": {"type": "string"}
                 },
@@ -120,7 +120,7 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "message_id": {"type": "string"},
+                    "message_id": {"type": ["string", "null"]},
                     "success": {"type": "boolean"},
                     "error": {"type": "string"}
                 },

@@ -14,8 +14,7 @@ def get_whatsapp_creds(auth: Dict[str, Any]) -> Dict[str, str]:
     access_token = creds_source.get("access_token") or creds_source.get("accessToken") or creds_source.get("token")
     
     if not access_token:
-        keys = list(auth.keys())
-        raise ValueError(f"Missing access_token in auth context. Available keys: {keys}")
+        raise ValueError(f"Missing access_token in auth context.")
         
     return {
         "access_token": access_token
@@ -30,6 +29,10 @@ def validate_media_url(url: str) -> bool:
     """Validate that the media URL is a valid HTTPS URL."""
     return url.startswith("https://")
 
+def validate_phone_number_id(phone_number_id: str) -> bool:
+    """Validate that the phone number ID is a numeric string."""
+    return phone_number_id.isdigit()
+
 # ---- Action Handlers ----
 
 @whatsapp.action("send_message")
@@ -42,10 +45,18 @@ class SendMessageAction(ActionHandler):
         message = inputs["message"]
         phone_number_id = inputs["phone_number_id"]
         
+        # Validate phone number ID
+        if not validate_phone_number_id(phone_number_id):
+            return ActionResult(data={
+                "message_id": None,
+                "success": False,
+                "error": "Invalid phone number ID. Must be a numeric string."
+            })
+
         # Validate phone number format to ensure it meets E.164 standards
         if not validate_phone_number(to):
             return ActionResult(data={
-                "message_id": "",
+                "message_id": None,
                 "success": False,
                 "error": "Invalid phone number format. Use format: +1234567890"
             })
@@ -79,14 +90,14 @@ class SendMessageAction(ActionHandler):
             else:
                 # Handle API errors or unexpected response structure
                 return ActionResult(data={
-                    "message_id": "",
+                    "message_id": None,
                     "success": False,
                     "error": response.get("error", {}).get("message", "Unknown error")
                 })
                 
         except Exception as e:
             return ActionResult(data={
-                "message_id": "",
+                "message_id": None,
                 "success": False,
                 "error": f"Failed to send message: {str(e)}"
             })
@@ -105,10 +116,18 @@ class SendTemplateMessageAction(ActionHandler):
         language_code = inputs.get("language_code", "en")
         parameters = inputs.get("parameters", [])
         
+        # Validate phone number ID
+        if not validate_phone_number_id(phone_number_id):
+            return ActionResult(data={
+                "message_id": None,
+                "success": False,
+                "error": "Invalid phone number ID. Must be a numeric string."
+            })
+        
         # Validate phone number format
         if not validate_phone_number(to):
             return ActionResult(data={
-                "message_id": "",
+                "message_id": None,
                 "success": False,
                 "error": "Invalid phone number format. Use format: +1234567890"
             })
@@ -153,14 +172,14 @@ class SendTemplateMessageAction(ActionHandler):
                 })
             else:
                 return ActionResult(data={
-                    "message_id": "",
+                    "message_id": None,
                     "success": False,
                     "error": response.get("error", {}).get("message", "Unknown error")
                 })
                 
         except Exception as e:
             return ActionResult(data={
-                "message_id": "",
+                "message_id": None,
                 "success": False,
                 "error": f"Failed to send template message: {str(e)}"
             })
@@ -179,10 +198,18 @@ class SendMediaMessageAction(ActionHandler):
         caption = inputs.get("caption", "")
         filename = inputs.get("filename", "")
         
+        # Validate phone number ID
+        if not validate_phone_number_id(phone_number_id):
+            return ActionResult(data={
+                "message_id": None,
+                "success": False,
+                "error": "Invalid phone number ID. Must be a numeric string."
+            })
+        
         # Validate phone number format
         if not validate_phone_number(to):
             return ActionResult(data={
-                "message_id": "",
+                "message_id": None,
                 "success": False,
                 "error": "Invalid phone number format. Use format: +1234567890"
             })
@@ -190,7 +217,7 @@ class SendMediaMessageAction(ActionHandler):
         # Validate media URL
         if not validate_media_url(media_url):
             return ActionResult(data={
-                "message_id": "",
+                "message_id": None,
                 "success": False,
                 "error": "Invalid media URL. Must be a publicly accessible HTTPS URL."
             })
@@ -237,14 +264,14 @@ class SendMediaMessageAction(ActionHandler):
                 })
             else:
                 return ActionResult(data={
-                    "message_id": "",
+                    "message_id": None,
                     "success": False,
                     "error": response.get("error", {}).get("message", "Unknown error")
                 })
                 
         except Exception as e:
             return ActionResult(data={
-                "message_id": "",
+                "message_id": None,
                 "success": False,
                 "error": f"Failed to send media message: {str(e)}"
             })
@@ -257,6 +284,15 @@ class GetPhoneNumberHealthAction(ActionHandler):
     """
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         phone_number_id = inputs["phone_number_id"]
+        
+        # Validate phone number ID
+        if not validate_phone_number_id(phone_number_id):
+            return ActionResult(data={
+                "status": "UNKNOWN",
+                "quality_rating": "UNKNOWN",
+                "success": False,
+                "error": "Invalid phone number ID. Must be a numeric string."
+            })
         
         try:
             creds = get_whatsapp_creds(context.auth)

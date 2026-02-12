@@ -135,6 +135,29 @@ async def test_media_url_validation():
                 print(f"Error testing media URL validation for {url}: {e}")
 
 
+async def test_phone_number_id_validation():
+    """Test phone number ID validation logic with invalid inputs."""
+    print("Testing phone number ID validation...")
+    
+    # Test invalid phone number IDs
+    invalid_ids = ["abc", "123a", "", " ", "-123"]
+    
+    # Use a valid phone number to bypass phone validation
+    valid_phone = "+1234567890"
+    
+    for pid in invalid_ids:
+        inputs = {"to": valid_phone, "message": "test", "phone_number_id": pid}
+        async with ExecutionContext(auth=AUTH) as context:
+            try:
+                result = await whatsapp.execute_action("send_message", inputs, context)
+                print(f"Phone ID {pid}: {result}")
+                data = result.result.data
+                assert not data["success"]
+                assert "Invalid phone number ID" in data["error"]
+            except Exception as e:
+                print(f"Error testing phone number ID validation for {pid}: {e}")
+
+
 async def main():
     print("Testing WhatsApp Business Integration")
     print("====================================")
@@ -146,7 +169,8 @@ async def main():
         "test_send_media_message": test_send_media_message,
         "test_get_phone_number_health": test_get_phone_number_health,
         "test_phone_validation": test_phone_validation,
-        "test_media_url_validation": test_media_url_validation
+        "test_media_url_validation": test_media_url_validation,
+        "test_phone_number_id_validation": test_phone_number_id_validation
     }
 
     # Check for specific test to run from command line args

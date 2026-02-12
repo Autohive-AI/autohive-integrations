@@ -1,3 +1,1 @@
 autohive-integrations-sdk~=1.0.2
-requests>=2.32.0
-aiohttp>=3.8.0
