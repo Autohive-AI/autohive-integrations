@@ -1,0 +1,155 @@
+{
+    "name": "WhatsApp Business",
+    "display_name": "WhatsApp Business",
+    "version": "1.0.0",
+    "description": "WhatsApp Business API integration for sending messages and managing conversations",
+    "entry_point": "whatsapp.py",
+    "auth": {
+        "type": "platform",
+        "provider": "WhatsApp Business",
+        "scopes": ["whatsapp_business_messaging", "whatsapp_business_management"]
+    },
+    "actions": {
+        "send_message": {
+            "display_name": "Send Message",
+            "description": "Send a text message to a WhatsApp contact",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "to": {
+                        "type": "string",
+                        "description": "Recipient's phone number (with country code, e.g., +1234567890)"
+                    },
+                    "phone_number_id": {
+                        "type": "string",
+                        "description": "The Phone Number ID associated with the WhatsApp Business account"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Message content to send"
+                    }
+                },
+                "required": ["phone_number_id", "to", "message"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "message_id": {"type": ["string", "null"]},
+                    "success": {"type": "boolean"},
+                    "error": {"type": "string"}
+                },
+                "required": ["message_id", "success"]
+            }
+        },
+        "send_template_message": {
+            "display_name": "Send Template Message",
+            "description": "Send a pre-approved template message to a WhatsApp contact",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "to": {
+                        "type": "string",
+                        "description": "Recipient's phone number (with country code, e.g., +1234567890)"
+                    },
+                    "phone_number_id": {
+                        "type": "string",
+                        "description": "The Phone Number ID associated with the WhatsApp Business account"
+                    },
+                    "template_name": {
+                        "type": "string",
+                        "description": "Name of the approved template"
+                    },
+                    "language_code": {
+                        "type": "string",
+                        "description": "Language code for the template (e.g., 'en', 'es', 'en_US')",
+                        "default": "en"
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "description": "Template parameters to substitute in the template",
+                        "items": {"type": "string"},
+                        "default": []
+                    }
+                },
+                "required": ["phone_number_id", "to", "template_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "message_id": {"type": ["string", "null"]},
+                    "success": {"type": "boolean"},
+                    "error": {"type": "string"}
+                },
+                "required": ["message_id", "success"]
+            }
+        },
+        "send_media_message": {
+            "display_name": "Send Media Message",
+            "description": "Send a media message (image, document, audio, video) to a WhatsApp contact",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "to": {
+                        "type": "string",
+                        "description": "Recipient's phone number (with country code, e.g., +1234567890)"
+                    },
+                    "phone_number_id": {
+                        "type": "string",
+                        "description": "The Phone Number ID associated with the WhatsApp Business account"
+                    },
+                    "media_type": {
+                        "type": "string",
+                        "enum": ["image", "document", "audio", "video"],
+                        "description": "Type of media to send"
+                    },
+                    "media_url": {
+                        "type": "string",
+                        "description": "URL of the media to send (must be publicly accessible HTTPS URL)"
+                    },
+                    "caption": {
+                        "type": "string",
+                        "description": "Optional caption for the media"
+                    },
+                    "filename": {
+                        "type": "string",
+                        "description": "Filename for document type media"
+                    }
+                },
+                "required": ["phone_number_id", "to", "media_type", "media_url"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "message_id": {"type": ["string", "null"]},
+                    "success": {"type": "boolean"},
+                    "error": {"type": "string"}
+                },
+                "required": ["message_id", "success"]
+            }
+        },
+        "get_phone_number_health": {
+            "display_name": "Get Phone Number Health",
+            "description": "Get the status and quality rating of the WhatsApp business phone number",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "phone_number_id": {
+                        "type": "string",
+                        "description": "The Phone Number ID associated with the WhatsApp Business account"
+                    }
+                },
+                "required": ["phone_number_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "status": {"type": "string"},
+                    "quality_rating": {"type": "string"},
+                    "success": {"type": "boolean"},
+                    "error": {"type": "string"}
+                },
+                "required": ["status", "success"]
+            }
+        }
+    }
+}
