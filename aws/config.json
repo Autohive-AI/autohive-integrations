@@ -1,0 +1,991 @@
+{
+    "name": "aws",
+    "display_name": "Amazon Web Services",
+    "version": "1.0.0",
+    "description": "AWS security and monitoring integration for Security Hub, GuardDuty, CloudWatch, and CloudTrail",
+    "entry_point": "aws.py",
+    "auth": {
+        "type": "custom",
+        "title": "AWS Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "aws_access_key_id": {
+                    "type": "string",
+                    "format": "text",
+                    "label": "AWS Access Key ID",
+                    "help_text": "Your AWS Access Key ID from IAM"
+                },
+                "aws_secret_access_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "AWS Secret Access Key",
+                    "help_text": "Your AWS Secret Access Key from IAM"
+                },
+                "aws_region": {
+                    "type": "string",
+                    "format": "text",
+                    "label": "AWS Region",
+                    "help_text": "AWS region (e.g. us-east-1, eu-west-1)"
+                }
+            },
+            "required": ["aws_access_key_id", "aws_secret_access_key", "aws_region"]
+        }
+    },
+    "actions": {
+        "get_findings": {
+            "display_name": "Get Security Hub Findings",
+            "description": "List and filter security findings from AWS Security Hub",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "filters": {
+                        "type": "object",
+                        "description": "AWS Security Hub filter criteria in the GetFindings API format (e.g. SeverityLabel, ComplianceStatus, ResourceType filters)"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of findings to return (default: 20, max: 100)",
+                        "default": 20,
+                        "minimum": 1,
+                        "maximum": 100
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from a previous request"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "findings": {
+                        "type": "array",
+                        "description": "List of Security Hub findings"
+                    },
+                    "next_token": {
+                        "type": ["string", "null"],
+                        "description": "Pagination token for the next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "get_finding_details": {
+            "display_name": "Get Security Hub Finding Details",
+            "description": "Get detailed information about a specific Security Hub finding by its ARN",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "finding_arn": {
+                        "type": "string",
+                        "description": "The ARN of the Security Hub finding to retrieve"
+                    }
+                },
+                "required": ["finding_arn"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "finding": {
+                        "type": "object",
+                        "description": "The Security Hub finding details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "update_finding_workflow": {
+            "display_name": "Update Finding Workflow Status",
+            "description": "Update the workflow status of one or more Security Hub findings",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "finding_arns": {
+                        "type": "array",
+                        "description": "List of finding ARNs to update",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "workflow_status": {
+                        "type": "string",
+                        "description": "The new workflow status to set",
+                        "enum": ["NEW", "NOTIFIED", "RESOLVED", "SUPPRESSED"]
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "Optional note to add to the findings"
+                    }
+                },
+                "required": ["finding_arns", "workflow_status"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "processed_findings": {
+                        "type": "array",
+                        "description": "List of finding ARNs that were successfully updated"
+                    },
+                    "unprocessed_findings": {
+                        "type": "array",
+                        "description": "List of finding ARNs that could not be updated"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "get_insights": {
+            "display_name": "Get Security Hub Insights",
+            "description": "Get security insight results from AWS Security Hub",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "insight_arns": {
+                        "type": "array",
+                        "description": "List of insight ARNs to retrieve. If not specified, returns all insights.",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of insights to return (default: 20)",
+                        "default": 20,
+                        "minimum": 1
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from a previous request"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "insights": {
+                        "type": "array",
+                        "description": "List of Security Hub insights"
+                    },
+                    "next_token": {
+                        "type": ["string", "null"],
+                        "description": "Pagination token for the next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "list_detectors": {
+            "display_name": "List GuardDuty Detectors",
+            "description": "List all GuardDuty detector IDs in the current AWS account and region",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of detector IDs to return (default: 50)",
+                        "default": 50,
+                        "minimum": 1
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from a previous request"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "detector_ids": {
+                        "type": "array",
+                        "description": "List of GuardDuty detector IDs",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "next_token": {
+                        "type": ["string", "null"],
+                        "description": "Pagination token for the next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "list_guardduty_findings": {
+            "display_name": "List GuardDuty Findings",
+            "description": "List and filter GuardDuty findings for a specific detector",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "detector_id": {
+                        "type": "string",
+                        "description": "The ID of the GuardDuty detector"
+                    },
+                    "finding_criteria": {
+                        "type": "object",
+                        "description": "Criteria to filter findings (e.g. by severity, type, or resource)"
+                    },
+                    "sort_criteria": {
+                        "type": "object",
+                        "description": "Criteria for sorting results (attribute name and order direction)"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of finding IDs to return (default: 50)",
+                        "default": 50,
+                        "minimum": 1
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from a previous request"
+                    }
+                },
+                "required": ["detector_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "finding_ids": {
+                        "type": "array",
+                        "description": "List of GuardDuty finding IDs",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "next_token": {
+                        "type": ["string", "null"],
+                        "description": "Pagination token for the next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "get_guardduty_finding_details": {
+            "display_name": "Get GuardDuty Finding Details",
+            "description": "Get detailed information about one or more GuardDuty findings",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "detector_id": {
+                        "type": "string",
+                        "description": "The ID of the GuardDuty detector"
+                    },
+                    "finding_ids": {
+                        "type": "array",
+                        "description": "List of finding IDs to retrieve details for",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["detector_id", "finding_ids"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "findings": {
+                        "type": "array",
+                        "description": "List of detailed GuardDuty findings"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "archive_findings": {
+            "display_name": "Archive GuardDuty Findings",
+            "description": "Archive one or more GuardDuty findings by their IDs",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "detector_id": {
+                        "type": "string",
+                        "description": "The ID of the GuardDuty detector"
+                    },
+                    "finding_ids": {
+                        "type": "array",
+                        "description": "List of finding IDs to archive",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["detector_id", "finding_ids"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether the findings were successfully archived"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "list_metrics": {
+            "display_name": "List CloudWatch Metrics",
+            "description": "List available CloudWatch metrics, optionally filtered by namespace, name, or dimensions",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "namespace": {
+                        "type": "string",
+                        "description": "The namespace to filter metrics by (e.g. AWS/EC2, AWS/RDS, AWS/Lambda)"
+                    },
+                    "metric_name": {
+                        "type": "string",
+                        "description": "The metric name to filter by (e.g. CPUUtilization, NetworkIn)"
+                    },
+                    "dimensions": {
+                        "type": "array",
+                        "description": "List of dimension filters, each with Name and Value",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from a previous request"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "metrics": {
+                        "type": "array",
+                        "description": "List of CloudWatch metrics with namespace, name, and dimensions"
+                    },
+                    "next_token": {
+                        "type": ["string", "null"],
+                        "description": "Pagination token for the next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "get_metric_data": {
+            "display_name": "Get CloudWatch Metric Data",
+            "description": "Retrieve CloudWatch metric statistics for one or more metrics over a specified time period",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "metric_data_queries": {
+                        "type": "array",
+                        "description": "List of metric data queries. Each query requires an 'id' and either a 'metric_stat' (with metric, period, stat) or an 'expression'.",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "start_time": {
+                        "type": "string",
+                        "description": "Start of the time range in ISO 8601 format (e.g. 2024-01-01T00:00:00Z)"
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "End of the time range in ISO 8601 format (e.g. 2024-01-02T00:00:00Z)"
+                    }
+                },
+                "required": ["metric_data_queries", "start_time", "end_time"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "metric_data_results": {
+                        "type": "array",
+                        "description": "List of metric data results with timestamps and values"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "describe_alarms": {
+            "display_name": "Describe CloudWatch Alarms",
+            "description": "List and filter CloudWatch alarms by name, prefix, or state",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "alarm_names": {
+                        "type": "array",
+                        "description": "List of specific alarm names to retrieve",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "alarm_name_prefix": {
+                        "type": "string",
+                        "description": "Prefix to filter alarm names by"
+                    },
+                    "state_value": {
+                        "type": "string",
+                        "description": "Filter alarms by state",
+                        "enum": ["OK", "ALARM", "INSUFFICIENT_DATA"]
+                    },
+                    "max_records": {
+                        "type": "integer",
+                        "description": "Maximum number of alarm records to return (default: 50)",
+                        "default": 50,
+                        "minimum": 1
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from a previous request"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "metric_alarms": {
+                        "type": "array",
+                        "description": "List of metric alarms"
+                    },
+                    "composite_alarms": {
+                        "type": "array",
+                        "description": "List of composite alarms"
+                    },
+                    "next_token": {
+                        "type": ["string", "null"],
+                        "description": "Pagination token for the next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "get_alarm_history": {
+            "display_name": "Get CloudWatch Alarm History",
+            "description": "Retrieve the history of state changes and actions for CloudWatch alarms",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "alarm_name": {
+                        "type": "string",
+                        "description": "The name of the alarm to get history for. If not specified, returns history for all alarms."
+                    },
+                    "alarm_types": {
+                        "type": "array",
+                        "description": "Filter by alarm type (MetricAlarm, CompositeAlarm)",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "history_item_type": {
+                        "type": "string",
+                        "description": "Filter by history item type",
+                        "enum": ["ConfigurationUpdate", "StateUpdate", "Action"]
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start of the date range in ISO 8601 format"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End of the date range in ISO 8601 format"
+                    },
+                    "max_records": {
+                        "type": "integer",
+                        "description": "Maximum number of history items to return (default: 50)",
+                        "default": 50,
+                        "minimum": 1
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from a previous request"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "alarm_history_items": {
+                        "type": "array",
+                        "description": "List of alarm history items with timestamp, type, and summary"
+                    },
+                    "next_token": {
+                        "type": ["string", "null"],
+                        "description": "Pagination token for the next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "set_alarm_state": {
+            "display_name": "Set CloudWatch Alarm State",
+            "description": "Temporarily set the state of a CloudWatch alarm for testing or maintenance purposes",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "alarm_name": {
+                        "type": "string",
+                        "description": "The name of the alarm to set the state for"
+                    },
+                    "state_value": {
+                        "type": "string",
+                        "description": "The state value to set",
+                        "enum": ["OK", "ALARM", "INSUFFICIENT_DATA"]
+                    },
+                    "state_reason": {
+                        "type": "string",
+                        "description": "A human-readable reason for the state change"
+                    }
+                },
+                "required": ["alarm_name", "state_value", "state_reason"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether the alarm state was successfully set"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "describe_log_groups": {
+            "display_name": "Describe CloudWatch Log Groups",
+            "description": "List CloudWatch Logs log groups, optionally filtered by name prefix",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "log_group_name_prefix": {
+                        "type": "string",
+                        "description": "Prefix to filter log group names by"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of log groups to return (default: 50, max: 50)",
+                        "default": 50,
+                        "minimum": 1,
+                        "maximum": 50
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from a previous request"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "log_groups": {
+                        "type": "array",
+                        "description": "List of log groups with name, ARN, creation time, and stored bytes"
+                    },
+                    "next_token": {
+                        "type": ["string", "null"],
+                        "description": "Pagination token for the next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "filter_log_events": {
+            "display_name": "Filter CloudWatch Log Events",
+            "description": "Search and filter log events across one or more log streams within a log group",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "log_group_name": {
+                        "type": "string",
+                        "description": "The name of the log group to search"
+                    },
+                    "log_stream_names": {
+                        "type": "array",
+                        "description": "List of log stream names to search within",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "filter_pattern": {
+                        "type": "string",
+                        "description": "CloudWatch Logs filter pattern to match events (e.g. 'ERROR', '{ $.statusCode = 500 }')"
+                    },
+                    "start_time": {
+                        "type": "string",
+                        "description": "Start of the time range in ISO 8601 format"
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "End of the time range in ISO 8601 format"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of events to return (default: 50, max: 10000)",
+                        "default": 50,
+                        "minimum": 1,
+                        "maximum": 10000
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from a previous request"
+                    }
+                },
+                "required": ["log_group_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "events": {
+                        "type": "array",
+                        "description": "List of matching log events with timestamp, message, and log stream name"
+                    },
+                    "searched_log_streams": {
+                        "type": "array",
+                        "description": "List of log streams that were searched"
+                    },
+                    "next_token": {
+                        "type": ["string", "null"],
+                        "description": "Pagination token for the next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "get_log_events": {
+            "display_name": "Get CloudWatch Log Events",
+            "description": "Get log events from a specific log stream in a log group",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "log_group_name": {
+                        "type": "string",
+                        "description": "The name of the log group"
+                    },
+                    "log_stream_name": {
+                        "type": "string",
+                        "description": "The name of the log stream"
+                    },
+                    "start_time": {
+                        "type": "string",
+                        "description": "Start of the time range in ISO 8601 format"
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "End of the time range in ISO 8601 format"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of events to return (default: 50, max: 10000)",
+                        "default": 50,
+                        "minimum": 1,
+                        "maximum": 10000
+                    },
+                    "start_from_head": {
+                        "type": "boolean",
+                        "description": "If true, return events from the oldest first. If false, return from the newest first (default: true).",
+                        "default": true
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from a previous request"
+                    }
+                },
+                "required": ["log_group_name", "log_stream_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "events": {
+                        "type": "array",
+                        "description": "List of log events with timestamp and message"
+                    },
+                    "next_forward_token": {
+                        "type": ["string", "null"],
+                        "description": "Token for fetching the next set of events going forward in time"
+                    },
+                    "next_backward_token": {
+                        "type": ["string", "null"],
+                        "description": "Token for fetching the next set of events going backward in time"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "lookup_events": {
+            "display_name": "Lookup CloudTrail Events",
+            "description": "Search CloudTrail management events by attributes such as event name, user, or resource",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "lookup_attributes": {
+                        "type": "array",
+                        "description": "List of lookup attributes to filter events. Each item has 'attribute_key' (e.g. EventName, Username, ResourceType, ResourceName, EventSource) and 'attribute_value'.",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "start_time": {
+                        "type": "string",
+                        "description": "Start of the time range in ISO 8601 format"
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "End of the time range in ISO 8601 format"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of events to return (default: 50, max: 50)",
+                        "default": 50,
+                        "minimum": 1,
+                        "maximum": 50
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from a previous request"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "events": {
+                        "type": "array",
+                        "description": "List of CloudTrail events with event name, time, user, and resources"
+                    },
+                    "next_token": {
+                        "type": ["string", "null"],
+                        "description": "Pagination token for the next page of results"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "describe_trails": {
+            "display_name": "Describe CloudTrail Trails",
+            "description": "List configured CloudTrail trails in the account",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "trail_name_list": {
+                        "type": "array",
+                        "description": "List of trail names or ARNs to describe. If not specified, returns all trails.",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "include_shadow_trails": {
+                        "type": "boolean",
+                        "description": "Whether to include shadow trails (replications of trails in other regions). Default: true.",
+                        "default": true
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "trails": {
+                        "type": "array",
+                        "description": "List of CloudTrail trail configurations"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "get_trail_status": {
+            "display_name": "Get CloudTrail Trail Status",
+            "description": "Get the current logging status and latest delivery information for a CloudTrail trail",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "trail_name": {
+                        "type": "string",
+                        "description": "The trail name or ARN to get status for"
+                    }
+                },
+                "required": ["trail_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "trail_status": {
+                        "type": "object",
+                        "description": "Trail status including logging state, latest delivery time, and any delivery errors"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        },
+        "get_event_selectors": {
+            "display_name": "Get CloudTrail Event Selectors",
+            "description": "Get the event recording configuration for a CloudTrail trail, including management and data event selectors",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "trail_name": {
+                        "type": "string",
+                        "description": "The trail name or ARN to get event selectors for"
+                    }
+                },
+                "required": ["trail_name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "trail_arn": {
+                        "type": "string",
+                        "description": "The ARN of the trail"
+                    },
+                    "event_selectors": {
+                        "type": "array",
+                        "description": "List of event selectors configured on the trail"
+                    },
+                    "advanced_event_selectors": {
+                        "type": "array",
+                        "description": "List of advanced event selectors configured on the trail"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": ["string", "null"],
+                        "description": "Error message if the operation failed"
+                    }
+                }
+            }
+        }
+    }
+}
