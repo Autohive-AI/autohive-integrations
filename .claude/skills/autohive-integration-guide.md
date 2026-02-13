@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers how to build integrations for the Autohive platform using the `autohive_integrations_sdk`. Every integration connects Autohive to a third-party service by defining **actions** (API operations a user can trigger) and optionally **polling triggers** (event monitors). The codebase contains 80+ integrations across services like GitHub, Facebook, Dropbox, Shopify, and more.
+This guide covers how to build integrations for the Autohive platform using the `autohive_integrations_sdk`. Every integration connects Autohive to a third-party service by defining **actions** (API operations a user can trigger). The codebase contains 80+ integrations across services like GitHub, Facebook, Dropbox, Shopify, and more.
 
 ---
 
@@ -54,7 +54,7 @@ my-integration/
 
 ## config.json
 
-The config.json defines the integration's identity, authentication method, actions, and triggers. It is the contract between the integration and the Autohive platform.
+The config.json defines the integration's identity, authentication method, and actions. It is the contract between the integration and the Autohive platform.
 
 ### Full Structure
 
@@ -66,8 +66,7 @@ The config.json defines the integration's identity, authentication method, actio
     "display_name": "My Service",
     "entry_point": "my_service.py",
     "auth": { ... },
-    "actions": { ... },
-    "polling_triggers": { ... }
+    "actions": { ... }
 }
 ```
 
@@ -140,13 +139,11 @@ Each action has an `input_schema` and `output_schema` using JSON Schema:
                 "media_type": {
                     "type": "string",
                     "enum": ["text", "photo", "video", "link"],
-                    "description": "Type of post content",
-                    "default": "text"
+                    "description": "Type of post content"
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of results (1-100)",
-                    "default": 25
+                    "description": "Maximum number of results (1-100)"
                 }
             },
             "required": ["page_id", "message"]
@@ -166,35 +163,10 @@ Each action has an `input_schema` and `output_schema` using JSON Schema:
 
 Schema tips:
 - Use `"enum"` for constrained string choices
-- Use `"default"` for optional parameters with sensible defaults
+- Do **not** use `"default"` in schemas — some providers don't support it. Instead, handle defaults in your Python code with `inputs.get("field", default_value)`
 - Include `"description"` on every property
 - Only put truly required fields in the `"required"` array
 - Match output schema to what the action actually returns
-
-### Polling Trigger Definitions
-
-```json
-"polling_triggers": {
-    "new_order": {
-        "description": "Triggers when a new order is placed",
-        "polling_interval": "5m",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "store_id": {"type": "string", "description": "Store to monitor"}
-            },
-            "required": ["store_id"]
-        },
-        "output_schema": {
-            "type": "object",
-            "properties": {
-                "order_id": {"type": "string"},
-                "total": {"type": "number"}
-            }
-        }
-    }
-}
-```
 
 ---
 
@@ -372,30 +344,182 @@ Rules:
 
 ### ConnectedAccountHandler
 
-Used to fetch user profile information after OAuth connection:
+Used to fetch user profile information after a user authorizes the integration. This handler is called once during connection setup and the result is cached for display in the UI.
 
+#### ConnectedAccountInfo Fields
+
+All fields are optional — populate whichever ones the service's API provides:
+
+```python
+ConnectedAccountInfo(
+    user_id: str,        # Unique user identifier
+    username: str,       # Display name or handle
+    email: str,          # Email address
+    first_name: str,     # First name
+    last_name: str,      # Last name
+    avatar_url: str,     # Profile picture URL
+    organization: str,   # Company, team, or org name
+)
+```
+
+#### Example 1: OAuth2 with Simple /me Endpoint (Instagram)
+
+The most common pattern — single API call to the user info endpoint:
+
+**From `instagram/instagram.py`:**
 ```python
 from autohive_integrations_sdk import ConnectedAccountHandler, ConnectedAccountInfo
 
-@my_service.connected_account()
-class MyServiceConnectedAccount(ConnectedAccountHandler):
+@instagram.connected_account()
+class InstagramConnectedAccountHandler(ConnectedAccountHandler):
     async def get_account_info(self, context: ExecutionContext) -> ConnectedAccountInfo:
+        fields = ",".join(["id", "username", "name", "profile_picture_url"])
+
         response = await context.fetch(
-            "https://api.myservice.com/v1/me",
+            f"{INSTAGRAM_GRAPH_API_BASE}/me",
             method="GET",
-            headers=get_headers(context)
+            params={"fields": fields}
         )
 
+        name = response.get("name", "")
+        name_parts = name.split(maxsplit=1) if name else []
+
         return ConnectedAccountInfo(
-            user_id=str(response.get("id", "")),
-            email=response.get("email"),
             username=response.get("username"),
-            first_name=response.get("first_name"),
-            last_name=response.get("last_name"),
-            avatar_url=response.get("avatar_url"),
-            organization=response.get("company")
+            first_name=name_parts[0] if len(name_parts) > 0 else None,
+            last_name=name_parts[1] if len(name_parts) > 1 else None,
+            avatar_url=response.get("profile_picture_url"),
+            user_id=response.get("id")
         )
 ```
+
+#### Example 2: Using a Helper API Client (Zoom)
+
+For integrations that have a centralized API client class:
+
+**From `zoom/zoom.py`:**
+```python
+@zoom.connected_account()
+class ZoomConnectedAccountHandler(ConnectedAccountHandler):
+    async def get_account_info(self, context: ExecutionContext) -> ConnectedAccountInfo:
+        client = ZoomAPIClient(context)
+        user_data = await client._make_request("users/me")
+
+        first_name = user_data.get("first_name", "")
+        last_name = user_data.get("last_name", "")
+
+        return ConnectedAccountInfo(
+            email=user_data.get("email"),
+            username=user_data.get("display_name") or f"{first_name} {last_name}".strip(),
+            first_name=first_name if first_name else None,
+            last_name=last_name if last_name else None,
+            avatar_url=user_data.get("pic_url"),
+            organization=user_data.get("company") or user_data.get("dept"),
+            user_id=user_data.get("id")
+        )
+```
+
+#### Example 3: Multi-Tenant / Organization-Based (Xero)
+
+Some services connect to an organization rather than a user. Use the first connected tenant:
+
+**From `xero/xero.py`:**
+```python
+@xero.connected_account()
+class XeroConnectedAccountHandler(ConnectedAccountHandler):
+    async def get_account_info(self, context: ExecutionContext) -> ConnectedAccountInfo:
+        response = await context.fetch(
+            "https://api.xero.com/connections",
+            method="GET",
+            headers={"Accept": "application/json"}
+        )
+
+        if not response or not isinstance(response, list) or len(response) == 0:
+            return ConnectedAccountInfo(username="Unknown Organization")
+
+        first_connection = response[0]
+        return ConnectedAccountInfo(
+            username=first_connection.get("tenantName", "Unknown Organization"),
+            user_id=first_connection.get("tenantId")
+        )
+```
+
+#### Example 4: Multiple API Calls to Build Full Profile (Canva)
+
+When user info is split across multiple endpoints:
+
+**From `canva/canva.py`:**
+```python
+@canva.connected_account()
+class CanvaConnectedAccountHandler(ConnectedAccountHandler):
+    async def get_account_info(self, context: ExecutionContext) -> ConnectedAccountInfo:
+        # Call 1: Get display name from profile endpoint
+        profile_response = await context.fetch(
+            f"{service_endpoint}/v1/users/me/profile",
+            method="GET"
+        )
+
+        # Call 2: Get user_id and team_id from user endpoint
+        user_response = await context.fetch(
+            f"{service_endpoint}/v1/users/me",
+            method="GET"
+        )
+
+        display_name = profile_response.get("profile", {}).get("display_name")
+        team_user = user_response.get("team_user", {})
+
+        first_name = None
+        last_name = None
+        if display_name:
+            name_parts = display_name.split(maxsplit=1)
+            first_name = name_parts[0] if len(name_parts) > 0 else None
+            last_name = name_parts[1] if len(name_parts) > 1 else None
+
+        return ConnectedAccountInfo(
+            username=display_name,
+            first_name=first_name,
+            last_name=last_name,
+            user_id=team_user.get("user_id"),
+            organization=team_user.get("team_id")
+        )
+```
+
+#### Example 5: API Key Auth (TikTok)
+
+Works the same way with custom auth — the SDK handles passing credentials:
+
+**From `tiktok/tiktok.py`:**
+```python
+@tiktok.connected_account()
+class TikTokConnectedAccountHandler(ConnectedAccountHandler):
+    async def get_account_info(self, context: ExecutionContext) -> ConnectedAccountInfo:
+        response = await context.fetch(
+            USER_INFO_ENDPOINT,
+            method="GET",
+            params={"fields": ",".join(BASIC_USER_INFO_FIELDS)},
+        )
+        data = _check_api_response(response)
+        user = data.get("user", data)
+
+        return ConnectedAccountInfo(
+            user_id=user.get("open_id", ""),
+            username=user.get("display_name", ""),
+            first_name=user.get("display_name", ""),
+            last_name="",
+            avatar_url=user.get("avatar_url", ""),
+        )
+```
+
+#### Common Patterns Across Connected Account Handlers
+
+| Pattern | Used By | When To Use |
+|---------|---------|-------------|
+| Single `/me` call | Instagram, TikTok, Float | API has one user info endpoint |
+| Multiple API calls | Canva (profile + user) | User info split across endpoints |
+| Helper/client class | Zoom (ZoomAPIClient) | Integration has a reusable API client |
+| Org-based identity | Xero (tenant name) | Service connects to an org, not a user |
+| Name splitting | Instagram, Canva | API returns full name, not first/last |
+| Fallback values | Xero ("Unknown Organization") | Graceful handling of missing data |
 
 ---
 
