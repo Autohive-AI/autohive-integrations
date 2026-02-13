@@ -1,9 +1,5 @@
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from aws import integration
 from autohive_integrations_sdk import ActionHandler, ExecutionContext
+from aws import integration
 from helpers import create_boto3_client, run_sync, success_result, error_result
 from typing import Dict, Any
 from datetime import datetime

@@ -19,7 +19,7 @@ def create_boto3_client(context: ExecutionContext, service_name: str):
 
 
 async def run_sync(func, *args, **kwargs):
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
         None,
         functools.partial(func, *args, **kwargs)

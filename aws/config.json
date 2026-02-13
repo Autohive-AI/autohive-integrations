@@ -439,7 +439,7 @@
                 "properties": {
                     "metric_data_queries": {
                         "type": "array",
-                        "description": "List of metric data queries. Each query requires an 'id' and either a 'metric_stat' (with metric, period, stat) or an 'expression'.",
+                        "description": "List of metric data queries in AWS PascalCase format. Each query requires 'Id' and either 'MetricStat' (with 'Metric', 'Period', 'Stat') or 'Expression'.",
                         "items": {
                             "type": "object"
                         }
