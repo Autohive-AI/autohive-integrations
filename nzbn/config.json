@@ -171,6 +171,51 @@
                 }
             }
         },
+        "get_entity_summary": {
+            "display_name": "Get Entity Summary",
+            "description": "Retrieve essential entity information optimized for LLM token usage. Returns only NZBN, entity name, and registered office address. Provides 99% token savings compared to full entity details.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "nzbn": {
+                        "type": "string",
+                        "description": "The 13-digit NZBN identifier of the entity to retrieve"
+                    }
+                },
+                "required": ["nzbn"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "type": "object",
+                        "description": "Essential entity information",
+                        "properties": {
+                            "nzbn": {
+                                "type": "string",
+                                "description": "The 13-digit NZBN identifier"
+                            },
+                            "entityName": {
+                                "type": "string",
+                                "description": "Registered entity name"
+                            },
+                            "registeredOffice": {
+                                "type": "string",
+                                "description": "Registered office address"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
         "get_entity_addresses": {
             "display_name": "Get Entity Addresses",
             "description": "Retrieve all addresses associated with a business entity including registered office, physical address, and postal address.",
