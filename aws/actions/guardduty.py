@@ -1,10 +1,10 @@
 from autohive_integrations_sdk import ActionHandler, ExecutionContext
-from aws import integration
+from aws import aws
 from helpers import create_boto3_client, run_sync, success_result, error_result
 from typing import Dict, Any
 
 
-@integration.action("list_detectors")
+@aws.action("list_detectors")
 class ListDetectorsAction(ActionHandler):
     """List all GuardDuty detector IDs in the current account and region."""
 
@@ -23,7 +23,7 @@ class ListDetectorsAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("list_guardduty_findings")
+@aws.action("list_guardduty_findings")
 class ListGuardDutyFindingsAction(ActionHandler):
     """List and filter GuardDuty findings for a specific detector."""
 
@@ -49,7 +49,7 @@ class ListGuardDutyFindingsAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("get_guardduty_finding_details")
+@aws.action("get_guardduty_finding_details")
 class GetGuardDutyFindingDetailsAction(ActionHandler):
     """Get detailed information about one or more GuardDuty findings."""
 
@@ -68,7 +68,7 @@ class GetGuardDutyFindingDetailsAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("archive_findings")
+@aws.action("archive_findings")
 class ArchiveFindingsAction(ActionHandler):
     """Archive one or more GuardDuty findings by their IDs."""
 

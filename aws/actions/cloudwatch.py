@@ -1,11 +1,11 @@
 from autohive_integrations_sdk import ActionHandler, ExecutionContext
-from aws import integration
+from aws import aws
 from helpers import create_boto3_client, run_sync, success_result, error_result
 from typing import Dict, Any
 from datetime import datetime
 
 
-@integration.action("list_metrics")
+@aws.action("list_metrics")
 class ListMetricsAction(ActionHandler):
     """List available CloudWatch metrics, optionally filtered by namespace, name, or dimensions."""
 
@@ -30,7 +30,7 @@ class ListMetricsAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("get_metric_data")
+@aws.action("get_metric_data")
 class GetMetricDataAction(ActionHandler):
     """Retrieve CloudWatch metric data for one or more metrics over a time period."""
 
@@ -52,7 +52,7 @@ class GetMetricDataAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("describe_alarms")
+@aws.action("describe_alarms")
 class DescribeAlarmsAction(ActionHandler):
     """List and filter CloudWatch alarms by name, prefix, or state."""
 
@@ -78,7 +78,7 @@ class DescribeAlarmsAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("get_alarm_history")
+@aws.action("get_alarm_history")
 class GetAlarmHistoryAction(ActionHandler):
     """Retrieve the history of state changes and actions for CloudWatch alarms."""
 
@@ -107,7 +107,7 @@ class GetAlarmHistoryAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("set_alarm_state")
+@aws.action("set_alarm_state")
 class SetAlarmStateAction(ActionHandler):
     """Temporarily set the state of a CloudWatch alarm for testing or maintenance."""
 

@@ -1,11 +1,11 @@
 from autohive_integrations_sdk import ActionHandler, ExecutionContext
-from aws import integration
+from aws import aws
 from helpers import create_boto3_client, run_sync, success_result, error_result
 from typing import Dict, Any
 from datetime import datetime
 
 
-@integration.action("lookup_events")
+@aws.action("lookup_events")
 class LookupEventsAction(ActionHandler):
     """Search CloudTrail management events by attributes such as event name or user."""
 
@@ -33,7 +33,7 @@ class LookupEventsAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("describe_trails")
+@aws.action("describe_trails")
 class DescribeTrailsAction(ActionHandler):
     """List configured CloudTrail trails in the account."""
 
@@ -55,7 +55,7 @@ class DescribeTrailsAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("get_trail_status")
+@aws.action("get_trail_status")
 class GetTrailStatusAction(ActionHandler):
     """Get the current logging status and latest delivery info for a trail."""
 
@@ -72,7 +72,7 @@ class GetTrailStatusAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("get_event_selectors")
+@aws.action("get_event_selectors")
 class GetEventSelectorsAction(ActionHandler):
     """Get the event recording configuration for a CloudTrail trail."""
 

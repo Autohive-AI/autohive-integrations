@@ -4,12 +4,12 @@ AWS Security Hub actions - Findings management and security insights.
 
 import asyncio
 from autohive_integrations_sdk import ActionHandler, ExecutionContext
-from aws import integration
+from aws import aws
 from helpers import create_boto3_client, run_sync, success_result, error_result
 from typing import Dict, Any
 
 
-@integration.action("get_findings")
+@aws.action("get_findings")
 class GetFindingsAction(ActionHandler):
     """
     List and filter security findings from AWS Security Hub.
@@ -35,7 +35,7 @@ class GetFindingsAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("get_finding_details")
+@aws.action("get_finding_details")
 class GetFindingDetailsAction(ActionHandler):
     """
     Get detailed information about a specific Security Hub finding by its ARN.
@@ -62,7 +62,7 @@ class GetFindingDetailsAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("update_finding_workflow")
+@aws.action("update_finding_workflow")
 class UpdateFindingWorkflowAction(ActionHandler):
     """
     Update the workflow status of one or more Security Hub findings.
@@ -131,7 +131,7 @@ class UpdateFindingWorkflowAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("get_insights")
+@aws.action("get_insights")
 class GetInsightsAction(ActionHandler):
     """
     Get security insight results from AWS Security Hub.

@@ -1,5 +1,5 @@
 from autohive_integrations_sdk import ActionHandler, ExecutionContext
-from aws import integration
+from aws import aws
 from helpers import create_boto3_client, run_sync, success_result, error_result
 from typing import Dict, Any
 from datetime import datetime
@@ -10,7 +10,7 @@ def _iso_to_epoch_ms(iso_string: str) -> int:
     return int(dt.timestamp() * 1000)
 
 
-@integration.action("describe_log_groups")
+@aws.action("describe_log_groups")
 class DescribeLogGroupsAction(ActionHandler):
     """List CloudWatch Logs log groups, optionally filtered by name prefix."""
 
@@ -31,7 +31,7 @@ class DescribeLogGroupsAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("filter_log_events")
+@aws.action("filter_log_events")
 class FilterLogEventsAction(ActionHandler):
     """Search and filter log events across log streams within a log group."""
 
@@ -62,7 +62,7 @@ class FilterLogEventsAction(ActionHandler):
             return error_result(e)
 
 
-@integration.action("get_log_events")
+@aws.action("get_log_events")
 class GetLogEventsAction(ActionHandler):
     """Get log events from a specific log stream in a log group."""
 
