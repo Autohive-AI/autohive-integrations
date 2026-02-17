@@ -3,6 +3,7 @@
   "version": "2.1.0",
   "description": "GitHub API integration for complete repository management including CRUD operations for repos, branches, issues, PRs, files, and more.",
   "display_name": "GitHub",
+  "supports_connected_account": true,
   "entry_point": "github.py",
   "auth": {
     "type": "platform",
