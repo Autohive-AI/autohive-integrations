@@ -321,7 +321,7 @@ class GetEntitySummaryAction(ActionHandler):
             summary = {
                 "nzbn": entity_data.get("nzbn"),
                 "entityName": entity_data.get("entityName"),
-                "registeredOffice": registered_office
+                "registeredOffice": registered_office or ""  # Return empty string if not found
             }
 
             return ActionResult(
