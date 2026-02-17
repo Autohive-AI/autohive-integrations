@@ -279,6 +279,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [shopify-customer](shopify-customer): Facilitates customer self-service through the Shopify Customer Account API. Supports authenticated customer operations, including viewing and updating profiles, managing address books (list, create, update, delete, set default), and accessing order history. Features OAuth 2.0 with PKCE authentication helpers.
 
+### AWS Security
+
+[aws](aws): Comprehensive AWS security monitoring integration for Security Hub, GuardDuty, CloudWatch, and CloudTrail. Supports Security Hub findings management (list, get details, update workflow status with notes, get security insights with enriched results), GuardDuty threat detection (list detectors, list and filter findings, get finding details, archive findings), CloudWatch metrics and alarms (list metrics, get metric data with time ranges, describe alarms by state/name/prefix, get alarm history with filtering, set alarm state for testing), CloudWatch Logs (describe log groups, filter log events with pattern matching, get log events from specific streams), and CloudTrail audit logging (lookup events by attribute with date filtering, describe trails, get trail status, get event selectors). Features custom authentication with AWS access key, secret key, and region configuration, async boto3 execution via thread pool executor, robust serialization for datetime/Decimal/bytes types, AWS-specific error code extraction, and parallel insight result fetching with asyncio.gather. Includes 20 actions across 5 AWS services covering security posture assessment, threat detection, infrastructure monitoring, log analysis, and audit trail investigation. Ideal for security operations, compliance monitoring, incident response, and cloud infrastructure observability workflows.
+
 ## Template
 
 [template-structure](template-structure) contains a structural template for new integrations, including a sample template for an appropriate README file and a basic testbed.
