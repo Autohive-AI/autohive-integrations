@@ -2,7 +2,7 @@ from autohive_integrations_sdk import (
     Integration, ExecutionContext, ActionHandler, ActionResult
 )
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import base64
 import aiohttp
 import urllib.parse
@@ -330,7 +330,7 @@ class ListCalendarEventsAction(ActionHandler):
             else:
                 # Intelligent default: next 30 days of calendar events (more useful for calendars)
                 # Use UTC time for intelligent defaults (agent can provide timezone-aware datetime if needed)
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 end_time = now + timedelta(days=30)
                 start_datetime = now.strftime("%Y-%m-%dT%H:%M:%SZ")
                 end_datetime = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -416,7 +416,7 @@ class ListEmailsAction(ActionHandler):
             else:
                 # Intelligent default: last 1 day of emails
                 # Use UTC time for intelligent defaults (agent can provide timezone-aware datetime if needed)
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 start_time = now - timedelta(days=1)
                 start_datetime = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
                 end_datetime = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -2240,14 +2240,12 @@ class FindMeetingTimesAction(ActionHandler):
             # - User's working hours configured in Outlook
             # - User's timezone settings
             # - Calendar availability
-            from datetime import datetime, timedelta
-
             start_dt = inputs.get("start_datetime")
             end_dt = inputs.get("end_datetime")
 
             # Always apply defaults as documented in schema
             if not start_dt:
-                start_parsed = datetime.utcnow()
+                start_parsed = datetime.now(timezone.utc)
                 start_dt = start_parsed.isoformat() + "Z"
             else:
                 # Handle Microsoft Graph timestamps with fractional seconds (e.g., 2024-08-20T10:00:00.0000000Z)
@@ -2295,8 +2293,7 @@ class FindMeetingTimesAction(ActionHandler):
                 "minimumAttendeePercentage": minimum_attendee_percentage
             }
 
-            if time_constraint:
-                body["timeConstraint"] = time_constraint
+            body["timeConstraint"] = time_constraint
 
             # Add location constraint if specified
             location_email = inputs.get("location_constraint")
@@ -2471,10 +2468,17 @@ class ListRoomsAction(ActionHandler):
                 # GET /places/microsoft.graph.roomList
                 url = f"{GRAPH_API_BASE}/places/microsoft.graph.roomList"
                 params = {"$top": limit}
-                response = await context.fetch(url, params=params)
+                all_items = []
+                next_url = url
+                is_first = True
+                while next_url:
+                    response = await context.fetch(next_url, params=params if is_first else None)
+                    is_first = False
+                    all_items.extend(response.get("value", []))
+                    next_url = response.get("@odata.nextLink")
 
                 rooms = []
-                for room_list in response.get("value", []):
+                for room_list in all_items:
                     rooms.append({
                         "id": room_list.get("id", ""),
                         "display_name": room_list.get("displayName", ""),
@@ -2496,10 +2500,17 @@ class ListRoomsAction(ActionHandler):
                 # GET /places/{room-list-email}/microsoft.graph.roomList/rooms
                 url = f"{GRAPH_API_BASE}/places/{room_list_email}/microsoft.graph.roomList/rooms"
                 params = {"$top": limit}
-                response = await context.fetch(url, params=params)
+                all_items = []
+                next_url = url
+                is_first = True
+                while next_url:
+                    response = await context.fetch(next_url, params=params if is_first else None)
+                    is_first = False
+                    all_items.extend(response.get("value", []))
+                    next_url = response.get("@odata.nextLink")
 
                 rooms = []
-                for room in response.get("value", []):
+                for room in all_items:
                     rooms.append({
                         "id": room.get("id", ""),
                         "display_name": room.get("displayName", ""),
@@ -2520,10 +2531,17 @@ class ListRoomsAction(ActionHandler):
                 # GET /places/microsoft.graph.room
                 url = f"{GRAPH_API_BASE}/places/microsoft.graph.room"
                 params = {"$top": limit}
-                response = await context.fetch(url, params=params)
+                all_items = []
+                next_url = url
+                is_first = True
+                while next_url:
+                    response = await context.fetch(next_url, params=params if is_first else None)
+                    is_first = False
+                    all_items.extend(response.get("value", []))
+                    next_url = response.get("@odata.nextLink")
 
                 rooms = []
-                for room in response.get("value", []):
+                for room in all_items:
                     rooms.append({
                         "id": room.get("id", ""),
                         "display_name": room.get("displayName", ""),

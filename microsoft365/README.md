@@ -289,7 +289,6 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `end_datetime`: End of the time range to search (ISO 8601 UTC). Defaults to 7 days from start.
     *   `max_candidates`: Maximum number of meeting time suggestions (default: 10, max: 20)
     *   `is_organizer_optional`: Whether the organizer is optional (default: false)
-    *   `meeting_duration_preference`: Preference for time of day (morning, afternoon, evening)
     *   `location_constraint`: Room/location email address to include as a required resource
     *   `minimum_attendee_percentage`: Minimum percentage of attendees that must be available (0-100, default: 100)
 *   **Outputs:**
