@@ -2246,7 +2246,7 @@ class FindMeetingTimesAction(ActionHandler):
             # Always apply defaults as documented in schema
             if not start_dt:
                 start_parsed = datetime.now(timezone.utc)
-                start_dt = start_parsed.isoformat() + "Z"
+                start_dt = start_parsed.strftime("%Y-%m-%dT%H:%M:%SZ")
             else:
                 # Handle Microsoft Graph timestamps with fractional seconds (e.g., 2024-08-20T10:00:00.0000000Z)
                 # Python's fromisoformat doesn't accept more than 6 fractional digits
@@ -2259,7 +2259,7 @@ class FindMeetingTimesAction(ActionHandler):
 
             if not end_dt:
                 end_parsed = start_parsed + timedelta(days=7)
-                end_dt = end_parsed.isoformat() + "Z"
+                end_dt = end_parsed.strftime("%Y-%m-%dT%H:%M:%SZ")
             else:
                 # Handle Microsoft Graph timestamps with fractional seconds
                 # Validate format by parsing (but don't need the result)
