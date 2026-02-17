@@ -298,7 +298,9 @@ class GetEntitySummaryAction(ActionHandler):
             addresses = entity_data.get("addresses", {})
             address_list = addresses.get("addressList", [])
             for addr in address_list:
-                if addr.get("addressType") == "REGISTERED":
+                # Check for both "REGISTERED" (API response) and "RegisteredOffice" (documented filter)
+                addr_type = addr.get("addressType", "")
+                if addr_type in ["REGISTERED", "RegisteredOffice"]:
                     # Build address string from components
                     parts = []
                     if addr.get("careOf"):
