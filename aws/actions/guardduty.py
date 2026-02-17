@@ -6,6 +6,8 @@ from typing import Dict, Any
 
 @integration.action("list_detectors")
 class ListDetectorsAction(ActionHandler):
+    """List all GuardDuty detector IDs in the current account and region."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "guardduty")
@@ -23,6 +25,8 @@ class ListDetectorsAction(ActionHandler):
 
 @integration.action("list_guardduty_findings")
 class ListGuardDutyFindingsAction(ActionHandler):
+    """List and filter GuardDuty findings for a specific detector."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "guardduty")
@@ -47,6 +51,8 @@ class ListGuardDutyFindingsAction(ActionHandler):
 
 @integration.action("get_guardduty_finding_details")
 class GetGuardDutyFindingDetailsAction(ActionHandler):
+    """Get detailed information about one or more GuardDuty findings."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "guardduty")
@@ -64,6 +70,8 @@ class GetGuardDutyFindingDetailsAction(ActionHandler):
 
 @integration.action("archive_findings")
 class ArchiveFindingsAction(ActionHandler):
+    """Archive one or more GuardDuty findings by their IDs."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "guardduty")

@@ -1,1 +1,2 @@
+autohive-integrations-sdk
 boto3

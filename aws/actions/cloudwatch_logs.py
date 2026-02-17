@@ -12,6 +12,8 @@ def _iso_to_epoch_ms(iso_string: str) -> int:
 
 @integration.action("describe_log_groups")
 class DescribeLogGroupsAction(ActionHandler):
+    """List CloudWatch Logs log groups, optionally filtered by name prefix."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "logs")
@@ -31,6 +33,8 @@ class DescribeLogGroupsAction(ActionHandler):
 
 @integration.action("filter_log_events")
 class FilterLogEventsAction(ActionHandler):
+    """Search and filter log events across log streams within a log group."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "logs")
@@ -60,6 +64,8 @@ class FilterLogEventsAction(ActionHandler):
 
 @integration.action("get_log_events")
 class GetLogEventsAction(ActionHandler):
+    """Get log events from a specific log stream in a log group."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "logs")

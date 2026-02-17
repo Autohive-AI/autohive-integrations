@@ -75,6 +75,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -106,6 +110,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -153,6 +161,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -201,6 +213,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -245,6 +261,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -301,6 +321,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -339,6 +363,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -377,6 +405,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -427,6 +459,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -469,6 +505,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -530,6 +570,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -595,6 +639,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -635,6 +683,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -681,6 +733,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -750,6 +806,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -817,6 +877,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -874,6 +938,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -913,6 +981,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -944,6 +1016,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -983,6 +1059,10 @@
                     "error": {
                         "type": ["string", "null"],
                         "description": "Error message if the operation failed"
+                    },
+                    "error_code": {
+                        "type": ["string", "null"],
+                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }

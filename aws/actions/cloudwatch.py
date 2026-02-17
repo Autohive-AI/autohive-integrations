@@ -7,6 +7,8 @@ from datetime import datetime
 
 @integration.action("list_metrics")
 class ListMetricsAction(ActionHandler):
+    """List available CloudWatch metrics, optionally filtered by namespace, name, or dimensions."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "cloudwatch")
@@ -30,6 +32,8 @@ class ListMetricsAction(ActionHandler):
 
 @integration.action("get_metric_data")
 class GetMetricDataAction(ActionHandler):
+    """Retrieve CloudWatch metric data for one or more metrics over a time period."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "cloudwatch")
@@ -50,6 +54,8 @@ class GetMetricDataAction(ActionHandler):
 
 @integration.action("describe_alarms")
 class DescribeAlarmsAction(ActionHandler):
+    """List and filter CloudWatch alarms by name, prefix, or state."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "cloudwatch")
@@ -74,6 +80,8 @@ class DescribeAlarmsAction(ActionHandler):
 
 @integration.action("get_alarm_history")
 class GetAlarmHistoryAction(ActionHandler):
+    """Retrieve the history of state changes and actions for CloudWatch alarms."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "cloudwatch")
@@ -101,6 +109,8 @@ class GetAlarmHistoryAction(ActionHandler):
 
 @integration.action("set_alarm_state")
 class SetAlarmStateAction(ActionHandler):
+    """Temporarily set the state of a CloudWatch alarm for testing or maintenance."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "cloudwatch")

@@ -2,6 +2,7 @@
 AWS Security Hub actions - Findings management and security insights.
 """
 
+import asyncio
 from autohive_integrations_sdk import ActionHandler, ExecutionContext
 from aws import integration
 from helpers import create_boto3_client, run_sync, success_result, error_result
@@ -78,18 +79,21 @@ class UpdateFindingWorkflowAction(ActionHandler):
             workflow_status = inputs["workflow_status"]
             note = inputs.get("note")
 
-            # Look up each finding to get its ProductArn
-            lookup_kwargs = {
-                "Filters": {
-                    "Id": [
-                        {"Value": arn, "Comparison": "EQUALS"}
-                        for arn in finding_arns
-                    ]
-                },
-                "MaxResults": len(finding_arns)
-            }
-            lookup_response = await run_sync(client.get_findings, **lookup_kwargs)
-            findings = lookup_response.get("Findings", [])
+            # Look up findings in batches of 100 (AWS API limit) to get ProductArn
+            findings = []
+            for i in range(0, len(finding_arns), 100):
+                batch = finding_arns[i:i + 100]
+                lookup_kwargs = {
+                    "Filters": {
+                        "Id": [
+                            {"Value": arn, "Comparison": "EQUALS"}
+                            for arn in batch
+                        ]
+                    },
+                    "MaxResults": len(batch)
+                }
+                lookup_response = await run_sync(client.get_findings, **lookup_kwargs)
+                findings.extend(lookup_response.get("Findings", []))
 
             # Build FindingIdentifiers from the looked-up findings
             finding_identifiers = [
@@ -148,9 +152,8 @@ class GetInsightsAction(ActionHandler):
             response = await run_sync(client.get_insights, **kwargs)
             insights = response.get("Insights", [])
 
-            # Fetch results for each insight
-            enriched_insights = []
-            for insight in insights:
+            # Fetch results for each insight in parallel
+            async def fetch_insight_result(insight):
                 insight_data = {
                     "insight_arn": insight.get("InsightArn"),
                     "name": insight.get("Name"),
@@ -163,9 +166,14 @@ class GetInsightsAction(ActionHandler):
                         InsightArn=insight["InsightArn"]
                     )
                     insight_data["results"] = result_response.get("InsightResults", {})
-                except Exception:
+                except Exception as inner_e:
                     insight_data["results"] = None
-                enriched_insights.append(insight_data)
+                    insight_data["error"] = str(inner_e)
+                return insight_data
+
+            enriched_insights = await asyncio.gather(
+                *[fetch_insight_result(insight) for insight in insights]
+            )
 
             return success_result({
                 "insights": enriched_insights,

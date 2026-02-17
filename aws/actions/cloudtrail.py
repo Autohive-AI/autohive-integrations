@@ -7,6 +7,8 @@ from datetime import datetime
 
 @integration.action("lookup_events")
 class LookupEventsAction(ActionHandler):
+    """Search CloudTrail management events by attributes such as event name or user."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "cloudtrail")
@@ -33,6 +35,8 @@ class LookupEventsAction(ActionHandler):
 
 @integration.action("describe_trails")
 class DescribeTrailsAction(ActionHandler):
+    """List configured CloudTrail trails in the account."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "cloudtrail")
@@ -53,6 +57,8 @@ class DescribeTrailsAction(ActionHandler):
 
 @integration.action("get_trail_status")
 class GetTrailStatusAction(ActionHandler):
+    """Get the current logging status and latest delivery info for a trail."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "cloudtrail")
@@ -68,6 +74,8 @@ class GetTrailStatusAction(ActionHandler):
 
 @integration.action("get_event_selectors")
 class GetEventSelectorsAction(ActionHandler):
+    """Get the event recording configuration for a CloudTrail trail."""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "cloudtrail")
