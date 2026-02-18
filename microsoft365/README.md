@@ -4,9 +4,9 @@ Connects Autohive to Microsoft Copilot 365 services including Outlook, OneDrive,
 
 ## Description
 
-This integration provides comprehensive access to Microsoft Copilot 365 services, enabling users to manage emails, calendar events, contacts, files, and SharePoint sites through a unified interface. It interacts with the Microsoft Graph API to deliver seamless integration with Outlook email, OneDrive file storage, Calendar management, and SharePoint collaboration.
+This integration provides comprehensive access to Microsoft Copilot 365 services, enabling users to manage emails, calendar events, contacts, files, and SharePoint sites through a unified interface. It interacts with the Microsoft Graph API to deliver seamless integration with Outlook email, OneDrive file storage, Calendar management, SharePoint collaboration, and intelligent meeting scheduling.
 
-Key capabilities include sending and managing emails, creating and updating calendar events, uploading and accessing files, reading contact information, and accessing SharePoint sites and document libraries. The integration supports advanced features like HTML email content, file attachments, timezone-aware operations, folder management, PDF conversion for Office documents, and multi-drive SharePoint document access.
+Key capabilities include sending and managing emails, creating and updating calendar events, intelligent meeting scheduling with attendee availability detection, room discovery and availability checking, uploading and accessing files, reading contact information, and accessing SharePoint sites and document libraries. The integration supports advanced features like HTML email content, file attachments, timezone-aware operations, folder management, PDF conversion for Office documents, multi-drive SharePoint document access, findMeetingTimes for smart scheduling suggestions, and getSchedule for free/busy availability lookups.
 
 ## Setup & Authentication
 
@@ -21,6 +21,8 @@ Required Microsoft Graph API permissions:
 - `Calendars.ReadWrite` - Manage calendar events
 - `Contacts.Read` - Read user contacts
 - `Sites.Read.All` - Access SharePoint sites and document libraries
+- `Schedule.Read.All` - Read free/busy availability for users and rooms
+- `Place.Read.All` - List and query meeting rooms and room lists
 
 **Authentication Fields:**
 
@@ -276,6 +278,77 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `events`: List of calendar event objects with full details including subject, start, end, location, organizer, attendees
     *   `error`: Error message if operation failed
 *   **Note:** Uses Microsoft Graph calendarView endpoint which properly filters events by date range and expands recurring events. If no date parameters provided, defaults to next 30 days.
+
+### Action: `find_meeting_times`
+
+*   **Description:** Find available meeting time slots based on attendee availability, working hours, and optional room requirements. Uses Microsoft Graph findMeetingTimes API to suggest optimal meeting times with confidence ratings.
+*   **Inputs:**
+    *   `attendees`: List of attendee email addresses to check availability for (required)
+    *   `duration_minutes`: Duration of the meeting in minutes (default: 60)
+    *   `start_datetime`: Start of the time range to search (ISO 8601 UTC). Defaults to now.
+    *   `end_datetime`: End of the time range to search (ISO 8601 UTC). Defaults to 7 days from start.
+    *   `max_candidates`: Maximum number of meeting time suggestions (default: 10, max: 20)
+    *   `is_organizer_optional`: Whether the organizer is optional (default: false)
+    *   `location_constraint`: Room/location email address to include as a required resource
+    *   `minimum_attendee_percentage`: Minimum percentage of attendees that must be available (0-100, default: 100)
+*   **Outputs:**
+    *   `result`: Boolean indicating success/failure
+    *   `meeting_time_suggestions`: List of suggested time slots with confidence scores, organizer/attendee availability, and suggested locations
+    *   `empty_suggestions_reason`: Reason why no suggestions were returned (if applicable)
+    *   `error`: Error message if operation failed
+*   **Note:** This action uses the Microsoft Graph `findMeetingTimes` API which considers attendee calendars, working hours, and time zones to suggest optimal meeting times. Requires `Calendars.ReadWrite` and `Schedule.Read.All` scopes.
+
+### Action: `get_schedule`
+
+*   **Description:** Get the free/busy availability schedule for one or more users or rooms for a specific time range. Returns detailed availability information including busy time slots, working hours, and an availability view string.
+*   **Inputs:**
+    *   `schedules`: List of email addresses (users or rooms) to retrieve availability for (required)
+    *   `start_datetime`: Start of the time range (ISO 8601 UTC) (required)
+    *   `end_datetime`: End of the time range (ISO 8601 UTC) (required)
+    *   `availability_view_interval`: Time slot duration in minutes for the availability view string (default: 30, range: 5-1440)
+*   **Outputs:**
+    *   `result`: Boolean indicating success/failure
+    *   `schedules`: List of availability schedules with:
+        *   `email`: The email address of the user/room
+        *   `availability_view`: Merged availability string (0=free, 1=tentative, 2=busy, 3=out of office, 4=working elsewhere)
+        *   `schedule_items`: List of calendar items with status, start/end times, subject, location, and privacy flag
+        *   `working_hours`: Working hours configuration (start/end times, days, timezone)
+        *   `error`: Error for this specific schedule if retrieval failed
+    *   `error`: Error message if operation failed
+*   **Note:** Uses the Microsoft Graph `getSchedule` API. The `availability_view` string provides a quick visual overview where each character represents a time slot. Requires `Schedule.Read.All` scope for reading other users' schedules.
+
+### Action: `list_rooms`
+
+*   **Description:** List available meeting rooms and room lists in the organization. Can list all rooms, rooms in a specific room list/building, or all room lists.
+*   **Inputs:**
+    *   `list_type`: What to list - 'rooms' for all rooms, 'room_lists' for room lists/buildings, 'rooms_in_list' for rooms in a specific list (default: rooms)
+    *   `room_list_email`: Email address of a room list (required when list_type is 'rooms_in_list')
+    *   `limit`: Maximum number of rooms to return (default: 100)
+*   **Outputs:**
+    *   `result`: Boolean indicating success/failure
+    *   `rooms`: List of room objects with id, display_name, email_address, capacity, building, floor_number, floor_label, accessibility info, and A/V equipment details
+    *   `total_count`: Total number of rooms/lists returned
+    *   `error`: Error message if operation failed
+*   **Note:** Uses the Microsoft Graph Places API. Room email addresses from this action can be used with `check_room_availability`, `get_schedule`, and `find_meeting_times` (as location_constraint). Requires `Place.Read.All` scope.
+
+### Action: `check_room_availability`
+
+*   **Description:** Check if specific meeting rooms are available during a given time range. Returns free/busy status for each room with details of any conflicting bookings.
+*   **Inputs:**
+    *   `room_emails`: List of room email addresses to check (required, get from `list_rooms`)
+    *   `start_datetime`: Start of the time range (ISO 8601 UTC) (required)
+    *   `end_datetime`: End of the time range (ISO 8601 UTC) (required)
+*   **Outputs:**
+    *   `result`: Boolean indicating success/failure
+    *   `rooms`: List of room availability objects with:
+        *   `email`: Room email address
+        *   `is_available`: Whether the room is free for the entire requested time range
+        *   `conflicts`: List of conflicting bookings with status, start/end times, and subject
+        *   `error`: Error for this specific room if check failed
+    *   `available_rooms`: List of room emails that are available
+    *   `unavailable_rooms`: List of room emails that have conflicts
+    *   `error`: Error message if operation failed
+*   **Note:** Uses the Microsoft Graph `getSchedule` API targeting room resources. Requires `Schedule.Read.All` scope. Get room email addresses from the `list_rooms` action.
 
 ### Action: `upload_file`
 
@@ -638,6 +711,111 @@ Step 2: Move the email using the folder ID
   "site_id": "contoso.sharepoint.com,da60e844-ba1d-49bc-b4d4-d5e36bae9019,712a596e-90a1-49e3-9b48-bfa80bee8740",
   "file_id": "01K7A2KM7ME6QPBHWX4ZHL4VU7RAZUCQXM",
   "drive_id": "b!ASwBPCNefEqjDPqXBmbxfSFaFNP2-I9LqYIgUgXUa_nHoxnH9B9RSYhMey8OXO_l"
+}
+```
+
+**Example 19: Find available meeting times for multiple attendees**
+
+```json
+{
+  "attendees": ["john@contoso.com", "sarah@contoso.com", "mike@contoso.com"],
+  "duration_minutes": 60,
+  "start_datetime": "2024-08-19T08:00:00Z",
+  "end_datetime": "2024-08-23T18:00:00Z",
+  "max_candidates": 5,
+  "minimum_attendee_percentage": 100
+}
+```
+
+**Example 20: Find meeting times with a specific room**
+
+```json
+{
+  "attendees": ["john@contoso.com", "sarah@contoso.com"],
+  "duration_minutes": 30,
+  "start_datetime": "2024-08-20T09:00:00Z",
+  "end_datetime": "2024-08-20T17:00:00Z",
+  "location_constraint": "conf-room-a@contoso.com"
+}
+```
+
+**Example 21: Get free/busy schedule for team members**
+
+```json
+{
+  "schedules": ["john@contoso.com", "sarah@contoso.com", "mike@contoso.com"],
+  "start_datetime": "2024-08-20T08:00:00Z",
+  "end_datetime": "2024-08-20T18:00:00Z",
+  "availability_view_interval": 30
+}
+```
+
+**Example 22: List all meeting rooms in the organization**
+
+```json
+{
+  "list_type": "rooms",
+  "limit": 50
+}
+```
+
+**Example 23: List room lists (buildings/floors)**
+
+```json
+{
+  "list_type": "room_lists"
+}
+```
+
+**Example 24: List rooms in a specific building/room list**
+
+```json
+{
+  "list_type": "rooms_in_list",
+  "room_list_email": "building-a@contoso.com",
+  "limit": 20
+}
+```
+
+**Example 25: Check room availability for a meeting**
+
+```json
+{
+  "room_emails": ["conf-room-a@contoso.com", "conf-room-b@contoso.com", "boardroom@contoso.com"],
+  "start_datetime": "2024-08-20T14:00:00Z",
+  "end_datetime": "2024-08-20T15:00:00Z"
+}
+```
+
+**Example 26: Full meeting scheduling workflow**
+
+Step 1: List available rooms
+```json
+// Call list_rooms
+{ "list_type": "rooms" }
+```
+
+Step 2: Find meeting times with a room
+```json
+// Call find_meeting_times with attendees and room
+{
+  "attendees": ["john@contoso.com", "sarah@contoso.com"],
+  "duration_minutes": 60,
+  "start_datetime": "2024-08-19T08:00:00Z",
+  "end_datetime": "2024-08-23T18:00:00Z",
+  "location_constraint": "conf-room-a@contoso.com"
+}
+```
+
+Step 3: Create the event with the suggested time
+```json
+// Call create_calendar_event with the chosen suggestion
+{
+  "subject": "Project Review",
+  "start_time": "2024-08-20T10:00:00Z",
+  "end_time": "2024-08-20T11:00:00Z",
+  "location": "Conference Room A",
+  "attendees": ["john@contoso.com", "sarah@contoso.com"]
 }
 ```
 

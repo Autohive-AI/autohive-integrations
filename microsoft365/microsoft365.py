@@ -2,7 +2,7 @@ from autohive_integrations_sdk import (
     Integration, ExecutionContext, ActionHandler, ActionResult
 )
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import base64
 import aiohttp
 import urllib.parse
@@ -330,7 +330,7 @@ class ListCalendarEventsAction(ActionHandler):
             else:
                 # Intelligent default: next 30 days of calendar events (more useful for calendars)
                 # Use UTC time for intelligent defaults (agent can provide timezone-aware datetime if needed)
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 end_time = now + timedelta(days=30)
                 start_datetime = now.strftime("%Y-%m-%dT%H:%M:%SZ")
                 end_datetime = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -416,7 +416,7 @@ class ListEmailsAction(ActionHandler):
             else:
                 # Intelligent default: last 1 day of emails
                 # Use UTC time for intelligent defaults (agent can provide timezone-aware datetime if needed)
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 start_time = now - timedelta(days=1)
                 start_datetime = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
                 end_datetime = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -2209,5 +2209,468 @@ class ReadSharePointPageContentAction(ActionHandler):
                 "page": {},
                 "error": str(e)
             },
+                cost_usd=0.0
+            )
+
+
+# ---- Meeting Scheduling & Room Management Handlers ----
+
+@microsoft365.action("find_meeting_times")
+class FindMeetingTimesAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            attendees_emails = inputs["attendees"]
+            duration_minutes = inputs.get("duration_minutes", 60)
+            max_candidates = min(inputs.get("max_candidates", 10), 20)
+            is_organizer_optional = inputs.get("is_organizer_optional", False)
+            minimum_attendee_percentage = inputs.get("minimum_attendee_percentage", 100)
+
+            # Build attendees list
+            attendees = []
+            for email in attendees_emails:
+                attendees.append({
+                    "type": "required",
+                    "emailAddress": {
+                        "address": email
+                    }
+                })
+
+            # Build time constraint with defaults
+            # Microsoft Graph's findMeetingTimes API automatically respects:
+            # - User's working hours configured in Outlook
+            # - User's timezone settings
+            # - Calendar availability
+            start_dt = inputs.get("start_datetime")
+            end_dt = inputs.get("end_datetime")
+
+            # Always apply defaults as documented in schema
+            if not start_dt:
+                start_parsed = datetime.now(timezone.utc)
+                start_dt = start_parsed.strftime("%Y-%m-%dT%H:%M:%SZ")
+            else:
+                # Handle Microsoft Graph timestamps with fractional seconds (e.g., 2024-08-20T10:00:00.0000000Z)
+                # Python's fromisoformat doesn't accept more than 6 fractional digits
+                clean_dt = start_dt.replace("Z", "")
+                if "." in clean_dt:
+                    # Truncate fractional seconds to 6 digits max
+                    base, frac = clean_dt.split(".")
+                    clean_dt = f"{base}.{frac[:6]}"
+                start_parsed = datetime.fromisoformat(clean_dt)
+
+            if not end_dt:
+                end_parsed = start_parsed + timedelta(days=7)
+                end_dt = end_parsed.strftime("%Y-%m-%dT%H:%M:%SZ")
+            else:
+                # Handle Microsoft Graph timestamps with fractional seconds
+                # Validate format by parsing (but don't need the result)
+                clean_dt = end_dt.replace("Z", "")
+                if "." in clean_dt:
+                    base, frac = clean_dt.split(".")
+                    clean_dt = f"{base}.{frac[:6]}"
+                datetime.fromisoformat(clean_dt)  # Validation only
+
+            # Create single time constraint for the date range
+            # Graph API will automatically filter to working hours
+            time_constraint = {
+                "timeslots": [{
+                    "start": {
+                        "dateTime": start_dt.replace("Z", ""),
+                        "timeZone": "UTC"
+                    },
+                    "end": {
+                        "dateTime": end_dt.replace("Z", ""),
+                        "timeZone": "UTC"
+                    }
+                }]
+            }
+
+            # Build request body
+            body = {
+                "attendees": attendees,
+                "meetingDuration": f"PT{duration_minutes}M",
+                "maxCandidates": max_candidates,
+                "isOrganizerOptional": is_organizer_optional,
+                "minimumAttendeePercentage": minimum_attendee_percentage
+            }
+
+            body["timeConstraint"] = time_constraint
+
+            # Add location constraint if specified
+            location_email = inputs.get("location_constraint")
+            if location_email:
+                body["locationConstraint"] = {
+                    "isRequired": True,
+                    "suggestLocation": False,
+                    "locations": [{
+                        "resolveAvailability": True,
+                        "locationEmailAddress": location_email
+                    }]
+                }
+
+
+            response = await context.fetch(
+                f"{GRAPH_API_BASE}/me/findMeetingTimes",
+                method="POST",
+                json=body
+            )
+
+            # Process meeting time suggestions
+            suggestions = []
+            for suggestion in response.get("meetingTimeSuggestions", []):
+                time_slot = suggestion.get("meetingTimeSlot", {})
+                start_info = time_slot.get("start", {})
+                end_info = time_slot.get("end", {})
+
+                # Process attendee availability
+                attendee_avail = []
+                for att in suggestion.get("attendeeAvailability", []):
+                    att_email = att.get("attendee", {}).get("emailAddress", {}).get("address", "")
+                    attendee_avail.append({
+                        "email": att_email,
+                        "availability": att.get("availability", "unknown")
+                    })
+
+                # Process suggested locations
+                locations = []
+                for loc in suggestion.get("locations", []):
+                    locations.append({
+                        "displayName": loc.get("displayName", ""),
+                        "locationEmailAddress": loc.get("locationEmailAddress", "")
+                    })
+
+                suggestions.append({
+                    "start": start_info.get("dateTime", ""),
+                    "end": end_info.get("dateTime", ""),
+                    "confidence": suggestion.get("confidence", 0),
+                    "organizer_availability": suggestion.get("organizerAvailability", "unknown"),
+                    "attendee_availability": attendee_avail,
+                    "suggested_locations": locations
+                })
+
+            result_data = {
+                "result": True,
+                "meeting_time_suggestions": suggestions
+            }
+
+            # Include empty suggestions reason if no suggestions found
+            empty_reason = response.get("emptySuggestionsReason", "")
+            if empty_reason:
+                result_data["empty_suggestions_reason"] = empty_reason
+
+            return ActionResult(data=result_data, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionResult(
+                data={
+                    "result": False,
+                    "meeting_time_suggestions": [],
+                    "error": str(e)
+                },
+                cost_usd=0.0
+            )
+
+
+@microsoft365.action("get_schedule")
+class GetScheduleAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            schedules_list = inputs["schedules"]
+            start_dt = inputs["start_datetime"]
+            end_dt = inputs["end_datetime"]
+            interval = inputs.get("availability_view_interval", 30)
+
+            body = {
+                "schedules": schedules_list,
+                "startTime": {
+                    "dateTime": start_dt.replace("Z", ""),
+                    "timeZone": "UTC"
+                },
+                "endTime": {
+                    "dateTime": end_dt.replace("Z", ""),
+                    "timeZone": "UTC"
+                },
+                "availabilityViewInterval": interval
+            }
+
+            response = await context.fetch(
+                f"{GRAPH_API_BASE}/me/calendar/getSchedule",
+                method="POST",
+                json=body
+            )
+
+            # Process schedule responses
+            schedules = []
+            for schedule in response.get("value", []):
+                schedule_data = {
+                    "email": schedule.get("scheduleId", ""),
+                    "availability_view": schedule.get("availabilityView", ""),
+                }
+
+                # Process schedule items (busy slots)
+                items = []
+                for item in schedule.get("scheduleItems", []):
+                    start_info = item.get("start", {})
+                    end_info = item.get("end", {})
+                    items.append({
+                        "status": item.get("status", "unknown"),
+                        "start": start_info.get("dateTime", ""),
+                        "end": end_info.get("dateTime", ""),
+                        "subject": item.get("subject", ""),
+                        "location": item.get("location", ""),
+                        "is_private": item.get("isPrivate", False)
+                    })
+                schedule_data["schedule_items"] = items
+
+                # Process working hours
+                working_hours = schedule.get("workingHours", {})
+                if working_hours:
+                    schedule_data["working_hours"] = {
+                        "start_time": working_hours.get("startTime", ""),
+                        "end_time": working_hours.get("endTime", ""),
+                        "days_of_week": working_hours.get("daysOfWeek", []),
+                        "timezone": working_hours.get("timeZone", {}).get("name", "") if isinstance(working_hours.get("timeZone"), dict) else working_hours.get("timeZone", "")
+                    }
+
+                # Include any per-schedule errors
+                error_info = schedule.get("error", None)
+                if error_info:
+                    schedule_data["error"] = error_info.get("message", str(error_info))
+
+                schedules.append(schedule_data)
+
+            return ActionResult(
+                data={
+                    "result": True,
+                    "schedules": schedules
+                },
+                cost_usd=0.0
+            )
+
+        except Exception as e:
+            return ActionResult(
+                data={
+                    "result": False,
+                    "schedules": [],
+                    "error": str(e)
+                },
+                cost_usd=0.0
+            )
+
+
+@microsoft365.action("list_rooms")
+class ListRoomsAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            list_type = inputs.get("list_type", "rooms")
+            limit = inputs.get("limit", 100)
+
+            if list_type == "room_lists":
+                # GET /places/microsoft.graph.roomList
+                url = f"{GRAPH_API_BASE}/places/microsoft.graph.roomList"
+                params = {"$top": limit}
+                all_items = []
+                next_url = url
+                is_first = True
+                while next_url and len(all_items) < limit:
+                    response = await context.fetch(next_url, params=params if is_first else None)
+                    is_first = False
+                    all_items.extend(response.get("value", []))
+                    next_url = response.get("@odata.nextLink")
+                all_items = all_items[:limit]
+
+                rooms = []
+                for room_list in all_items:
+                    rooms.append({
+                        "id": room_list.get("id", ""),
+                        "display_name": room_list.get("displayName", ""),
+                        "email_address": room_list.get("emailAddress", ""),
+                        "phone": room_list.get("phone", "")
+                    })
+
+            elif list_type == "rooms_in_list":
+                room_list_email = inputs.get("room_list_email")
+                if not room_list_email:
+                    return ActionResult(
+                        data={
+                            "result": False,
+                            "rooms": [],
+                            "error": "room_list_email is required when list_type is 'rooms_in_list'"
+                        },
+                        cost_usd=0.0
+                    )
+                # GET /places/{room-list-email}/microsoft.graph.roomList/rooms
+                url = f"{GRAPH_API_BASE}/places/{room_list_email}/microsoft.graph.roomList/rooms"
+                params = {"$top": limit}
+                all_items = []
+                next_url = url
+                is_first = True
+                while next_url and len(all_items) < limit:
+                    response = await context.fetch(next_url, params=params if is_first else None)
+                    is_first = False
+                    all_items.extend(response.get("value", []))
+                    next_url = response.get("@odata.nextLink")
+                all_items = all_items[:limit]
+
+                rooms = []
+                for room in all_items:
+                    rooms.append({
+                        "id": room.get("id", ""),
+                        "display_name": room.get("displayName", ""),
+                        "email_address": room.get("emailAddress", ""),
+                        "capacity": room.get("capacity", None),
+                        "building": room.get("building", ""),
+                        "floor_number": room.get("floorNumber", None),
+                        "floor_label": room.get("floorLabel", ""),
+                        "is_wheelchair_accessible": room.get("isWheelChairAccessible", None),
+                        "audio_device_name": room.get("audioDeviceName", ""),
+                        "video_device_name": room.get("videoDeviceName", ""),
+                        "display_device_name": room.get("displayDeviceName", ""),
+                        "phone": room.get("phone", "")
+                    })
+
+            else:
+                # Default: list all rooms
+                # GET /places/microsoft.graph.room
+                url = f"{GRAPH_API_BASE}/places/microsoft.graph.room"
+                params = {"$top": limit}
+                all_items = []
+                next_url = url
+                is_first = True
+                while next_url and len(all_items) < limit:
+                    response = await context.fetch(next_url, params=params if is_first else None)
+                    is_first = False
+                    all_items.extend(response.get("value", []))
+                    next_url = response.get("@odata.nextLink")
+                all_items = all_items[:limit]
+
+                rooms = []
+                for room in all_items:
+                    rooms.append({
+                        "id": room.get("id", ""),
+                        "display_name": room.get("displayName", ""),
+                        "email_address": room.get("emailAddress", ""),
+                        "capacity": room.get("capacity", None),
+                        "building": room.get("building", ""),
+                        "floor_number": room.get("floorNumber", None),
+                        "floor_label": room.get("floorLabel", ""),
+                        "is_wheelchair_accessible": room.get("isWheelChairAccessible", None),
+                        "audio_device_name": room.get("audioDeviceName", ""),
+                        "video_device_name": room.get("videoDeviceName", ""),
+                        "display_device_name": room.get("displayDeviceName", ""),
+                        "phone": room.get("phone", "")
+                    })
+
+            return ActionResult(
+                data={
+                    "result": True,
+                    "rooms": rooms,
+                    "total_count": len(rooms)
+                },
+                cost_usd=0.0
+            )
+
+        except Exception as e:
+            return ActionResult(
+                data={
+                    "result": False,
+                    "rooms": [],
+                    "total_count": 0,
+                    "error": str(e)
+                },
+                cost_usd=0.0
+            )
+
+
+@microsoft365.action("check_room_availability")
+class CheckRoomAvailabilityAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            room_emails = inputs["room_emails"]
+            start_dt = inputs["start_datetime"]
+            end_dt = inputs["end_datetime"]
+
+            # Use getSchedule API to check room availability
+            body = {
+                "schedules": room_emails,
+                "startTime": {
+                    "dateTime": start_dt.replace("Z", ""),
+                    "timeZone": "UTC"
+                },
+                "endTime": {
+                    "dateTime": end_dt.replace("Z", ""),
+                    "timeZone": "UTC"
+                },
+                "availabilityViewInterval": 15
+            }
+
+            response = await context.fetch(
+                f"{GRAPH_API_BASE}/me/calendar/getSchedule",
+                method="POST",
+                json=body
+            )
+
+            rooms = []
+            available_rooms = []
+            unavailable_rooms = []
+
+            for schedule in response.get("value", []):
+                email = schedule.get("scheduleId", "")
+                schedule_items = schedule.get("scheduleItems", [])
+
+                # Check for conflicts (any non-free items)
+                # Treat "unknown" status as unavailable (cannot determine occupancy)
+                conflicts = []
+                for item in schedule_items:
+                    status = item.get("status", "")
+                    if status in ("busy", "tentative", "oof", "workingElsewhere", "unknown"):
+                        start_info = item.get("start", {})
+                        end_info = item.get("end", {})
+                        conflicts.append({
+                            "status": status,
+                            "start": start_info.get("dateTime", ""),
+                            "end": end_info.get("dateTime", ""),
+                            "subject": item.get("subject", "")
+                        })
+
+                is_available = len(conflicts) == 0
+
+                room_data = {
+                    "email": email,
+                    "is_available": is_available,
+                    "conflicts": conflicts
+                }
+
+                # Include per-room errors
+                error_info = schedule.get("error", None)
+                if error_info:
+                    room_data["error"] = error_info.get("message", str(error_info))
+                    room_data["is_available"] = False
+
+                rooms.append(room_data)
+
+                if is_available and not error_info:
+                    available_rooms.append(email)
+                else:
+                    unavailable_rooms.append(email)
+
+            return ActionResult(
+                data={
+                    "result": True,
+                    "rooms": rooms,
+                    "available_rooms": available_rooms,
+                    "unavailable_rooms": unavailable_rooms
+                },
+                cost_usd=0.0
+            )
+
+        except Exception as e:
+            return ActionResult(
+                data={
+                    "result": False,
+                    "rooms": [],
+                    "available_rooms": [],
+                    "unavailable_rooms": [],
+                    "error": str(e)
+                },
                 cost_usd=0.0
             )
