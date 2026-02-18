@@ -2471,11 +2471,12 @@ class ListRoomsAction(ActionHandler):
                 all_items = []
                 next_url = url
                 is_first = True
-                while next_url:
+                while next_url and len(all_items) < limit:
                     response = await context.fetch(next_url, params=params if is_first else None)
                     is_first = False
                     all_items.extend(response.get("value", []))
                     next_url = response.get("@odata.nextLink")
+                all_items = all_items[:limit]
 
                 rooms = []
                 for room_list in all_items:
@@ -2503,11 +2504,12 @@ class ListRoomsAction(ActionHandler):
                 all_items = []
                 next_url = url
                 is_first = True
-                while next_url:
+                while next_url and len(all_items) < limit:
                     response = await context.fetch(next_url, params=params if is_first else None)
                     is_first = False
                     all_items.extend(response.get("value", []))
                     next_url = response.get("@odata.nextLink")
+                all_items = all_items[:limit]
 
                 rooms = []
                 for room in all_items:
@@ -2534,11 +2536,12 @@ class ListRoomsAction(ActionHandler):
                 all_items = []
                 next_url = url
                 is_first = True
-                while next_url:
+                while next_url and len(all_items) < limit:
                     response = await context.fetch(next_url, params=params if is_first else None)
                     is_first = False
                     all_items.extend(response.get("value", []))
                     next_url = response.get("@odata.nextLink")
+                all_items = all_items[:limit]
 
                 rooms = []
                 for room in all_items:
