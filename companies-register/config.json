@@ -4,12 +4,9 @@
     "description": "Integration for New Zealand Companies Register API to manage company information, directors, shareholding details, and file annual returns",
     "entry_point": "companies_register.py",
     "auth": {
-        "type": "custom",
-        "title": "Companies Register API Configuration",
-        "fields": {
-            "type": "object",
-            "properties": {}
-        }
+        "type": "platform",
+        "provider": "MBIE Companies Register",
+        "scopes": []
     },
     "actions": {
         "search_company": {

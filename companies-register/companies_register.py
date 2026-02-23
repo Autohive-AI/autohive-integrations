@@ -43,7 +43,7 @@ BASE_URL = "https://api.business.govt.nz/sandbox/companies-register"
 
 # Azure API Management Subscription Key (Autohive's registered subscription)
 # Users do not need to configure this — it is injected server-side at deployment.
-SUBSCRIPTION_KEY = os.environ.get("COMPANIES_REGISTER_SUBSCRIPTION_KEY", "")
+SUBSCRIPTION_KEY = os.environ.get("COMPANIES_REGISTER_SUBSCRIPTION_KEY", "37fad24fff524bdcb231cbca69cf6a62")
 
 # ---- Helper Functions ----
 
