@@ -22,7 +22,7 @@ BASE_URL_V2 = "https://api.business.govt.nz/sandbox/companies-office/companies-r
 # BASE_URL_V2 = "https://api.business.govt.nz/gateway/companies-office/companies-register/companies/v2"
 
 # Azure API Management Subscription Key (injected server-side at deployment)
-SUBSCRIPTION_KEY = os.environ.get("COMPANIES_REGISTER_SUBSCRIPTION_KEY", "37fad24fff524bdcb231cbca69cf6a62")
+SUBSCRIPTION_KEY = os.environ.get("COMPANIES_REGISTER_SUBSCRIPTION_KEY", "")
 
 
 # ---- Helper Functions ----
