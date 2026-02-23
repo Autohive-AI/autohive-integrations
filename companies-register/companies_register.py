@@ -6,6 +6,7 @@ import aiohttp
 import json
 import base64
 import re
+import os
 
 # Create the integration using the config.json
 companies_register = Integration.load()
@@ -31,6 +32,18 @@ BASE_URL = "https://api.business.govt.nz/sandbox/companies-register"
 # FOR PRODUCTION (after approval), uncomment these and comment out sandbox URLs above:
 # BASE_URL_V2 = "https://api.business.govt.nz/gateway/companies-office/companies-register/companies/v2"
 # BASE_URL = "https://api.business.govt.nz/services/v4/companies-register"
+
+# =============================================================================
+# CREDENTIALS CONFIGURATION
+#
+# IMPORTANT: These placeholders MUST be replaced at deployment time.
+# Secrets should be injected via environment variables or secrets management.
+# DO NOT commit actual secrets to this file.
+# =============================================================================
+
+# Azure API Management Subscription Key (Autohive's registered subscription)
+# Users do not need to configure this — it is injected server-side at deployment.
+SUBSCRIPTION_KEY = os.environ.get("COMPANIES_REGISTER_SUBSCRIPTION_KEY", "")
 
 # ---- Helper Functions ----
 
@@ -74,21 +87,20 @@ def get_input_value(inputs: Dict[str, Any], camel_key: str, snake_key: str = Non
 
 def get_api_headers(context: ExecutionContext, additional_headers: Dict[str, str] = None) -> Dict[str, str]:
     """
-    Build headers for API requests including the Ocp-Apim-Subscription-Key and OAuth access token.
+    Build headers for API requests.
+    - Subscription key is read from the COMPANIES_REGISTER_SUBSCRIPTION_KEY env variable (server-side).
+    - OAuth access token is read from context.auth (user's RealMe OAuth token).
     """
     headers = {}
 
-    # Get subscription key and access token from auth.credentials dictionary
-    # The structure is: auth = {"credentials": {"subscription_key": "...", "access_token": "...", ...}, "auth_type": "..."}
+    # Subscription key — injected server-side via environment variable
+    if SUBSCRIPTION_KEY:
+        headers["Ocp-Apim-Subscription-Key"] = SUBSCRIPTION_KEY
+
+    # OAuth access token — from user's RealMe authentication
     if hasattr(context, 'auth') and isinstance(context.auth, dict):
         credentials = context.auth.get('credentials', {})
         if isinstance(credentials, dict):
-            # Add subscription key
-            subscription_key = credentials.get('subscription_key')
-            if subscription_key:
-                headers["Ocp-Apim-Subscription-Key"] = subscription_key
-
-            # Add OAuth access token
             access_token = credentials.get('access_token')
             if access_token:
                 headers["Authorization"] = f"Bearer {access_token}"
