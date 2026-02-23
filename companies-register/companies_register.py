@@ -178,7 +178,7 @@ class GetCompanyDetailsAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "success": False,
+                    "result": False,
                     "message": f"Error retrieving company details: {error_str}",
                     "error": error_str
                 },
@@ -233,7 +233,7 @@ class GetCompanyContactsAction(ActionHandler):
         except Exception as e:
             return ActionResult(
                 data={
-                    "success": False,
+                    "result": False,
                     "message": f"Error retrieving company contacts: {str(e)}",
                     "error": str(e)
                 },
@@ -296,6 +296,8 @@ class UpdateCompanyContactAction(ActionHandler):
 
             elif contact_type == "phone":
                 phone = inputs.get("phoneContact", {})
+                if not phone.get("phoneNumber"):
+                    raise ValueError("phoneNumber is required for phone contact updates")
                 phone_payload = {}
                 for field in ["phoneContactId", "phoneNumber", "areaCode", "countryCode", "phonePurpose"]:
                     if phone.get(field) is not None:
@@ -304,6 +306,8 @@ class UpdateCompanyContactAction(ActionHandler):
 
             elif contact_type == "email":
                 email = inputs.get("emailAddress", {})
+                if not email.get("emailAddress"):
+                    raise ValueError("emailAddress is required for email contact updates")
                 email_payload = {}
                 for field in ["emailAddressId", "emailAddress", "emailPurpose"]:
                     if email.get(field) is not None:
@@ -346,7 +350,7 @@ class UpdateCompanyContactAction(ActionHandler):
         except Exception as e:
             return ActionResult(
                 data={
-                    "success": False,
+                    "result": False,
                     "message": f"Error updating company contact: {str(e)}",
                     "error": str(e)
                 },
@@ -397,6 +401,8 @@ class AddCompanyContactAction(ActionHandler):
 
             elif contact_type == "phone":
                 phone = inputs.get("phoneContact", {})
+                if not phone.get("phoneNumber"):
+                    raise ValueError("phoneNumber is required for phone contacts")
                 phone_payload = {}
                 for field in ["phoneNumber", "areaCode", "countryCode", "phonePurpose"]:
                     if phone.get(field) is not None:
@@ -405,6 +411,8 @@ class AddCompanyContactAction(ActionHandler):
 
             elif contact_type == "email":
                 email = inputs.get("emailAddress", {})
+                if not email.get("emailAddress"):
+                    raise ValueError("emailAddress is required for email contacts")
                 payload["emailAddress"] = {
                     "emailAddress": email.get("emailAddress"),
                     "emailPurpose": email.get("emailPurpose", "Email")
@@ -440,7 +448,7 @@ class AddCompanyContactAction(ActionHandler):
             if "ERR_CANNOT_BE_ADDED" in error_str or "already present" in error_str:
                 return ActionResult(
                     data={
-                        "success": False,
+                        "result": False,
                         "alreadyExists": True,
                         "message": (
                             "This contact already exists and cannot be added again. "
@@ -454,7 +462,7 @@ class AddCompanyContactAction(ActionHandler):
                 )
             return ActionResult(
                 data={
-                    "success": False,
+                    "result": False,
                     "message": f"Error adding company contact: {error_str}",
                     "error": error_str
                 },
@@ -521,7 +529,7 @@ class SearchNZAddressAction(ActionHandler):
         except Exception as e:
             return ActionResult(
                 data={
-                    "success": False,
+                    "result": False,
                     "message": f"Error searching NZ addresses: {str(e)}",
                     "error": str(e)
                 },
@@ -571,10 +579,10 @@ class FileAnnualReturnAction(ActionHandler):
             if inputs.get("billingReference"):
                 payment_info["billingReference"] = inputs["billingReference"]
 
-            if payment_method == "creditCard" and inputs.get("redirectUrl"):
-                payment_info["redirectURL"] = base64.b64encode(
-                    inputs["redirectUrl"].encode()
-                ).decode()
+            if payment_method == "creditCard":
+                if not inputs.get("redirectUrl"):
+                    raise ValueError("redirectUrl is required when paymentMethod is 'creditCard'")
+                payment_info["redirectURL"] = inputs["redirectUrl"]
 
             payload["paymentInfo"] = payment_info
 
@@ -631,7 +639,7 @@ class FileAnnualReturnAction(ActionHandler):
         except Exception as e:
             return ActionResult(
                 data={
-                    "success": False,
+                    "result": False,
                     "message": f"Error filing annual return: {str(e)}",
                     "error": str(e)
                 },
