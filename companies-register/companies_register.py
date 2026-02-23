@@ -4,6 +4,7 @@ from autohive_integrations_sdk import (
 from typing import Dict, Any
 import aiohttp
 import json
+import base64
 import os
 
 # Create the integration using the config.json
@@ -15,12 +16,8 @@ companies_register = Integration.load()
 # PRODUCTION: https://api.business.govt.nz/gateway/{{resource path}}
 # =============================================================================
 
-BASE_URL_V2 = "https://api.business.govt.nz/sandbox/companies-office/companies-register/companies/v2"
-ADDRESS_SEARCH_URL = "https://api.business.govt.nz/sandbox/companies-office/companies-register/addresses/v1"
-
-# FOR PRODUCTION, replace above with:
-# BASE_URL_V2 = "https://api.business.govt.nz/gateway/companies-office/companies-register/companies/v2"
-# ADDRESS_SEARCH_URL = "https://api.business.govt.nz/gateway/companies-office/companies-register/addresses/v1"
+# BASE_URL_V2 = "https://api.business.govt.nz/sandbox/companies-office/companies-register/companies/v2"
+BASE_URL_V2 = "https://api.business.govt.nz/gateway/companies-office/companies-register/companies/v2"
 
 # Azure API Management Subscription Key (injected server-side at deployment)
 SUBSCRIPTION_KEY = os.environ.get("COMPANIES_REGISTER_SUBSCRIPTION_KEY", "")
@@ -81,9 +78,6 @@ async def fetch_with_headers(url: str, method: str = "GET", headers: Dict[str, s
             if etag:
                 response_headers['ETag'] = etag
 
-            if response.status == 304:
-                return None, response_headers
-
             if not response.ok:
                 error_text = await response.text()
                 raise Exception(f"HTTP {response.status}: {error_text}")
@@ -130,16 +124,6 @@ class GetCompanyDetailsAction(ActionHandler):
 
             etag = response_headers.get("ETag")
 
-            if response is None:
-                return ActionResult(
-                    data={
-                        "result": True,
-                        "notModified": True,
-                        "message": "Company data not modified since last request"
-                    },
-                    cost_usd=None
-                )
-
             return ActionResult(
                 data={
                     "companyUuid": response.get("companyUuid"),
@@ -164,11 +148,23 @@ class GetCompanyDetailsAction(ActionHandler):
             )
 
         except Exception as e:
+            error_str = str(e)
+
+            if "304" in error_str:
+                return ActionResult(
+                    data={
+                        "result": True,
+                        "notModified": True,
+                        "message": "Company data not modified since last request"
+                    },
+                    cost_usd=None
+                )
+
             return ActionResult(
                 data={
                     "success": False,
-                    "message": f"Error retrieving company details: {str(e)}",
-                    "error": str(e)
+                    "message": f"Error retrieving company details: {error_str}",
+                    "error": error_str
                 },
                 cost_usd=None
             )
@@ -464,7 +460,7 @@ class SearchNZAddressAction(ActionHandler):
             postal = inputs.get("postal", False)
             request_id = inputs.get("requestId")
 
-            url = ADDRESS_SEARCH_URL
+            url = f"{BASE_URL_V2}/addresses"
 
             params = {}
             if dpid:
@@ -559,7 +555,9 @@ class FileAnnualReturnAction(ActionHandler):
                 payment_info["billingReference"] = inputs["billingReference"]
 
             if payment_method == "creditCard" and inputs.get("redirectUrl"):
-                payment_info["redirectURL"] = inputs["redirectUrl"]
+                payment_info["redirectURL"] = base64.b64encode(
+                    inputs["redirectUrl"].encode()
+                ).decode()
 
             payload["paymentInfo"] = payment_info
 

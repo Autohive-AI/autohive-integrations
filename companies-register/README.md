@@ -100,7 +100,7 @@ Each address purpose can only exist **once**. If it already exists use `update_c
 ### `search_nz_address`
 **COMP_30** — Search the NZ Post address file to find a valid NZ address.
 
-Use this to look up addresses and get a valid `dpid` for `add_company_contact`. Note: do not pass `dpid` to `update_company_contact` — use address lines directly for updates.
+Use this to look up addresses. Note: do not pass the DPID to `update_company_contact` — use address lines directly.
 
 | Input | Required | Description |
 |---|---|---|
