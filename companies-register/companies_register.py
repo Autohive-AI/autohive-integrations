@@ -212,7 +212,8 @@ class GetCompanyContactsAction(ActionHandler):
             )
 
             etag = response_headers.get("ETag")
-            contacts = response.get("contacts", {}) if isinstance(response, dict) else {}
+            raw_contacts = response.get("contacts") if isinstance(response, dict) else None
+            contacts = raw_contacts if isinstance(raw_contacts, dict) else {}
 
             return ActionResult(
                 data={
