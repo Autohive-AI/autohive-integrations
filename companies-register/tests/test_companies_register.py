@@ -275,7 +275,7 @@ async def test_file_annual_return_direct_debit():
                 "file_annual_return",
                 {
                     "companyUuid": TEST_NZBN,
-                    "declaration": True,
+                    "declaration": "I certify that the information contained in this annual return is correct.",
                     "name": {"firstName": "Jane", "lastName": "Smith"},
                     "emailAddress": {"emailAddress": "jane.smith@testcompany.co.nz"},
                     "designation": "Director",
@@ -307,7 +307,7 @@ async def test_file_annual_return_credit_card():
                 "file_annual_return",
                 {
                     "companyUuid": TEST_NZBN,
-                    "declaration": True,
+                    "declaration": "I certify that the information contained in this annual return is correct.",
                     "name": {"firstName": "Jane", "lastName": "Smith"},
                     "emailAddress": {"emailAddress": "jane.smith@testcompany.co.nz"},
                     "designation": "Director",
@@ -370,10 +370,10 @@ async def test_address_update_workflow():
             addresses = addr_search.data.get("addresses", [])
             if not addresses:
                 print("  No addresses found — skipping update")
-                return
-            dpid = addresses[0].get("dpid")
-            addr_line = f"{addresses[0].get('address1')}, {addresses[0].get('address3')}"
-            print(f"  Selected: {addr_line} (dpid={dpid})")
+                return None
+            addr = addresses[0]
+            addr_line = f"{addr.get('address1')}, {addr.get('address3')}"
+            print(f"  Selected: {addr_line}")
 
             # Step 3: Get contacts to find addressId
             print("\nStep 3: Get company contacts...")
@@ -390,7 +390,7 @@ async def test_address_update_workflow():
             )
             if not registered_office:
                 print("  No Registered Office Address found — skipping update")
-                return
+                return None
             address_id = registered_office.get("addressId")
             print(f"  Found Registered Office addressId: {address_id}")
             print(f"  Contacts ETag: {contacts_etag}")
@@ -408,7 +408,11 @@ async def test_address_update_workflow():
                         "addressId": address_id,
                         "addressType": "Physical",
                         "addressPurpose": "Registered Office Address",
-                        "dpid": dpid
+                        "address1": addr.get("address1"),
+                        "address3": addr.get("address3"),
+                        "postCode": addr.get("postCode"),
+                        "countryCode": "NZ",
+                        "effectiveDate": "2026-03-10T00:00:00Z"
                     }
                 },
                 context

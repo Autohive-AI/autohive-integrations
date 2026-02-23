@@ -3,4 +3,4 @@ import os
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from companies_register import companies_register
+import companies_register

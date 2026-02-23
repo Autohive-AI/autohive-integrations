@@ -78,6 +78,9 @@ async def fetch_with_headers(url: str, method: str = "GET", headers: Dict[str, s
             if etag:
                 response_headers['ETag'] = etag
 
+            if response.status == 304:
+                return None, response_headers
+
             if not response.ok:
                 error_text = await response.text()
                 raise Exception(f"HTTP {response.status}: {error_text}")
@@ -123,6 +126,16 @@ class GetCompanyDetailsAction(ActionHandler):
             )
 
             etag = response_headers.get("ETag")
+
+            if response is None:
+                return ActionResult(
+                    data={
+                        "result": True,
+                        "notModified": True,
+                        "message": "Company data not modified since last request"
+                    },
+                    cost_usd=None
+                )
 
             return ActionResult(
                 data={
