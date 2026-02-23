@@ -234,7 +234,7 @@
         },
         "search_nz_address": {
             "display_name": "Search NZ Address",
-            "description": "COMP_30: Search the NZ Post address file to find a valid address and its DPID (Delivery Point Identifier). Use this before add_company_contact or update_company_contact to get a valid dpid for a NZ address. Searching by dpid overrides all other parameters.",
+            "description": "COMP_30: Search the NZ Post address file to find a valid address and its DPID (Delivery Point Identifier). Use this before add_company_contact to get a valid dpid for a NZ address. Provide either find (text search) or dpid (exact lookup). Searching by dpid overrides find.",
             "input_schema": {
                 "type": "object",
                 "properties": {
