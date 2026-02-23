@@ -16,9 +16,11 @@ companies_register = Integration.load()
 # PRODUCTION: https://api.business.govt.nz/gateway/{{resource path}}
 # =============================================================================
 
-_SANDBOX_URL = "https://api.business.govt.nz/sandbox/companies-office/companies-register/companies/v2"
-_PRODUCTION_URL = "https://api.business.govt.nz/gateway/companies-office/companies-register/companies/v2"
-BASE_URL_V2 = os.environ.get("COMPANIES_REGISTER_BASE_URL", _PRODUCTION_URL)
+BASE_URL_V2 = os.environ.get(
+    "COMPANIES_REGISTER_BASE_URL",
+    "https://api.business.govt.nz/gateway/companies-office/companies-register/companies/v2"
+)
+# Sandbox: https://api.business.govt.nz/sandbox/companies-office/companies-register/companies/v2
 
 # Azure API Management Subscription Key (injected server-side at deployment)
 SUBSCRIPTION_KEY = os.environ.get("COMPANIES_REGISTER_SUBSCRIPTION_KEY", "")
