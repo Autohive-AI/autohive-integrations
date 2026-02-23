@@ -1,0 +1,2488 @@
+{
+    "name": "companies-register",
+    "version": "1.0.0",
+    "description": "Integration for New Zealand Companies Register API to manage company information, directors, shareholding details, and file annual returns",
+    "entry_point": "companies_register.py",
+    "auth": {
+        "type": "platform",
+        "provider": "MBIE Companies Register",
+        "scopes": []
+    },
+    "actions": {
+        "search_company": {
+            "display_name": "Search Company",
+            "description": "COMP_00: Check if a company name is available and valid before reserving it. Returns 200 with empty items if available, or warning codes for names needing review. Supports two-legged authentication for guest users.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Company name or company UUID/number to search for"
+                    },
+                    "searchType": {
+                        "type": "string",
+                        "description": "Type of search: 'name' (check availability) or 'number' (get specific company)",
+                        "enum": [
+                            "name",
+                            "number"
+                        ],
+                        "default": "name"
+                    },
+                    "entityType": {
+                        "type": "string",
+                        "description": "Optional entity type filter when searching by name (e.g., 'LIMITED_COMPANY')"
+                    },
+                    "usage": {
+                        "type": "string",
+                        "description": "Type of search. Possible values: 'name-check'. Defaults to 'name-check'",
+                        "default": "name-check"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "query"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "description": "Array of Company objects matching the search"
+                    },
+                    "metadata": {
+                        "type": "object",
+                        "description": "Collection metadata (pagination, total count, etc.)"
+                    },
+                    "isAvailable": {
+                        "type": "boolean",
+                        "description": "Whether the company name is available (empty items = available)"
+                    },
+                    "hasWarning": {
+                        "type": "boolean",
+                        "description": "Whether there are warnings about the name"
+                    },
+                    "warningMessage": {
+                        "type": "string",
+                        "description": "Warning details if applicable"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of companies found"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Human-readable status message"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the search was successful"
+                    }
+                }
+            }
+        },
+        "create_company": {
+            "display_name": "Create Company (Pre-Name Reservation)",
+            "description": "COMP_26: Create a new company with proposed name and entity type. Only these 2 fields are required at this point. If the proposed company name is not available or is not valid this call will error with a reason why. Follow with reserve-name to request name reservation for approval.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyName": {
+                        "type": "string",
+                        "description": "The proposed company name (required)"
+                    },
+                    "entityType": {
+                        "type": "string",
+                        "description": "Entity type for the company (required). Valid values from 'company-entity-types' reference data lookup (e.g., 'NZ Limited Company')"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyName",
+                    "entityType"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The unique API identifier for the company (readOnly)"
+                    },
+                    "companyName": {
+                        "type": "string",
+                        "description": "Name of the company (required)"
+                    },
+                    "entityType": {
+                        "type": "string",
+                        "description": "The type of company (required)"
+                    },
+                    "nzbn": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "New Zealand Business Number (NZBN) if assigned (readOnly)"
+                    },
+                    "companyStatusCode": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Status code: 0=Initialised, 02=Pending Name Reservation, 03=Approved, 05=Rejected, etc. (readOnly)"
+                    },
+                    "companyStatusDescription": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Human-readable status description (readOnly)"
+                    },
+                    "companyStatusExpiryDate": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Date when the current status expires (readOnly)"
+                    },
+                    "annualReturnFilingMonth": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Default annual return filing month (2-11 for Feb-Nov)"
+                    },
+                    "link": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Self-reference link to the company resource"
+                    },
+                    "message": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Success message with company UUID and status"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the request was successful"
+                    }
+                }
+            }
+        },
+        "get_company_details": {
+            "display_name": "Get Company Details",
+            "description": "COMP_03: Gets details of the company with the given company identifier. This is useful to get the status of company. Uses companyUuid (can also be NZBN if available) as the unique identifier.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "ifNoneMatch": {
+                        "type": "string",
+                        "description": "Optional ETag value - if current version matches, returns 304 Not Modified"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) unique to this request for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company"
+                    },
+                    "companyName": {
+                        "type": "string",
+                        "description": "Name of the company"
+                    },
+                    "nzbn": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "New Zealand Business Number (NZBN)"
+                    },
+                    "entityType": {
+                        "type": "string",
+                        "description": "The type of company"
+                    },
+                    "companyStatusCode": {
+                        "type": "string",
+                        "description": "Status code (0, 02, 03, 05, 08, 47, 38, 46, 50)"
+                    },
+                    "companyStatusDescription": {
+                        "type": "string",
+                        "description": "Human-readable status description"
+                    },
+                    "companyStatusExpiryDate": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Date the company in this status will be expired"
+                    },
+                    "registrationDate": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Date the company was registered"
+                    },
+                    "isUltimateHoldingCompany": {
+                        "type": "boolean",
+                        "description": "Whether the company is an Ultimate Holding Company (UHC)"
+                    },
+                    "annualReturnFilingMonth": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Nominated annual report filing month (2-11)"
+                    },
+                    "annualReturnLastFiled": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Date the annual return was last filed"
+                    },
+                    "isConstitutionFiled": {
+                        "type": "boolean",
+                        "description": "Whether a constitution has been filed"
+                    },
+                    "website": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Company website URL"
+                    },
+                    "contacts": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Contact information (phone, email, addresses)"
+                    },
+                    "link": {
+                        "type": "object",
+                        "description": "Self-reference link"
+                    },
+                    "directorLinks": {
+                        "type": "array",
+                        "description": "Array of links to the directors"
+                    },
+                    "shareholdingLink": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Link to shareholding information"
+                    },
+                    "constitutionLink": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Link to constitution"
+                    },
+                    "taxRegistrationLink": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Link to tax registration"
+                    },
+                    "ultimateHoldingCompany": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Ultimate holding company details if applicable"
+                    },
+                    "etag": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ETag from response headers, may be null for companies in Initialised status"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the request was successful"
+                    }
+                }
+            }
+        },
+        "get_company_directors": {
+            "display_name": "Get Company Directors",
+            "description": "Retrieve list of current directors for a company",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "ifNoneMatch": {
+                        "type": "string",
+                        "description": "Optional ETag value for caching optimization"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "directors": {
+                        "type": "array"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    }
+                }
+            }
+        },
+        "get_director_details": {
+            "display_name": "Get Director Details",
+            "description": "COMP_08: Retrieve director details with the given directorId. Birth information will not be returned in response. Supports ETag optimization for caching.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "directorId": {
+                        "type": "string",
+                        "description": "The unique Id of the director (roleId)"
+                    },
+                    "ifNoneMatch": {
+                        "type": "string",
+                        "description": "Optional ETag value for caching optimization - returns 304 Not Modified if data unchanged"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "directorId"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "director": {
+                        "type": "object",
+                        "description": "Director details (Role object without birth information)"
+                    },
+                    "etag": {
+                        "type": "string",
+                        "description": "ETag value for caching"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the request was successful"
+                    },
+                    "notModified": {
+                        "type": "boolean",
+                        "description": "True if 304 Not Modified response (data unchanged)"
+                    }
+                }
+            }
+        },
+        "get_director_documents": {
+            "display_name": "Get Director Document References",
+            "description": "COMP_49: Retrieve document references associated with the Director (e.g. consent forms). Note: supportingDocumentRef and supportingDocumentId are not returned with this resource.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "directorId": {
+                        "type": "string",
+                        "description": "The unique Id of the director (roleId)"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "directorId"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "documents": {
+                        "type": "array",
+                        "description": "Array of document references associated with the director"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the request was successful"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of document references found"
+                    }
+                }
+            }
+        },
+        "associate_director_document": {
+            "display_name": "Associate Document to Director",
+            "description": "COMP_50: Associate a consent document (and optionally supporting documents) to a director. Documents must be uploaded first using POST /{companiesUuid}/documents. Processed within 1 hour during business hours. On acceptance: email confirmation sent, Particulars of director added to document history. On rejection: email with reason sent.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "directorId": {
+                        "type": "string",
+                        "description": "The unique Id of the director (roleId)"
+                    },
+                    "consentDocumentRef": {
+                        "type": "string",
+                        "description": "The document reference of the uploaded consent document (obtained from POST /{companyUuid}/documents response). REQUIRED."
+                    },
+                    "supportingDocumentRef": {
+                        "type": "string",
+                        "description": "Optional document reference of the uploaded consent supporting document (obtained from POST /{companyUuid}/documents). Not applicable to directors of NZ Co-operative Company."
+                    },
+                    "statutoryDeclarationDocumentRef": {
+                        "type": "string",
+                        "description": "Document reference of the uploaded consent Statutory Declaration document (obtained from POST /{companyUuid}/documents with type 'ConsentOfDirectorStatutoryDeclarationDocument'). Only applicable and mandatory for directors of NZ Co-operative Company."
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "directorId",
+                    "consentDocumentRef"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "consentDocumentRef": {
+                        "type": "string",
+                        "description": "The document reference of the uploaded consent document"
+                    },
+                    "consentDocumentStatus": {
+                        "type": "string",
+                        "description": "Status of the consent application: 'Awaiting Approval', 'Registered', or 'Rejected'"
+                    },
+                    "consentDocumentId": {
+                        "type": "string",
+                        "description": "The identifier that associates the uploaded consent document with the director"
+                    },
+                    "supportingDocumentRef": {
+                        "type": "string",
+                        "description": "Document reference of supporting document if provided"
+                    },
+                    "supportingDocumentId": {
+                        "type": "string",
+                        "description": "The identifier that associates the uploaded supporting document with the director"
+                    },
+                    "statutoryDeclarationDocumentRef": {
+                        "type": "string",
+                        "description": "Document reference of statutory declaration if provided"
+                    },
+                    "statutoryDeclarationId": {
+                        "type": "string",
+                        "description": "The identifier that associates the uploaded Statutory Declaration document with the director"
+                    },
+                    "processingTime": {
+                        "type": "string",
+                        "description": "Expected processing time (within 1 hour during business hours)"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the document was associated successfully"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Success message with processing information"
+                    }
+                }
+            }
+        },
+        "get_company_addresses": {
+            "display_name": "Get Company Addresses",
+            "description": "Retrieve registered office and addresses for service for a company",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "ifNoneMatch": {
+                        "type": "string",
+                        "description": "Optional ETag value for caching optimization"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "addresses": {
+                        "type": "object"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    }
+                }
+            }
+        },
+        "get_company_shareholding": {
+            "display_name": "Get Company Shareholding",
+            "description": "Retrieve shareholding information for a company",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "ifNoneMatch": {
+                        "type": "string",
+                        "description": "Optional ETag value for caching optimization"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "shareholding": {
+                        "type": "object"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    }
+                }
+            }
+        },
+        "update_company_shareholding": {
+            "display_name": "Update Company Shareholding",
+            "description": "COMP_14: Updates the shareholding in the company with the given company identifier. IMPORTANT: You must provide the complete shareholding structure (all four arrays). Omitting an item from an array means deleting it. Supports: (1) Adding, updating, or deleting shareholders, (2) Adding or deleting shareholderInAllocations, (3) Adding, updating, or deleting shareAllocations, (4) Increasing/decreasing total number of shares. Shareholders can be: person, NZ company (NZBN only), or other legal entity.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "etag": {
+                        "type": "string",
+                        "description": "ETag from get_company_shareholding response. Required for optimistic concurrency control."
+                    },
+                    "numberOfShares": {
+                        "type": "integer",
+                        "description": "Total number of shares. Must equal sum of all share allocations (unless absorbed as treasury stock when decreasing)."
+                    },
+                    "shareAllocations": {
+                        "type": "array",
+                        "description": "Array of share allocation objects. New allocations need allocationSeqNum (for reference) with allocationId blank. Existing allocations use allocationId. Omit allocation from array to delete it.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "allocationId": {
+                                    "type": "string",
+                                    "description": "Allocation ID (for existing allocations). Leave blank when adding new allocation."
+                                },
+                                "allocationSeqNum": {
+                                    "type": "integer",
+                                    "description": "Sequence number for new allocation (for reference in shareholdersInAllocations). Required when adding new allocation."
+                                },
+                                "numSharesInAllocation": {
+                                    "type": "integer",
+                                    "description": "Number of shares in this allocation. Required field."
+                                }
+                            }
+                        }
+                    },
+                    "shareholders": {
+                        "type": "array",
+                        "description": "Array of shareholder objects. New shareholders need shareholderSeqNum (for reference) with shareholderId blank. Existing shareholders use shareholderId. Omit shareholder from array to delete them.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "shareholderId": {
+                                    "type": "string",
+                                    "description": "Shareholder ID (for existing shareholders). Leave blank when adding new shareholder."
+                                },
+                                "shareholderSeqNum": {
+                                    "type": "string",
+                                    "description": "Sequence number for new shareholder (for reference in shareholdersInAllocations). Must be unique. Required when adding new shareholder."
+                                },
+                                "shareholderType": {
+                                    "type": "string",
+                                    "description": "Type of shareholder: 'Person' for individual shareholders or 'Organisation' for company/entity shareholders. REQUIRED field.",
+                                    "enum": [
+                                        "Person",
+                                        "Organisation"
+                                    ]
+                                },
+                                "appointmentDate": {
+                                    "type": "string",
+                                    "format": "date",
+                                    "description": "Date the shareholder was appointed in ISO format (YYYY-MM-DD)"
+                                },
+                                "vacationDate": {
+                                    "type": "string",
+                                    "format": "date",
+                                    "description": "Date the shareholder vacated/left in ISO format (YYYY-MM-DD)"
+                                },
+                                "irdNumber": {
+                                    "type": "string",
+                                    "description": "IRD number of the shareholder"
+                                },
+                                "contacts": {
+                                    "type": "object",
+                                    "description": "IMPORTANT: Use camelCase format directly. Contact details structure: {phoneContacts: [{phoneNumber, areaCode, countryCode, phonePurpose}], physicalOrPostalAddresses: [{addressType, addressPurpose, address1, address2, address3, address4, postCode, countryCode, careOf, dpid, effectiveDate}], emailAddresses: [{emailAddress, emailPurpose}]}",
+                                    "properties": {
+                                        "phoneContacts": {
+                                            "type": "array",
+                                            "description": "Array of phone contacts",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "phoneNumber": {
+                                                        "type": "string",
+                                                        "description": "Phone number"
+                                                    },
+                                                    "areaCode": {
+                                                        "type": "string",
+                                                        "description": "Area code"
+                                                    },
+                                                    "countryCode": {
+                                                        "type": "string",
+                                                        "description": "Country code (e.g., '64' for NZ)"
+                                                    },
+                                                    "phonePurpose": {
+                                                        "type": "string",
+                                                        "description": "Purpose: 'Mobile', 'Phone', or 'Fax'"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "physicalOrPostalAddresses": {
+                                            "type": "array",
+                                            "description": "Array of physical or postal addresses",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "addressType": {
+                                                        "type": "string",
+                                                        "description": "Address type: 'Physical' or 'Postal'"
+                                                    },
+                                                    "addressPurpose": {
+                                                        "type": "string",
+                                                        "description": "Address purpose"
+                                                    },
+                                                    "address1": {
+                                                        "type": "string",
+                                                        "description": "Address line 1 (street address)"
+                                                    },
+                                                    "address2": {
+                                                        "type": "string",
+                                                        "description": "Address line 2"
+                                                    },
+                                                    "address3": {
+                                                        "type": "string",
+                                                        "description": "Address line 3 (city/suburb)"
+                                                    },
+                                                    "address4": {
+                                                        "type": "string",
+                                                        "description": "Address line 4"
+                                                    },
+                                                    "postCode": {
+                                                        "type": "string",
+                                                        "description": "Postal code"
+                                                    },
+                                                    "countryCode": {
+                                                        "type": "string",
+                                                        "description": "Country code (e.g., 'NZ')"
+                                                    },
+                                                    "careOf": {
+                                                        "type": "string",
+                                                        "description": "Care of name"
+                                                    },
+                                                    "dpid": {
+                                                        "type": "string",
+                                                        "description": "Delivery Point Identifier"
+                                                    },
+                                                    "effectiveDate": {
+                                                        "type": "string",
+                                                        "format": "date-time",
+                                                        "description": "Effective date"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "emailAddresses": {
+                                            "type": "array",
+                                            "description": "Array of email addresses",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "emailAddress": {
+                                                        "type": "string",
+                                                        "description": "Email address"
+                                                    },
+                                                    "emailPurpose": {
+                                                        "type": "string",
+                                                        "description": "Purpose (typically 'Email')"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "personShareholder": {
+                                    "type": "object",
+                                    "description": "Person shareholder details (use when shareholder_type is 'Person'). Name is read-only and cannot be updated.",
+                                    "properties": {
+                                        "name": {
+                                            "type": "object",
+                                            "description": "Name of the person (read-only for existing shareholders)",
+                                            "properties": {
+                                                "firstName": {
+                                                    "type": "string",
+                                                    "description": "First name"
+                                                },
+                                                "middleNames": {
+                                                    "type": "string",
+                                                    "description": "Middle name(s) (optional)"
+                                                },
+                                                "lastName": {
+                                                    "type": "string",
+                                                    "description": "Last name"
+                                                }
+                                            }
+                                        },
+                                        "birthInfo": {
+                                            "type": "object",
+                                            "description": "Birth information",
+                                            "properties": {
+                                                "dateOfBirth": {
+                                                    "type": "string",
+                                                    "format": "date",
+                                                    "description": "Date of birth in ISO format (YYYY-MM-DD)"
+                                                },
+                                                "countryOfBirth": {
+                                                    "type": "string",
+                                                    "description": "Country of birth"
+                                                },
+                                                "townCityOfBirth": {
+                                                    "type": "string",
+                                                    "description": "Town/city of birth"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "organisationShareholder": {
+                                    "type": "object",
+                                    "description": "Organisation shareholder details (use when shareholder_type is 'Organisation')",
+                                    "properties": {
+                                        "nzbn": {
+                                            "type": "string",
+                                            "description": "NZBN number (required for NZ company shareholders). Details cannot be updated."
+                                        },
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Organisation name (read-only for NZ companies, cannot be updated for other organisations)"
+                                        },
+                                        "registrationNumber": {
+                                            "type": "string",
+                                            "description": "Company registration number (e.g., LP1306031)"
+                                        },
+                                        "entityType": {
+                                            "type": "string",
+                                            "description": "Type of entity (e.g., 'Registered Charitable Trust', 'Limited Partnership')"
+                                        },
+                                        "countryOfOrigin": {
+                                            "type": "string",
+                                            "description": "Country code of origin (e.g., 'NZ', 'CA', 'AU')"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "shareholdersInAllocations": {
+                        "type": "array",
+                        "description": "Array mapping shareholders to allocations. For new shareholders use shareholderSeqNumRef, for existing use shareholderId. For new allocations use allocationSeqNumRef, for existing use allocationId. Omit entry to delete the mapping.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "shareholderId": {
+                                    "type": "string",
+                                    "description": "Shareholder ID (for existing shareholders)"
+                                },
+                                "shareholderSeqNumRef": {
+                                    "type": "string",
+                                    "description": "Reference to shareholderSeqNum (for new shareholders)"
+                                },
+                                "allocationId": {
+                                    "type": "string",
+                                    "description": "Allocation ID (for existing allocations)"
+                                },
+                                "allocationSeqNumRef": {
+                                    "type": "string",
+                                    "description": "Reference to allocationSeqNum (for new allocations)"
+                                }
+                            }
+                        }
+                    },
+                    "numberOfSharesChangeInfo": {
+                        "type": "object",
+                        "description": "Information about share number changes (increase or decrease)",
+                        "properties": {
+                            "changeType": {
+                                "type": "string",
+                                "description": "Type of change: 'increase' or 'decrease' (or specific types like 'Increase: Share Issue')"
+                            },
+                            "dateOfShareChangeEvent": {
+                                "type": "string",
+                                "format": "date",
+                                "description": "Date of the share change event in ISO format (YYYY-MM-DD)"
+                            },
+                            "changeInNumberOfShares": {
+                                "type": "integer",
+                                "description": "The change in number of shares (positive for increase, negative for decrease)"
+                            },
+                            "increaseSpecific": {
+                                "type": "object",
+                                "description": "Details for share increase. Shares increased must equal total and allocation totals.",
+                                "properties": {
+                                    "directorsCertificateDocumentRef": {
+                                        "type": "string",
+                                        "description": "Optional reference to directors certificate document"
+                                    },
+                                    "dateOfApproval": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "description": "Date of approval in ISO format (YYYY-MM-DD)"
+                                    },
+                                    "termsOfApproval": {
+                                        "type": "string",
+                                        "description": "Terms of approval text"
+                                    }
+                                }
+                            },
+                            "decreaseSpecific": {
+                                "type": "object",
+                                "description": "Details for share decrease. Shares decreased must equal total and allocation totals (unless absorbed as treasury stock).",
+                                "properties": {
+                                    "isTreasuryStock": {
+                                        "type": "boolean",
+                                        "description": "Whether decreased shares are absorbed as treasury stock"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "etag",
+                    "numberOfShares",
+                    "shareholders",
+                    "shareAllocations",
+                    "shareholdersInAllocations"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "shareholding": {
+                        "type": "object",
+                        "description": "Updated shareholding information"
+                    },
+                    "etag": {
+                        "type": "string",
+                        "description": "New ETag value after update"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the shareholding was updated successfully"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Success or error message"
+                    }
+                }
+            }
+        },
+        "add_company_director": {
+            "display_name": "Add Company Director",
+            "description": "COMP_01: Adds a new director to the company with the given company identifier. Checks for banned directors or undischarged bankrupts. If a match is found, the operation fails and returns match details. Once submitted, a consent form is emailed to the director which must be signed and returned to the Companies Office within 20 working days. countryCode is mandatory for residential address.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "appointedDate": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Date the party was appointed to the role in ISO format (YYYY-MM-DD). Not required for Pre-Incorporated company."
+                    },
+                    "personInRole": {
+                        "type": "object",
+                        "description": "Person details for the director",
+                        "properties": {
+                            "name": {
+                                "type": "object",
+                                "description": "Name of the person",
+                                "properties": {
+                                    "firstName": {
+                                        "type": "string",
+                                        "description": "First name"
+                                    },
+                                    "middleNames": {
+                                        "type": "string",
+                                        "description": "Middle name(s) (optional)"
+                                    },
+                                    "lastName": {
+                                        "type": "string",
+                                        "description": "Last name"
+                                    }
+                                },
+                                "required": [
+                                    "firstName",
+                                    "lastName"
+                                ]
+                            },
+                            "birthInfo": {
+                                "type": "object",
+                                "description": "Birth information",
+                                "properties": {
+                                    "dateOfBirth": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "description": "Date of birth in ISO format (YYYY-MM-DD)"
+                                    },
+                                    "countryOfBirth": {
+                                        "type": "string",
+                                        "description": "Country of birth (optional)"
+                                    },
+                                    "townCityOfBirth": {
+                                        "type": "string",
+                                        "description": "Town/city of birth (optional)"
+                                    }
+                                },
+                                "required": [
+                                    "dateOfBirth"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "name",
+                            "birthInfo"
+                        ]
+                    },
+                    "contacts": {
+                        "type": "object",
+                        "description": "Contact details including addresses, phone, and email",
+                        "properties": {
+                            "physicalOrPostalAddresses": {
+                                "type": "array",
+                                "description": "Array of physical or postal addresses (residential address required)",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "addressType": {
+                                            "type": "string",
+                                            "description": "Address type: 'Physical' or 'Postal'",
+                                            "enum": [
+                                                "Physical",
+                                                "Postal"
+                                            ]
+                                        },
+                                        "addressPurpose": {
+                                            "type": "string",
+                                            "description": "Address purpose (not typically used for director addresses)"
+                                        },
+                                        "address1": {
+                                            "type": "string",
+                                            "description": "Address line 1 (street address)"
+                                        },
+                                        "address2": {
+                                            "type": "string",
+                                            "description": "Address line 2 (optional)"
+                                        },
+                                        "address3": {
+                                            "type": "string",
+                                            "description": "Address line 3 (city/suburb)"
+                                        },
+                                        "address4": {
+                                            "type": "string",
+                                            "description": "Address line 4 (optional)"
+                                        },
+                                        "postCode": {
+                                            "type": "string",
+                                            "description": "Postal code"
+                                        },
+                                        "countryCode": {
+                                            "type": "string",
+                                            "description": "Country code (e.g., 'NZ'). MANDATORY."
+                                        },
+                                        "careOf": {
+                                            "type": "string",
+                                            "description": "Care of name (optional)"
+                                        },
+                                        "dpid": {
+                                            "type": "string",
+                                            "description": "Delivery Point Identifier (optional)"
+                                        },
+                                        "effectiveDate": {
+                                            "type": "string",
+                                            "format": "date-time",
+                                            "description": "Effective date (optional)"
+                                        }
+                                    },
+                                    "required": [
+                                        "countryCode"
+                                    ]
+                                }
+                            },
+                            "phoneContacts": {
+                                "type": "array",
+                                "description": "Array of phone contacts (optional)",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "phoneNumber": {
+                                            "type": "string",
+                                            "description": "Phone number"
+                                        },
+                                        "areaCode": {
+                                            "type": "string",
+                                            "description": "Area code"
+                                        },
+                                        "countryCode": {
+                                            "type": "string",
+                                            "description": "Country code (e.g., '64' for NZ)"
+                                        },
+                                        "phonePurpose": {
+                                            "type": "string",
+                                            "description": "Purpose: 'Mobile', 'Phone', or 'Fax'",
+                                            "enum": [
+                                                "Mobile",
+                                                "Phone",
+                                                "Fax"
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            "emailAddresses": {
+                                "type": "array",
+                                "description": "Array of email addresses (optional)",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "emailAddress": {
+                                            "type": "string",
+                                            "description": "Email address"
+                                        },
+                                        "emailPurpose": {
+                                            "type": "string",
+                                            "description": "Purpose (typically 'Email')",
+                                            "default": "Email"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "required": [
+                            "physicalOrPostalAddresses"
+                        ]
+                    },
+                    "isPersonInRoleMyself": {
+                        "type": "boolean",
+                        "description": "Indicate whether this director is also the logged in presenter (myself). Optional, defaults to false. Only applicable for pre-registered company. Only a maximum of 1 director can be the logged in presenter."
+                    },
+                    "irdNumber": {
+                        "type": "string",
+                        "description": "IRD Number of the NZ resident director. IRD Number will be passed to Inland Revenue at the time the company is incorporated."
+                    },
+                    "directorNotOneOf": {
+                        "type": "array",
+                        "description": "Optional array of roleId's of disqualified directors that the person being put forward as a director is not. Only required if a previous attempt to add the person as a director failed due to a probable match with a disqualified director (and this person is confirmed as not being one of those).",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) unique to this request for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "appointedDate",
+                    "personInRole",
+                    "contacts"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "director": {
+                        "type": "object",
+                        "description": "Created director details"
+                    },
+                    "consentFormEmailed": {
+                        "type": "boolean",
+                        "description": "Whether consent form was emailed to director"
+                    },
+                    "consentDeadline": {
+                        "type": "string",
+                        "description": "Deadline for returning signed consent form (20 working days)"
+                    },
+                    "bannedDirectorMatches": {
+                        "type": "array",
+                        "description": "Array of banned director matches if found"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the director was added successfully"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Success or error message"
+                    }
+                }
+            }
+        },
+        "update_company_director": {
+            "display_name": "Update Company Director",
+            "description": "COMP_07: Updates a director with the given directorId. Allows updating contact details including residential address. Birth information cannot be updated. Director name can only be updated for pre-incorporated companies (not registered companies).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "directorId": {
+                        "type": "string",
+                        "description": "The unique Id of the director (roleId)"
+                    },
+                    "etag": {
+                        "type": "string",
+                        "description": "ETag from most recent GET, PUT or POST operation for this resource. Required for optimistic concurrency control."
+                    },
+                    "roleId": {
+                        "type": "string",
+                        "description": "The roleId of the director (must match director_id). Mandatory on update."
+                    },
+                    "appointedDate": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Date the party was appointed to the role in ISO format (YYYY-MM-DD)"
+                    },
+                    "personInRole": {
+                        "type": "object",
+                        "description": "Person details for the director. Name can only be updated for pre-incorporated companies. IMPORTANT: Use camelCase format: {\"name\": {\"firstName\": \"...\", \"middleNames\": \"...\", \"lastName\": \"...\"}, \"birthInfo\": {\"dateOfBirth\": \"...\", \"countryOfBirth\": \"...\", \"townCityOfBirth\": \"...\"}}",
+                        "properties": {
+                            "name": {
+                                "type": "object",
+                                "description": "Name of the person. Can only be updated for pre-incorporated companies.",
+                                "properties": {
+                                    "firstName": {
+                                        "type": "string",
+                                        "description": "First name"
+                                    },
+                                    "middleNames": {
+                                        "type": "string",
+                                        "description": "Middle name(s) (optional)"
+                                    },
+                                    "lastName": {
+                                        "type": "string",
+                                        "description": "Last name"
+                                    }
+                                }
+                            },
+                            "birthInfo": {
+                                "type": "object",
+                                "description": "Birth information (cannot be updated)",
+                                "properties": {
+                                    "dateOfBirth": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "description": "Date of birth (readonly - cannot be updated)"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "contacts": {
+                        "type": "object",
+                        "description": "Contact details including addresses, phone, and email. IMPORTANT: Use camelCase format: {\"physicalOrPostalAddresses\": [{\"addressType\": \"...\", \"addressPurpose\": \"...\", \"address1\": \"...\", \"countryCode\": \"...\", ...}], \"phoneContacts\": [{\"phoneNumber\": \"...\", \"areaCode\": \"...\", \"countryCode\": \"...\", \"phonePurpose\": \"...\"}], \"emailAddresses\": [{\"emailAddress\": \"...\", \"emailPurpose\": \"...\"}]}",
+                        "properties": {
+                            "physicalOrPostalAddresses": {
+                                "type": "array",
+                                "description": "Array of physical or postal addresses",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "addressType": {
+                                            "type": "string",
+                                            "description": "Address type: 'Physical' or 'Postal'",
+                                            "enum": [
+                                                "Physical",
+                                                "Postal"
+                                            ]
+                                        },
+                                        "address1": {
+                                            "type": "string",
+                                            "description": "Address line 1 (street address)"
+                                        },
+                                        "address2": {
+                                            "type": "string",
+                                            "description": "Address line 2 (optional)"
+                                        },
+                                        "address3": {
+                                            "type": "string",
+                                            "description": "Address line 3 (city/suburb)"
+                                        },
+                                        "address4": {
+                                            "type": "string",
+                                            "description": "Address line 4 (optional)"
+                                        },
+                                        "postCode": {
+                                            "type": "string",
+                                            "description": "Postal code"
+                                        },
+                                        "countryCode": {
+                                            "type": "string",
+                                            "description": "Country code (e.g., 'NZ'). MANDATORY."
+                                        },
+                                        "careOf": {
+                                            "type": "string",
+                                            "description": "Care of name (optional)"
+                                        },
+                                        "dpid": {
+                                            "type": "string",
+                                            "description": "Delivery Point Identifier (optional)"
+                                        }
+                                    },
+                                    "required": [
+                                        "countryCode"
+                                    ]
+                                }
+                            },
+                            "phoneContacts": {
+                                "type": "array",
+                                "description": "Array of phone contacts (optional)",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "phoneNumber": {
+                                            "type": "string",
+                                            "description": "Phone number"
+                                        },
+                                        "areaCode": {
+                                            "type": "string",
+                                            "description": "Area code"
+                                        },
+                                        "countryCode": {
+                                            "type": "string",
+                                            "description": "Country code (e.g., '64' for NZ)"
+                                        },
+                                        "phonePurpose": {
+                                            "type": "string",
+                                            "description": "Purpose: 'Mobile', 'Phone', or 'Fax'",
+                                            "enum": [
+                                                "Mobile",
+                                                "Phone",
+                                                "Fax"
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            "emailAddresses": {
+                                "type": "array",
+                                "description": "Array of email addresses (optional)",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "emailAddress": {
+                                            "type": "string",
+                                            "description": "Email address"
+                                        },
+                                        "emailPurpose": {
+                                            "type": "string",
+                                            "description": "Purpose (typically 'Email')",
+                                            "default": "Email"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "irdNumber": {
+                        "type": "string",
+                        "description": "IRD Number of the NZ resident director."
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "directorId",
+                    "etag"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "director": {
+                        "type": "object",
+                        "description": "Updated director details"
+                    },
+                    "etag": {
+                        "type": "string",
+                        "description": "New ETag value after update"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the director was updated successfully"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Success or error message"
+                    }
+                }
+            }
+        },
+        "remove_company_director": {
+            "display_name": "Remove Company Director",
+            "description": "COMP_09: Removes a director with the given directorId. The director is 'soft deleted': if Active they are marked as Ceased, if Pending they are marked as Withdrawn. At least one eligible director must still be present within the company.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "directorId": {
+                        "type": "string",
+                        "description": "The unique Id of the director (roleId)"
+                    },
+                    "etag": {
+                        "type": "string",
+                        "description": "ETag from most recent GET, PUT or POST operation for this resource. Required for optimistic concurrency control."
+                    },
+                    "effectiveDate": {
+                        "type": "string",
+                        "description": "Optional date the person ceased to be a director in ISO format (YYYY-MM-DD). Not applicable during pre-incorporation."
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "directorId",
+                    "etag"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "directorId": {
+                        "type": "string",
+                        "description": "The ID of the removed director"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "New status of the director (Ceased or Withdrawn)"
+                    },
+                    "effectiveDate": {
+                        "type": "string",
+                        "description": "Date the director ceased"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the director was removed successfully"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Success or error message"
+                    }
+                }
+            }
+        },
+        "update_company_details": {
+            "display_name": "Update Company Details",
+            "description": "COMP_15: Update details of the company with the given company identifier. Allows updating website, contacts, annual return filing month, and ultimate holding company details.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "etag": {
+                        "type": "string",
+                        "description": "ETag from get_company_details response. Required in If-Match header for optimistic concurrency control."
+                    },
+                    "website": {
+                        "type": "string",
+                        "description": "Company website URL (e.g., 'www.acme.com')"
+                    },
+                    "contacts": {
+                        "type": "object",
+                        "description": "Contact information object with phone, email, and address details"
+                    },
+                    "annualReturnFilingMonth": {
+                        "type": "integer",
+                        "description": "Nominated annual return filing month (2-11 for Feb-Nov)",
+                        "minimum": 2,
+                        "maximum": 11
+                    },
+                    "ultimateHoldingCompany": {
+                        "type": "object",
+                        "description": "Ultimate holding company details"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "etag"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company"
+                    },
+                    "companyName": {
+                        "type": "string",
+                        "description": "Name of the company"
+                    },
+                    "entityType": {
+                        "type": "string",
+                        "description": "The type of company"
+                    },
+                    "website": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Updated company website URL"
+                    },
+                    "contacts": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Updated contact information"
+                    },
+                    "annualReturnFilingMonth": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Updated annual return filing month"
+                    },
+                    "ultimateHoldingCompany": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Updated ultimate holding company details"
+                    },
+                    "etag": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ETag from response headers"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the update was successful"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Success message"
+                    }
+                }
+            }
+        },
+        "add_company_contact": {
+            "display_name": "Add Company Contact",
+            "description": "COMP_19: Adds a new contact to the company with the given company identifier. You must provide contact details including addresses for registered office, service and communication, plus an email address. Only one contact can be added at a time. Registered office and service addresses must be physical addresses in New Zealand. API team confirmed exact address purposes: 'Registered office address', 'Address for service', 'Address for communication'.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "contactType": {
+                        "type": "string",
+                        "description": "Type of contact to add: 'phone', 'email', or 'address'",
+                        "enum": [
+                            "phone",
+                            "email",
+                            "address"
+                        ]
+                    },
+                    "phoneContact": {
+                        "type": "object",
+                        "description": "Phone contact details (use when contact_type is 'phone')",
+                        "properties": {
+                            "phoneNumber": {
+                                "type": "string",
+                                "description": "Phone number"
+                            },
+                            "areaCode": {
+                                "type": "string",
+                                "description": "Area code"
+                            },
+                            "countryCode": {
+                                "type": "string",
+                                "description": "Country code (e.g., '64' for NZ)"
+                            },
+                            "phonePurpose": {
+                                "type": "string",
+                                "description": "Purpose: 'Phone', 'Mobile', 'Fax'"
+                            }
+                        }
+                    },
+                    "emailAddress": {
+                        "type": "object",
+                        "description": "Email address details (use when contact_type is 'email')",
+                        "properties": {
+                            "email": {
+                                "type": "string",
+                                "description": "Email address"
+                            },
+                            "emailPurpose": {
+                                "type": "string",
+                                "description": "Purpose: 'Email'"
+                            }
+                        }
+                    },
+                    "physicalOrPostalAddress": {
+                        "type": "object",
+                        "description": "Physical or postal address details (use when contact_type is 'address'). Registered office and service addresses must be physical NZ addresses. Required: address1 + address3 (or dpid).",
+                        "properties": {
+                            "addressType": {
+                                "type": "string",
+                                "description": "Address type: 'Physical' or 'Postal'"
+                            },
+                            "addressPurpose": {
+                                "type": "string",
+                                "description": "Address purpose (case-sensitive, use Sentence case). API team confirmed these EXACT 3 values: 'Registered office address', 'Address for service', 'Address for communication'",
+                                "enum": [
+                                    "Registered office address",
+                                    "Address for service",
+                                    "Address for communication"
+                                ]
+                            },
+                            "careOf": {
+                                "type": "string",
+                                "description": "Care of name (optional)"
+                            },
+                            "address1": {
+                                "type": "string",
+                                "description": "Address line 1 (street address). Required for NZ addresses (unless dpid is provided)."
+                            },
+                            "address2": {
+                                "type": "string",
+                                "description": "Address line 2 (optional)"
+                            },
+                            "address3": {
+                                "type": "string",
+                                "description": "Address line 3 (city/suburb). Required for NZ addresses (unless dpid is provided)."
+                            },
+                            "address4": {
+                                "type": "string",
+                                "description": "Address line 4 (optional)"
+                            },
+                            "postCode": {
+                                "type": "string",
+                                "description": "Postal code (optional)."
+                            },
+                            "countryCode": {
+                                "type": "string",
+                                "description": "Country code (e.g., 'NZ' for New Zealand)"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Address description (optional)"
+                            },
+                            "dpid": {
+                                "type": "string",
+                                "description": "Delivery Point Identifier. If provided, address1/address2/address3/postCode are ignored. Either dpid OR (address1 + address3) is required for NZ addresses."
+                            },
+                            "effectiveDate": {
+                                "type": "string",
+                                "description": "Effective date (ISO format, optional)"
+                            }
+                        }
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "contactType"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "phoneContact": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Created phone contact details with ID"
+                    },
+                    "emailAddress": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Created email address details with ID"
+                    },
+                    "physicalOrPostalAddress": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Created address details with ID"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the contact was added successfully"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Success message"
+                    }
+                }
+            }
+        },
+        "reserve_company_name": {
+            "display_name": "Reserve Company Name",
+            "description": "COMP_27: Reserve the name for a company created via create_company. This is the second step after initialization. Requires ETag from initialization in both request body and If-Match header for concurrency control. Payment info is required even in sandbox (defaults to creditCard), though no actual payment will be processed. Processed within 2 hours during business hours (8:30am-5pm Mon-Fri). For sandbox testing, use organisationId: '137860'.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The company UUID returned from create_company action"
+                    },
+                    "etag": {
+                        "type": "string",
+                        "description": "ETag from create_company response headers. Required in both request body and If-Match header for concurrency control."
+                    },
+                    "organisationId": {
+                        "type": "string",
+                        "description": "Optional organisation ID. Determines whether entity authority is held by org account or user account. For sandbox testing, use '137860'."
+                    },
+                    "organisationName": {
+                        "type": "string",
+                        "description": "Optional organisation name (no validation currently). For sandbox testing, use 'TESTING LTD'."
+                    },
+                    "paymentMethod": {
+                        "type": "string",
+                        "description": "Payment method: 'CREDIT_CARD' or 'DIRECT_DEBIT'. Defaults to CREDIT_CARD. Required by API even in sandbox (though no actual payment is processed). Accepts both uppercase with underscore or camelCase.",
+                        "enum": [
+                            "CREDIT_CARD",
+                            "DIRECT_DEBIT",
+                            "credit_card",
+                            "direct_debit",
+                            "creditCard",
+                            "directDebit"
+                        ],
+                        "default": "CREDIT_CARD"
+                    },
+                    "redirectUrl": {
+                        "type": "string",
+                        "description": "URL to redirect to after payment completion. Provide as plain URL - it will be automatically base64 encoded before sending to the API (per API requirement). Defaults to 'https://portal.api.business.govt.nz/' for sandbox testing.",
+                        "default": "https://portal.api.business.govt.nz/"
+                    },
+                    "billingReference": {
+                        "type": "string",
+                        "description": "Optional billing reference for internal reconciliation (shown on monthly invoice)"
+                    },
+                    "comments": {
+                        "type": "string",
+                        "description": "Optional comments for the Companies Office processing team"
+                    },
+                    "supportingDocumentRef": {
+                        "type": "string",
+                        "description": "Optional reference to supporting documents (e.g., approval for restricted words)"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "etag"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "reservationId": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "paymentUrl": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "paymentId": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "billingReference": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "status": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "result": {
+                        "type": "boolean"
+                    }
+                }
+            }
+        },
+        "get_shareholder_details": {
+            "display_name": "Get Shareholder Details",
+            "description": "COMP_46: Get details of a specific shareholder by shareholderId. Returns shareholder information with ETag support for caching optimization.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "shareholderId": {
+                        "type": "string",
+                        "description": "The unique identifier of the shareholder (shareholderId)"
+                    },
+                    "ifNoneMatch": {
+                        "type": "string",
+                        "description": "Optional ETag value for caching optimization - returns 304 Not Modified if data unchanged"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "shareholderId"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "shareholder": {
+                        "type": "object",
+                        "description": "Shareholder details"
+                    },
+                    "etag": {
+                        "type": "string",
+                        "description": "ETag value for caching"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the request was successful"
+                    },
+                    "notModified": {
+                        "type": "boolean",
+                        "description": "True if 304 Not Modified response (data unchanged)"
+                    }
+                }
+            }
+        },
+        "get_shareholder_documents": {
+            "display_name": "Get Shareholder Document References",
+            "description": "COMP_46: Retrieve document references associated with shareholder allocation (e.g., consent forms, supporting documents). NOTE: supportingDocumentRef and supportingDocumentId are not returned with this resource.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "shareholderAllocationId": {
+                        "type": "string",
+                        "description": "The id of the shareholder allocation. It can be obtained from the shareholdersInAllocations block in shareholding resource"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "shareholderAllocationId"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "documents": {
+                        "type": "array",
+                        "description": "Array of document references associated with the shareholder"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the request was successful"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of document references found"
+                    }
+                }
+            }
+        },
+        "get_shareholders_special_resolution": {
+            "display_name": "Get Shareholders Special Resolution Document",
+            "description": "COMP_51: Retrieve details of the Shareholders Special Resolution document associated with shareholders. Only applicable for a pre-incorporated company.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "ifNoneMatch": {
+                        "type": "string",
+                        "description": "Optional ETag value for caching optimization - returns 304 Not Modified if data unchanged"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "specialResolutionDocumentRef": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The document reference of the uploaded Special Resolution document. This value can be obtained from the response of POST /{companyUuid}/documents with the document type 'ShareholdersSpecialResolutionDocument'"
+                    },
+                    "specialResolutionDocumentId": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The identifier that associates the uploaded Special Resolution document with the shareholders (readonly)"
+                    },
+                    "link": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "A link, typically to a record in a collection or a detail getter (readonly)"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the request was successful"
+                    }
+                }
+            }
+        },
+        "associate_shareholder_document": {
+            "display_name": "Associate Document to Shareholder Allocation",
+            "description": "COMP_47: Associate a consent document (and optionally a supporting document) to shareholder allocation. Documents must be uploaded first using POST /{companyUuid}/documents with document types: 'ConsentOfShareholder' or 'ConsentOfShareholderSupportDocument'. NOTE: Shareholder consents are NOT required post-registration. Processed within 1 hour during business hours. On acceptance: email confirmation + Particulars of shareholder added to document history + Certificate of Incorporation sent once last consent accepted (for incorporation). On rejection: email with reason (common: poor image quality, details don't match application).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "shareholderAllocationId": {
+                        "type": "string",
+                        "description": "The id of the shareholder allocation. It can be obtained from the shareholdersInAllocations block in shareholding resource"
+                    },
+                    "consentDocumentRef": {
+                        "type": "string",
+                        "description": "The document reference of the uploaded consent document (obtained from POST /{companyUuid}/documents response with type 'ConsentOfShareholder'). REQUIRED."
+                    },
+                    "supportingDocumentRef": {
+                        "type": "string",
+                        "description": "Optional document reference of the uploaded supporting document (obtained from POST /{companyUuid}/documents with type 'ConsentOfShareholderSupportDocument')."
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "shareholderAllocationId",
+                    "consentDocumentRef"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "consentDocumentRef": {
+                        "type": "string",
+                        "description": "The document reference of the uploaded consent document"
+                    },
+                    "consentDocumentStatus": {
+                        "type": "string",
+                        "description": "Status of the consent application: 'Awaiting Approval', 'Registered', or 'Rejected'"
+                    },
+                    "consentDocumentId": {
+                        "type": "string",
+                        "description": "The identifier that associates the uploaded consent document with the shareholder"
+                    },
+                    "supportingDocumentRef": {
+                        "type": "string",
+                        "description": "Document reference of supporting document if provided"
+                    },
+                    "supportingDocumentId": {
+                        "type": "string",
+                        "description": "The identifier that associates the uploaded supporting document with the shareholder"
+                    },
+                    "processingTime": {
+                        "type": "string",
+                        "description": "Expected processing time (within 1 hour during business hours)"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the document was associated successfully"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Success message with processing information"
+                    }
+                }
+            }
+        },
+        "associate_shareholders_special_resolution": {
+            "display_name": "Associate Special Resolution Document to Shareholders",
+            "description": "COMP_52: Associate the uploaded Special Resolution document to shareholders of a NZ Co-operative Company. The document must be uploaded first using POST /{companyUuid}/documents with document type 'ShareholdersSpecialResolutionDocument'. Only applicable and mandatory for pre-incorporated NZ Co-operative Company. Calling this resource a subsequent time will replace the associated Special Resolution document.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN)"
+                    },
+                    "specialResolutionDocumentRef": {
+                        "type": "string",
+                        "description": "The document reference of the uploaded Special Resolution document (obtained from POST /{companyUuid}/documents response with type 'ShareholdersSpecialResolutionDocument'). REQUIRED."
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "specialResolutionDocumentRef"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "specialResolutionDocumentRef": {
+                        "type": "string",
+                        "description": "The document reference of the uploaded Special Resolution document"
+                    },
+                    "specialResolutionDocumentId": {
+                        "type": "string",
+                        "description": "The identifier that associates the Special Resolution document with shareholders"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the document was associated successfully"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Success message"
+                    }
+                }
+            }
+        },
+        "upload_company_constitution": {
+            "display_name": "Upload Company Constitution",
+            "description": "COMP_39: Upload a constitution for the company under incorporation. A constitution sets out the rights, powers and duties of the company, the board, each director and each shareholder. MANDATORY for Co-operative Company or Unlimited Company. Optional for other company types. NOTE: This call can be made again to replace a previously uploaded constitution.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN). This can also be the NZBN if available."
+                    },
+                    "constitutionDocumentRef": {
+                        "type": "string",
+                        "description": "The document reference of the uploaded constitution. This can be obtained by first calling POST /{companyUuid}/documents with the document type 'ConstitutionDocument'. REQUIRED."
+                    },
+                    "declaration": {
+                        "type": "string",
+                        "description": "Declaration that the document provided is indeed the constitution as required by legislation. REQUIRED."
+                    },
+                    "resolutionDate": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Resolution date in ISO format (YYYY-MM-DD). Required when providing constitution for a registered company. Not applicable for pre-registered company."
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid",
+                    "constitutionDocumentRef",
+                    "declaration"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "constitutionDocumentRef": {
+                        "type": "string",
+                        "description": "The document reference of the uploaded constitution"
+                    },
+                    "constitutionDocumentId": {
+                        "type": "string",
+                        "description": "The identifier that associates the uploaded constitution document with the company (readonly)"
+                    },
+                    "declaration": {
+                        "type": "string",
+                        "description": "The declaration provided"
+                    },
+                    "resolutionDate": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date",
+                        "description": "Resolution date if provided"
+                    },
+                    "link": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "A link to the constitution resource (readonly)"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the constitution was uploaded successfully"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Success message"
+                    }
+                }
+            }
+        },
+        "get_company_constitution": {
+            "display_name": "Get Company Constitution Metadata",
+            "description": "COMP_40: Retrieve constitution document metadata for the company under registration. Returns information about the constitution that has been uploaded for the company. Supports ETag optimization for caching.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyUuid": {
+                        "type": "string",
+                        "description": "The unique API identifier for the company (companyUuid or NZBN). This can also be the NZBN if available."
+                    },
+                    "ifNoneMatch": {
+                        "type": "string",
+                        "description": "Optional ETag value from previous response - returns 304 Not Modified if data unchanged"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": [
+                    "companyUuid"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "constitutionDocumentRef": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The document reference of the uploaded constitution"
+                    },
+                    "constitutionDocumentId": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The identifier that associates the uploaded constitution document with the company (readonly)"
+                    },
+                    "declaration": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The declaration that was provided when uploading the constitution"
+                    },
+                    "resolutionDate": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date",
+                        "description": "Resolution date if provided (for registered companies)"
+                    },
+                    "link": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "A link to the constitution resource (readonly)"
+                    },
+                    "etag": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ETag value for caching - use in next request's if_none_match parameter"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the request was successful"
+                    },
+                    "notModified": {
+                        "type": "boolean",
+                        "description": "True if 304 Not Modified response (data unchanged)"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Message for not modified or error responses"
+                    }
+                }
+            }
+        },
+        "search_nz_address": {
+            "display_name": "Search NZ Post Addresses",
+            "description": "COMP_30: NZ Post address search by query string or Delivery Point Identifier (DPID). Performs an NZ Post address file search. By default returns physical addresses; postal addresses (e.g., PO Boxes) can be searched by specifying postal=true. Query string search splits input on whitespace and commas into tokens and matches them against full addresses. DPID search overrides all other parameters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dpid": {
+                        "type": "string",
+                        "description": "The Delivery Point Identifier (DPID) of the address, for a single item get style search. If specified, this overrides all other query parameters."
+                    },
+                    "find": {
+                        "type": "string",
+                        "description": "The query string for text-based search. Input is split on whitespace and commas into tokens (e.g., '23 Wellington road' → tokens: 23, Wellington, road). All tokens are matched equally against full addresses. Ignored if dpid is specified."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Result count limit. Must be between 1 and 100. Defaults to 10.",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 10
+                    },
+                    "postal": {
+                        "type": "boolean",
+                        "description": "Boolean parameter to indicate whether to return postal addresses only (e.g., PO Boxes). By default (false), physical addresses will be returned.",
+                        "default": false
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Optional request ID (UUID) for tracking"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "addresses": {
+                        "type": "array",
+                        "description": "Array of matching NZ Post addresses. Each address includes fields like address1, address2, address3, address4, postCode, dpid, countryCode, etc."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of addresses returned"
+                    },
+                    "searchType": {
+                        "type": "string",
+                        "description": "Type of search performed: 'dpid' or 'query'",
+                        "enum": [
+                            "dpid",
+                            "query"
+                        ]
+                    },
+                    "postalOnly": {
+                        "type": "boolean",
+                        "description": "Whether only postal addresses were searched"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the search was successful"
+                    }
+                }
+            }
+        },
+        "incorporate_company": {
+            "display_name": "Incorporate Company",
+            "description": "Incorporate a new company in New Zealand. Requires a reserved company name.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "reservationId": {
+                        "type": "string",
+                        "description": "The company name reservation ID"
+                    },
+                    "companyName": {
+                        "type": "string",
+                        "description": "The reserved company name"
+                    },
+                    "companyType": {
+                        "type": "string",
+                        "description": "Type of company (e.g., 'limited', 'unlimited')",
+                        "default": "limited"
+                    },
+                    "registeredOffice": {
+                        "type": "object",
+                        "description": "Registered office address details"
+                    },
+                    "addressForService": {
+                        "type": "object",
+                        "description": "Address for service details"
+                    },
+                    "directors": {
+                        "type": "array",
+                        "description": "Array of director details (at least one required)"
+                    },
+                    "shareholders": {
+                        "type": "array",
+                        "description": "Array of shareholder details"
+                    },
+                    "shareAllocation": {
+                        "type": "object",
+                        "description": "Initial share allocation details"
+                    },
+                    "constitution": {
+                        "type": "object",
+                        "description": "Company constitution details (optional)"
+                    },
+                    "paymentMethod": {
+                        "type": "string",
+                        "description": "Payment method for incorporation fee",
+                        "default": "credit_card"
+                    },
+                    "redirectUrl": {
+                        "type": "string",
+                        "description": "URL to redirect to after payment completion"
+                    }
+                },
+                "required": [
+                    "reservationId",
+                    "companyName",
+                    "registeredOffice",
+                    "addressForService",
+                    "directors",
+                    "shareholders"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "companyNumber": {
+                        "type": "string"
+                    },
+                    "companyName": {
+                        "type": "string"
+                    },
+                    "incorporationDate": {
+                        "type": "string"
+                    },
+                    "paymentUrl": {
+                        "type": "string"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    }
+                }
+            }
+        },
+        "file_annual_return": {
+            "display_name": "File Annual Return",
+            "description": "File an annual return for a company. Annual returns must be filed within a specific timeframe each year.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "companyNumber": {
+                        "type": "string",
+                        "description": "The unique company number"
+                    },
+                    "returnDate": {
+                        "type": "string",
+                        "description": "The annual return date (ISO format)"
+                    },
+                    "totalShares": {
+                        "type": "integer",
+                        "description": "Total number of shares issued"
+                    },
+                    "shareDetails": {
+                        "type": "object",
+                        "description": "Details of share classes and allocations"
+                    },
+                    "directorsConfirmed": {
+                        "type": "boolean",
+                        "description": "Confirmation that director details are current",
+                        "default": true
+                    },
+                    "addressesConfirmed": {
+                        "type": "boolean",
+                        "description": "Confirmation that address details are current",
+                        "default": true
+                    },
+                    "shareholdingConfirmed": {
+                        "type": "boolean",
+                        "description": "Confirmation that shareholding details are current",
+                        "default": true
+                    },
+                    "paymentMethod": {
+                        "type": "string",
+                        "description": "Payment method for filing fee",
+                        "default": "credit_card"
+                    },
+                    "redirectUrl": {
+                        "type": "string",
+                        "description": "URL to redirect to after payment completion"
+                    }
+                },
+                "required": [
+                    "companyNumber",
+                    "returnDate"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "filingId": {
+                        "type": "string"
+                    },
+                    "companyNumber": {
+                        "type": "string"
+                    },
+                    "returnDate": {
+                        "type": "string"
+                    },
+                    "paymentUrl": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    }
+                }
+            }
+        }
+    }
+}
