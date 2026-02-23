@@ -1,2 +1,2 @@
-autohive_integrations_sdk
+autohive-integrations-sdk~=1.0.2
 aiohttp

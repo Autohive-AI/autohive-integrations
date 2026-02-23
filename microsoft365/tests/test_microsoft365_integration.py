@@ -1667,6 +1667,445 @@ class TestReadSharePointPageContentAction(unittest.TestCase):
         call_args = self.mock_context.fetch.call_args
         self.assertNotIn("$expand", call_args[1]["params"])
 
+    # ---- Meeting Scheduling & Room Management Tests ----
+
+    async def test_find_meeting_times_success(self):
+        """Test successful meeting time suggestion."""
+        mock_response = {
+            "meetingTimeSuggestions": [
+                {
+                    "meetingTimeSlot": {
+                        "start": {"dateTime": "2024-08-20T10:00:00.0000000", "timeZone": "UTC"},
+                        "end": {"dateTime": "2024-08-20T11:00:00.0000000", "timeZone": "UTC"}
+                    },
+                    "confidence": 100,
+                    "organizerAvailability": "free",
+                    "attendeeAvailability": [
+                        {
+                            "attendee": {"emailAddress": {"address": "john@example.com"}},
+                            "availability": "free"
+                        },
+                        {
+                            "attendee": {"emailAddress": {"address": "sarah@example.com"}},
+                            "availability": "free"
+                        }
+                    ],
+                    "locations": [
+                        {"displayName": "Conference Room A", "locationEmailAddress": "conf-a@example.com"}
+                    ]
+                },
+                {
+                    "meetingTimeSlot": {
+                        "start": {"dateTime": "2024-08-20T14:00:00.0000000", "timeZone": "UTC"},
+                        "end": {"dateTime": "2024-08-20T15:00:00.0000000", "timeZone": "UTC"}
+                    },
+                    "confidence": 80,
+                    "organizerAvailability": "free",
+                    "attendeeAvailability": [
+                        {
+                            "attendee": {"emailAddress": {"address": "john@example.com"}},
+                            "availability": "free"
+                        },
+                        {
+                            "attendee": {"emailAddress": {"address": "sarah@example.com"}},
+                            "availability": "tentative"
+                        }
+                    ],
+                    "locations": []
+                }
+            ],
+            "emptySuggestionsReason": ""
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.FindMeetingTimesAction()
+        inputs = {
+            "attendees": ["john@example.com", "sarah@example.com"],
+            "duration_minutes": 60,
+            "start_datetime": "2024-08-19T08:00:00Z",
+            "end_datetime": "2024-08-23T18:00:00Z",
+            "max_candidates": 5
+        }
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertEqual(len(result.data["meeting_time_suggestions"]), 2)
+        self.assertEqual(result.data["meeting_time_suggestions"][0]["confidence"], 100)
+        self.assertEqual(result.data["meeting_time_suggestions"][0]["attendee_availability"][0]["email"], "john@example.com")
+        self.assertEqual(result.data["meeting_time_suggestions"][0]["suggested_locations"][0]["displayName"], "Conference Room A")
+
+        # Verify API call
+        self.mock_context.fetch.assert_called_once()
+        call_args = self.mock_context.fetch.call_args
+        self.assertIn("findMeetingTimes", call_args[0][0])
+        self.assertEqual(call_args[1]["method"], "POST")
+
+    async def test_find_meeting_times_no_suggestions(self):
+        """Test when no meeting times are available."""
+        mock_response = {
+            "meetingTimeSuggestions": [],
+            "emptySuggestionsReason": "attendeesUnavailable"
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.FindMeetingTimesAction()
+        inputs = {
+            "attendees": ["john@example.com"],
+            "duration_minutes": 60
+        }
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertEqual(len(result.data["meeting_time_suggestions"]), 0)
+        self.assertEqual(result.data["empty_suggestions_reason"], "attendeesUnavailable")
+
+    async def test_find_meeting_times_with_location_constraint(self):
+        """Test finding meeting times with a specific room."""
+        mock_response = {
+            "meetingTimeSuggestions": [
+                {
+                    "meetingTimeSlot": {
+                        "start": {"dateTime": "2024-08-20T10:00:00.0000000", "timeZone": "UTC"},
+                        "end": {"dateTime": "2024-08-20T11:00:00.0000000", "timeZone": "UTC"}
+                    },
+                    "confidence": 100,
+                    "organizerAvailability": "free",
+                    "attendeeAvailability": [],
+                    "locations": []
+                }
+            ]
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.FindMeetingTimesAction()
+        inputs = {
+            "attendees": ["john@example.com"],
+            "duration_minutes": 30,
+            "location_constraint": "conf-room@example.com"
+        }
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        # Verify location constraint was sent
+        call_args = self.mock_context.fetch.call_args
+        body = call_args[1]["json"]
+        self.assertIn("locationConstraint", body)
+        self.assertEqual(body["locationConstraint"]["locations"][0]["locationEmailAddress"], "conf-room@example.com")
+
+    async def test_find_meeting_times_error(self):
+        """Test error handling for find meeting times."""
+        self.mock_context.fetch.side_effect = Exception("API Error: Insufficient permissions")
+
+        handler = microsoft365.FindMeetingTimesAction()
+        inputs = {"attendees": ["john@example.com"]}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertFalse(result.data["result"])
+        self.assertIn("API Error", result.data["error"])
+
+    async def test_get_schedule_success(self):
+        """Test successful schedule retrieval."""
+        mock_response = {
+            "value": [
+                {
+                    "scheduleId": "john@example.com",
+                    "availabilityView": "0000220000",
+                    "scheduleItems": [
+                        {
+                            "status": "busy",
+                            "start": {"dateTime": "2024-08-20T10:00:00.0000000", "timeZone": "UTC"},
+                            "end": {"dateTime": "2024-08-20T11:00:00.0000000", "timeZone": "UTC"},
+                            "subject": "Team Standup",
+                            "location": "Teams",
+                            "isPrivate": False
+                        }
+                    ],
+                    "workingHours": {
+                        "startTime": "08:00:00.0000000",
+                        "endTime": "17:00:00.0000000",
+                        "daysOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+                        "timeZone": {"name": "Pacific Standard Time"}
+                    }
+                },
+                {
+                    "scheduleId": "sarah@example.com",
+                    "availabilityView": "0000000000",
+                    "scheduleItems": [],
+                    "workingHours": {
+                        "startTime": "09:00:00.0000000",
+                        "endTime": "18:00:00.0000000",
+                        "daysOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+                        "timeZone": {"name": "Eastern Standard Time"}
+                    }
+                }
+            ]
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.GetScheduleAction()
+        inputs = {
+            "schedules": ["john@example.com", "sarah@example.com"],
+            "start_datetime": "2024-08-20T08:00:00Z",
+            "end_datetime": "2024-08-20T18:00:00Z",
+            "availability_view_interval": 30
+        }
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertEqual(len(result.data["schedules"]), 2)
+        self.assertEqual(result.data["schedules"][0]["email"], "john@example.com")
+        self.assertEqual(result.data["schedules"][0]["availability_view"], "0000220000")
+        self.assertEqual(len(result.data["schedules"][0]["schedule_items"]), 1)
+        self.assertEqual(result.data["schedules"][0]["schedule_items"][0]["status"], "busy")
+        self.assertEqual(result.data["schedules"][0]["working_hours"]["timezone"], "Pacific Standard Time")
+        self.assertEqual(len(result.data["schedules"][1]["schedule_items"]), 0)
+
+        # Verify API call
+        call_args = self.mock_context.fetch.call_args
+        self.assertIn("getSchedule", call_args[0][0])
+        self.assertEqual(call_args[1]["method"], "POST")
+
+    async def test_get_schedule_error(self):
+        """Test error handling for get schedule."""
+        self.mock_context.fetch.side_effect = Exception("Network error")
+
+        handler = microsoft365.GetScheduleAction()
+        inputs = {
+            "schedules": ["john@example.com"],
+            "start_datetime": "2024-08-20T08:00:00Z",
+            "end_datetime": "2024-08-20T18:00:00Z"
+        }
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertFalse(result.data["result"])
+        self.assertIn("Network error", result.data["error"])
+
+    async def test_list_rooms_all_rooms(self):
+        """Test listing all meeting rooms."""
+        mock_response = {
+            "value": [
+                {
+                    "id": "room1",
+                    "displayName": "Conference Room A",
+                    "emailAddress": "conf-a@example.com",
+                    "capacity": 10,
+                    "building": "Building 1",
+                    "floorNumber": 2,
+                    "floorLabel": "2nd Floor",
+                    "isWheelChairAccessible": True,
+                    "audioDeviceName": "Polycom",
+                    "videoDeviceName": "Logitech Rally",
+                    "displayDeviceName": "Samsung 65\"",
+                    "phone": "555-0101"
+                },
+                {
+                    "id": "room2",
+                    "displayName": "Boardroom",
+                    "emailAddress": "boardroom@example.com",
+                    "capacity": 20,
+                    "building": "Building 1",
+                    "floorNumber": 3,
+                    "floorLabel": "3rd Floor",
+                    "isWheelChairAccessible": True,
+                    "audioDeviceName": "Cisco",
+                    "videoDeviceName": "Cisco Webex Board",
+                    "displayDeviceName": "Cisco Webex Board 85",
+                    "phone": "555-0102"
+                }
+            ]
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.ListRoomsAction()
+        inputs = {"list_type": "rooms", "limit": 50}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertEqual(result.data["total_count"], 2)
+        self.assertEqual(result.data["rooms"][0]["display_name"], "Conference Room A")
+        self.assertEqual(result.data["rooms"][0]["email_address"], "conf-a@example.com")
+        self.assertEqual(result.data["rooms"][0]["capacity"], 10)
+        self.assertEqual(result.data["rooms"][1]["display_name"], "Boardroom")
+
+        # Verify API call
+        call_args = self.mock_context.fetch.call_args
+        self.assertIn("microsoft.graph.room", call_args[0][0])
+
+    async def test_list_rooms_room_lists(self):
+        """Test listing room lists (buildings)."""
+        mock_response = {
+            "value": [
+                {
+                    "id": "list1",
+                    "displayName": "Building A",
+                    "emailAddress": "building-a@example.com",
+                    "phone": ""
+                }
+            ]
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.ListRoomsAction()
+        inputs = {"list_type": "room_lists"}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertEqual(result.data["total_count"], 1)
+        self.assertEqual(result.data["rooms"][0]["display_name"], "Building A")
+
+        call_args = self.mock_context.fetch.call_args
+        self.assertIn("roomList", call_args[0][0])
+
+    async def test_list_rooms_in_list(self):
+        """Test listing rooms in a specific room list."""
+        mock_response = {
+            "value": [
+                {
+                    "id": "room1",
+                    "displayName": "Room 101",
+                    "emailAddress": "room101@example.com",
+                    "capacity": 6,
+                    "building": "Building A",
+                    "floorNumber": 1
+                }
+            ]
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.ListRoomsAction()
+        inputs = {
+            "list_type": "rooms_in_list",
+            "room_list_email": "building-a@example.com"
+        }
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertEqual(result.data["total_count"], 1)
+        self.assertEqual(result.data["rooms"][0]["email_address"], "room101@example.com")
+
+    async def test_list_rooms_in_list_missing_email(self):
+        """Test error when room list email is missing."""
+        handler = microsoft365.ListRoomsAction()
+        inputs = {"list_type": "rooms_in_list"}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertFalse(result.data["result"])
+        self.assertIn("room_list_email is required", result.data["error"])
+
+    async def test_list_rooms_error(self):
+        """Test error handling for list rooms."""
+        self.mock_context.fetch.side_effect = Exception("Forbidden: Insufficient privileges")
+
+        handler = microsoft365.ListRoomsAction()
+        inputs = {"list_type": "rooms"}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertFalse(result.data["result"])
+        self.assertIn("Forbidden", result.data["error"])
+
+    async def test_check_room_availability_all_available(self):
+        """Test checking room availability when all rooms are free."""
+        mock_response = {
+            "value": [
+                {
+                    "scheduleId": "conf-a@example.com",
+                    "availabilityView": "0000",
+                    "scheduleItems": []
+                },
+                {
+                    "scheduleId": "conf-b@example.com",
+                    "availabilityView": "0000",
+                    "scheduleItems": []
+                }
+            ]
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.CheckRoomAvailabilityAction()
+        inputs = {
+            "room_emails": ["conf-a@example.com", "conf-b@example.com"],
+            "start_datetime": "2024-08-20T14:00:00Z",
+            "end_datetime": "2024-08-20T15:00:00Z"
+        }
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertEqual(len(result.data["rooms"]), 2)
+        self.assertTrue(result.data["rooms"][0]["is_available"])
+        self.assertTrue(result.data["rooms"][1]["is_available"])
+        self.assertEqual(result.data["available_rooms"], ["conf-a@example.com", "conf-b@example.com"])
+        self.assertEqual(result.data["unavailable_rooms"], [])
+
+    async def test_check_room_availability_with_conflicts(self):
+        """Test checking room availability when some rooms have conflicts."""
+        mock_response = {
+            "value": [
+                {
+                    "scheduleId": "conf-a@example.com",
+                    "availabilityView": "0000",
+                    "scheduleItems": []
+                },
+                {
+                    "scheduleId": "conf-b@example.com",
+                    "availabilityView": "2200",
+                    "scheduleItems": [
+                        {
+                            "status": "busy",
+                            "start": {"dateTime": "2024-08-20T14:00:00.0000000", "timeZone": "UTC"},
+                            "end": {"dateTime": "2024-08-20T14:30:00.0000000", "timeZone": "UTC"},
+                            "subject": "Existing Meeting"
+                        }
+                    ]
+                }
+            ]
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.CheckRoomAvailabilityAction()
+        inputs = {
+            "room_emails": ["conf-a@example.com", "conf-b@example.com"],
+            "start_datetime": "2024-08-20T14:00:00Z",
+            "end_datetime": "2024-08-20T15:00:00Z"
+        }
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertTrue(result.data["rooms"][0]["is_available"])
+        self.assertFalse(result.data["rooms"][1]["is_available"])
+        self.assertEqual(len(result.data["rooms"][1]["conflicts"]), 1)
+        self.assertEqual(result.data["rooms"][1]["conflicts"][0]["subject"], "Existing Meeting")
+        self.assertEqual(result.data["available_rooms"], ["conf-a@example.com"])
+        self.assertEqual(result.data["unavailable_rooms"], ["conf-b@example.com"])
+
+    async def test_check_room_availability_error(self):
+        """Test error handling for check room availability."""
+        self.mock_context.fetch.side_effect = Exception("Timeout")
+
+        handler = microsoft365.CheckRoomAvailabilityAction()
+        inputs = {
+            "room_emails": ["conf-a@example.com"],
+            "start_datetime": "2024-08-20T14:00:00Z",
+            "end_datetime": "2024-08-20T15:00:00Z"
+        }
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertFalse(result.data["result"])
+        self.assertIn("Timeout", result.data["error"])
+
 
 if __name__ == '__main__':
     unittest.main()
