@@ -329,7 +329,9 @@ class ListCalendarEventsAction(ActionHandler):
                 end_datetime = f"{end_date}T23:59:59Z"
             else:
                 # Intelligent default: next 30 days of calendar events (more useful for calendars)
-                # Use UTC time for intelligent defaults (agent can provide timezone-aware datetime if needed)
+                # Use datetime.now(timezone.utc) instead of deprecated datetime.utcnow() — the latter
+                # returns a naive datetime (no tzinfo) which is deprecated in Python 3.12+.
+                # datetime.now(timezone.utc) returns a timezone-aware UTC datetime.
                 now = datetime.now(timezone.utc)
                 end_time = now + timedelta(days=30)
                 start_datetime = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -415,7 +417,9 @@ class ListEmailsAction(ActionHandler):
                 end_datetime = f"{end_date}T23:59:59Z"
             else:
                 # Intelligent default: last 1 day of emails
-                # Use UTC time for intelligent defaults (agent can provide timezone-aware datetime if needed)
+                # Use datetime.now(timezone.utc) instead of deprecated datetime.utcnow() — the latter
+                # returns a naive datetime (no tzinfo) which is deprecated in Python 3.12+.
+                # datetime.now(timezone.utc) returns a timezone-aware UTC datetime.
                 now = datetime.now(timezone.utc)
                 start_time = now - timedelta(days=1)
                 start_datetime = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
