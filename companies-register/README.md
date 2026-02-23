@@ -27,12 +27,17 @@ Required for write operations (updating contacts, filing annual returns).
 
 ## Environments
 
+The base URL is controlled by the `COMPANIES_REGISTER_BASE_URL` environment variable. It defaults to **sandbox** so testing never accidentally targets live data.
+
 | Environment | Base URL |
 |---|---|
 | Sandbox (default) | `https://api.business.govt.nz/sandbox/companies-office/companies-register/companies/v2` |
 | Production | `https://api.business.govt.nz/gateway/companies-office/companies-register/companies/v2` |
 
-To switch to production, update `BASE_URL_V2` in `companies_register.py`.
+To use production, set the environment variable:
+```bash
+export COMPANIES_REGISTER_BASE_URL="https://api.business.govt.nz/gateway/companies-office/companies-register/companies/v2"
+```
 
 ## Actions
 
