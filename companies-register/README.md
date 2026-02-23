@@ -1,285 +1,196 @@
-# Companies Register Integration
+# Companies Register Integration for Autohive
 
-Comprehensive integration for the New Zealand Companies Register API (MBIE) to manage company information, directors, shareholding details, and file annual returns.
+Integration with the New Zealand [Companies Register API v2](https://api.business.govt.nz/) for managing registered companies on the NZ Companies Office Register.
 
 ## Overview
 
-This integration provides access to the Companies Office API for managing New Zealand companies, including:
-- Company search and registration
-- Director management
-- Shareholding information
-- Address management
-- Annual return filing
-- Document management
+This integration allows you to retrieve company details, manage company contacts and addresses, and file annual returns for NZ registered companies. It covers the core lifecycle operations most commonly needed when maintaining a company on the Register.
 
-## Features
+**Important — UUID vs NZBN:**
+- **Pre-incorporated companies** (status < 50): use the **UUID** as the identifier
+- **Registered companies** (status 50): use the **NZBN** as the identifier for all operations
 
-### Company Management
-- **Search Company**: Check company name availability or search by number
-- **Get Company Details**: Retrieve detailed company information
-- **Create Company**: Incorporate a new company
-- **Update Company Details**: Modify existing company information
-- **Reserve Company Name**: Reserve a company name before incorporation
-
-### Director Management
-- **Get Company Directors**: List all directors with pagination
-- **Add Company Director**: Appoint a new director
-- **Update Company Director**: Modify director details
-- **Remove Company Director**: Remove a director from the company
-- **Get Director Details**: Retrieve specific director information
-- **Get Director Documents**: Access director-related documents
-- **Associate Director Document**: Link documents to directors
-
-### Shareholding
-- **Get Company Shareholding**: View shareholding structure
-- **Update Company Shareholding**: Modify share allocations
-- **Get Shareholder Details**: Retrieve shareholder information
-- **Get Shareholder Documents**: Access shareholding documents
-- **Get Shareholders Special Resolution**: View special resolutions
-
-### Addresses
-- **Get Company Addresses**: Retrieve registered addresses
-- **Search Address**: NZ Post address search with DPID support
-
-### Annual Returns
-- **File Annual Return**: Submit annual returns with payment
-
-### Contact Management
-- **Add Company Contact**: Add contact information to a company
+The API parameter is called `companyUuid` but also accepts the NZBN for registered companies.
 
 ## Authentication
 
-This integration uses **dual authentication**:
+This integration uses two credentials:
 
 ### 1. Azure API Management Subscription Key
-Required for all API calls.
+Required for all API calls. Injected server-side via the `COMPANIES_REGISTER_SUBSCRIPTION_KEY` environment variable.
+- Obtain from: https://portal.api.business.govt.nz/
 
-**How to get it:**
-1. Visit https://portal.api.business.govt.nz/
-2. Sign up or log in
-3. Subscribe to the Companies Register API product
-4. Copy your subscription key from the profile page
+### 2. RealMe OAuth 2.0
+Required for write operations (updating contacts, filing annual returns).
+- Authorization URL: `https://api.business.govt.nz/oauth/authorize`
+- Token URL: `https://api.business.govt.nz/oauth/token`
 
-### 2. RealMe OAuth 2.0 Access Token
-Required for authenticated actions (creating companies, filing returns, etc.)
+## Environments
 
-**How it works:**
-- Users authenticate via RealMe (New Zealand's identity verification service)
-- Autohive platform handles the OAuth flow automatically
-- Access token is injected into requests by the platform
+| Environment | Base URL |
+|---|---|
+| Sandbox (default) | `https://api.business.govt.nz/sandbox/companies-office/companies-register/companies/v2` |
+| Production | `https://api.business.govt.nz/gateway/companies-office/companies-register/companies/v2` |
 
-**RealMe OAuth Configuration:**
-- **Authorization URL**: `https://api.business.govt.nz/oauth/authorize`
-- **Token URL**: `https://api.business.govt.nz/oauth/token`
-- **Required Scopes**:
-  - `NZBNCO:manage` - Full access to manage companies, directors, shareholding, and file returns
+To switch to production, update `BASE_URL_V2` in `companies_register.py`.
 
-## Setup & Authentication
+## Actions
 
-### Step 1: Get API Subscription Key
-1. Go to https://portal.api.business.govt.nz/
-2. Create an account or sign in
-3. Navigate to "Products" and subscribe to "Companies Register API"
-4. Copy your **Primary Key** (this is your `subscription_key`)
+### `get_company_details`
+**COMP_03** — Get full details of a company by NZBN (registered) or UUID (pre-incorporated).
 
-### Step 2: Connect via Autohive
-1. In Autohive, click "Connect" for Companies Register integration
-2. You'll be redirected to **RealMe login**
-3. Log in with your RealMe credentials (business or personal account)
-4. Authorize Autohive to access Companies Register on your behalf
-5. Enter your **API Subscription Key** when prompted
+Returns company status, contacts, annual return info, and an **ETag**. Store the ETag — it is required when filing an annual return.
 
-### Step 3: Start Using Actions
-Once connected, all API calls will include both:
-- `Ocp-Apim-Subscription-Key` header (subscription key)
-- `Authorization: Bearer {token}` header (OAuth access token)
+| Input | Required | Description |
+|---|---|---|
+| `companyUuid` | Yes | NZBN for registered companies, UUID for pre-incorporated |
+| `ifNoneMatch` | No | Previous ETag for cache optimisation (returns 304 if unchanged) |
+| `requestId` | No | Optional UUID for request tracking |
 
-## Environment Configuration
+---
 
-### Sandbox (Default - Testing)
-```python
-BASE_URL_V2 = "https://api.business.govt.nz/sandbox/companies-office/companies-register/companies/v2"
-BASE_URL = "https://api.business.govt.nz/sandbox/companies-register"
+### `get_company_contacts`
+Get all contacts for a company — addresses, phone numbers and email addresses.
+
+Returns `addressId`, `phoneContactId`, `emailAddressId` values needed to update specific contacts, plus an **ETag** required by `update_company_contact`.
+
+| Input | Required | Description |
+|---|---|---|
+| `companyUuid` | Yes | NZBN for registered companies, UUID for pre-incorporated |
+| `requestId` | No | Optional UUID for request tracking |
+
+---
+
+### `update_company_contact`
+**COMP_21** — Update an existing contact (address, phone or email) for a company.
+
+**Rules for address updates:**
+- Do **not** include `dpid` — use address lines (`address1`, `address3`) directly
+- `effectiveDate` is **required** for all address updates
+- `Registered office address` and `Address for service` require `effectiveDate` at least **5 working days** in the future
+- `addressPurpose` must match exactly what `get_company_contacts` returned (e.g. `"Address for communication"`)
+
+| Input | Required | Description |
+|---|---|---|
+| `companyUuid` | Yes | NZBN for registered companies |
+| `contactId` | Yes | `addressId`, `phoneContactId` or `emailAddressId` from `get_company_contacts` |
+| `etag` | Yes | ETag from `get_company_contacts` |
+| `contactType` | Yes | `"address"`, `"phone"`, or `"email"` |
+| `physicalOrPostalAddress` | Cond. | Required when `contactType` is `"address"` |
+| `phoneContact` | Cond. | Required when `contactType` is `"phone"` |
+| `emailAddress` | Cond. | Required when `contactType` is `"email"` |
+
+---
+
+### `add_company_contact`
+**COMP_19** — Add a new contact (address, phone or email) to a company.
+
+Each address purpose can only exist **once**. If it already exists use `update_company_contact` instead.
+
+| Input | Required | Description |
+|---|---|---|
+| `companyUuid` | Yes | NZBN for registered companies |
+| `contactType` | Yes | `"address"`, `"phone"`, or `"email"` |
+| `physicalOrPostalAddress` | Cond. | Required when `contactType` is `"address"` |
+| `phoneContact` | Cond. | Required when `contactType` is `"phone"` |
+| `emailAddress` | Cond. | Required when `contactType` is `"email"` |
+
+---
+
+### `search_nz_address`
+**COMP_30** — Search the NZ Post address file to find a valid NZ address.
+
+Use this to look up addresses. Note: do not pass the DPID to `update_company_contact` — use address lines directly.
+
+| Input | Required | Description |
+|---|---|---|
+| `find` | Cond. | Address search string e.g. `"1 Queen Street Auckland"` |
+| `dpid` | Cond. | NZ Post Delivery Point ID — overrides `find` if provided |
+| `limit` | No | Max results (1–100, default 10) |
+| `postal` | No | Include postal addresses (PO Boxes). Default false |
+
+---
+
+### `file_annual_return`
+**COMP_23** — File an annual return for a registered company.
+
+File only after verifying all company details on the Register are up to date.
+
+**Important:**
+- `declaration` must be the exact string: `"I certify that the information contained in this annual return is correct."`
+- `companyDetailsConfirmedCorrectAsOfETag` must be the ETag from a recent `get_company_details` call
+- `phoneContact` must be a **Mobile** number (used for SMS reminders next year)
+- Payment defaults to `directDebit`; use `creditCard` with a `redirectUrl` for online payment
+
+| Input | Required | Description |
+|---|---|---|
+| `companyUuid` | Yes | Company NZBN |
+| `declaration` | Yes | `"I certify that the information contained in this annual return is correct."` |
+| `name` | Yes | `{ "firstName": "...", "lastName": "..." }` |
+| `emailAddress` | Yes | `{ "emailAddress": "..." }` |
+| `designation` | Yes | `"Director"` or `"Authorised Person"` |
+| `companyDetailsConfirmedCorrectAsOfETag` | Yes | ETag from `get_company_details` |
+| `paymentMethod` | No | `"directDebit"` (default) or `"creditCard"` |
+| `redirectUrl` | Cond. | Required when `paymentMethod` is `"creditCard"` |
+| `phoneContact` | No | Mobile phone for SMS reminders — `phonePurpose` must be `"Mobile"` |
+| `billingReference` | No | Optional billing reference |
+| `organisationId` | No | Charge fees to an organisation account instead of the logged-in user |
+
+---
+
+## Common Workflows
+
+### Update a company address
+```
+1. get_company_contacts(companyUuid=NZBN)
+   → note: addressId, exact addressPurpose string, etag
+
+2. update_company_contact(
+     companyUuid=NZBN,
+     contactId=addressId,
+     etag=etag,
+     contactType="address",
+     physicalOrPostalAddress={
+       "addressId": addressId,
+       "addressType": "Physical",
+       "addressPurpose": "<exact purpose from step 1>",
+       "address1": "1 Queen Street",
+       "address3": "Auckland",
+       "postCode": "1010",
+       "countryCode": "NZ",
+       "effectiveDate": "2026-03-05T00:00:00Z"  // +7 days minimum
+     }
+   )
 ```
 
-**Sandbox Test Data:**
-- Test Company Number: `137860`
-- Test Organisation ID: `137860`
-- Test Payment: Credit Card `4111 1111 1111 1111` (any expiry/CVC)
-
-### Production (After Approval)
-To switch to production:
-1. Update URLs in `companies_register.py`:
-   ```python
-   BASE_URL_V2 = "https://api.business.govt.nz/gateway/companies-office/companies-register/companies/v2"
-   BASE_URL = "https://api.business.govt.nz/services/v4/companies-register"
-   ```
-2. Use your **production subscription key**
-3. Ensure RealMe OAuth is configured for production environment
-
-## Available Actions
-
-| Action | Description | Auth Required |
-|--------|-------------|---------------|
-| `search_company` | Search by name or number | Subscription Key |
-| `get_company_details` | Get detailed company info | Both |
-| `get_company_directors` | List company directors | Both |
-| `add_company_director` | Appoint new director | Both |
-| `update_company_director` | Modify director details | Both |
-| `remove_company_director` | Remove a director | Both |
-| `get_director_details` | Get specific director info | Both |
-| `get_director_documents` | List director documents | Both |
-| `associate_director_document` | Link documents | Both |
-| `get_company_addresses` | Get registered addresses | Both |
-| `get_company_shareholding` | View shareholding structure | Both |
-| `update_company_shareholding` | Modify share allocations | Both |
-| `update_company_details` | Update company information | Both |
-| `add_company_contact` | Add contact information | Both |
-| `reserve_company_name` | Reserve a company name | Both |
-| `incorporate_company` | Create a new company | Both |
-| `get_shareholder_details` | Get shareholder info | Both |
-| `get_shareholder_documents` | List shareholder documents | Both |
-| `get_shareholders_special_resolution` | View special resolutions | Both |
-| `search_address` | NZ Post address search | Subscription Key |
-| `file_annual_return` | Submit annual return | Both |
-
-## Usage Examples
-
-### Search for a Company
-```python
-{
-  "action": "search_company",
-  "inputs": {
-    "query": "My Company Ltd",
-    "searchType": "name"
-  }
-}
+### File an annual return
 ```
+1. get_company_details(companyUuid=NZBN)
+   → note: etag
 
-### Get Company Details
-```python
-{
-  "action": "get_company_details",
-  "inputs": {
-    "companyNumber": "137860"
-  }
-}
-```
-
-### Add a Director
-```python
-{
-  "action": "add_company_director",
-  "inputs": {
-    "companyUuid": "company-uuid-here",
-    "etag": "etag-from-get-request",
-    "directors": [
-      {
-        "type": "INDIVIDUAL",
-        "fullLegalName": "John Smith",
-        "dateOfBirth": "1980-01-15",
-        "address": {
-          "line1": "123 Main St",
-          "suburb": "Wellington",
-          "city": "Wellington",
-          "postcode": "6011",
-          "country": "NZ"
-        }
-      }
-    ]
-  }
-}
-```
-
-### Reserve Company Name
-```python
-{
-  "action": "reserve_company_name",
-  "inputs": {
-    "companyUuid": "new-company-uuid",
-    "etag": "etag-value",
-    "organisationId": "137860",
-    "paymentMethod": "CREDIT_CARD",
-    "redirectUrl": "https://portal.api.business.govt.nz/"
-  }
-}
+2. file_annual_return(
+     companyUuid=NZBN,
+     declaration="I certify that the information contained in this annual return is correct.",
+     name={"firstName": "Jane", "lastName": "Smith"},
+     emailAddress={"emailAddress": "jane@company.co.nz"},
+     designation="Director",
+     companyDetailsConfirmedCorrectAsOfETag=etag,
+     paymentMethod="directDebit"
+   )
 ```
 
 ## Testing
 
-### Running Tests
 ```bash
-# Install dependencies
-pip install pytest pytest-asyncio
-
-# Run all tests
-pytest tests/ -v
-
-# Run specific test class
-pytest tests/test_companies_register.py::TestCompanySearch -v
+cd companies-register/tests
+python test_companies_register.py
 ```
 
-### Test Configuration
-Update `tests/test_companies_register.py` with your credentials:
-```python
-SANDBOX_AUTH = {
-    "auth_type": "PlatformOauth2",
-    "credentials": {
-        "subscription_key": "your_sandbox_subscription_key",
-        "access_token": "your_sandbox_access_token"
-    }
-}
-```
+Update `SUBSCRIPTION_KEY`, `ACCESS_TOKEN`, and `TEST_NZBN` at the top of the test file before running.
 
-## Error Handling
+**Sandbox test card:** `4111 1111 1111 1111` (any expiry/CVC)
 
-The integration includes comprehensive error handling:
-- Network errors (timeouts, connection issues)
-- API errors (400, 401, 403, 404, 409, 500)
-- Validation errors (missing required fields, invalid formats)
-- Concurrency errors (ETag mismatches)
-- Payment errors (Direct Debit not enabled, invalid payment methods)
+## API Reference
 
-## Rate Limits
-
-Companies Register API rate limits apply:
-- **Standard**: 100 requests per minute
-- **Burst**: Up to 200 requests per minute for short periods
-
-## Important Notes
-
-### Concurrency Control
-Many write operations require an **ETag** value:
-1. First, perform a GET request to retrieve the current ETag
-2. Include this ETag in your update/delete request
-3. If another update occurred, you'll receive a 409 Conflict error
-
-### Payment Requirements
-Operations like name reservation and incorporation require payment:
-- **Sandbox**: Use test card `4111 1111 1111 1111`
-- **Production**: Real payment methods required
-- Supported: Credit Card, Direct Debit
-
-### RealMe Identity Verification
-Some operations require specific RealMe identity strength:
-- **Verified identity**: Company incorporation, director appointments
-- **Guest access**: Company search (two-legged authentication)
-
-## API Documentation
-
-- **Companies Register API**: https://api.business.govt.nz/companies-register
-- **API Portal**: https://portal.api.business.govt.nz/
-- **RealMe Information**: https://www.realme.govt.nz/
-
-## Support
-
-For issues with:
-- **This integration**: Contact Autohive support
-- **API access**: Contact MBIE at support@api.business.govt.nz
-- **RealMe login**: Visit https://www.realme.govt.nz/support
-
-## Version
-
-- **Version**: 1.0.0
-- **Last Updated**: February 2025
-- **API Version**: V2 (Companies), V4 (Legacy endpoints)
+- [Companies Register API Portal](https://portal.api.business.govt.nz/)
+- API Version: v2
