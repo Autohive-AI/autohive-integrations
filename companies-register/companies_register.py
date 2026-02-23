@@ -4,7 +4,6 @@ from autohive_integrations_sdk import (
 from typing import Dict, Any
 import aiohttp
 import json
-import base64
 import os
 
 # Create the integration using the config.json
