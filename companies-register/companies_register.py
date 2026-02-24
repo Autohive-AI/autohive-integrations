@@ -45,8 +45,9 @@ def get_api_headers(context: ExecutionContext, additional_headers: Dict[str, str
     """Build headers for API requests."""
     headers = {}
 
-    if SUBSCRIPTION_KEY:
-        headers["Ocp-Apim-Subscription-Key"] = SUBSCRIPTION_KEY
+    if not SUBSCRIPTION_KEY:
+        raise ValueError("COMPANIES_REGISTER_SUBSCRIPTION_KEY is not set. Set this environment variable before making API calls.")
+    headers["Ocp-Apim-Subscription-Key"] = SUBSCRIPTION_KEY
 
     if hasattr(context, 'auth') and isinstance(context.auth, dict):
         credentials = context.auth.get('credentials', {})
