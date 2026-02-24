@@ -5,6 +5,8 @@ from typing import Dict, Any
 import aiohttp
 import json
 import os
+import re
+import urllib.parse
 
 # Create the integration using the config.json
 companies_register = Integration.load()
@@ -26,6 +28,18 @@ SUBSCRIPTION_KEY = os.environ.get("COMPANIES_REGISTER_SUBSCRIPTION_KEY", "")
 
 
 # ---- Helper Functions ----
+
+def safe_path(value: str) -> str:
+    """URL-encode a path parameter to prevent path traversal."""
+    return urllib.parse.quote(str(value), safe='')
+
+
+def validate_request_id(request_id: str):
+    """Validate requestId contains only safe characters."""
+    if request_id and not re.match(r'^[a-zA-Z0-9\-]+$', request_id):
+        raise ValueError("requestId must contain only alphanumeric characters and hyphens")
+
+
 
 def get_api_headers(context: ExecutionContext, additional_headers: Dict[str, str] = None) -> Dict[str, str]:
     """Build headers for API requests."""
@@ -110,8 +124,9 @@ class GetCompanyDetailsAction(ActionHandler):
             company_uuid = inputs["companyUuid"]
             if_none_match = inputs.get("ifNoneMatch")
             request_id = inputs.get("requestId")
+            validate_request_id(request_id)
 
-            url = f"{BASE_URL_V2}/{company_uuid}"
+            url = f"{BASE_URL_V2}/{safe_path(company_uuid)}"
 
             optional_headers = {}
             if if_none_match:
@@ -198,8 +213,9 @@ class GetCompanyContactsAction(ActionHandler):
         try:
             company_uuid = inputs["companyUuid"]
             request_id = inputs.get("requestId")
+            validate_request_id(request_id)
 
-            url = f"{BASE_URL_V2}/{company_uuid}"
+            url = f"{BASE_URL_V2}/{safe_path(company_uuid)}"
 
             optional_headers = {}
             if request_id:
@@ -261,14 +277,20 @@ class UpdateCompanyContactAction(ActionHandler):
             etag = inputs["etag"]
             contact_type = inputs["contactType"]
             request_id = inputs.get("requestId")
+            validate_request_id(request_id)
 
-            url = f"{BASE_URL_V2}/{company_uuid}/contacts/{contact_id}"
+            url = f"{BASE_URL_V2}/{safe_path(company_uuid)}/contacts/{safe_path(contact_id)}"
 
             # Build payload based on contact type
             payload = {}
 
             if contact_type == "address":
                 address = inputs.get("physicalOrPostalAddress", {})
+
+                if not address.get("addressPurpose"):
+                    raise ValueError("addressPurpose is required for address updates")
+                if not address.get("addressType"):
+                    raise ValueError("addressType is required for address updates ('Physical' or 'Postal')")
 
                 # Validate: address1 + address3 required (do NOT use dpid for updates)
                 if not address.get("address1") or not address.get("address3"):
@@ -371,13 +393,19 @@ class AddCompanyContactAction(ActionHandler):
             company_uuid = inputs["companyUuid"]
             contact_type = inputs["contactType"]
             request_id = inputs.get("requestId")
+            validate_request_id(request_id)
 
-            url = f"{BASE_URL_V2}/{company_uuid}/contacts"
+            url = f"{BASE_URL_V2}/{safe_path(company_uuid)}/contacts"
 
             payload = {}
 
             if contact_type == "address":
                 address = inputs.get("physicalOrPostalAddress", {})
+
+                if not address.get("addressPurpose"):
+                    raise ValueError("addressPurpose is required for address contacts")
+                if not address.get("addressType"):
+                    raise ValueError("addressType is required for address contacts ('Physical' or 'Postal')")
 
                 has_dpid = address.get("dpid")
                 has_address1 = address.get("address1")
@@ -483,6 +511,7 @@ class SearchNZAddressAction(ActionHandler):
             limit = inputs.get("limit", 10)
             postal = inputs.get("postal", False)
             request_id = inputs.get("requestId")
+            validate_request_id(request_id)
 
             url = f"{BASE_URL_V2}/addresses"
 
@@ -555,8 +584,9 @@ class FileAnnualReturnAction(ActionHandler):
             designation = inputs["designation"]
             etag = inputs["companyDetailsConfirmedCorrectAsOfETag"]
             request_id = inputs.get("requestId")
+            validate_request_id(request_id)
 
-            url = f"{BASE_URL_V2}/{company_uuid}/annual-returns"
+            url = f"{BASE_URL_V2}/{safe_path(company_uuid)}/annual-returns"
 
             payload = {
                 "declaration": declaration,
