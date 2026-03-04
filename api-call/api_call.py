@@ -1,8 +1,7 @@
 from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler, PollingTriggerHandler
+    Integration, ExecutionContext, ActionHandler, ActionResult
 )
-from typing import Dict, Any, List, Optional
-import json
+from typing import Dict, Any
 
 # Create the integration using the config.json
 api_call = Integration.load()
@@ -31,21 +30,21 @@ class GetRequest(ActionHandler):
                 response_headers = dict(response.headers)
             
             # Return success response
-            return {
+            return ActionResult(data={
                 "status_code": getattr(response, 'status_code', 200),
-                "response_data": response if not hasattr(response, 'status_code') else response.json() if hasattr(response, 'json') else response,
+                "response_data": response,
                 "headers": response_headers,
                 "success": True
-            }
+            }, cost_usd=0.0)
             
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "status_code": getattr(e, 'status_code', 500),
                 "response_data": None,
                 "headers": {},
                 "success": False,
                 "error": str(e)
-            }
+            }, cost_usd=0.0)
 
 @api_call.action("post_request")
 class PostRequest(ActionHandler):
@@ -81,20 +80,20 @@ class PostRequest(ActionHandler):
                 response_headers = dict(response.headers)
             
             # Return success response
-            return {
+            return ActionResult(data={
                 "status_code": getattr(response, 'status_code', 200),
-                "response_data": response if not hasattr(response, 'status_code') else response.json() if hasattr(response, 'json') else response,
+                "response_data": response,
                 "headers": response_headers,
                 "success": True
-            }
+            }, cost_usd=0.0)
             
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "status_code": getattr(e, 'status_code', 500),
                 "response_data": None,
                 "headers": {},
                 "success": False,
                 "error": str(e)
-            }
+            }, cost_usd=0.0)
 
 
