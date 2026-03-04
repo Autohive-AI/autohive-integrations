@@ -15,7 +15,7 @@ class GetRequest(ActionHandler):
             url = inputs['url']
             headers = inputs.get('headers', {})
             params = inputs.get('params', {})
-            
+
             # Make the GET request
             response = await context.fetch(
                 url=url,
@@ -23,12 +23,12 @@ class GetRequest(ActionHandler):
                 headers=headers,
                 params=params
             )
-            
+
             # Try to get response headers if available
             response_headers = {}
             if hasattr(response, 'headers'):
                 response_headers = dict(response.headers)
-            
+
             # Return success response
             return ActionResult(data={
                 "status_code": getattr(response, 'status_code', 200),
@@ -36,7 +36,7 @@ class GetRequest(ActionHandler):
                 "headers": response_headers,
                 "success": True
             }, cost_usd=None)
-            
+
         except Exception as e:
             return ActionResult(data={
                 "status_code": getattr(e, 'status_code', 500),
@@ -53,7 +53,7 @@ class PostRequest(ActionHandler):
             url = inputs['url']
             headers = inputs.get('headers', {})
             params = inputs.get('params', {})
-            
+
             # Handle request body - priority: json_body > body
             request_data = None
             if 'json_body' in inputs and inputs['json_body'] is not None:
@@ -63,7 +63,7 @@ class PostRequest(ActionHandler):
                     headers['Content-Type'] = 'application/json'
             elif 'body' in inputs and inputs['body'] is not None:
                 request_data = inputs['body']
-            
+
             # Make the POST request
             response = await context.fetch(
                 url=url,
@@ -73,12 +73,12 @@ class PostRequest(ActionHandler):
                 json=request_data if 'json_body' in inputs else None,
                 data=request_data if 'json_body' not in inputs else None
             )
-            
+
             # Try to get response headers if available
             response_headers = {}
             if hasattr(response, 'headers'):
                 response_headers = dict(response.headers)
-            
+
             # Return success response
             return ActionResult(data={
                 "status_code": getattr(response, 'status_code', 200),
@@ -86,7 +86,7 @@ class PostRequest(ActionHandler):
                 "headers": response_headers,
                 "success": True
             }, cost_usd=None)
-            
+
         except Exception as e:
             return ActionResult(data={
                 "status_code": getattr(e, 'status_code', 500),
