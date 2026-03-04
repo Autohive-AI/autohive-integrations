@@ -1,5 +1,5 @@
 {
-    "name": "API Call",
+    "name": "api-call",
     "version": "1.0.0",
     "description": "Generic API integration for making GET and POST requests to any API endpoint",
     "entry_point": "api_call.py",
