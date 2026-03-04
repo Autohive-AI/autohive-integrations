@@ -35,7 +35,7 @@ class GetRequest(ActionHandler):
                 "response_data": response,
                 "headers": response_headers,
                 "success": True
-            }, cost_usd=0.0)
+            }, cost_usd=None)
             
         except Exception as e:
             return ActionResult(data={
@@ -44,7 +44,7 @@ class GetRequest(ActionHandler):
                 "headers": {},
                 "success": False,
                 "error": str(e)
-            }, cost_usd=0.0)
+            }, cost_usd=None)
 
 @api_call.action("post_request")
 class PostRequest(ActionHandler):
@@ -85,7 +85,7 @@ class PostRequest(ActionHandler):
                 "response_data": response,
                 "headers": response_headers,
                 "success": True
-            }, cost_usd=0.0)
+            }, cost_usd=None)
             
         except Exception as e:
             return ActionResult(data={
@@ -94,6 +94,6 @@ class PostRequest(ActionHandler):
                 "headers": {},
                 "success": False,
                 "error": str(e)
-            }, cost_usd=0.0)
+            }, cost_usd=None)
 
 
