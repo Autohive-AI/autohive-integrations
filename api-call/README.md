@@ -57,7 +57,7 @@ These fields are included in the output schema for forward compatibility. When t
 
 ## Testing
 
-To run the tests:
+To run the tests (requires Python 3.13+):
 
 1.  Navigate to the integration's directory: `cd api-call`
 2.  Install dependencies: `pip install -r requirements.txt -t dependencies`
