@@ -16,7 +16,7 @@ from autohive_integrations_sdk import ExecutionContext
 TEST_AUTH = {
     "credentials": {
         "aws_access_key_id": "YOUR_ACCESS_KEY_ID",
-        "aws_secret_access_key": "YOUR_SECRET_ACCESS_KEY",
+        "aws_secret_access_key": "YOUR_SECRET_ACCESS_KEY",  # nosec B105
         "aws_region": "us-east-1",
     }
 }
