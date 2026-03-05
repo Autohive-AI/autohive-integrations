@@ -42,7 +42,7 @@ PRODUCTION_SCOPE = "https://api.business.govt.nz/gateway/.default"
 
 # =============================================================================
 # Credentials Configuration
-# 
+#
 # IMPORTANT: These placeholders MUST be replaced at deployment time.
 # Secrets should be injected via environment variables or secrets management.
 # =============================================================================
@@ -82,7 +82,7 @@ def _cache_token(cache_key: str, token: str, expires_in: int) -> None:
 async def get_oauth_token(context: ExecutionContext) -> Optional[str]:
     """
     Get OAuth access token using 2-legged client credentials flow.
-    
+
     Implements token caching to minimize API calls to the token endpoint.
     Tokens are cached until 60 seconds before expiry.
     """
@@ -257,9 +257,75 @@ class GetEntityAction(ActionHandler):
                     data={"result": False, "error": result["error"]},
                     cost_usd=0.0
                 )
-            
+
             return ActionResult(
                 data={"result": True, "entity": result["data"]},
+                cost_usd=0.0
+            )
+        except Exception as e:
+            return ActionResult(
+                data={"result": False, "error": str(e)},
+                cost_usd=0.0
+            )
+
+
+@nzbn.action("get_entity_summary")
+class GetEntitySummaryAction(ActionHandler):
+    """Get essential entity information optimized for LLM token usage (99% reduction)."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            nzbn_id = inputs.get("nzbn", "")
+            if not nzbn_id:
+                return ActionResult(
+                    data={"result": False, "error": "nzbn is required"},
+                    cost_usd=0.0
+                )
+
+            result = await make_request(context, "GET", f"/entities/{nzbn_id}")
+
+            if not result["success"]:
+                return ActionResult(
+                    data={"result": False, "error": result["error"]},
+                    cost_usd=0.0
+                )
+
+            # Extract only essential fields to save LLM tokens
+            entity_data = result["data"]
+
+            # Extract registered office from addresses field
+            registered_office = None
+            addresses = entity_data.get("addresses", {})
+            address_list = addresses.get("addressList", [])
+            for addr in address_list:
+                # Check for both "REGISTERED" (API response) and "RegisteredOffice" (documented filter)
+                addr_type = addr.get("addressType", "")
+                if addr_type in ["REGISTERED", "RegisteredOffice"]:
+                    # Build address string from components
+                    parts = []
+                    if addr.get("careOf"):
+                        parts.append(f"c/o {addr['careOf']}")
+                    if addr.get("address1"):
+                        parts.append(addr["address1"])
+                    if addr.get("address2"):
+                        parts.append(addr["address2"])
+                    if addr.get("address3"):
+                        parts.append(addr["address3"])
+                    if addr.get("address4"):
+                        parts.append(addr["address4"])
+                    if addr.get("postCode"):
+                        parts.append(addr["postCode"])
+                    registered_office = ", ".join(parts)
+                    break
+
+            summary = {
+                "nzbn": entity_data.get("nzbn"),
+                "entityName": entity_data.get("entityName"),
+                "registeredOffice": registered_office or ""  # Return empty string if not found
+            }
+
+            return ActionResult(
+                data={"result": True, "summary": summary},
                 cost_usd=0.0
             )
         except Exception as e:

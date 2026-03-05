@@ -1,0 +1,1 @@
+# Companies Register Integration Tests
