@@ -22,10 +22,7 @@ class ListMetricsAction(ActionHandler):
             if inputs.get("next_token"):
                 kwargs["NextToken"] = inputs["next_token"]
             response = await run_sync(client.list_metrics, **kwargs)
-            return success_result({
-                "metrics": response.get("Metrics", []),
-                "next_token": response.get("NextToken")
-            })
+            return success_result({"metrics": response.get("Metrics", []), "next_token": response.get("NextToken")})
         except Exception as e:
             return error_result(e)
 
@@ -39,15 +36,9 @@ class GetMetricDataAction(ActionHandler):
             client = create_boto3_client(context, "cloudwatch")
             start_time = datetime.fromisoformat(inputs["start_time"].replace("Z", "+00:00"))
             end_time = datetime.fromisoformat(inputs["end_time"].replace("Z", "+00:00"))
-            kwargs = {
-                "MetricDataQueries": inputs["metric_data_queries"],
-                "StartTime": start_time,
-                "EndTime": end_time
-            }
+            kwargs = {"MetricDataQueries": inputs["metric_data_queries"], "StartTime": start_time, "EndTime": end_time}
             response = await run_sync(client.get_metric_data, **kwargs)
-            return success_result({
-                "metric_data_results": response.get("MetricDataResults", [])
-            })
+            return success_result({"metric_data_results": response.get("MetricDataResults", [])})
         except Exception as e:
             return error_result(e)
 
@@ -69,11 +60,13 @@ class DescribeAlarmsAction(ActionHandler):
             if inputs.get("next_token"):
                 kwargs["NextToken"] = inputs["next_token"]
             response = await run_sync(client.describe_alarms, **kwargs)
-            return success_result({
-                "metric_alarms": response.get("MetricAlarms", []),
-                "composite_alarms": response.get("CompositeAlarms", []),
-                "next_token": response.get("NextToken")
-            })
+            return success_result(
+                {
+                    "metric_alarms": response.get("MetricAlarms", []),
+                    "composite_alarms": response.get("CompositeAlarms", []),
+                    "next_token": response.get("NextToken"),
+                }
+            )
         except Exception as e:
             return error_result(e)
 
@@ -99,10 +92,9 @@ class GetAlarmHistoryAction(ActionHandler):
             if inputs.get("next_token"):
                 kwargs["NextToken"] = inputs["next_token"]
             response = await run_sync(client.describe_alarm_history, **kwargs)
-            return success_result({
-                "alarm_history_items": response.get("AlarmHistoryItems", []),
-                "next_token": response.get("NextToken")
-            })
+            return success_result(
+                {"alarm_history_items": response.get("AlarmHistoryItems", []), "next_token": response.get("NextToken")}
+            )
         except Exception as e:
             return error_result(e)
 
@@ -117,11 +109,9 @@ class SetAlarmStateAction(ActionHandler):
             kwargs = {
                 "AlarmName": inputs["alarm_name"],
                 "StateValue": inputs["state_value"],
-                "StateReason": inputs["state_reason"]
+                "StateReason": inputs["state_reason"],
             }
             await run_sync(client.set_alarm_state, **kwargs)
-            return success_result({
-                "success": True
-            })
+            return success_result({"success": True})
         except Exception as e:
             return error_result(e)

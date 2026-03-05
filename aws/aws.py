@@ -5,4 +5,4 @@ config_path = os.path.join(os.path.dirname(__file__), "config.json")
 aws = Integration.load(config_path)
 
 # Import actions to register handlers
-import actions  # noqa: F401
+import actions  # noqa: F401, E402

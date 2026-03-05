@@ -23,10 +23,9 @@ class DescribeLogGroupsAction(ActionHandler):
             if inputs.get("next_token"):
                 kwargs["nextToken"] = inputs["next_token"]
             response = await run_sync(client.describe_log_groups, **kwargs)
-            return success_result({
-                "log_groups": response.get("logGroups", []),
-                "next_token": response.get("nextToken")
-            })
+            return success_result(
+                {"log_groups": response.get("logGroups", []), "next_token": response.get("nextToken")}
+            )
         except Exception as e:
             return error_result(e)
 
@@ -38,10 +37,7 @@ class FilterLogEventsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "logs")
-            kwargs = {
-                "logGroupName": inputs["log_group_name"],
-                "limit": inputs.get("limit", 50)
-            }
+            kwargs = {"logGroupName": inputs["log_group_name"], "limit": inputs.get("limit", 50)}
             if inputs.get("log_stream_names"):
                 kwargs["logStreamNames"] = inputs["log_stream_names"]
             if inputs.get("filter_pattern"):
@@ -53,11 +49,13 @@ class FilterLogEventsAction(ActionHandler):
             if inputs.get("next_token"):
                 kwargs["nextToken"] = inputs["next_token"]
             response = await run_sync(client.filter_log_events, **kwargs)
-            return success_result({
-                "events": response.get("events", []),
-                "searched_log_streams": response.get("searchedLogStreams", []),
-                "next_token": response.get("nextToken")
-            })
+            return success_result(
+                {
+                    "events": response.get("events", []),
+                    "searched_log_streams": response.get("searchedLogStreams", []),
+                    "next_token": response.get("nextToken"),
+                }
+            )
         except Exception as e:
             return error_result(e)
 
@@ -73,7 +71,7 @@ class GetLogEventsAction(ActionHandler):
                 "logGroupName": inputs["log_group_name"],
                 "logStreamName": inputs["log_stream_name"],
                 "limit": inputs.get("limit", 50),
-                "startFromHead": inputs.get("start_from_head", True)
+                "startFromHead": inputs.get("start_from_head", True),
             }
             if inputs.get("start_time"):
                 kwargs["startTime"] = _iso_to_epoch_ms(inputs["start_time"])
@@ -82,10 +80,12 @@ class GetLogEventsAction(ActionHandler):
             if inputs.get("next_token"):
                 kwargs["nextToken"] = inputs["next_token"]
             response = await run_sync(client.get_log_events, **kwargs)
-            return success_result({
-                "events": response.get("events", []),
-                "next_forward_token": response.get("nextForwardToken"),
-                "next_backward_token": response.get("nextBackwardToken")
-            })
+            return success_result(
+                {
+                    "events": response.get("events", []),
+                    "next_forward_token": response.get("nextForwardToken"),
+                    "next_backward_token": response.get("nextBackwardToken"),
+                }
+            )
         except Exception as e:
             return error_result(e)

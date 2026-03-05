@@ -17,7 +17,7 @@ TEST_AUTH = {
     "credentials": {
         "aws_access_key_id": "YOUR_ACCESS_KEY_ID",
         "aws_secret_access_key": "YOUR_SECRET_ACCESS_KEY",
-        "aws_region": "us-east-1"
+        "aws_region": "us-east-1",
     }
 }
 
@@ -25,6 +25,7 @@ TEST_AUTH = {
 # =============================================================================
 # Security Hub Actions
 # =============================================================================
+
 
 async def test_get_findings():
     """Test retrieving Security Hub findings."""
@@ -43,9 +44,7 @@ async def test_get_findings():
 async def test_get_finding_details():
     """Test retrieving details for a specific Security Hub finding."""
     print("\n=== Testing get_finding_details ===")
-    inputs = {
-        "finding_arn": "arn:aws:securityhub:us-east-1:123456789012:finding/example"
-    }
+    inputs = {"finding_arn": "arn:aws:securityhub:us-east-1:123456789012:finding/example"}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await integration.execute_action("get_finding_details", inputs, context)
@@ -60,11 +59,9 @@ async def test_update_finding_workflow():
     """Test updating the workflow status of Security Hub findings."""
     print("\n=== Testing update_finding_workflow ===")
     inputs = {
-        "finding_arns": [
-            "arn:aws:securityhub:us-east-1:123456789012:finding/example"
-        ],
+        "finding_arns": ["arn:aws:securityhub:us-east-1:123456789012:finding/example"],
         "workflow_status": "RESOLVED",
-        "note": "Resolved via Autohive"
+        "note": "Resolved via Autohive",
     }
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -94,6 +91,7 @@ async def test_get_insights():
 # GuardDuty Actions
 # =============================================================================
 
+
 async def test_list_detectors():
     """Test listing GuardDuty detectors."""
     print("\n=== Testing list_detectors ===")
@@ -111,10 +109,7 @@ async def test_list_detectors():
 async def test_list_guardduty_findings():
     """Test listing GuardDuty findings for a detector."""
     print("\n=== Testing list_guardduty_findings ===")
-    inputs = {
-        "detector_id": "YOUR_DETECTOR_ID",
-        "max_results": 10
-    }
+    inputs = {"detector_id": "YOUR_DETECTOR_ID", "max_results": 10}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await integration.execute_action("list_guardduty_findings", inputs, context)
@@ -128,10 +123,7 @@ async def test_list_guardduty_findings():
 async def test_get_guardduty_finding_details():
     """Test retrieving details for specific GuardDuty findings."""
     print("\n=== Testing get_guardduty_finding_details ===")
-    inputs = {
-        "detector_id": "YOUR_DETECTOR_ID",
-        "finding_ids": ["example-finding-id"]
-    }
+    inputs = {"detector_id": "YOUR_DETECTOR_ID", "finding_ids": ["example-finding-id"]}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await integration.execute_action("get_guardduty_finding_details", inputs, context)
@@ -145,10 +137,7 @@ async def test_get_guardduty_finding_details():
 async def test_archive_findings():
     """Test archiving GuardDuty findings."""
     print("\n=== Testing archive_findings ===")
-    inputs = {
-        "detector_id": "YOUR_DETECTOR_ID",
-        "finding_ids": ["example-finding-id"]
-    }
+    inputs = {"detector_id": "YOUR_DETECTOR_ID", "finding_ids": ["example-finding-id"]}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await integration.execute_action("archive_findings", inputs, context)
@@ -162,6 +151,7 @@ async def test_archive_findings():
 # =============================================================================
 # CloudWatch Actions
 # =============================================================================
+
 
 async def test_list_metrics():
     """Test listing CloudWatch metrics."""
@@ -185,17 +175,14 @@ async def test_get_metric_data():
             {
                 "Id": "m1",
                 "MetricStat": {
-                    "Metric": {
-                        "Namespace": "AWS/EC2",
-                        "MetricName": "CPUUtilization"
-                    },
+                    "Metric": {"Namespace": "AWS/EC2", "MetricName": "CPUUtilization"},
                     "Period": 300,
-                    "Stat": "Average"
-                }
+                    "Stat": "Average",
+                },
             }
         ],
         "start_time": "2024-01-01T00:00:00Z",
-        "end_time": "2024-01-02T00:00:00Z"
+        "end_time": "2024-01-02T00:00:00Z",
     }
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -238,11 +225,7 @@ async def test_get_alarm_history():
 async def test_set_alarm_state():
     """Test setting the state of a CloudWatch alarm."""
     print("\n=== Testing set_alarm_state ===")
-    inputs = {
-        "alarm_name": "test-alarm",
-        "state_value": "OK",
-        "state_reason": "Testing via Autohive"
-    }
+    inputs = {"alarm_name": "test-alarm", "state_value": "OK", "state_reason": "Testing via Autohive"}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await integration.execute_action("set_alarm_state", inputs, context)
@@ -256,6 +239,7 @@ async def test_set_alarm_state():
 # =============================================================================
 # CloudWatch Logs Actions
 # =============================================================================
+
 
 async def test_describe_log_groups():
     """Test describing CloudWatch log groups."""
@@ -274,10 +258,7 @@ async def test_describe_log_groups():
 async def test_filter_log_events():
     """Test filtering CloudWatch log events."""
     print("\n=== Testing filter_log_events ===")
-    inputs = {
-        "log_group_name": "/aws/lambda/test-function",
-        "limit": 10
-    }
+    inputs = {"log_group_name": "/aws/lambda/test-function", "limit": 10}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await integration.execute_action("filter_log_events", inputs, context)
@@ -291,11 +272,7 @@ async def test_filter_log_events():
 async def test_get_log_events():
     """Test retrieving CloudWatch log events from a specific stream."""
     print("\n=== Testing get_log_events ===")
-    inputs = {
-        "log_group_name": "/aws/lambda/test-function",
-        "log_stream_name": "test-stream",
-        "limit": 10
-    }
+    inputs = {"log_group_name": "/aws/lambda/test-function", "log_stream_name": "test-stream", "limit": 10}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await integration.execute_action("get_log_events", inputs, context)
@@ -309,6 +286,7 @@ async def test_get_log_events():
 # =============================================================================
 # CloudTrail Actions
 # =============================================================================
+
 
 async def test_lookup_events():
     """Test looking up CloudTrail events."""
@@ -369,6 +347,7 @@ async def test_get_event_selectors():
 # =============================================================================
 # Run All Tests
 # =============================================================================
+
 
 async def run_all_tests():
     """Run all 20 AWS integration tests and print a summary."""

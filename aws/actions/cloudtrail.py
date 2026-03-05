@@ -25,10 +25,7 @@ class LookupEventsAction(ActionHandler):
             if inputs.get("next_token"):
                 kwargs["NextToken"] = inputs["next_token"]
             response = await run_sync(client.lookup_events, **kwargs)
-            return success_result({
-                "events": response.get("Events", []),
-                "next_token": response.get("NextToken")
-            })
+            return success_result({"events": response.get("Events", []), "next_token": response.get("NextToken")})
         except Exception as e:
             return error_result(e)
 
@@ -48,9 +45,7 @@ class DescribeTrailsAction(ActionHandler):
             else:
                 kwargs["includeShadowTrails"] = True
             response = await run_sync(client.describe_trails, **kwargs)
-            return success_result({
-                "trails": response.get("trailList", [])
-            })
+            return success_result({"trails": response.get("trailList", [])})
         except Exception as e:
             return error_result(e)
 
@@ -65,9 +60,7 @@ class GetTrailStatusAction(ActionHandler):
             kwargs = {"Name": inputs["trail_name"]}
             response = await run_sync(client.get_trail_status, **kwargs)
             trail_status = {k: v for k, v in response.items() if k != "ResponseMetadata"}
-            return success_result({
-                "trail_status": trail_status
-            })
+            return success_result({"trail_status": trail_status})
         except Exception as e:
             return error_result(e)
 
@@ -81,10 +74,12 @@ class GetEventSelectorsAction(ActionHandler):
             client = create_boto3_client(context, "cloudtrail")
             kwargs = {"TrailName": inputs["trail_name"]}
             response = await run_sync(client.get_event_selectors, **kwargs)
-            return success_result({
-                "trail_arn": response.get("TrailARN"),
-                "event_selectors": response.get("EventSelectors", []),
-                "advanced_event_selectors": response.get("AdvancedEventSelectors", [])
-            })
+            return success_result(
+                {
+                    "trail_arn": response.get("TrailARN"),
+                    "event_selectors": response.get("EventSelectors", []),
+                    "advanced_event_selectors": response.get("AdvancedEventSelectors", []),
+                }
+            )
         except Exception as e:
             return error_result(e)

@@ -13,23 +13,18 @@ def create_boto3_client(context: ExecutionContext, service_name: str):
     access_key = credentials.get("aws_access_key_id")
     secret_key = credentials.get("aws_secret_access_key")
     if not access_key or not secret_key:
-        raise ValueError(
-            "AWS credentials are missing: aws_access_key_id and aws_secret_access_key are required"
-        )
+        raise ValueError("AWS credentials are missing: aws_access_key_id and aws_secret_access_key are required")
     return boto3.client(
         service_name,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
-        region_name=credentials.get("aws_region", "us-east-1")
+        region_name=credentials.get("aws_region", "us-east-1"),
     )
 
 
 async def run_sync(func, *args, **kwargs):
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        None,
-        functools.partial(func, *args, **kwargs)
-    )
+    return await loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
 
 
 def serialize_response(obj: Any) -> Any:
@@ -56,8 +51,4 @@ def error_result(e: Exception) -> ActionResult:
     if hasattr(e, "response"):
         error_code = e.response.get("Error", {}).get("Code", "")
         error_msg = e.response.get("Error", {}).get("Message", error_msg)
-    return ActionResult(data={
-        "result": False,
-        "error": error_msg,
-        "error_code": error_code
-    })
+    return ActionResult(data={"result": False, "error": error_msg, "error_code": error_code})
