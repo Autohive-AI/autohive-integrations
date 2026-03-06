@@ -3,4 +3,4 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from aws import aws  # noqa: F401
+from aws import aws as integration  # noqa: F401
