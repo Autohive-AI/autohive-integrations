@@ -1,0 +1,56 @@
+{
+  "name": "demo-integration",
+  "version": "1.0.0",
+  "description": "A sample valid integration for testing",
+  "entry_point": "demo_integration.py",
+  "auth": {
+    "type": "custom",
+    "title": "API Key Authentication",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "format": "password",
+          "label": "API Key",
+          "help_text": "Enter your API key"
+        }
+      },
+      "required": ["api_key"]
+    }
+  },
+  "actions": {
+    "get_data": {
+      "display_name": "Get Data",
+      "description": "Retrieves data from the API",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of items to return",
+            "default": 10
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "data": {
+            "type": "array",
+            "description": "The returned data"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if result is false"
+          }
+        }
+      }
+    }
+  }
+}
