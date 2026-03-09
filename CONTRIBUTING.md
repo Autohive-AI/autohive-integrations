@@ -45,19 +45,30 @@ docs: update Netlify README with auth setup
 
 You can run the same checks locally before pushing. Install the tooling repo and run:
 
-```bash
-# Clone the tooling repo
-git clone https://github.com/autohive-ai/autohive-integrations-tooling.git
+Clone both repos side by side:
 
-# Set up Python environment
+```
+parent-dir/
+├── autohive-integrations-tooling/
+└── autohive-integrations/
+```
+
+Set up a Python 3.13+ environment in the tooling repo and install dev dependencies. For example, using [uv](https://docs.astral.sh/uv/):
+
+```bash
 cd autohive-integrations-tooling
 uv python install 3.13
 uv venv --python 3.13
 source .venv/bin/activate
 uv pip install -r requirements-dev.txt
+```
 
-# Run checks against your integration (from the integrations repo root)
-cd ../integrations-autohive
+Any other Python environment manager (venv, pyenv, conda, etc.) works too — just ensure Python 3.13+ and the packages from `requirements-dev.txt` are installed.
+
+Then run the checks from the integrations repo root:
+
+```bash
+cd ../autohive-integrations
 python ../autohive-integrations-tooling/scripts/validate_integration.py my-integration
 python ../autohive-integrations-tooling/scripts/check_code.py my-integration
 ```
