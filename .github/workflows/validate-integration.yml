@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Validate Integration
     permissions:
+      contents: read
       pull-requests: write
     steps:
       - name: Checkout code
