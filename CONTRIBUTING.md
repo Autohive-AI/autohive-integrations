@@ -124,8 +124,6 @@ my-integration/
     └── test_my_integration.py
 ```
 
-See the [tooling repo's INTEGRATION_CHECKLIST.md](https://github.com/autohive-ai/autohive-integrations-tooling/blob/master/INTEGRATION_CHECKLIST.md) for the full checklist with examples.
-
 ## Pull Request Process
 
 1. **Create a branch** following conventional naming (`feat/my-integration`)
