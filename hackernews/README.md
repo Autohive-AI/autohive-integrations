@@ -1,6 +1,6 @@
 # Hacker News Integration for Autohive
 
-Read-only integration with the official Hacker News API for fetching tech news, discussions, and community content. Optimized for LLM agents to create curated daily reports.
+Read-only integration with the official Hacker News API for fetching tech news, discussions, and community content.
 
 ## Description
 
