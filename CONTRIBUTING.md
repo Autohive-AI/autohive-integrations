@@ -85,7 +85,7 @@ ruff format my-integration
 
 ## Integration Structure
 
-Every integration must follow this folder structure:
+### Basic structure
 
 ```
 my-integration/
@@ -98,6 +98,29 @@ my-integration/
 └── tests/
     ├── __init__.py          # Can be empty
     ├── context.py           # Import setup
+    └── test_my_integration.py
+```
+
+### Modular structure
+
+For integrations with many actions, split them into an `actions/` directory. The `__init__.py` in the root is optional for modular integrations.
+
+```
+my-integration/
+├── config.json
+├── my_integration.py        # Main entry point — registers actions
+├── helpers.py               # Shared utilities (optional)
+├── icon.png or icon.svg
+├── requirements.txt
+├── README.md
+├── actions/
+│   ├── __init__.py
+│   ├── posts.py             # Action group
+│   ├── comments.py          # Action group
+│   └── insights.py          # Action group
+└── tests/
+    ├── __init__.py
+    ├── context.py
     └── test_my_integration.py
 ```
 
