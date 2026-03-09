@@ -4,7 +4,7 @@ Guide for integration authors submitting PRs to this repository.
 
 ## CI/CD Checks
 
-Every pull request runs three automated workflows:
+Every pull request runs two automated workflows:
 
 ### 1. Validate Integration (`validate-integration.yml`)
 
@@ -24,11 +24,7 @@ Results are posted as a sticky PR comment with a summary table:
 
 Each check includes expandable output with full details.
 
-### 2. Integration Checker (`integration-check.yml`)
-
-Runs the local `tools/` integration checker against changed directories on PRs. On pushes to `master`, runs a full check across all integrations and uploads results as an artifact.
-
-### 3. Pull Request Title (`pr.yml`)
+### 2. Pull Request Title (`pr.yml`)
 
 Validates that PR titles follow the [Conventional Commits](https://www.conventionalcommits.org/) format:
 
