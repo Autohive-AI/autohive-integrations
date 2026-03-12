@@ -27,7 +27,12 @@ class GetFindingsAction(ActionHandler):
             if inputs.get("next_token"):
                 kwargs["NextToken"] = inputs["next_token"]
             response = await run_sync(client.get_findings, **kwargs)
-            return success_result({"findings": response.get("Findings", []), "next_token": response.get("NextToken")})
+            return success_result(
+                {
+                    "findings": response.get("Findings", []),
+                    "next_token": response.get("NextToken"),
+                }
+            )
         except Exception as e:
             return error_result(e)
 
@@ -45,7 +50,10 @@ class GetFindingDetailsAction(ActionHandler):
         try:
             client = create_boto3_client(context, "securityhub")
             finding_arn = inputs["finding_arn"]
-            kwargs = {"Filters": {"Id": [{"Value": finding_arn, "Comparison": "EQUALS"}]}, "MaxResults": 1}
+            kwargs = {
+                "Filters": {"Id": [{"Value": finding_arn, "Comparison": "EQUALS"}]},
+                "MaxResults": 1,
+            }
             response = await run_sync(client.get_findings, **kwargs)
             findings = response.get("Findings", [])
             finding = findings[0] if findings else None
@@ -76,14 +84,18 @@ class UpdateFindingWorkflowAction(ActionHandler):
             for i in range(0, len(finding_arns), 100):
                 batch = finding_arns[i : i + 100]
                 lookup_kwargs = {
-                    "Filters": {"Id": [{"Value": arn, "Comparison": "EQUALS"} for arn in batch]},
+                    "Filters": {
+                        "Id": [{"Value": arn, "Comparison": "EQUALS"} for arn in batch]
+                    },
                     "MaxResults": len(batch),
                 }
                 lookup_response = await run_sync(client.get_findings, **lookup_kwargs)
                 findings.extend(lookup_response.get("Findings", []))
 
             # Build FindingIdentifiers from the looked-up findings
-            finding_identifiers = [{"Id": f["Id"], "ProductArn": f["ProductArn"]} for f in findings]
+            finding_identifiers = [
+                {"Id": f["Id"], "ProductArn": f["ProductArn"]} for f in findings
+            ]
 
             if not finding_identifiers:
                 return success_result(
@@ -100,10 +112,16 @@ class UpdateFindingWorkflowAction(ActionHandler):
                     }
                 )
 
-            update_kwargs = {"FindingIdentifiers": finding_identifiers, "Workflow": {"Status": workflow_status}}
+            update_kwargs = {
+                "FindingIdentifiers": finding_identifiers,
+                "Workflow": {"Status": workflow_status},
+            }
 
             if note:
-                update_kwargs["Note"] = {"Text": note, "UpdatedBy": "autohive-integration"}
+                update_kwargs["Note"] = {
+                    "Text": note,
+                    "UpdatedBy": "autohive-integration",
+                }
 
             response = await run_sync(client.batch_update_findings, **update_kwargs)
             return success_result(
@@ -146,15 +164,21 @@ class GetInsightsAction(ActionHandler):
                     "group_by_attribute": insight.get("GroupByAttribute"),
                 }
                 try:
-                    result_response = await run_sync(client.get_insight_results, InsightArn=insight["InsightArn"])
+                    result_response = await run_sync(
+                        client.get_insight_results, InsightArn=insight["InsightArn"]
+                    )
                     insight_data["results"] = result_response.get("InsightResults", {})
                 except Exception as inner_e:
                     insight_data["results"] = None
                     insight_data["error"] = str(inner_e)
                 return insight_data
 
-            enriched_insights = await asyncio.gather(*[fetch_insight_result(insight) for insight in insights])
+            enriched_insights = await asyncio.gather(
+                *[fetch_insight_result(insight) for insight in insights]
+            )
 
-            return success_result({"insights": enriched_insights, "next_token": response.get("NextToken")})
+            return success_result(
+                {"insights": enriched_insights, "next_token": response.get("NextToken")}
+            )
         except Exception as e:
             return error_result(e)

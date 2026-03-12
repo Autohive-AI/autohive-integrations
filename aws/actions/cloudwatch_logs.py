@@ -24,7 +24,10 @@ class DescribeLogGroupsAction(ActionHandler):
                 kwargs["nextToken"] = inputs["next_token"]
             response = await run_sync(client.describe_log_groups, **kwargs)
             return success_result(
-                {"log_groups": response.get("logGroups", []), "next_token": response.get("nextToken")}
+                {
+                    "log_groups": response.get("logGroups", []),
+                    "next_token": response.get("nextToken"),
+                }
             )
         except Exception as e:
             return error_result(e)
@@ -37,7 +40,10 @@ class FilterLogEventsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "logs")
-            kwargs = {"logGroupName": inputs["log_group_name"], "limit": inputs.get("limit", 50)}
+            kwargs = {
+                "logGroupName": inputs["log_group_name"],
+                "limit": inputs.get("limit", 50),
+            }
             if inputs.get("log_stream_names"):
                 kwargs["logStreamNames"] = inputs["log_stream_names"]
             if inputs.get("filter_pattern"):
