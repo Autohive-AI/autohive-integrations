@@ -1,6 +1,12 @@
 # Integrations by Autohive
 This repository hosts Autohive integrations made and maintained by the Autohive team.
 
+## Getting Started
+
+- 📖 **[Building Your First Integration](https://github.com/autohive-ai/integrations-sdk/blob/master/docs/manual/building_your_first_integration.md)** — tutorial, API reference, and patterns (SDK repo)
+- ✅ **[Validation & CI](https://github.com/autohive-ai/autohive-integrations-tooling)** — tooling that checks every PR (tooling repo)
+- 🤝 **[Contributing](CONTRIBUTING.md)** — PR process, local setup, and CI details for this repo
+
 ## Integrations
 
 ### Uber Ride Requests
@@ -292,4 +298,4 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ## Template
 
-[template-structure](template-structure) contains a structural template for new integrations, including a sample template for an appropriate README file and a basic testbed.
+Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) in the SDK repo as the starting point for new integrations.

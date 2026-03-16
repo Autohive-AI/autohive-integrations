@@ -85,49 +85,12 @@ ruff format my-integration
 
 ## Integration Structure
 
-### Basic structure
-
-```
-my-integration/
-├── __init__.py              # Minimal — only import and __all__
-├── config.json              # Integration configuration
-├── my_integration.py        # Main implementation (entry_point)
-├── icon.png or icon.svg     # Integration icon (512x512 pixels)
-├── requirements.txt         # Dependencies (must include autohive-integrations-sdk)
-├── README.md                # Documentation
-└── tests/
-    ├── __init__.py          # Can be empty
-    ├── context.py           # Import setup
-    └── test_my_integration.py
-```
-
-### Modular structure
-
-For integrations with many actions, split them into an `actions/` directory. The `__init__.py` in the root is optional for modular integrations.
-
-```
-my-integration/
-├── config.json
-├── my_integration.py        # Main entry point — registers actions
-├── helpers.py               # Shared utilities (optional)
-├── icon.png or icon.svg
-├── requirements.txt
-├── README.md
-├── actions/
-│   ├── __init__.py
-│   ├── posts.py             # Action group
-│   ├── comments.py          # Action group
-│   └── insights.py          # Action group
-└── tests/
-    ├── __init__.py
-    ├── context.py
-    └── test_my_integration.py
-```
+See the SDK's [Integration Structure Reference](https://github.com/autohive-ai/integrations-sdk/blob/master/docs/manual/integration_structure.md) for directory layouts, required files, and the full `config.json` schema. The [Building Your First Integration](https://github.com/autohive-ai/integrations-sdk/blob/master/docs/manual/building_your_first_integration.md) tutorial covers the development workflow end-to-end, and [samples/template/](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) provides a ready-to-copy starter.
 
 ## Pull Request Process
 
 1. **Create a branch** following conventional naming (`feat/my-integration`)
-2. **Add your integration** following the folder structure above
+2. **Add your integration** following the structure in the SDK docs
 3. **Run validation locally** before pushing
 4. **Update the main README.md** — add your integration to the list
 5. **Use a conventional commit PR title**
