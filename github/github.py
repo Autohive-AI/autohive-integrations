@@ -8,7 +8,6 @@ This module provides comprehensive GitHub API integration including:
 - Workflows and Actions
 - File operations and Gists
 
-Author: Tamil
 GitHub API Version: 2022-11-28
 Reference: https://docs.github.com/en/rest
 """
@@ -29,7 +28,6 @@ T = TypeVar('T')
 
 # =============================================================================
 # ERROR HANDLING
-# Author: Tamil
 # =============================================================================
 
 class GitHubAPIError(Exception):
@@ -51,18 +49,15 @@ class GitHubAPIError(Exception):
 def handle_github_errors(action_name: str):
     """
     Decorator that wraps action execute methods with error handling.
-    
-    Catches exceptions and returns ActionResult.failure() with proper error messages.
-    Handles common GitHub API error codes (401, 403, 404, 422) with user-friendly messages.
-    
+
+    Catches exceptions and returns ActionResult with error data for common GitHub
+    API error codes (401, 403, 404, 422) with user-friendly messages.
+
     Args:
         action_name: Name of the action for error context
-        
+
     Returns:
         Decorated async function with error handling
-        
-    Author: Tamil
-    Reference: https://docs.github.com/en/rest/overview/troubleshooting
     """
     def decorator(func: Callable):
         @wraps(func)
@@ -72,12 +67,13 @@ def handle_github_errors(action_name: str):
                 credentials = context.auth.get("credentials", {})
                 token = credentials.get("access_token")
                 if not token:
-                    return ActionResult.failure(
-                        error="GitHub authentication failed: No access token found. Please reconnect your GitHub account."
+                    return ActionResult(
+                        data={"error": "GitHub authentication failed: No access token found. Please reconnect your GitHub account.", "result": False},
+                        cost_usd=0.0
                     )
-                
+
                 return await func(self, inputs, context)
-                
+
             except GitHubAPIError as e:
                 error_msg = e.message
                 if e.status_code == 401:
@@ -88,34 +84,32 @@ def handle_github_errors(action_name: str):
                     error_msg = f"GitHub resource not found: {e.message}"
                 elif e.status_code == 422:
                     error_msg = f"GitHub validation error: {e.message}"
-                
-                return ActionResult.failure(error=error_msg)
-                
+
+                return ActionResult(
+                    data={"error": error_msg, "result": False},
+                    cost_usd=0.0
+                )
+
             except Exception as e:
                 error_message = str(e)
-                
+
                 # Parse common HTTP error patterns
                 if "401" in error_message:
-                    return ActionResult.failure(
-                        error="GitHub authentication failed: Invalid or expired token. Please reconnect your GitHub account."
-                    )
+                    error_message = "GitHub authentication failed: Invalid or expired token. Please reconnect your GitHub account."
                 elif "403" in error_message:
-                    return ActionResult.failure(
-                        error=f"GitHub access denied: {error_message}. Check your token permissions or rate limits."
-                    )
+                    error_message = f"GitHub access denied: {error_message}. Check your token permissions or rate limits."
                 elif "404" in error_message:
-                    return ActionResult.failure(
-                        error=f"GitHub resource not found: The requested {action_name} resource does not exist."
-                    )
+                    error_message = f"GitHub resource not found: The requested {action_name} resource does not exist."
                 elif "422" in error_message:
-                    return ActionResult.failure(
-                        error=f"GitHub validation error: {error_message}"
-                    )
-                
-                return ActionResult.failure(
-                    error=f"GitHub API error in {action_name}: {error_message}"
+                    error_message = f"GitHub validation error: {error_message}"
+                else:
+                    error_message = f"GitHub API error in {action_name}: {error_message}"
+
+                return ActionResult(
+                    data={"error": error_message, "result": False},
+                    cost_usd=0.0
                 )
-        
+
         return wrapper
     return decorator
 
@@ -803,7 +797,6 @@ class GitHubAPI:
 
     # -------------------------------------------------------------------------
     # Tag Operations
-    # Author: Tamil
     # Reference: https://docs.github.com/en/rest/repos/repos#list-repository-tags
     # -------------------------------------------------------------------------
 
@@ -812,17 +805,15 @@ class GitHubAPI:
                        per_page: int = 30, page: int = 1) -> List[Dict[str, Any]]:
         """
         List tags for a repository (single page fetch).
-        
+
         Args:
             owner: Repository owner (user or organization)
             repo: Repository name
             per_page: Number of results per page (max 100)
             page: Page number to fetch
-            
+
         Returns:
             List of tag objects with name, commit SHA, and download URLs
-            
-        Author: Tamil
         """
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/tags"
         params = {'per_page': per_page, 'page': page}
@@ -830,7 +821,6 @@ class GitHubAPI:
 
     # -------------------------------------------------------------------------
     # Release Operations
-    # Author: Tamil
     # Reference: https://docs.github.com/en/rest/releases/releases
     # -------------------------------------------------------------------------
 
@@ -839,17 +829,15 @@ class GitHubAPI:
                            per_page: int = 30, page: int = 1) -> List[Dict[str, Any]]:
         """
         List releases for a repository (single page fetch).
-        
+
         Args:
             owner: Repository owner (user or organization)
             repo: Repository name
             per_page: Number of results per page (max 100)
             page: Page number to fetch
-            
+
         Returns:
             List of release objects (does not include regular Git tags)
-            
-        Author: Tamil
         """
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/releases"
         params = {'per_page': per_page, 'page': page}
@@ -860,17 +848,14 @@ class GitHubAPI:
                          release_id: int) -> Dict[str, Any]:
         """
         Get a specific release by ID.
-        
+
         Args:
             owner: Repository owner
             repo: Repository name
             release_id: The unique identifier of the release
-            
+
         Returns:
             Release object with full details including assets
-            
-        Author: Tamil
-        Reference: https://docs.github.com/en/rest/releases/releases#get-a-release
         """
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/releases/{release_id}"
         return await context.fetch(url, headers=GitHubAPI.get_headers(context))
@@ -879,18 +864,15 @@ class GitHubAPI:
     async def get_latest_release(context: ExecutionContext, owner: str, repo: str) -> Dict[str, Any]:
         """
         Get the latest published release for a repository.
-        
+
         The latest release is the most recent non-prerelease, non-draft release.
-        
+
         Args:
             owner: Repository owner
             repo: Repository name
-            
+
         Returns:
             Latest release object
-            
-        Author: Tamil
-        Reference: https://docs.github.com/en/rest/releases/releases#get-the-latest-release
         """
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/releases/latest"
         return await context.fetch(url, headers=GitHubAPI.get_headers(context))
@@ -900,19 +882,16 @@ class GitHubAPI:
                                 tag: str) -> Dict[str, Any]:
         """
         Get a release by tag name.
-        
+
         Note: Tag is URL-encoded to handle special characters like '/' or spaces.
-        
+
         Args:
             owner: Repository owner
             repo: Repository name
             tag: Tag name (e.g., 'v1.0.0', 'release/2024-01')
-            
+
         Returns:
             Release object matching the tag
-            
-        Author: Tamil
-        Reference: https://docs.github.com/en/rest/releases/releases#get-a-release-by-tag-name
         """
         encoded_tag = quote(tag, safe='')
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/releases/tags/{encoded_tag}"
