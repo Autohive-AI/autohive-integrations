@@ -29,30 +29,48 @@ def run(coro):
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 class TestNormaliseUrl(unittest.TestCase):
     def _normalise(self, url):
         from substack.substack import _normalise_url
+
         return _normalise_url(url)
 
     def test_strips_trailing_slash(self):
-        assert self._normalise("https://example.substack.com/") == "https://example.substack.com"
+        assert (
+            self._normalise("https://example.substack.com/")
+            == "https://example.substack.com"
+        )
 
     def test_upgrades_http_to_https(self):
-        assert self._normalise("http://example.substack.com") == "https://example.substack.com"
+        assert (
+            self._normalise("http://example.substack.com")
+            == "https://example.substack.com"
+        )
 
     def test_strips_path(self):
-        assert self._normalise("https://example.substack.com/p/some-post") == "https://example.substack.com"
+        assert (
+            self._normalise("https://example.substack.com/p/some-post")
+            == "https://example.substack.com"
+        )
 
     def test_custom_domain_unchanged(self):
-        assert self._normalise("https://newsletter.example.com") == "https://newsletter.example.com"
+        assert (
+            self._normalise("https://newsletter.example.com")
+            == "https://newsletter.example.com"
+        )
 
     def test_no_change_needed(self):
-        assert self._normalise("https://example.substack.com") == "https://example.substack.com"
+        assert (
+            self._normalise("https://example.substack.com")
+            == "https://example.substack.com"
+        )
 
 
 class TestBuildHeaders(unittest.TestCase):
     def _headers(self, auth):
         from substack.substack import _build_headers
+
         return _build_headers(auth)
 
     def test_no_auth_no_cookie_header(self):
@@ -75,6 +93,7 @@ class TestBuildHeaders(unittest.TestCase):
 
 # ── get_publication_posts ─────────────────────────────────────────────────────
 
+
 class TestGetPublicationPosts(unittest.TestCase):
     MOCK_RESPONSE = [
         {
@@ -96,44 +115,58 @@ class TestGetPublicationPosts(unittest.TestCase):
 
     def test_success(self):
         context = make_context(fetch_return_value=self.MOCK_RESPONSE)
-        result = run(substack.execute_action(
-            "get_publication_posts",
-            {"publication_url": "https://example.substack.com"},
-            context,
-        ))
+        result = run(
+            substack.execute_action(
+                "get_publication_posts",
+                {"publication_url": "https://example.substack.com"},
+                context,
+            )
+        )
         assert len(result["posts"]) == 1
         assert result["posts"][0]["slug"] == "hello-world"
         assert result["count"] == 1
 
     def test_passes_pagination_params(self):
         context = make_context(fetch_return_value=[])
-        run(substack.execute_action(
-            "get_publication_posts",
-            {"publication_url": "https://example.substack.com", "offset": 12, "limit": 6},
-            context,
-        ))
+        run(
+            substack.execute_action(
+                "get_publication_posts",
+                {
+                    "publication_url": "https://example.substack.com",
+                    "offset": 12,
+                    "limit": 6,
+                },
+                context,
+            )
+        )
         call_kwargs = context.fetch.call_args
-        params = call_kwargs[1].get("params") or (call_kwargs[0][2] if len(call_kwargs[0]) > 2 else {})
+        params = call_kwargs[1].get("params") or (
+            call_kwargs[0][2] if len(call_kwargs[0]) > 2 else {}
+        )
         assert params.get("offset") == 12
         assert params.get("limit") == 6
 
     def test_url_normalisation(self):
         context = make_context(fetch_return_value=[])
-        run(substack.execute_action(
-            "get_publication_posts",
-            {"publication_url": "http://example.substack.com/"},
-            context,
-        ))
+        run(
+            substack.execute_action(
+                "get_publication_posts",
+                {"publication_url": "http://example.substack.com/"},
+                context,
+            )
+        )
         url_called = context.fetch.call_args[0][0]
         assert url_called.startswith("https://example.substack.com")
 
     def test_no_auth_no_cookie_header(self):
         context = make_context(auth={}, fetch_return_value=[])
-        run(substack.execute_action(
-            "get_publication_posts",
-            {"publication_url": "https://example.substack.com"},
-            context,
-        ))
+        run(
+            substack.execute_action(
+                "get_publication_posts",
+                {"publication_url": "https://example.substack.com"},
+                context,
+            )
+        )
         headers = context.fetch.call_args[1].get("headers", {})
         assert "Cookie" not in headers
 
@@ -142,16 +175,19 @@ class TestGetPublicationPosts(unittest.TestCase):
             auth={"connect_sid": "abc", "substack_sid": "xyz"},
             fetch_return_value=[],
         )
-        run(substack.execute_action(
-            "get_publication_posts",
-            {"publication_url": "https://example.substack.com"},
-            context,
-        ))
+        run(
+            substack.execute_action(
+                "get_publication_posts",
+                {"publication_url": "https://example.substack.com"},
+                context,
+            )
+        )
         headers = context.fetch.call_args[1].get("headers", {})
         assert "Cookie" in headers
 
 
 # ── get_post ──────────────────────────────────────────────────────────────────
+
 
 class TestGetPost(unittest.TestCase):
     MOCK_RESPONSE = {
@@ -174,26 +210,37 @@ class TestGetPost(unittest.TestCase):
 
     def test_success(self):
         context = make_context(fetch_return_value=self.MOCK_RESPONSE)
-        result = run(substack.execute_action(
-            "get_post",
-            {"publication_url": "https://example.substack.com", "slug": "hello-world"},
-            context,
-        ))
+        result = run(
+            substack.execute_action(
+                "get_post",
+                {
+                    "publication_url": "https://example.substack.com",
+                    "slug": "hello-world",
+                },
+                context,
+            )
+        )
         assert result["slug"] == "hello-world"
         assert result["body_html"] == "<p>Content here</p>"
 
     def test_url_contains_slug(self):
         context = make_context(fetch_return_value=self.MOCK_RESPONSE)
-        run(substack.execute_action(
-            "get_post",
-            {"publication_url": "https://example.substack.com", "slug": "hello-world"},
-            context,
-        ))
+        run(
+            substack.execute_action(
+                "get_post",
+                {
+                    "publication_url": "https://example.substack.com",
+                    "slug": "hello-world",
+                },
+                context,
+            )
+        )
         url_called = context.fetch.call_args[0][0]
         assert "hello-world" in url_called
 
 
 # ── get_publication_info ──────────────────────────────────────────────────────
+
 
 class TestGetPublicationInfo(unittest.TestCase):
     MOCK_RESPONSE = {
@@ -212,16 +259,19 @@ class TestGetPublicationInfo(unittest.TestCase):
 
     def test_success(self):
         context = make_context(fetch_return_value=self.MOCK_RESPONSE)
-        result = run(substack.execute_action(
-            "get_publication_info",
-            {"publication_url": "https://example.substack.com"},
-            context,
-        ))
+        result = run(
+            substack.execute_action(
+                "get_publication_info",
+                {"publication_url": "https://example.substack.com"},
+                context,
+            )
+        )
         assert result["name"] == "Example Newsletter"
         assert result["subscriber_count"] == 1000
 
 
 # ── search_publications ───────────────────────────────────────────────────────
+
 
 class TestSearchPublications(unittest.TestCase):
     MOCK_RESPONSE = {
@@ -241,27 +291,32 @@ class TestSearchPublications(unittest.TestCase):
 
     def test_success(self):
         context = make_context(fetch_return_value=self.MOCK_RESPONSE)
-        result = run(substack.execute_action(
-            "search_publications",
-            {"query": "tech"},
-            context,
-        ))
+        result = run(
+            substack.execute_action(
+                "search_publications",
+                {"query": "tech"},
+                context,
+            )
+        )
         assert len(result["publications"]) == 1
         assert result["more"] is False
 
     def test_passes_query_param(self):
         context = make_context(fetch_return_value=self.MOCK_RESPONSE)
-        run(substack.execute_action(
-            "search_publications",
-            {"query": "finance"},
-            context,
-        ))
+        run(
+            substack.execute_action(
+                "search_publications",
+                {"query": "finance"},
+                context,
+            )
+        )
         call_kwargs = context.fetch.call_args
         params = call_kwargs[1].get("params", {})
         assert params.get("query") == "finance"
 
 
 # ── search_posts ──────────────────────────────────────────────────────────────
+
 
 class TestSearchPosts(unittest.TestCase):
     MOCK_RESPONSE = [
@@ -284,26 +339,35 @@ class TestSearchPosts(unittest.TestCase):
 
     def test_success(self):
         context = make_context(fetch_return_value=self.MOCK_RESPONSE)
-        result = run(substack.execute_action(
-            "search_posts",
-            {"publication_url": "https://example.substack.com", "query": "keyword"},
-            context,
-        ))
+        result = run(
+            substack.execute_action(
+                "search_posts",
+                {"publication_url": "https://example.substack.com", "query": "keyword"},
+                context,
+            )
+        )
         assert len(result["posts"]) == 1
         assert result["posts"][0]["slug"] == "matching-post"
 
     def test_limit_maximum_passed(self):
         context = make_context(fetch_return_value=[])
-        run(substack.execute_action(
-            "search_posts",
-            {"publication_url": "https://example.substack.com", "query": "x", "limit": 50},
-            context,
-        ))
+        run(
+            substack.execute_action(
+                "search_posts",
+                {
+                    "publication_url": "https://example.substack.com",
+                    "query": "x",
+                    "limit": 50,
+                },
+                context,
+            )
+        )
         params = context.fetch.call_args[1].get("params", {})
         assert params.get("limit") == 50
 
 
 # ── get_post_comments ─────────────────────────────────────────────────────────
+
 
 class TestGetPostComments(unittest.TestCase):
     MOCK_RESPONSE = {
@@ -322,28 +386,33 @@ class TestGetPostComments(unittest.TestCase):
 
     def test_success(self):
         context = make_context(fetch_return_value=self.MOCK_RESPONSE)
-        result = run(substack.execute_action(
-            "get_post_comments",
-            {"publication_url": "https://example.substack.com", "post_id": 123},
-            context,
-        ))
+        result = run(
+            substack.execute_action(
+                "get_post_comments",
+                {"publication_url": "https://example.substack.com", "post_id": 123},
+                context,
+            )
+        )
         assert len(result["comments"]) == 1
         assert result["comments"][0]["author_name"] == "Alice"
 
     def test_url_uses_singular_post_path(self):
         """URL must use /api/v1/post/ (singular), not /api/v1/posts/."""
         context = make_context(fetch_return_value=self.MOCK_RESPONSE)
-        run(substack.execute_action(
-            "get_post_comments",
-            {"publication_url": "https://example.substack.com", "post_id": 123},
-            context,
-        ))
+        run(
+            substack.execute_action(
+                "get_post_comments",
+                {"publication_url": "https://example.substack.com", "post_id": 123},
+                context,
+            )
+        )
         url_called = context.fetch.call_args[0][0]
         assert "/api/v1/post/123/comments" in url_called
         assert "/api/v1/posts/123/comments" not in url_called
 
 
 # ── get_subscriptions ─────────────────────────────────────────────────────────
+
 
 class TestGetSubscriptions(unittest.TestCase):
     PROFILE_RESPONSE = {"id": 999, "name": "Test User"}
@@ -373,6 +442,7 @@ class TestGetSubscriptions(unittest.TestCase):
 
     def test_preflight_401_raises_auth_error(self):
         from autohive_integrations_sdk import AuthError
+
         context = make_context(
             auth={"connect_sid": "abc", "substack_sid": "xyz"},
             fetch_side_effect=AuthError("Unauthorized"),
@@ -391,6 +461,7 @@ class TestGetSubscriptions(unittest.TestCase):
 
 
 # ── get_reader_feed ───────────────────────────────────────────────────────────
+
 
 class TestGetReaderFeed(unittest.TestCase):
     PROFILE_RESPONSE = {"id": 999}
@@ -420,6 +491,7 @@ class TestGetReaderFeed(unittest.TestCase):
 
     def test_preflight_401_raises_auth_error(self):
         from autohive_integrations_sdk import AuthError
+
         context = make_context(
             auth={"connect_sid": "abc", "substack_sid": "xyz"},
             fetch_side_effect=AuthError("Unauthorized"),
@@ -433,11 +505,13 @@ class TestGetReaderFeed(unittest.TestCase):
             auth={"connect_sid": "abc", "substack_sid": "xyz"},
             fetch_side_effect=responses,
         )
-        run(substack.execute_action(
-            "get_reader_feed",
-            {"types": ["like"]},
-            context,
-        ))
+        run(
+            substack.execute_action(
+                "get_reader_feed",
+                {"types": ["like"]},
+                context,
+            )
+        )
         # Second call is the feed call — check its params
         feed_call = context.fetch.call_args_list[1]
         params = feed_call[1].get("params", {})

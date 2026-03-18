@@ -1,4 +1,3 @@
-import sys
 from autohive_integrations_sdk import (
     Integration,
     ExecutionContext,
@@ -14,6 +13,7 @@ from urllib.parse import urlparse, urlunparse
 
 class APIError(Exception):
     """Generic integration API error."""
+
     def __init__(self, message: str = ""):
         super().__init__(message)
 
@@ -35,9 +35,11 @@ class ServerError(APIError):
 
 
 # Inject into SDK module so `from autohive_integrations_sdk import AuthError` works
-import autohive_integrations_sdk as _sdk_module
+import autohive_integrations_sdk as _sdk_module  # noqa: E402
+
 for _cls in (APIError, AuthError, NotFoundError, RateLimitError, ServerError):
     setattr(_sdk_module, _cls.__name__, _cls)
+
 
 class _FlatIntegration(Integration):
     """Thin subclass that unwraps IntegrationResult so callers get the data dict directly."""
@@ -56,6 +58,7 @@ SUBSTACK_BASE = "https://substack.com"
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
+
 
 def _normalise_url(url: str) -> str:
     """Normalise a publication URL: enforce https, strip path, strip trailing slash."""
@@ -105,21 +108,23 @@ def _drop_none(d: Dict[str, Any]) -> Dict[str, Any]:
 
 def _format_post(post: Dict[str, Any]) -> Dict[str, Any]:
     """Extract the standard post fields used by list/search actions."""
-    return _drop_none({
-        "id": post.get("id"),
-        "slug": post.get("slug", ""),
-        "title": post.get("title", ""),
-        "subtitle": post.get("subtitle", ""),
-        "post_date": post.get("post_date", ""),
-        "canonical_url": post.get("canonical_url", ""),
-        "audience": post.get("audience", ""),
-        "paywall": post.get("paywall", False),
-        "reading_time_minutes": post.get("reading_time_minutes"),
-        "cover_image": post.get("cover_image"),
-        "like_count": post.get("like_count", 0),
-        "comment_count": post.get("comment_count", 0),
-        "type": post.get("type", ""),
-    })
+    return _drop_none(
+        {
+            "id": post.get("id"),
+            "slug": post.get("slug", ""),
+            "title": post.get("title", ""),
+            "subtitle": post.get("subtitle", ""),
+            "post_date": post.get("post_date", ""),
+            "canonical_url": post.get("canonical_url", ""),
+            "audience": post.get("audience", ""),
+            "paywall": post.get("paywall", False),
+            "reading_time_minutes": post.get("reading_time_minutes"),
+            "cover_image": post.get("cover_image"),
+            "like_count": post.get("like_count", 0),
+            "comment_count": post.get("comment_count", 0),
+            "type": post.get("type", ""),
+        }
+    )
 
 
 async def _resolve_user_id(context: ExecutionContext, headers: Dict[str, str]) -> int:
@@ -134,9 +139,12 @@ async def _resolve_user_id(context: ExecutionContext, headers: Dict[str, str]) -
 
 # ── Action handlers ───────────────────────────────────────────────────────────
 
+
 @substack.action("get_publication_posts")
 class GetPublicationPostsAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         base_url = _normalise_url(inputs["publication_url"])
         headers = _build_headers(context.auth)
         params: Dict[str, Any] = {
@@ -159,7 +167,9 @@ class GetPublicationPostsAction(ActionHandler):
 
 @substack.action("get_post")
 class GetPostAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         base_url = _normalise_url(inputs["publication_url"])
         slug = inputs["slug"]
         headers = _build_headers(context.auth)
@@ -169,29 +179,33 @@ class GetPostAction(ActionHandler):
             method="GET",
             headers=headers,
         )
-        result = _drop_none({
-            "id": post.get("id"),
-            "slug": post.get("slug", ""),
-            "title": post.get("title", ""),
-            "subtitle": post.get("subtitle", ""),
-            "body_html": post.get("body_html", ""),
-            "post_date": post.get("post_date", ""),
-            "canonical_url": post.get("canonical_url", ""),
-            "audience": post.get("audience", ""),
-            "paywall": post.get("paywall", False),
-            "reading_time_minutes": post.get("reading_time_minutes"),
-            "cover_image": post.get("cover_image"),
-            "like_count": post.get("like_count", 0),
-            "comment_count": post.get("comment_count", 0),
-            "type": post.get("type", ""),
-            "audio_url": post.get("audio_url"),
-        })
+        result = _drop_none(
+            {
+                "id": post.get("id"),
+                "slug": post.get("slug", ""),
+                "title": post.get("title", ""),
+                "subtitle": post.get("subtitle", ""),
+                "body_html": post.get("body_html", ""),
+                "post_date": post.get("post_date", ""),
+                "canonical_url": post.get("canonical_url", ""),
+                "audience": post.get("audience", ""),
+                "paywall": post.get("paywall", False),
+                "reading_time_minutes": post.get("reading_time_minutes"),
+                "cover_image": post.get("cover_image"),
+                "like_count": post.get("like_count", 0),
+                "comment_count": post.get("comment_count", 0),
+                "type": post.get("type", ""),
+                "audio_url": post.get("audio_url"),
+            }
+        )
         return ActionResult(data=result, cost_usd=0.0)
 
 
 @substack.action("get_publication_info")
 class GetPublicationInfoAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         base_url = _normalise_url(inputs["publication_url"])
         headers = _build_headers(context.auth)
 
@@ -200,25 +214,29 @@ class GetPublicationInfoAction(ActionHandler):
             method="GET",
             headers=headers,
         )
-        result = _drop_none({
-            "id": pub.get("id"),
-            "name": pub.get("name", ""),
-            "subdomain": pub.get("subdomain", ""),
-            "custom_domain": pub.get("custom_domain"),
-            "logo_url": pub.get("logo_url"),
-            "cover_photo_url": pub.get("cover_photo_url"),
-            "hero_text": pub.get("hero_text", ""),
-            "subscriber_count": pub.get("subscriber_count"),
-            "author_id": pub.get("author_id"),
-            "email_from_name": pub.get("email_from_name", ""),
-            "type": pub.get("type", ""),
-        })
+        result = _drop_none(
+            {
+                "id": pub.get("id"),
+                "name": pub.get("name", ""),
+                "subdomain": pub.get("subdomain", ""),
+                "custom_domain": pub.get("custom_domain"),
+                "logo_url": pub.get("logo_url"),
+                "cover_photo_url": pub.get("cover_photo_url"),
+                "hero_text": pub.get("hero_text", ""),
+                "subscriber_count": pub.get("subscriber_count"),
+                "author_id": pub.get("author_id"),
+                "email_from_name": pub.get("email_from_name", ""),
+                "type": pub.get("type", ""),
+            }
+        )
         return ActionResult(data=result, cost_usd=0.0)
 
 
 @substack.action("search_publications")
 class SearchPublicationsAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         headers = _build_headers(context.auth)
         params = {
             "query": inputs["query"],
@@ -232,17 +250,21 @@ class SearchPublicationsAction(ActionHandler):
             params=params,
             headers=headers,
         )
-        pubs_raw = response.get("publications", []) if isinstance(response, dict) else response
+        pubs_raw = (
+            response.get("publications", []) if isinstance(response, dict) else response
+        )
         pubs = [
-            _drop_none({
-                "id": p.get("id"),
-                "name": p.get("name", ""),
-                "subdomain": p.get("subdomain", ""),
-                "custom_domain": p.get("custom_domain"),
-                "logo_url": p.get("logo_url"),
-                "description": p.get("description", ""),
-                "subscriber_count": p.get("subscriber_count"),
-            })
+            _drop_none(
+                {
+                    "id": p.get("id"),
+                    "name": p.get("name", ""),
+                    "subdomain": p.get("subdomain", ""),
+                    "custom_domain": p.get("custom_domain"),
+                    "logo_url": p.get("logo_url"),
+                    "description": p.get("description", ""),
+                    "subscriber_count": p.get("subscriber_count"),
+                }
+            )
             for p in pubs_raw
         ]
         more = response.get("more", False) if isinstance(response, dict) else False
@@ -251,7 +273,9 @@ class SearchPublicationsAction(ActionHandler):
 
 @substack.action("search_posts")
 class SearchPostsAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         base_url = _normalise_url(inputs["publication_url"])
         headers = _build_headers(context.auth)
         params = {
@@ -272,7 +296,9 @@ class SearchPostsAction(ActionHandler):
 
 @substack.action("get_post_comments")
 class GetPostCommentsAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         base_url = _normalise_url(inputs["publication_url"])
         post_id = inputs["post_id"]
         headers = _build_headers(context.auth)
@@ -289,12 +315,16 @@ class GetPostCommentsAction(ActionHandler):
             headers=headers,
         )
         comments = response.get("comments", []) if isinstance(response, dict) else []
-        return ActionResult(data={"comments": comments, "count": len(comments)}, cost_usd=0.0)
+        return ActionResult(
+            data={"comments": comments, "count": len(comments)}, cost_usd=0.0
+        )
 
 
 @substack.action("get_subscriptions")
 class GetSubscriptionsAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         headers = _build_headers(context.auth)
 
         # Step 1: resolve user ID (raises AuthError on 401/403)
@@ -308,23 +338,29 @@ class GetSubscriptionsAction(ActionHandler):
         )
         subs_raw = profile_data.get("subscriptions", [])
         subs = [
-            _drop_none({
-                "name": s.get("name", ""),
-                "subdomain": s.get("subdomain", ""),
-                "custom_domain": s.get("custom_domain"),
-                "author_name": s.get("author_name", ""),
-                "is_paid": s.get("is_paid", False),
-                "subscriber_count": s.get("subscriber_count"),
-                "logo_url": s.get("logo_url"),
-            })
+            _drop_none(
+                {
+                    "name": s.get("name", ""),
+                    "subdomain": s.get("subdomain", ""),
+                    "custom_domain": s.get("custom_domain"),
+                    "author_name": s.get("author_name", ""),
+                    "is_paid": s.get("is_paid", False),
+                    "subscriber_count": s.get("subscriber_count"),
+                    "logo_url": s.get("logo_url"),
+                }
+            )
             for s in subs_raw
         ]
-        return ActionResult(data={"subscriptions": subs, "count": len(subs)}, cost_usd=0.0)
+        return ActionResult(
+            data={"subscriptions": subs, "count": len(subs)}, cost_usd=0.0
+        )
 
 
 @substack.action("get_reader_feed")
 class GetReaderFeedAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         headers = _build_headers(context.auth)
 
         # Step 1: resolve user ID
