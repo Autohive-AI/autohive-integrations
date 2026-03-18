@@ -10,7 +10,8 @@ Authentication is optional — public actions work without credentials. To acces
 
 1. Log in to [substack.com](https://substack.com) in your browser
 2. Open DevTools → Application → Cookies → `substack.com`
-3. Copy the values of `connect.sid` and `substack.sid`
+3. Copy the value of `substack.sid` (required)
+4. Copy `connect.sid` if present (optional)
 
 > Cookies are invalidated when you log out. Consider using a dedicated account for automation.
 

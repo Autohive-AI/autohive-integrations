@@ -9,17 +9,17 @@
         "fields": {
             "type": "object",
             "properties": {
-                "connect_sid": {
-                    "type": "string",
-                    "format": "password",
-                    "label": "connect.sid cookie",
-                    "help_text": "From browser DevTools → Application → Cookies → substack.com after logging in. Required for subscriptions and reader feed."
-                },
                 "substack_sid": {
                     "type": "string",
                     "format": "password",
                     "label": "substack.sid cookie",
-                    "help_text": "Secondary session cookie from the same location as connect.sid. Required for subscriptions and reader feed."
+                    "help_text": "From browser DevTools → Application → Cookies → substack.com after logging in. Required for subscriptions and reader feed."
+                },
+                "connect_sid": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "connect.sid cookie (optional)",
+                    "help_text": "Optional secondary session cookie from the same location. Include if present in your browser cookies."
                 }
             },
             "required": []
