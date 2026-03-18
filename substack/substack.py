@@ -5,7 +5,7 @@ from autohive_integrations_sdk import (
     ActionHandler,
     ActionResult,
 )
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from urllib.parse import urlparse, urlunparse
 
 # Define error classes that are not yet in the installed SDK version,
