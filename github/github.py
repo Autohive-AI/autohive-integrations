@@ -17,11 +17,8 @@ from typing import Dict, Any, List, Callable, TypeVar
 from urllib.parse import quote
 from functools import wraps
 import base64
-import os
 
-# Load integration using config.json in the same directory as this file
-_config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-github = Integration.load(_config_path)
+github = Integration.load()
 
 T = TypeVar('T')
 

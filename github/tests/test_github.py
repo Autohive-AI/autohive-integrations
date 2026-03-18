@@ -341,7 +341,7 @@ async def test_diff_branch_to_branch():
             assert isinstance(result, IntegrationResult), "Should return IntegrationResult"
             assert isinstance(result.result, ActionResult), "Result should contain ActionResult"
             data = result.result.data
-            print(f"[OK] Retrieved branch comparison")
+            print("[OK] Retrieved branch comparison")
             print(f"  Status: {data.get('status', 'N/A')}")
             print(f"  Ahead by: {data.get('ahead_by', 0)}")
             print(f"  Behind by: {data.get('behind_by', 0)}")
