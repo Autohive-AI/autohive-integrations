@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(python -m pytest test_substack.py -v)",
+      "Bash(python:*)"
+    ]
+  }
+}
