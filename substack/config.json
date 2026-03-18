@@ -4,8 +4,8 @@
     "description": "Read Substack publications, posts, comments, and your personal subscriptions and reader feed.",
     "entry_point": "substack.py",
     "auth": {
-        "identifier": "substack_authentication",
         "type": "custom",
+        "title": "Substack Session Cookies",
         "fields": {
             "type": "object",
             "properties": {
