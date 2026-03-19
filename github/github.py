@@ -25,9 +25,7 @@ from urllib.parse import quote
 from functools import wraps
 import base64
 
-github = Integration.load(
-    config_path=str(__import__("pathlib").Path(__file__).parent / "config.json")
-)
+github = Integration.load()
 
 T = TypeVar("T")
 
