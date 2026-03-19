@@ -35,24 +35,6 @@ T = TypeVar("T")
 # =============================================================================
 
 
-class GitHubAPIError(Exception):
-    """
-    Custom exception for GitHub API errors.
-
-    Attributes:
-        message: Human-readable error description
-        status_code: HTTP status code from GitHub API
-        response_data: Raw response data from the API
-    """
-
-    def __init__(
-        self, message: str, status_code: int = None, response_data: Dict = None
-    ):
-        super().__init__(message)
-        self.message = message
-        self.status_code = status_code
-        self.response_data = response_data or {}
-
 
 def handle_github_errors(action_name: str):
     """
@@ -81,21 +63,6 @@ def handle_github_errors(action_name: str):
                     )
 
                 return await func(self, inputs, context)
-
-            except GitHubAPIError as e:
-                error_msg = e.message
-                if e.status_code == 401:
-                    error_msg = "GitHub authentication failed: Invalid or expired token. Please reconnect your GitHub account."
-                elif e.status_code == 403:
-                    error_msg = f"GitHub access denied: {e.message}. Check your token permissions."
-                elif e.status_code == 404:
-                    error_msg = f"GitHub resource not found: {e.message}"
-                elif e.status_code == 422:
-                    error_msg = f"GitHub validation error: {e.message}"
-
-                return ActionResult(
-                    data={"error": error_msg, "result": False}, cost_usd=0.0
-                )
 
             except Exception as e:
                 return ActionResult(
