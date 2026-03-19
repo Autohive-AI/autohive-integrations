@@ -25,7 +25,9 @@ from urllib.parse import quote
 from functools import wraps
 import base64
 
-github = Integration.load()
+github = Integration.load(
+    config_path=str(__import__("pathlib").Path(__file__).parent / "config.json")
+)
 
 T = TypeVar("T")
 
@@ -33,7 +35,6 @@ T = TypeVar("T")
 # =============================================================================
 # ERROR HANDLING
 # =============================================================================
-
 
 
 def handle_github_errors(action_name: str):
