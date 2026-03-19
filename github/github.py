@@ -60,12 +60,6 @@ def handle_github_errors(action_name: str):
 
     Catches exceptions and returns ActionResult with error data for common GitHub
     API error codes (401, 403, 404, 422) with user-friendly messages.
-
-    Args:
-        action_name: Name of the action for error context
-
-    Returns:
-        Decorated async function with error handling
     """
 
     def decorator(func: Callable):
@@ -104,24 +98,8 @@ def handle_github_errors(action_name: str):
                 )
 
             except Exception as e:
-                error_message = str(e)
-
-                # Parse common HTTP error patterns
-                if "401" in error_message:
-                    error_message = "GitHub authentication failed: Invalid or expired token. Please reconnect your GitHub account."
-                elif "403" in error_message:
-                    error_message = f"GitHub access denied: {error_message}. Check your token permissions or rate limits."
-                elif "404" in error_message:
-                    error_message = f"GitHub resource not found: The requested {action_name} resource does not exist."
-                elif "422" in error_message:
-                    error_message = f"GitHub validation error: {error_message}"
-                else:
-                    error_message = (
-                        f"GitHub API error in {action_name}: {error_message}"
-                    )
-
                 return ActionResult(
-                    data={"error": error_message, "result": False}, cost_usd=0.0
+                    data={"error": str(e), "result": False}, cost_usd=0.0
                 )
 
         return wrapper
