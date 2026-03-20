@@ -132,7 +132,7 @@ Create a new post in Ghost.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `title` | string | **Yes** | Post title |
-| `html` | string | No | Post body as HTML |
+| `html` | string | No | Post body as HTML (automatically sets `?source=html` on the API request) |
 | `lexical` | string | No | Post body in Lexical JSON format |
 | `status` | string | No | `draft` or `published` (default: `draft`) |
 | `tags` | array | No | Tag objects, e.g. `[{"name": "news"}]` |
@@ -223,7 +223,7 @@ Trigger email delivery of a published post to subscribers.
 |-----------|------|----------|-------------|
 | `post_id` | string | **Yes** | ID of the post to send |
 | `updated_at` | string | **Yes** | ISO 8601 timestamp from the post (conflict detection) |
-| `newsletter_id` | string | No | Newsletter ID to use (uses default if omitted) |
+| `newsletter_slug` | string | No | Slug of the newsletter to use (uses default if omitted) |
 
 **Outputs:** `result`, `post` (object), `error`, `error_type`
 

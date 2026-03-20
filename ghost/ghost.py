@@ -280,7 +280,10 @@ class CreatePostAction(ActionHandler):
                 if inputs.get(field) is not None:
                     post[field] = inputs[field]
             post.setdefault("status", "draft")
-            data = _admin_request(context, "POST", "posts", json={"posts": [post]})
+            params = {"source": "html"} if inputs.get("html") else None
+            data = _admin_request(
+                context, "POST", "posts", json={"posts": [post]}, params=params
+            )
             posts = data.get("posts", [])
             return _success({"post": posts[0] if posts else None})
         except Exception as e:
@@ -307,8 +310,13 @@ class UpdatePostAction(ActionHandler):
             ]:
                 if inputs.get(field) is not None:
                     post[field] = inputs[field]
+            params = {"source": "html"} if inputs.get("html") else None
             data = _admin_request(
-                context, "PUT", f"posts/{post_id}", json={"posts": [post]}
+                context,
+                "PUT",
+                f"posts/{post_id}",
+                json={"posts": [post]},
+                params=params,
             )
             posts = data.get("posts", [])
             return _success({"post": posts[0] if posts else None})
@@ -327,7 +335,10 @@ class CreatePageAction(ActionHandler):
                 if inputs.get(field) is not None:
                     page[field] = inputs[field]
             page.setdefault("status", "draft")
-            data = _admin_request(context, "POST", "pages", json={"pages": [page]})
+            params = {"source": "html"} if inputs.get("html") else None
+            data = _admin_request(
+                context, "POST", "pages", json={"pages": [page]}, params=params
+            )
             pages = data.get("pages", [])
             return _success({"page": pages[0] if pages else None})
         except Exception as e:
@@ -404,9 +415,9 @@ class SendNewsletterAction(ActionHandler):
         try:
             post_id = inputs["post_id"]
             updated_at = inputs["updated_at"]
-            newsletter_id = inputs.get("newsletter_id")
+            newsletter_slug = inputs.get("newsletter_slug")
             post = {"status": "published", "updated_at": updated_at}
-            params = {"newsletter": newsletter_id} if newsletter_id else None
+            params = {"newsletter": newsletter_slug} if newsletter_slug else None
             data = _admin_request(
                 context,
                 "PUT",
