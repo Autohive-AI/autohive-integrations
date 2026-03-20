@@ -100,7 +100,7 @@ def _parse_error(e: Exception) -> tuple:
             errors = body.get("errors", [])
             if errors:
                 error_msg = errors[0].get("message", error_msg)
-                error_type = errors[0].get("type", "UnknownError")
+                error_type = errors[0].get("errorType", "UnknownError")
         except Exception:  # nosec B110
             pass
     return error_msg, error_type
@@ -415,9 +415,9 @@ class SendNewsletterAction(ActionHandler):
         try:
             post_id = inputs["post_id"]
             updated_at = inputs["updated_at"]
-            newsletter_slug = inputs.get("newsletter_slug")
+            newsletter_slug = inputs["newsletter_slug"]
             post = {"status": "published", "updated_at": updated_at}
-            params = {"newsletter": newsletter_slug} if newsletter_slug else None
+            params = {"newsletter": newsletter_slug}
             data = _admin_request(
                 context,
                 "PUT",

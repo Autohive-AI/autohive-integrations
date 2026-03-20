@@ -13,8 +13,8 @@
                 "api_url": {
                     "type": "string",
                     "format": "text",
-                    "label": "Ghost Site URL",
-                    "help_text": "Your Ghost site base URL, e.g. https://yoursite.ghost.io"
+                    "label": "Ghost Admin URL",
+                    "help_text": "Your Ghost admin base URL, e.g. https://yoursite.ghost.io (must match admin domain if different from public site)"
                 },
                 "content_api_key": {
                     "type": "string",
@@ -353,9 +353,9 @@
                 "properties": {
                     "post_id": {"type": "string", "description": "ID of the post to send as a newsletter"},
                     "updated_at": {"type": "string", "description": "ISO 8601 updated_at timestamp from the post (required for conflict detection)"},
-                    "newsletter_slug": {"type": "string", "description": "Slug of the newsletter to use (optional, uses default if omitted)"}
+                    "newsletter_slug": {"type": "string", "description": "Slug of the newsletter to send to"}
                 },
-                "required": ["post_id", "updated_at"]
+                "required": ["post_id", "updated_at", "newsletter_slug"]
             },
             "output_schema": {
                 "type": "object",

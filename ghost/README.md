@@ -223,7 +223,7 @@ Trigger email delivery of a published post to subscribers.
 |-----------|------|----------|-------------|
 | `post_id` | string | **Yes** | ID of the post to send |
 | `updated_at` | string | **Yes** | ISO 8601 timestamp from the post (conflict detection) |
-| `newsletter_slug` | string | No | Slug of the newsletter to use (uses default if omitted) |
+| `newsletter_slug` | string | **Yes** | Slug of the newsletter to send to |
 
 **Outputs:** `result`, `post` (object), `error`, `error_type`
 
