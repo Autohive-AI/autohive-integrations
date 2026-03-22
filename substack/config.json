@@ -1,22 +1,15 @@
 {
     "name": "Substack",
+    "display_name": "Substack",
     "version": "1.0.0",
-    "description": "Read Substack publications, posts, comments, and your personal subscriptions and reader feed.",
+    "description": "Read Substack publications, posts, and comments. No authentication required.",
     "entry_point": "substack.py",
     "auth": {
         "type": "custom",
-        "title": "Substack Session Cookies",
+        "title": "Substack",
         "fields": {
             "type": "object",
-            "properties": {
-                "substack_sid": {
-                    "type": "string",
-                    "format": "password",
-                    "label": "substack.sid cookie",
-                    "help_text": "From browser DevTools → Application → Cookies → substack.com after logging in. Required for subscriptions and reader feed."
-                }
-            },
-            "required": []
+            "properties": {}
         }
     },
     "actions": {
@@ -298,75 +291,6 @@
                                 "author_id": {"type": "integer"},
                                 "like_count": {"type": "integer"},
                                 "children": {"type": "array"}
-                            }
-                        }
-                    },
-                    "count": {"type": "integer"}
-                }
-            }
-        },
-        "get_subscriptions": {
-            "display_name": "Get Subscriptions",
-            "description": "Fetch the authenticated user's Substack subscriptions. Requires connect_sid and substack_sid cookies.",
-            "input_schema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            },
-            "output_schema": {
-                "type": "object",
-                "properties": {
-                    "subscriptions": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {"type": "string"},
-                                "subdomain": {"type": "string"},
-                                "custom_domain": {"type": "string"},
-                                "author_name": {"type": "string"},
-                                "is_paid": {"type": "boolean"},
-                                "subscriber_count": {"type": "integer"},
-                                "logo_url": {"type": "string"}
-                            }
-                        }
-                    },
-                    "count": {"type": "integer"}
-                }
-            }
-        },
-        "get_reader_feed": {
-            "display_name": "Get Reader Feed",
-            "description": "Fetch the authenticated user's Substack reader activity feed (likes and restacks). Requires connect_sid and substack_sid cookies.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "types": {
-                        "type": "array",
-                        "items": {
-                            "type": "string",
-                            "enum": ["like", "restack"]
-                        },
-                        "description": "Filter by activity type. Omit for all activity."
-                    }
-                },
-                "required": []
-            },
-            "output_schema": {
-                "type": "object",
-                "properties": {
-                    "items": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "id": {"type": "string"},
-                                "type": {"type": "string"},
-                                "date": {"type": "string"},
-                                "post_title": {"type": "string"},
-                                "post_url": {"type": "string"},
-                                "publication_name": {"type": "string"},
-                                "publication_url": {"type": "string"}
                             }
                         }
                     },

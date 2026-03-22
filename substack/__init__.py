@@ -1,1 +1,4 @@
-from substack.substack import substack  # noqa: F401
+# Substack Integration for Autohive
+from .substack import substack
+
+__all__ = ["substack"]

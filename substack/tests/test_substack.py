@@ -12,10 +12,10 @@ sys.path.insert(
 from substack import substack  # noqa: E402
 
 
-def make_context(auth=None, fetch_side_effect=None, fetch_return_value=None):
+def make_context(fetch_side_effect=None, fetch_return_value=None):
     """Create a mock ExecutionContext."""
     context = MagicMock()
-    context.auth = auth or {}
+    context.auth = {}
     if fetch_side_effect is not None:
         context.fetch = AsyncMock(side_effect=fetch_side_effect)
     else:
@@ -24,7 +24,7 @@ def make_context(auth=None, fetch_side_effect=None, fetch_return_value=None):
 
 
 def run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -67,30 +67,6 @@ class TestNormaliseUrl(unittest.TestCase):
         )
 
 
-class TestBuildHeaders(unittest.TestCase):
-    def _headers(self, auth):
-        from substack.substack import _build_headers
-
-        return _build_headers(auth)
-
-    def test_no_auth_no_cookie_header(self):
-        headers = self._headers({})
-        assert "Cookie" not in headers
-
-    def test_with_both_cookies(self):
-        headers = self._headers({"connect_sid": "abc", "substack_sid": "xyz"})
-        assert headers["Cookie"] == "connect.sid=abc; substack.sid=xyz"
-
-    def test_with_only_connect_sid(self):
-        headers = self._headers({"connect_sid": "abc"})
-        assert "connect.sid=abc" in headers["Cookie"]
-        assert "substack.sid" not in headers["Cookie"]
-
-    def test_empty_strings_excluded(self):
-        headers = self._headers({"connect_sid": "", "substack_sid": ""})
-        assert "Cookie" not in headers
-
-
 # ── get_publication_posts ─────────────────────────────────────────────────────
 
 
@@ -122,9 +98,10 @@ class TestGetPublicationPosts(unittest.TestCase):
                 context,
             )
         )
-        assert len(result["posts"]) == 1
-        assert result["posts"][0]["slug"] == "hello-world"
-        assert result["count"] == 1
+        data = result.result.data
+        assert len(data["posts"]) == 1
+        assert data["posts"][0]["slug"] == "hello-world"
+        assert data["count"] == 1
 
     def test_passes_pagination_params(self):
         context = make_context(fetch_return_value=[])
@@ -139,10 +116,7 @@ class TestGetPublicationPosts(unittest.TestCase):
                 context,
             )
         )
-        call_kwargs = context.fetch.call_args
-        params = call_kwargs[1].get("params") or (
-            call_kwargs[0][2] if len(call_kwargs[0]) > 2 else {}
-        )
+        params = context.fetch.call_args[1].get("params", {})
         assert params.get("offset") == 12
         assert params.get("limit") == 6
 
@@ -158,8 +132,8 @@ class TestGetPublicationPosts(unittest.TestCase):
         url_called = context.fetch.call_args[0][0]
         assert url_called.startswith("https://example.substack.com")
 
-    def test_no_auth_no_cookie_header(self):
-        context = make_context(auth={}, fetch_return_value=[])
+    def test_no_cookie_header(self):
+        context = make_context(fetch_return_value=[])
         run(
             substack.execute_action(
                 "get_publication_posts",
@@ -169,21 +143,6 @@ class TestGetPublicationPosts(unittest.TestCase):
         )
         headers = context.fetch.call_args[1].get("headers", {})
         assert "Cookie" not in headers
-
-    def test_auth_sets_cookie_header(self):
-        context = make_context(
-            auth={"connect_sid": "abc", "substack_sid": "xyz"},
-            fetch_return_value=[],
-        )
-        run(
-            substack.execute_action(
-                "get_publication_posts",
-                {"publication_url": "https://example.substack.com"},
-                context,
-            )
-        )
-        headers = context.fetch.call_args[1].get("headers", {})
-        assert "Cookie" in headers
 
 
 # ── get_post ──────────────────────────────────────────────────────────────────
@@ -220,8 +179,9 @@ class TestGetPost(unittest.TestCase):
                 context,
             )
         )
-        assert result["slug"] == "hello-world"
-        assert result["body_html"] == "<p>Content here</p>"
+        data = result.result.data
+        assert data["slug"] == "hello-world"
+        assert data["body_html"] == "<p>Content here</p>"
 
     def test_url_contains_slug(self):
         context = make_context(fetch_return_value=self.MOCK_RESPONSE)
@@ -266,8 +226,9 @@ class TestGetPublicationInfo(unittest.TestCase):
                 context,
             )
         )
-        assert result["name"] == "Example Newsletter"
-        assert result["subscriber_count"] == 1000
+        data = result.result.data
+        assert data["name"] == "Example Newsletter"
+        assert data["subscriber_count"] == 1000
 
 
 # ── search_publications ───────────────────────────────────────────────────────
@@ -298,8 +259,9 @@ class TestSearchPublications(unittest.TestCase):
                 context,
             )
         )
-        assert len(result["publications"]) == 1
-        assert result["more"] is False
+        data = result.result.data
+        assert len(data["publications"]) == 1
+        assert data["more"] is False
 
     def test_passes_query_param(self):
         context = make_context(fetch_return_value=self.MOCK_RESPONSE)
@@ -346,8 +308,9 @@ class TestSearchPosts(unittest.TestCase):
                 context,
             )
         )
-        assert len(result["posts"]) == 1
-        assert result["posts"][0]["slug"] == "matching-post"
+        data = result.result.data
+        assert len(data["posts"]) == 1
+        assert data["posts"][0]["slug"] == "matching-post"
 
     def test_limit_maximum_passed(self):
         context = make_context(fetch_return_value=[])
@@ -393,8 +356,9 @@ class TestGetPostComments(unittest.TestCase):
                 context,
             )
         )
-        assert len(result["comments"]) == 1
-        assert result["comments"][0]["author_name"] == "Alice"
+        data = result.result.data
+        assert len(data["comments"]) == 1
+        assert data["comments"][0]["author_name"] == "Alice"
 
     def test_url_uses_singular_post_path(self):
         """URL must use /api/v1/post/ (singular), not /api/v1/posts/."""
@@ -410,112 +374,18 @@ class TestGetPostComments(unittest.TestCase):
         assert "/api/v1/post/123/comments" in url_called
         assert "/api/v1/posts/123/comments" not in url_called
 
-
-# ── get_subscriptions ─────────────────────────────────────────────────────────
-
-
-class TestGetSubscriptions(unittest.TestCase):
-    PROFILE_RESPONSE = {"id": 999, "name": "Test User"}
-    PROFILE_DATA_RESPONSE = {
-        "subscriptions": [
-            {
-                "name": "Cool Newsletter",
-                "subdomain": "cool",
-                "custom_domain": None,
-                "author_name": "Bob",
-                "is_paid": False,
-                "subscriber_count": 200,
-                "logo_url": None,
-            }
-        ]
-    }
-
-    def test_success(self):
-        responses = [self.PROFILE_RESPONSE, self.PROFILE_DATA_RESPONSE]
-        context = make_context(
-            auth={"connect_sid": "abc", "substack_sid": "xyz"},
-            fetch_side_effect=responses,
-        )
-        result = run(substack.execute_action("get_subscriptions", {}, context))
-        assert len(result["subscriptions"]) == 1
-        assert result["subscriptions"][0]["name"] == "Cool Newsletter"
-
-    def test_preflight_401_raises_auth_error(self):
-        from autohive_integrations_sdk import AuthError
-
-        context = make_context(
-            auth={"connect_sid": "abc", "substack_sid": "xyz"},
-            fetch_side_effect=AuthError("Unauthorized"),
-        )
-        with self.assertRaises(AuthError):
-            run(substack.execute_action("get_subscriptions", {}, context))
-
-    def test_makes_two_fetch_calls(self):
-        responses = [self.PROFILE_RESPONSE, self.PROFILE_DATA_RESPONSE]
-        context = make_context(
-            auth={"connect_sid": "abc", "substack_sid": "xyz"},
-            fetch_side_effect=responses,
-        )
-        run(substack.execute_action("get_subscriptions", {}, context))
-        assert context.fetch.call_count == 2
-
-
-# ── get_reader_feed ───────────────────────────────────────────────────────────
-
-
-class TestGetReaderFeed(unittest.TestCase):
-    PROFILE_RESPONSE = {"id": 999}
-    FEED_RESPONSE = {
-        "items": [
-            {
-                "id": "item-1",
-                "type": "like",
-                "date": "2024-02-01T00:00:00.000Z",
-                "post_title": "A Post I Liked",
-                "post_url": "https://example.substack.com/p/a-post",
-                "publication_name": "Example Newsletter",
-                "publication_url": "https://example.substack.com",
-            }
-        ]
-    }
-
-    def test_success(self):
-        responses = [self.PROFILE_RESPONSE, self.FEED_RESPONSE]
-        context = make_context(
-            auth={"connect_sid": "abc", "substack_sid": "xyz"},
-            fetch_side_effect=responses,
-        )
-        result = run(substack.execute_action("get_reader_feed", {}, context))
-        assert len(result["items"]) == 1
-        assert result["items"][0]["type"] == "like"
-
-    def test_preflight_401_raises_auth_error(self):
-        from autohive_integrations_sdk import AuthError
-
-        context = make_context(
-            auth={"connect_sid": "abc", "substack_sid": "xyz"},
-            fetch_side_effect=AuthError("Unauthorized"),
-        )
-        with self.assertRaises(AuthError):
-            run(substack.execute_action("get_reader_feed", {}, context))
-
-    def test_types_filter_passed_as_params(self):
-        responses = [self.PROFILE_RESPONSE, self.FEED_RESPONSE]
-        context = make_context(
-            auth={"connect_sid": "abc", "substack_sid": "xyz"},
-            fetch_side_effect=responses,
-        )
+    def test_all_comments_sent_as_string(self):
+        """Substack expects 'true'/'false' strings for the all_comments param."""
+        context = make_context(fetch_return_value=self.MOCK_RESPONSE)
         run(
             substack.execute_action(
-                "get_reader_feed",
-                {"types": ["like"]},
+                "get_post_comments",
+                {"publication_url": "https://example.substack.com", "post_id": 123, "all_comments": False},
                 context,
             )
         )
-        # Second call is the feed call — check its params
-        feed_call = context.fetch.call_args_list[1]
-        params = feed_call[1].get("params", {})
-        assert "like" in str(params)
+        params = context.fetch.call_args[1].get("params", {})
+        assert params.get("all_comments") == "false"
 
 
 if __name__ == "__main__":
