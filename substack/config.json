@@ -4,14 +4,6 @@
     "version": "1.0.0",
     "description": "Search Substack publications, read posts and comments. No authentication required.",
     "entry_point": "substack.py",
-    "auth": {
-        "type": "custom",
-        "title": "Substack",
-        "fields": {
-            "type": "object",
-            "properties": {}
-        }
-    },
     "actions": {
         "get_publication_posts": {
             "display_name": "Get Publication Posts",
