@@ -245,7 +245,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Substack
 
-[substack](substack): Search Substack publications, read posts and comments. Supports listing publication archives, fetching full post content, searching publications and posts, and retrieving comments. 5 actions, no authentication required.
+[substack](substack): Read-only Substack integration for browsing publications, posts, and comments using Substack's public internal APIs. Supports listing a publication's post archive with sorting and keyword filtering, fetching full post content including body HTML, searching publications across the entire Substack platform, searching posts within a specific publication by keyword, and retrieving comments on any post. Features no-authentication access to all public Substack content, bare hostname support (e.g. example.substack.com), custom domain support, and pagination on all listing actions. Includes 5 read-only actions covering publication discovery, post content retrieval, and comment access. Ideal for content research, newsletter monitoring, and Substack data aggregation.
 
 ### LinkedIn
 
