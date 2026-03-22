@@ -245,7 +245,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Substack
 
-[substack](substack): Read Substack publications, posts, comments, and personal subscriptions. Supports listing publication archives, fetching full post content, searching publications and posts, retrieving comments, and accessing authenticated subscriptions and reader activity feed via session cookie auth. 8 actions covering public and subscriber-only content.
+[substack](substack): Search Substack publications, read posts and comments. Supports listing publication archives, fetching full post content, searching publications and posts, and retrieving comments. 5 actions, no authentication required.
 
 ### LinkedIn
 
