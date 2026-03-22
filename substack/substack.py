@@ -129,7 +129,6 @@ class GetPublicationInfoAction(ActionHandler):
     async def execute(
         self, inputs: Dict[str, Any], context: ExecutionContext
     ) -> ActionResult:
-        base_url = _normalise_url(inputs["publication_url"])
         headers = _build_headers()
 
         # /api/v1/publication returns 403 on some publications (e.g. paid newsletters).

@@ -408,7 +408,11 @@ class TestGetPostComments(unittest.TestCase):
         run(
             substack.execute_action(
                 "get_post_comments",
-                {"publication_url": "https://example.substack.com", "post_id": 123, "all_comments": False},
+                {
+                    "publication_url": "https://example.substack.com",
+                    "post_id": 123,
+                    "all_comments": False,
+                },
                 context,
             )
         )
