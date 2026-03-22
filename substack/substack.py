@@ -16,7 +16,13 @@ SUBSTACK_BASE = "https://substack.com"
 
 
 def _normalise_url(url: str) -> str:
-    """Normalise a publication URL: enforce https, strip path, strip trailing slash."""
+    """Normalise a publication URL: enforce https, strip path, strip trailing slash.
+
+    Handles bare hostnames (e.g. 'example.substack.com') where urlparse puts
+    the host in path instead of netloc when no scheme is present.
+    """
+    if "://" not in url:
+        url = "https://" + url
     parsed = urlparse(url)
     normalised = urlunparse(("https", parsed.netloc, "", "", "", ""))
     return normalised.rstrip("/")

@@ -66,6 +66,9 @@ class TestNormaliseUrl(unittest.TestCase):
             == "https://example.substack.com"
         )
 
+    def test_bare_hostname_no_scheme(self):
+        assert self._normalise("example.substack.com") == "https://example.substack.com"
+
 
 # ── get_publication_posts ─────────────────────────────────────────────────────
 
