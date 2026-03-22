@@ -230,6 +230,19 @@ class TestGetPublicationInfo(unittest.TestCase):
         assert data["name"] == "Example Newsletter"
         assert data["subscriber_count"] == 1000
 
+    def test_uses_pub_endpoint(self):
+        """Must use /api/v1/pub/{subdomain} not /api/v1/publication (403 on paid pubs)."""
+        context = make_context(fetch_return_value=self.MOCK_RESPONSE)
+        run(
+            substack.execute_action(
+                "get_publication_info",
+                {"publication_url": "https://example.substack.com"},
+                context,
+            )
+        )
+        url_called = context.fetch.call_args[0][0]
+        assert "/api/v1/pub/example" in url_called
+
 
 # ── search_publications ───────────────────────────────────────────────────────
 
@@ -311,6 +324,21 @@ class TestSearchPosts(unittest.TestCase):
         data = result.result.data
         assert len(data["posts"]) == 1
         assert data["posts"][0]["slug"] == "matching-post"
+
+    def test_uses_archive_endpoint_with_search_param(self):
+        """search_posts must use /api/v1/archive?search= not /api/v1/posts/search (404)."""
+        context = make_context(fetch_return_value=[])
+        run(
+            substack.execute_action(
+                "search_posts",
+                {"publication_url": "https://example.substack.com", "query": "keyword"},
+                context,
+            )
+        )
+        url_called = context.fetch.call_args[0][0]
+        params = context.fetch.call_args[1].get("params", {})
+        assert "/api/v1/archive" in url_called
+        assert params.get("search") == "keyword"
 
     def test_limit_maximum_passed(self):
         context = make_context(fetch_return_value=[])

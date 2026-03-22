@@ -132,8 +132,11 @@ class GetPublicationInfoAction(ActionHandler):
         base_url = _normalise_url(inputs["publication_url"])
         headers = _build_headers()
 
+        # /api/v1/publication returns 403 on some publications (e.g. paid newsletters).
+        # /api/v1/pub/{subdomain} is the public equivalent.
+        subdomain = urlparse(inputs["publication_url"]).netloc.split(".")[0]
         pub = await context.fetch(
-            f"{base_url}/api/v1/publication",
+            f"{SUBSTACK_BASE}/api/v1/pub/{subdomain}",
             method="GET",
             headers=headers,
         )
@@ -203,14 +206,18 @@ class SearchPostsAction(ActionHandler):
     ) -> ActionResult:
         base_url = _normalise_url(inputs["publication_url"])
         headers = _build_headers()
+        # /api/v1/posts/search does not exist — Substack treats "search" as a slug
+        # and returns 404. The archive endpoint supports keyword search via the
+        # "search" param and is the correct way to filter posts by keyword.
         params = {
-            "query": inputs["query"],
+            "search": inputs["query"],
+            "sort": "new",
             "offset": inputs.get("offset", 0),
             "limit": min(inputs.get("limit", 10), 50),
         }
 
         posts_raw = await context.fetch(
-            f"{base_url}/api/v1/posts/search",
+            f"{base_url}/api/v1/archive",
             method="GET",
             params=params,
             headers=headers,
