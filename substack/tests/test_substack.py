@@ -199,51 +199,6 @@ class TestGetPost(unittest.TestCase):
         assert "hello-world" in url_called
 
 
-# ── get_publication_info ──────────────────────────────────────────────────────
-
-
-class TestGetPublicationInfo(unittest.TestCase):
-    MOCK_RESPONSE = {
-        "id": 1,
-        "name": "Example Newsletter",
-        "subdomain": "example",
-        "custom_domain": None,
-        "logo_url": "https://example.com/logo.png",
-        "cover_photo_url": None,
-        "hero_text": "A great newsletter",
-        "subscriber_count": 1000,
-        "author_id": 42,
-        "email_from_name": "Author Name",
-        "type": "newsletter",
-    }
-
-    def test_success(self):
-        context = make_context(fetch_return_value=self.MOCK_RESPONSE)
-        result = run(
-            substack.execute_action(
-                "get_publication_info",
-                {"publication_url": "https://example.substack.com"},
-                context,
-            )
-        )
-        data = result.result.data
-        assert data["name"] == "Example Newsletter"
-        assert data["subscriber_count"] == 1000
-
-    def test_uses_pub_endpoint(self):
-        """Must use /api/v1/pub/{subdomain} not /api/v1/publication (403 on paid pubs)."""
-        context = make_context(fetch_return_value=self.MOCK_RESPONSE)
-        run(
-            substack.execute_action(
-                "get_publication_info",
-                {"publication_url": "https://example.substack.com"},
-                context,
-            )
-        )
-        url_called = context.fetch.call_args[0][0]
-        assert "/api/v1/pub/example" in url_called
-
-
 # ── search_publications ───────────────────────────────────────────────────────
 
 

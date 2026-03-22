@@ -124,39 +124,6 @@ class GetPostAction(ActionHandler):
         return ActionResult(data=result, cost_usd=0.0)
 
 
-@substack.action("get_publication_info")
-class GetPublicationInfoAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
-        headers = _build_headers()
-
-        # /api/v1/publication returns 403 on some publications (e.g. paid newsletters).
-        # /api/v1/pub/{subdomain} is the public equivalent.
-        subdomain = urlparse(inputs["publication_url"]).netloc.split(".")[0]
-        pub = await context.fetch(
-            f"{SUBSTACK_BASE}/api/v1/pub/{subdomain}",
-            method="GET",
-            headers=headers,
-        )
-        result = _drop_none(
-            {
-                "id": pub.get("id"),
-                "name": pub.get("name", ""),
-                "subdomain": pub.get("subdomain", ""),
-                "custom_domain": pub.get("custom_domain"),
-                "logo_url": pub.get("logo_url"),
-                "cover_photo_url": pub.get("cover_photo_url"),
-                "hero_text": pub.get("hero_text", ""),
-                "subscriber_count": pub.get("subscriber_count"),
-                "author_id": pub.get("author_id"),
-                "email_from_name": pub.get("email_from_name", ""),
-                "type": pub.get("type", ""),
-            }
-        )
-        return ActionResult(data=result, cost_usd=0.0)
-
-
 @substack.action("search_publications")
 class SearchPublicationsAction(ActionHandler):
     async def execute(

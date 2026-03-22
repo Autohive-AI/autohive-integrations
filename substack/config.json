@@ -2,7 +2,7 @@
     "name": "Substack",
     "display_name": "Substack",
     "version": "1.0.0",
-    "description": "Read Substack publications, posts, and comments. No authentication required.",
+    "description": "Search Substack publications, read posts and comments. No authentication required.",
     "entry_point": "substack.py",
     "auth": {
         "type": "custom",
@@ -111,36 +111,6 @@
                     "comment_count": {"type": "integer"},
                     "type": {"type": "string"},
                     "audio_url": {"type": "string"}
-                }
-            }
-        },
-        "get_publication_info": {
-            "display_name": "Get Publication Info",
-            "description": "Fetch metadata about a Substack publication: name, description, subscriber count, logo, and more.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "publication_url": {
-                        "type": "string",
-                        "description": "Base URL of the publication."
-                    }
-                },
-                "required": ["publication_url"]
-            },
-            "output_schema": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "integer"},
-                    "name": {"type": "string"},
-                    "subdomain": {"type": "string"},
-                    "custom_domain": {"type": "string"},
-                    "logo_url": {"type": "string"},
-                    "cover_photo_url": {"type": "string"},
-                    "hero_text": {"type": "string"},
-                    "subscriber_count": {"type": "integer"},
-                    "author_id": {"type": "integer"},
-                    "email_from_name": {"type": "string"},
-                    "type": {"type": "string"}
                 }
             }
         },
