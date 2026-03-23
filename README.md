@@ -87,6 +87,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [front](front): Customer service integration for Front's communication platform. Supports comprehensive inbox and conversation management, including listing and accessing inboxes, managing conversations and messages, creating new messages and replies through channels, accessing message templates for consistent responses, and managing conversation assignments and tags. Features channel-based message creation, conversation filtering, teammate and tag management, and complete message lifecycle operations for customer support workflows.
 
+### Ghost
+
+[ghost](ghost): Ghost CMS integration for reading and managing posts, pages, members, and newsletters through the Ghost Content API and Admin API. Supports listing and fetching posts, pages, tags, authors, site settings, and membership tiers via the Content API (read-only, no auth token required for public content). Write operations use the Admin API with per-request JWT authentication: create and update posts and pages, upload images to Ghost's media library, create and update members with label and newsletter subscription management, and trigger newsletter email delivery to subscribers. Features custom authentication with API URL, Content API key, and Admin API key (id:secret format), structured Ghost error parsing for actionable error messages, and conflict detection via updated_at timestamps on all write operations. Includes 8 read actions and 7 write actions covering the full content and membership lifecycle. Ideal for content automation, newsletter workflows, and membership management.
+
 ### Gong
 
 [gong](gong): Integrates with Gong's conversation analytics platform to access call recordings, transcripts, and user data. Supports listing and searching calls, retrieving detailed call information and transcripts with speaker mapping, and managing user accounts. Includes comprehensive error handling and date filtering capabilities.
