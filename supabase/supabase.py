@@ -99,7 +99,8 @@ class InsertRecordsAction(ActionHandler):
 
             # Determine if we should return records
             if inputs.get("return_records") == False:
-                headers["Prefer"] = "return=minimal"
+                prefer = "resolution=merge-duplicates,return=minimal" if inputs.get("on_conflict") else "return=minimal"
+                headers["Prefer"] = prefer
 
             response = await context.fetch(
                 f"{base_url}/rest/v1/{table}",
