@@ -9,12 +9,13 @@ TEST_AUTH = {
     "auth_type": "custom",
     "credentials": {
         "host": "https://your-project.supabase.co",
-        "service_role_secret": "your_service_role_key_here"
-    }
+        "service_role_secret": "your_service_role_key_here",  # nosec B105
+    },
 }
 
 
 # ---- Database Tests ----
+
 
 async def test_select_records():
     """Test selecting records from a table."""
@@ -24,8 +25,8 @@ async def test_select_records():
         try:
             result = await supabase.execute_action("select_records", inputs, context)
             print(f"Select Records Result: {result}")
-            assert result.data.get('result') == True
-            assert 'records' in result.data
+            assert result.data.get("result")
+            assert "records" in result.data
             return result
         except Exception as e:
             print(f"Error testing select_records: {e}")
@@ -38,14 +39,14 @@ async def test_select_records_with_filters():
         "table": "your_table_name",
         "filters": {"status": "eq.active"},
         "order": "created_at.desc",
-        "limit": 5
+        "limit": 5,
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await supabase.execute_action("select_records", inputs, context)
             print(f"Select Records with Filters Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing select_records with filters: {e}")
@@ -56,14 +57,14 @@ async def test_insert_records():
     """Test inserting records."""
     inputs = {
         "table": "your_table_name",
-        "records": [{"name": "Test Record", "status": "active"}]
+        "records": [{"name": "Test Record", "status": "active"}],
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await supabase.execute_action("insert_records", inputs, context)
             print(f"Insert Records Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing insert_records: {e}")
@@ -75,14 +76,14 @@ async def test_update_records():
     inputs = {
         "table": "your_table_name",
         "data": {"status": "updated"},
-        "filters": {"id": "eq.1"}
+        "filters": {"id": "eq.1"},
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await supabase.execute_action("update_records", inputs, context)
             print(f"Update Records Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing update_records: {e}")
@@ -94,14 +95,14 @@ async def test_delete_records():
     inputs = {
         "table": "your_table_name",
         "filters": {"id": "eq.999"},
-        "return_records": True
+        "return_records": True,
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await supabase.execute_action("delete_records", inputs, context)
             print(f"Delete Records Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing delete_records: {e}")
@@ -110,16 +111,13 @@ async def test_delete_records():
 
 async def test_call_function():
     """Test calling a database function."""
-    inputs = {
-        "function_name": "your_function_name",
-        "params": {"param1": "value1"}
-    }
+    inputs = {"function_name": "your_function_name", "params": {"param1": "value1"}}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await supabase.execute_action("call_function", inputs, context)
             print(f"Call Function Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing call_function: {e}")
@@ -128,14 +126,15 @@ async def test_call_function():
 
 # ---- Storage Tests ----
 
+
 async def test_list_buckets():
     """Test listing storage buckets."""
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await supabase.execute_action("list_buckets", {}, context)
             print(f"List Buckets Result: {result}")
-            assert result.data.get('result') == True
-            assert 'buckets' in result.data
+            assert result.data.get("result")
+            assert "buckets" in result.data
             return result
         except Exception as e:
             print(f"Error testing list_buckets: {e}")
@@ -150,7 +149,7 @@ async def test_get_bucket():
         try:
             result = await supabase.execute_action("get_bucket", inputs, context)
             print(f"Get Bucket Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing get_bucket: {e}")
@@ -165,7 +164,7 @@ async def test_create_bucket():
         try:
             result = await supabase.execute_action("create_bucket", inputs, context)
             print(f"Create Bucket Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing create_bucket: {e}")
@@ -180,7 +179,7 @@ async def test_delete_bucket():
         try:
             result = await supabase.execute_action("delete_bucket", inputs, context)
             print(f"Delete Bucket Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing delete_bucket: {e}")
@@ -195,8 +194,8 @@ async def test_list_files():
         try:
             result = await supabase.execute_action("list_files", inputs, context)
             print(f"List Files Result: {result}")
-            assert result.data.get('result') == True
-            assert 'files' in result.data
+            assert result.data.get("result")
+            assert "files" in result.data
             return result
         except Exception as e:
             print(f"Error testing list_files: {e}")
@@ -211,7 +210,7 @@ async def test_delete_files():
         try:
             result = await supabase.execute_action("delete_files", inputs, context)
             print(f"Delete Files Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing delete_files: {e}")
@@ -226,8 +225,8 @@ async def test_get_public_url():
         try:
             result = await supabase.execute_action("get_public_url", inputs, context)
             print(f"Get Public URL Result: {result}")
-            assert result.data.get('result') == True
-            assert 'public_url' in result.data
+            assert result.data.get("result")
+            assert "public_url" in result.data
             return result
         except Exception as e:
             print(f"Error testing get_public_url: {e}")
@@ -235,6 +234,7 @@ async def test_get_public_url():
 
 
 # ---- Auth Tests ----
+
 
 async def test_list_users():
     """Test listing users."""
@@ -244,8 +244,8 @@ async def test_list_users():
         try:
             result = await supabase.execute_action("list_users", inputs, context)
             print(f"List Users Result: {result}")
-            assert result.data.get('result') == True
-            assert 'users' in result.data
+            assert result.data.get("result")
+            assert "users" in result.data
             return result
         except Exception as e:
             print(f"Error testing list_users: {e}")
@@ -260,7 +260,7 @@ async def test_get_user():
         try:
             result = await supabase.execute_action("get_user", inputs, context)
             print(f"Get User Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing get_user: {e}")
@@ -275,7 +275,7 @@ async def test_delete_user():
         try:
             result = await supabase.execute_action("delete_user", inputs, context)
             print(f"Delete User Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing delete_user: {e}")
