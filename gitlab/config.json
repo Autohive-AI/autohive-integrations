@@ -1,0 +1,1135 @@
+{
+  "name": "GitLab",
+  "display_name": "GitLab",
+  "version": "1.0.0",
+  "description": "Integration with GitLab for accessing projects, issues, merge requests, branches, pipelines, repositories, and container registry",
+  "entry_point": "gitlab.py",
+  "auth": {
+    "type": "platform",
+    "provider": "GitLab",
+    "scopes": [
+      "read_api",
+      "read_user",
+      "read_repository",
+      "read_registry",
+      "profile",
+      "email"
+    ]
+  },
+  "actions": {
+    "get_current_user": {
+      "display_name": "Get Current User",
+      "description": "Get information about the authenticated user including profile and email",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "description": "User information including id, username, email, name, avatar_url"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_projects": {
+      "display_name": "List Projects",
+      "description": "List projects accessible by the authenticated user",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "owned": {
+            "type": "boolean",
+            "description": "Limit to projects explicitly owned by the current user"
+          },
+          "membership": {
+            "type": "boolean",
+            "description": "Limit to projects the user is a member of"
+          },
+          "starred": {
+            "type": "boolean",
+            "description": "Limit to projects starred by the user"
+          },
+          "search": {
+            "type": "string",
+            "description": "Search for projects by name"
+          },
+          "visibility": {
+            "type": "string",
+            "description": "Filter by visibility: public, internal, or private"
+          },
+          "order_by": {
+            "type": "string",
+            "description": "Order by: id, name, path, created_at, updated_at, last_activity_at"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort order: asc or desc"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "projects": {
+            "type": "array",
+            "description": "List of projects"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_project": {
+      "display_name": "Get Project",
+      "description": "Get details of a specific project including statistics",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project (e.g., '123' or 'namespace/project')"
+          },
+          "statistics": {
+            "type": "boolean",
+            "description": "Include project statistics (commit count, storage size, etc.)"
+          }
+        },
+        "required": ["project_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "object",
+            "description": "Project details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_issues": {
+      "display_name": "List Issues",
+      "description": "List issues for a project or globally with filtering options",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project (optional, omit for global issues)"
+          },
+          "state": {
+            "type": "string",
+            "description": "Filter by state: opened, closed, or all"
+          },
+          "labels": {
+            "type": "string",
+            "description": "Comma-separated list of label names"
+          },
+          "milestone": {
+            "type": "string",
+            "description": "Milestone title"
+          },
+          "scope": {
+            "type": "string",
+            "description": "Scope: created_by_me, assigned_to_me, or all"
+          },
+          "assignee_id": {
+            "type": "integer",
+            "description": "Filter by assignee user ID"
+          },
+          "author_id": {
+            "type": "integer",
+            "description": "Filter by author user ID"
+          },
+          "search": {
+            "type": "string",
+            "description": "Search issues against title and description"
+          },
+          "created_after": {
+            "type": "string",
+            "description": "Return issues created after date (ISO 8601 format)"
+          },
+          "created_before": {
+            "type": "string",
+            "description": "Return issues created before date (ISO 8601 format)"
+          },
+          "updated_after": {
+            "type": "string",
+            "description": "Return issues updated after date (ISO 8601 format)"
+          },
+          "updated_before": {
+            "type": "string",
+            "description": "Return issues updated before date (ISO 8601 format)"
+          },
+          "order_by": {
+            "type": "string",
+            "description": "Order by: created_at, updated_at, priority, due_date, relative_position, label_priority, milestone_due, popularity, weight"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort order: asc or desc"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "issues": {
+            "type": "array",
+            "description": "List of issues"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_issue": {
+      "display_name": "Get Issue",
+      "description": "Get details of a specific issue including labels, assignees, and milestone",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "issue_iid": {
+            "type": "integer",
+            "description": "The internal ID of the issue (shown in the URL as #123)"
+          }
+        },
+        "required": ["project_id", "issue_iid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "issue": {
+            "type": "object",
+            "description": "Issue details including title, description, state, labels, assignees"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_merge_requests": {
+      "display_name": "List Merge Requests",
+      "description": "List merge requests for a project or globally with filtering options",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project (optional, omit for global)"
+          },
+          "state": {
+            "type": "string",
+            "description": "Filter by state: opened, closed, merged, or all"
+          },
+          "labels": {
+            "type": "string",
+            "description": "Comma-separated list of label names"
+          },
+          "milestone": {
+            "type": "string",
+            "description": "Milestone title"
+          },
+          "scope": {
+            "type": "string",
+            "description": "Scope: created_by_me, assigned_to_me, or all"
+          },
+          "author_id": {
+            "type": "integer",
+            "description": "Filter by author user ID"
+          },
+          "assignee_id": {
+            "type": "integer",
+            "description": "Filter by assignee user ID"
+          },
+          "reviewer_id": {
+            "type": "integer",
+            "description": "Filter by reviewer user ID"
+          },
+          "source_branch": {
+            "type": "string",
+            "description": "Filter by source branch name"
+          },
+          "target_branch": {
+            "type": "string",
+            "description": "Filter by target branch name"
+          },
+          "search": {
+            "type": "string",
+            "description": "Search merge requests against title and description"
+          },
+          "created_after": {
+            "type": "string",
+            "description": "Return MRs created after date (ISO 8601 format)"
+          },
+          "created_before": {
+            "type": "string",
+            "description": "Return MRs created before date (ISO 8601 format)"
+          },
+          "updated_after": {
+            "type": "string",
+            "description": "Return MRs updated after date (ISO 8601 format)"
+          },
+          "updated_before": {
+            "type": "string",
+            "description": "Return MRs updated before date (ISO 8601 format)"
+          },
+          "order_by": {
+            "type": "string",
+            "description": "Order by: created_at or updated_at"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort order: asc or desc"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "merge_requests": {
+            "type": "array",
+            "description": "List of merge requests"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_merge_request": {
+      "display_name": "Get Merge Request",
+      "description": "Get details of a specific merge request including changes and approvals",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "merge_request_iid": {
+            "type": "integer",
+            "description": "The internal ID of the merge request (shown in the URL as !123)"
+          },
+          "include_diverged_commits_count": {
+            "type": "boolean",
+            "description": "Include count of commits behind target branch"
+          },
+          "include_rebase_in_progress": {
+            "type": "boolean",
+            "description": "Include whether a rebase is in progress"
+          }
+        },
+        "required": ["project_id", "merge_request_iid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "merge_request": {
+            "type": "object",
+            "description": "Merge request details including source/target branches, state, approvals"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_merge_request_changes": {
+      "display_name": "Get Merge Request Changes",
+      "description": "Get the changes (diff) of a merge request",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "merge_request_iid": {
+            "type": "integer",
+            "description": "The internal ID of the merge request"
+          }
+        },
+        "required": ["project_id", "merge_request_iid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "description": "List of file changes with diffs"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_merge_request_commits": {
+      "display_name": "List Merge Request Commits",
+      "description": "Get commits associated with a merge request",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "merge_request_iid": {
+            "type": "integer",
+            "description": "The internal ID of the merge request"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          }
+        },
+        "required": ["project_id", "merge_request_iid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "commits": {
+            "type": "array",
+            "description": "List of commits in the merge request"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_branches": {
+      "display_name": "List Branches",
+      "description": "List repository branches sorted alphabetically by name",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "search": {
+            "type": "string",
+            "description": "Search for branches by name"
+          },
+          "regex": {
+            "type": "string",
+            "description": "Regular expression to filter branches"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          }
+        },
+        "required": ["project_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "branches": {
+            "type": "array",
+            "description": "List of branches with name, commit info, and protection status"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_branch": {
+      "display_name": "Get Branch",
+      "description": "Get details of a specific branch including latest commit and protection status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "branch": {
+            "type": "string",
+            "description": "Name of the branch"
+          }
+        },
+        "required": ["project_id", "branch"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "branch": {
+            "type": "object",
+            "description": "Branch details including commit, protected status, and merge status"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_commits": {
+      "display_name": "List Commits",
+      "description": "List repository commits with optional filtering by branch, date, and path",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "ref_name": {
+            "type": "string",
+            "description": "Branch name, tag, or commit SHA to list commits from"
+          },
+          "since": {
+            "type": "string",
+            "description": "Only commits after this date (ISO 8601 format, e.g., 2024-01-01T00:00:00Z)"
+          },
+          "until": {
+            "type": "string",
+            "description": "Only commits before this date (ISO 8601 format)"
+          },
+          "path": {
+            "type": "string",
+            "description": "Filter commits affecting this file path"
+          },
+          "author": {
+            "type": "string",
+            "description": "Filter by author email or name"
+          },
+          "all": {
+            "type": "boolean",
+            "description": "Retrieve every commit from the repository"
+          },
+          "with_stats": {
+            "type": "boolean",
+            "description": "Include commit stats (additions, deletions)"
+          },
+          "first_parent": {
+            "type": "boolean",
+            "description": "Follow only first parent on merge commits"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          }
+        },
+        "required": ["project_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "commits": {
+            "type": "array",
+            "description": "List of commits with id, message, author, date"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_commit": {
+      "display_name": "Get Commit",
+      "description": "Get details of a specific commit including stats and parent commits",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "sha": {
+            "type": "string",
+            "description": "Commit SHA (full or short)"
+          },
+          "stats": {
+            "type": "boolean",
+            "description": "Include commit stats (additions, deletions, total)"
+          }
+        },
+        "required": ["project_id", "sha"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "commit": {
+            "type": "object",
+            "description": "Commit details including message, author, stats, parent_ids"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_commit_diff": {
+      "display_name": "Get Commit Diff",
+      "description": "Get the diff of a commit showing all file changes",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "sha": {
+            "type": "string",
+            "description": "Commit SHA"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          }
+        },
+        "required": ["project_id", "sha"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "diffs": {
+            "type": "array",
+            "description": "List of file diffs with old_path, new_path, diff content"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_pipelines": {
+      "display_name": "List Pipelines",
+      "description": "List CI/CD pipelines for a project with filtering options",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter by status: created, waiting_for_resource, preparing, pending, running, success, failed, canceled, skipped, manual, scheduled"
+          },
+          "ref": {
+            "type": "string",
+            "description": "Filter by branch or tag name"
+          },
+          "sha": {
+            "type": "string",
+            "description": "Filter by commit SHA"
+          },
+          "source": {
+            "type": "string",
+            "description": "Filter by source: push, web, trigger, schedule, api, external, pipeline, chat, webide, merge_request_event, external_pull_request_event, parent_pipeline, ondemand_dast_scan, ondemand_dast_validation"
+          },
+          "username": {
+            "type": "string",
+            "description": "Filter by username who triggered the pipeline"
+          },
+          "updated_after": {
+            "type": "string",
+            "description": "Return pipelines updated after date (ISO 8601 format)"
+          },
+          "updated_before": {
+            "type": "string",
+            "description": "Return pipelines updated before date (ISO 8601 format)"
+          },
+          "order_by": {
+            "type": "string",
+            "description": "Order by: id, status, ref, updated_at, user_id"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort order: asc or desc"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          }
+        },
+        "required": ["project_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "pipelines": {
+            "type": "array",
+            "description": "List of pipelines with id, status, ref, sha, created_at"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_pipeline": {
+      "display_name": "Get Pipeline",
+      "description": "Get details of a specific pipeline including duration and coverage",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "pipeline_id": {
+            "type": "integer",
+            "description": "The ID of the pipeline"
+          }
+        },
+        "required": ["project_id", "pipeline_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "pipeline": {
+            "type": "object",
+            "description": "Pipeline details including status, duration, coverage, user"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_pipeline_jobs": {
+      "display_name": "List Pipeline Jobs",
+      "description": "List jobs for a specific pipeline",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "pipeline_id": {
+            "type": "integer",
+            "description": "The ID of the pipeline"
+          },
+          "scope": {
+            "type": "string",
+            "description": "Filter by scope: created, pending, running, failed, success, canceled, skipped, waiting_for_resource, manual"
+          },
+          "include_retried": {
+            "type": "boolean",
+            "description": "Include retried jobs"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          }
+        },
+        "required": ["project_id", "pipeline_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "description": "List of jobs with name, stage, status, duration"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_repository_tree": {
+      "display_name": "List Repository Tree",
+      "description": "List files and directories in a repository at a specific path and ref",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "path": {
+            "type": "string",
+            "description": "Path inside the repository (optional, root if not specified)"
+          },
+          "ref": {
+            "type": "string",
+            "description": "Branch name, tag, or commit SHA (default: default branch)"
+          },
+          "recursive": {
+            "type": "boolean",
+            "description": "Recursively list all files and directories"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          }
+        },
+        "required": ["project_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tree": {
+            "type": "array",
+            "description": "List of files and directories with id, name, type, path, mode"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_file": {
+      "display_name": "Get File",
+      "description": "Get a file's metadata and content (base64 encoded) from the repository",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "file_path": {
+            "type": "string",
+            "description": "Path to the file (e.g., 'src/main.py' or 'README.md')"
+          },
+          "ref": {
+            "type": "string",
+            "description": "Branch name, tag, or commit SHA"
+          }
+        },
+        "required": ["project_id", "file_path", "ref"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "object",
+            "description": "File metadata (file_name, file_path, size, encoding) and base64-encoded content"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_file_raw": {
+      "display_name": "Get File Raw",
+      "description": "Get a file's raw content as plain text from the repository",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "file_path": {
+            "type": "string",
+            "description": "Path to the file"
+          },
+          "ref": {
+            "type": "string",
+            "description": "Branch name, tag, or commit SHA"
+          }
+        },
+        "required": ["project_id", "file_path", "ref"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Raw file content as text"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "compare_branches": {
+      "display_name": "Compare Branches",
+      "description": "Compare two branches, tags, or commits showing commits and diffs between them",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "from": {
+            "type": "string",
+            "description": "Source branch name, tag, or commit SHA"
+          },
+          "to": {
+            "type": "string",
+            "description": "Target branch name, tag, or commit SHA"
+          },
+          "straight": {
+            "type": "boolean",
+            "description": "Compare directly (true) or via merge-base (false, default)"
+          }
+        },
+        "required": ["project_id", "from", "to"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "comparison": {
+            "type": "object",
+            "description": "Comparison result with commits array and diffs array"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_container_registry_repositories": {
+      "display_name": "List Container Registry Repositories",
+      "description": "List container registry repositories for a project",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "tags": {
+            "type": "boolean",
+            "description": "Include tags in the response"
+          },
+          "tags_count": {
+            "type": "boolean",
+            "description": "Include tags count in the response"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          }
+        },
+        "required": ["project_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "repositories": {
+            "type": "array",
+            "description": "List of container registry repositories"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_container_registry_repository": {
+      "display_name": "Get Container Registry Repository",
+      "description": "Get details of a specific container registry repository",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "repository_id": {
+            "type": "integer",
+            "description": "The ID of the registry repository"
+          },
+          "tags": {
+            "type": "boolean",
+            "description": "Include tags in the response"
+          },
+          "tags_count": {
+            "type": "boolean",
+            "description": "Include tags count in the response"
+          }
+        },
+        "required": ["project_id", "repository_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "object",
+            "description": "Container registry repository details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_container_registry_tags": {
+      "display_name": "List Container Registry Tags",
+      "description": "List tags for a container registry repository",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "repository_id": {
+            "type": "integer",
+            "description": "The ID of the registry repository"
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          }
+        },
+        "required": ["project_id", "repository_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tags": {
+            "type": "array",
+            "description": "List of container image tags"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_container_registry_tag": {
+      "display_name": "Get Container Registry Tag",
+      "description": "Get details of a specific container registry tag including manifest digest",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID or URL-encoded path of the project"
+          },
+          "repository_id": {
+            "type": "integer",
+            "description": "The ID of the registry repository"
+          },
+          "tag_name": {
+            "type": "string",
+            "description": "Name of the tag (e.g., 'latest', 'v1.0.0')"
+          }
+        },
+        "required": ["project_id", "repository_id", "tag_name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "object",
+            "description": "Tag details including name, path, location, digest, created_at"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    }
+  }
+}

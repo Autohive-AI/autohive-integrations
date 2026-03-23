@@ -28,9 +28,10 @@ class CanvaConnectedAccountHandler(ConnectedAccountHandler):
         )
 
         # Extract information from responses
-        display_name = profile_response.get("display_name")
-        user_id = user_response.get("user", {}).get("id")
-        team_id = user_response.get("user", {}).get("team_id")
+        display_name = profile_response.get("profile", {}).get("display_name")
+        team_user = user_response.get("team_user", {})
+        user_id = team_user.get("user_id")
+        team_id = team_user.get("team_id")
 
         # Split display name into first/last if possible
         first_name = None

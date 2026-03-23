@@ -4,6 +4,7 @@ from context import circle
 from autohive_integrations_sdk import ExecutionContext
 
 # Test configuration - update these with your actual test data
+TEST_API_TOKEN = "your-circle-api-token-here"  # Replace with actual token
 TEST_SPACE_ID = 12345  # Replace with an actual space ID from your Circle community
 TEST_POST_ID = "test-post-id"  # Replace with an actual post ID
 TEST_MEMBER_EMAIL = "test@example.com"  # Replace with an actual member email
@@ -16,7 +17,7 @@ async def test_get_community_info():
     """
     auth = {
         "credentials": {
-            "api_token": "your-circle-api-token-here"  # Replace with actual token
+            "api_token": TEST_API_TOKEN
         }
     }
 
@@ -25,16 +26,16 @@ async def test_get_community_info():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("get_community_info", inputs, context)
-            if result.get('result'):
-                community = result.get('community', {})
-                print(f"✓ Success: Retrieved community info")
+            if result.result.data.get('result'):
+                community = result.result.data.get('community', {})
+                print(f"V Success: Retrieved community info")
                 print(f"  Community Name: {community.get('name')}")
                 print(f"  Community ID: {community.get('id')}")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing get_community_info: {str(e)}")
+            print(f"X Exception testing get_community_info: {str(e)}")
             return None
 
 
@@ -44,7 +45,7 @@ async def test_search_spaces():
     """
     auth = {
         "credentials": {
-            "api_token": "your-circle-api-token-here"
+            "api_token": TEST_API_TOKEN
         }
     }
 
@@ -55,17 +56,17 @@ async def test_search_spaces():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("search_spaces", inputs, context)
-            if result.get('result'):
-                spaces = result.get('spaces', [])
-                count = result.get('count', 0)
-                print(f"✓ Success: Retrieved {count} spaces")
+            if result.result.data.get('result'):
+                spaces = result.result.data.get('spaces', [])
+                count = result.result.data.get('count', 0)
+                print(f"V Success: Retrieved {count} spaces")
                 for space in spaces[:3]:  # Show first 3
                     print(f"  - Space: {space.get('name')} (ID: {space.get('id')}, Type: {space.get('space_type')})")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing search_spaces: {str(e)}")
+            print(f"X Exception testing search_spaces: {str(e)}")
             return None
 
 
@@ -75,17 +76,17 @@ async def test_get_space():
     """
     # First get available spaces
     spaces_result = await test_search_spaces()
-    if not spaces_result or not spaces_result.get('spaces'):
+    if not spaces_result or not spaces_result.result.data.get('spaces'):
         print("Cannot test get_space without space information")
         return
 
     # Use the first available space
-    space_id = spaces_result['spaces'][0]['id']
+    space_id = spaces_result.result.data['spaces'][0]['id']
     print(f"\nUsing space ID: {space_id}")
 
     auth = {
         "credentials": {
-            "api_token": "your-circle-api-token-here"
+            "api_token": TEST_API_TOKEN
         }
     }
 
@@ -96,17 +97,17 @@ async def test_get_space():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("get_space", inputs, context)
-            if result.get('result'):
-                space = result.get('space', {})
-                print(f"✓ Success: Retrieved space details")
+            if result.result.data.get('result'):
+                space = result.result.data.get('space', {})
+                print(f"V Success: Retrieved space details")
                 print(f"  Name: {space.get('name')}")
                 print(f"  Type: {space.get('space_type')}")
                 print(f"  Members: {space.get('members_count', 0)}")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing get_space: {str(e)}")
+            print(f"X Exception testing get_space: {str(e)}")
             return None
 
 
@@ -116,7 +117,7 @@ async def test_search_posts():
     """
     auth = {
         "credentials": {
-            "api_token": "your-circle-api-token-here"
+            "api_token": TEST_API_TOKEN
         }
     }
 
@@ -128,17 +129,17 @@ async def test_search_posts():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("search_posts", inputs, context)
-            if result.get('result'):
-                posts = result.get('posts', [])
-                count = result.get('count', 0)
-                print(f"✓ Success: Retrieved {count} posts")
+            if result.result.data.get('result'):
+                posts = result.result.data.get('posts', [])
+                count = result.result.data.get('count', 0)
+                print(f"V Success: Retrieved {count} posts")
                 for post in posts[:3]:  # Show first 3
                     print(f"  - Post: {post.get('name')} (ID: {post.get('id')}, Status: {post.get('status')})")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing search_posts: {str(e)}")
+            print(f"X Exception testing search_posts: {str(e)}")
             return None
 
 
@@ -148,17 +149,17 @@ async def test_get_post():
     """
     # First get available posts
     posts_result = await test_search_posts()
-    if not posts_result or not posts_result.get('posts'):
+    if not posts_result or not posts_result.result.data.get('posts'):
         print("Cannot test get_post without post information")
         return
 
     # Use the first available post
-    post_id = posts_result['posts'][0]['id']
+    post_id = posts_result.result.data['posts'][0]['id']
     print(f"\nUsing post ID: {post_id}")
 
     auth = {
         "credentials": {
-            "api_token": "your-circle-api-token-here"
+            "api_token": TEST_API_TOKEN
         }
     }
 
@@ -169,17 +170,17 @@ async def test_get_post():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("get_post", inputs, context)
-            if result.get('result'):
-                post = result.get('post', {})
-                print(f"✓ Success: Retrieved post details")
+            if result.result.data.get('result'):
+                post = result.result.data.get('post', {})
+                print(f"V Success: Retrieved post details")
                 print(f"  Title: {post.get('name')}")
                 print(f"  Status: {post.get('status')}")
                 print(f"  Comments: {post.get('comments_count', 0)}")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing get_post: {str(e)}")
+            print(f"X Exception testing get_post: {str(e)}")
             return None
 
 
@@ -189,12 +190,12 @@ async def test_create_post_with_markdown():
     """
     # First get available spaces
     spaces_result = await test_search_spaces()
-    if not spaces_result or not spaces_result.get('spaces'):
+    if not spaces_result or not spaces_result.data.get('spaces'):
         print("Cannot test create_post without space information")
         return
 
     # Use the first available space
-    space_id = spaces_result['spaces'][0]['id']
+    space_id = spaces_result.data['spaces'][0]['id']
     print(f"\nCreating post in space ID: {space_id}")
 
     auth = {
@@ -244,17 +245,17 @@ def hello_world():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("create_post", inputs, context)
-            if result.get('result'):
-                post = result.get('post', {})
-                print(f"✓ Success: Created post")
+            if result.data.get('result'):
+                post = result.data.get('post', {})
+                print(f"V Success: Created post")
                 print(f"  Post ID: {post.get('id')}")
                 print(f"  Title: {post.get('name')}")
                 print(f"  Status: {post.get('status')}")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing create_post: {str(e)}")
+            print(f"X Exception testing create_post: {str(e)}")
             return None
 
 
@@ -278,16 +279,16 @@ async def test_update_post():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("update_post", inputs, context)
-            if result.get('result'):
-                post = result.get('post', {})
-                print(f"✓ Success: Updated post")
+            if result.data.get('result'):
+                post = result.data.get('post', {})
+                print(f"V Success: Updated post")
                 print(f"  Title: {post.get('name')}")
                 print(f"  Pinned: {post.get('is_pinned')}")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing update_post: {str(e)}")
+            print(f"X Exception testing update_post: {str(e)}")
             return None
 
 
@@ -297,7 +298,7 @@ async def test_list_members():
     """
     auth = {
         "credentials": {
-            "api_token": "your-circle-api-token-here"
+            "api_token": TEST_API_TOKEN
         }
     }
 
@@ -308,17 +309,17 @@ async def test_list_members():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("list_members", inputs, context)
-            if result.get('result'):
-                members = result.get('members', [])
-                count = result.get('count', 0)
-                print(f"✓ Success: Retrieved {count} members")
+            if result.result.data.get('result'):
+                members = result.result.data.get('members', [])
+                count = result.result.data.get('count', 0)
+                print(f"V Success: Retrieved {count} members")
                 for member in members[:3]:  # Show first 3
                     print(f"  - Member: {member.get('name')} ({member.get('email')})")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing list_members: {str(e)}")
+            print(f"X Exception testing list_members: {str(e)}")
             return None
 
 
@@ -328,7 +329,7 @@ async def test_search_member_by_email():
     """
     auth = {
         "credentials": {
-            "api_token": "your-circle-api-token-here"
+            "api_token": TEST_API_TOKEN
         }
     }
 
@@ -339,17 +340,17 @@ async def test_search_member_by_email():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("search_member_by_email", inputs, context)
-            if result.get('result'):
-                member = result.get('member', {})
-                print(f"✓ Success: Found member")
+            if result.result.data.get('result'):
+                member = result.result.data.get('member', {})
+                print(f"V Success: Found member")
                 print(f"  Name: {member.get('name')}")
                 print(f"  Email: {member.get('email')}")
                 print(f"  Member ID: {member.get('id')}")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing search_member_by_email: {str(e)}")
+            print(f"X Exception testing search_member_by_email: {str(e)}")
             return None
 
 
@@ -359,17 +360,17 @@ async def test_get_member():
     """
     # First get members list
     members_result = await test_list_members()
-    if not members_result or not members_result.get('members'):
+    if not members_result or not members_result.result.data.get('members'):
         print("Cannot test get_member without member information")
         return
 
     # Use the first available member
-    member_id = members_result['members'][0]['id']
+    member_id = members_result.result.data['members'][0]['id']
     print(f"\nUsing member ID: {member_id}")
 
     auth = {
         "credentials": {
-            "api_token": "your-circle-api-token-here"
+            "api_token": TEST_API_TOKEN
         }
     }
 
@@ -380,17 +381,17 @@ async def test_get_member():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("get_member", inputs, context)
-            if result.get('result'):
-                member = result.get('member', {})
-                print(f"✓ Success: Retrieved member details")
+            if result.result.data.get('result'):
+                member = result.result.data.get('member', {})
+                print(f"V Success: Retrieved member details")
                 print(f"  Name: {member.get('name')}")
                 print(f"  Email: {member.get('email')}")
                 print(f"  Status: {member.get('status')}")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing get_member: {str(e)}")
+            print(f"X Exception testing get_member: {str(e)}")
             return None
 
 
@@ -400,7 +401,7 @@ async def test_search_events():
     """
     auth = {
         "credentials": {
-            "api_token": "your-circle-api-token-here"
+            "api_token": TEST_API_TOKEN
         }
     }
 
@@ -412,17 +413,20 @@ async def test_search_events():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("search_events", inputs, context)
-            if result.get('result'):
-                events = result.get('events', [])
-                count = result.get('count', 0)
-                print(f"✓ Success: Retrieved {count} upcoming events")
+            if result.result.data.get('result'):
+                events = result.result.data.get('events', [])
+                count = result.result.data.get('count', 0)
+                print(f"V Success: Retrieved {count} upcoming events")
                 for event in events[:3]:  # Show first 3
-                    print(f"  - Event: {event.get('name')} (Start: {event.get('start_date')})")
+                    name = event.get('name', 'Unknown')
+                    # Sanitize name for printing to console
+                    safe_name = name.encode('ascii', 'ignore').decode('ascii')
+                    print(f"  - Event: {safe_name} (Start: {event.get('start_date')})")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing search_events: {str(e)}")
+            print(f"X Exception testing search_events: {str(e)}")
             return None
 
 
@@ -432,17 +436,17 @@ async def test_get_event():
     """
     # First get available events
     events_result = await test_search_events()
-    if not events_result or not events_result.get('events'):
+    if not events_result or not events_result.result.data.get('events'):
         print("Cannot test get_event without event information")
         return
 
     # Use the first available event
-    event_id = events_result['events'][0]['id']
+    event_id = events_result.result.data['events'][0]['id']
     print(f"\nUsing event ID: {event_id}")
 
     auth = {
         "credentials": {
-            "api_token": "your-circle-api-token-here"
+            "api_token": TEST_API_TOKEN
         }
     }
 
@@ -453,17 +457,19 @@ async def test_get_event():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("get_event", inputs, context)
-            if result.get('result'):
-                event = result.get('event', {})
-                print(f"✓ Success: Retrieved event details")
-                print(f"  Name: {event.get('name')}")
+            if result.result.data.get('result'):
+                event = result.result.data.get('event', {})
+                print(f"V Success: Retrieved event details")
+                name = event.get('name', 'Unknown')
+                safe_name = name.encode('ascii', 'ignore').decode('ascii')
+                print(f"  Name: {safe_name}")
                 print(f"  Start: {event.get('start_date')}")
                 print(f"  Location: {event.get('location')}")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing get_event: {str(e)}")
+            print(f"X Exception testing get_event: {str(e)}")
             return None
 
 
@@ -473,12 +479,12 @@ async def test_create_comment():
     """
     # First get available posts
     posts_result = await test_search_posts()
-    if not posts_result or not posts_result.get('posts'):
+    if not posts_result or not posts_result.data.get('posts'):
         print("Cannot test create_comment without post information")
         return
 
     # Use the first available post
-    post_id = posts_result['posts'][0]['id']
+    post_id = posts_result.data['posts'][0]['id']
     print(f"\nAdding comment to post ID: {post_id}")
 
     auth = {
@@ -495,16 +501,16 @@ async def test_create_comment():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("create_comment", inputs, context)
-            if result.get('result'):
-                comment = result.get('comment', {})
-                print(f"✓ Success: Created comment")
+            if result.data.get('result'):
+                comment = result.data.get('comment', {})
+                print(f"V Success: Created comment")
                 print(f"  Comment ID: {comment.get('id')}")
                 print(f"  Body: {comment.get('body')}")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing create_comment: {str(e)}")
+            print(f"X Exception testing create_comment: {str(e)}")
             return None
 
 
@@ -514,17 +520,17 @@ async def test_get_post_comments():
     """
     # First get available posts
     posts_result = await test_search_posts()
-    if not posts_result or not posts_result.get('posts'):
+    if not posts_result or not posts_result.result.data.get('posts'):
         print("Cannot test get_post_comments without post information")
         return
 
     # Use the first available post
-    post_id = posts_result['posts'][0]['id']
+    post_id = posts_result.result.data['posts'][0]['id']
     print(f"\nGetting comments for post ID: {post_id}")
 
     auth = {
         "credentials": {
-            "api_token": "your-circle-api-token-here"
+            "api_token": TEST_API_TOKEN
         }
     }
 
@@ -536,17 +542,17 @@ async def test_get_post_comments():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await circle.execute_action("get_post_comments", inputs, context)
-            if result.get('result'):
-                comments = result.get('comments', [])
-                count = result.get('count', 0)
-                print(f"✓ Success: Retrieved {count} comments")
+            if result.result.data.get('result'):
+                comments = result.result.data.get('comments', [])
+                count = result.result.data.get('count', 0)
+                print(f"V Success: Retrieved {count} comments")
                 for comment in comments[:3]:  # Show first 3
                     print(f"  - Comment: {comment.get('body')[:50]}...")
             else:
-                print(f"✗ Error: {result.get('error', 'Unknown error')}")
+                print(f"X Error: {result.result.data.get('error', 'Unknown error')}")
             return result
         except Exception as e:
-            print(f"✗ Exception testing get_post_comments: {str(e)}")
+            print(f"X Exception testing get_post_comments: {str(e)}")
             return None
 
 

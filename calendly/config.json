@@ -1,0 +1,741 @@
+{
+  "name": "Calendly",
+  "display_name": "Calendly",
+  "version": "1.0.0",
+  "description": "Integration with Calendly for managing scheduled events, event types, invitees, availability, and webhooks",
+  "entry_point": "calendly.py",
+  "auth": {
+    "type": "platform",
+    "provider": "Calendly",
+    "scopes": []
+  },
+  "actions": {
+    "get_current_user": {
+      "display_name": "Get Current User",
+      "description": "Get information about the currently authenticated user",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "description": "User information including uri, name, email, scheduling_url, timezone, and current_organization"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_user": {
+      "display_name": "Get User",
+      "description": "Get information about a specific user by their UUID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_uuid": {
+            "type": "string",
+            "description": "The UUID of the user to retrieve"
+          }
+        },
+        "required": ["user_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "description": "User information"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_event_types": {
+      "display_name": "List Event Types",
+      "description": "List all event types for a user or organization",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "description": "User URI to filter event types (e.g., https://api.calendly.com/users/{uuid})"
+          },
+          "organization": {
+            "type": "string",
+            "description": "Organization URI to filter event types"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Filter by active status"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort order (e.g., 'name:asc', 'name:desc')"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Token for pagination"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "event_types": {
+            "type": "array",
+            "description": "List of event types with uri, name, active status, duration, and scheduling_url"
+          },
+          "pagination": {
+            "type": "object",
+            "description": "Pagination information"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_event_type": {
+      "display_name": "Get Event Type",
+      "description": "Get details of a specific event type",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_type_uuid": {
+            "type": "string",
+            "description": "The UUID of the event type"
+          }
+        },
+        "required": ["event_type_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "event_type": {
+            "type": "object",
+            "description": "Event type details including name, duration, color, and scheduling_url"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_scheduled_events": {
+      "display_name": "List Scheduled Events",
+      "description": "List scheduled events for a user or organization with optional date filtering",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "description": "User URI to filter events"
+          },
+          "organization": {
+            "type": "string",
+            "description": "Organization URI to filter events"
+          },
+          "invitee_email": {
+            "type": "string",
+            "description": "Filter by invitee email address"
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter by status: active or canceled"
+          },
+          "min_start_time": {
+            "type": "string",
+            "description": "Filter events starting after this time (ISO 8601)"
+          },
+          "max_start_time": {
+            "type": "string",
+            "description": "Filter events starting before this time (ISO 8601)"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort order (e.g., 'start_time:asc', 'start_time:desc')"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Token for pagination"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "description": "List of scheduled events with uri, name, start_time, end_time, status"
+          },
+          "pagination": {
+            "type": "object",
+            "description": "Pagination information"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_scheduled_event": {
+      "display_name": "Get Scheduled Event",
+      "description": "Get details of a specific scheduled event",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_uuid": {
+            "type": "string",
+            "description": "The UUID of the scheduled event"
+          }
+        },
+        "required": ["event_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "object",
+            "description": "Scheduled event details including name, start_time, end_time, location, and invitees_counter"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "cancel_scheduled_event": {
+      "display_name": "Cancel Scheduled Event",
+      "description": "Cancel a scheduled event",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_uuid": {
+            "type": "string",
+            "description": "The UUID of the scheduled event to cancel"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Reason for cancellation (optional)"
+          }
+        },
+        "required": ["event_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "canceled": {
+            "type": "boolean",
+            "description": "Whether the event was canceled"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_event_invitees": {
+      "display_name": "List Event Invitees",
+      "description": "List all invitees for a scheduled event",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_uuid": {
+            "type": "string",
+            "description": "The UUID of the scheduled event"
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter by status: active or canceled"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort order (e.g., 'created_at:asc')"
+          },
+          "email": {
+            "type": "string",
+            "description": "Filter by invitee email"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Token for pagination"
+          }
+        },
+        "required": ["event_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "invitees": {
+            "type": "array",
+            "description": "List of invitees with uri, name, email, status, and questions_and_answers"
+          },
+          "pagination": {
+            "type": "object",
+            "description": "Pagination information"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_invitee": {
+      "display_name": "Get Invitee",
+      "description": "Get details of a specific invitee for a scheduled event",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_uuid": {
+            "type": "string",
+            "description": "The UUID of the scheduled event"
+          },
+          "invitee_uuid": {
+            "type": "string",
+            "description": "The UUID of the invitee"
+          }
+        },
+        "required": ["event_uuid", "invitee_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "invitee": {
+            "type": "object",
+            "description": "Invitee details including name, email, timezone, and questions_and_answers"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_event_type_available_times": {
+      "display_name": "Get Available Times",
+      "description": "Get available time slots for an event type (max 7 days per request)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_type": {
+            "type": "string",
+            "description": "Event type URI (e.g., https://api.calendly.com/event_types/{uuid})"
+          },
+          "start_time": {
+            "type": "string",
+            "description": "Start of time range (ISO 8601)"
+          },
+          "end_time": {
+            "type": "string",
+            "description": "End of time range (ISO 8601, max 7 days from start)"
+          }
+        },
+        "required": ["event_type", "start_time", "end_time"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "available_times": {
+            "type": "array",
+            "description": "List of available time slots with start_time and scheduling_url"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_user_busy_times": {
+      "display_name": "Get User Busy Times",
+      "description": "Get busy time slots for a user",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "description": "User URI (e.g., https://api.calendly.com/users/{uuid})"
+          },
+          "start_time": {
+            "type": "string",
+            "description": "Start of time range (ISO 8601)"
+          },
+          "end_time": {
+            "type": "string",
+            "description": "End of time range (ISO 8601)"
+          }
+        },
+        "required": ["user", "start_time", "end_time"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "busy_times": {
+            "type": "array",
+            "description": "List of busy time slots with start_time and end_time"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_user_availability_schedules": {
+      "display_name": "List Availability Schedules",
+      "description": "List availability schedules for a user",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "description": "User URI (e.g., https://api.calendly.com/users/{uuid})"
+          }
+        },
+        "required": ["user"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "availability_schedules": {
+            "type": "array",
+            "description": "List of availability schedules with rules and timezone"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_organization_memberships": {
+      "display_name": "List Organization Members",
+      "description": "List all members of an organization",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization": {
+            "type": "string",
+            "description": "Organization URI"
+          },
+          "user": {
+            "type": "string",
+            "description": "Filter by user URI"
+          },
+          "email": {
+            "type": "string",
+            "description": "Filter by user email"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Token for pagination"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "memberships": {
+            "type": "array",
+            "description": "List of organization memberships with user details and role"
+          },
+          "pagination": {
+            "type": "object",
+            "description": "Pagination information"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_webhooks": {
+      "display_name": "List Webhooks",
+      "description": "List webhook subscriptions for a user or organization",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization": {
+            "type": "string",
+            "description": "Organization URI to filter webhooks"
+          },
+          "user": {
+            "type": "string",
+            "description": "User URI to filter webhooks"
+          },
+          "scope": {
+            "type": "string",
+            "description": "Filter by scope: user or organization"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Token for pagination"
+          }
+        },
+        "required": ["organization"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "webhooks": {
+            "type": "array",
+            "description": "List of webhook subscriptions with uri, callback_url, events, and state"
+          },
+          "pagination": {
+            "type": "object",
+            "description": "Pagination information"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_webhook": {
+      "display_name": "Get Webhook",
+      "description": "Get details of a specific webhook subscription",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "webhook_uuid": {
+            "type": "string",
+            "description": "The UUID of the webhook subscription"
+          }
+        },
+        "required": ["webhook_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "webhook": {
+            "type": "object",
+            "description": "Webhook subscription details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "create_webhook": {
+      "display_name": "Create Webhook",
+      "description": "Create a webhook subscription for event notifications (requires paid plan)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The URL to receive webhook payloads"
+          },
+          "events": {
+            "type": "array",
+            "description": "Events to subscribe to: invitee.created, invitee.canceled, routing_form_submission.created"
+          },
+          "organization": {
+            "type": "string",
+            "description": "Organization URI for organization-level webhook"
+          },
+          "user": {
+            "type": "string",
+            "description": "User URI for user-level webhook"
+          },
+          "scope": {
+            "type": "string",
+            "description": "Scope of the webhook: user or organization"
+          },
+          "signing_key": {
+            "type": "string",
+            "description": "Secret key for webhook signature verification"
+          }
+        },
+        "required": ["url", "events", "organization", "scope"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "webhook": {
+            "type": "object",
+            "description": "Created webhook subscription details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "delete_webhook": {
+      "display_name": "Delete Webhook",
+      "description": "Delete a webhook subscription",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "webhook_uuid": {
+            "type": "string",
+            "description": "The UUID of the webhook subscription to delete"
+          }
+        },
+        "required": ["webhook_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the webhook was deleted"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_routing_forms": {
+      "display_name": "List Routing Forms",
+      "description": "List routing forms for an organization",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization": {
+            "type": "string",
+            "description": "Organization URI"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Token for pagination"
+          }
+        },
+        "required": ["organization"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "routing_forms": {
+            "type": "array",
+            "description": "List of routing forms"
+          },
+          "pagination": {
+            "type": "object",
+            "description": "Pagination information"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "get_routing_form": {
+      "display_name": "Get Routing Form",
+      "description": "Get details of a specific routing form",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "routing_form_uuid": {
+            "type": "string",
+            "description": "The UUID of the routing form"
+          }
+        },
+        "required": ["routing_form_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "routing_form": {
+            "type": "object",
+            "description": "Routing form details"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    },
+    "list_routing_form_submissions": {
+      "display_name": "List Routing Form Submissions",
+      "description": "List submissions for a routing form",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "routing_form": {
+            "type": "string",
+            "description": "Routing form URI"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of results per page (max 100)"
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Token for pagination"
+          }
+        },
+        "required": ["routing_form"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "submissions": {
+            "type": "array",
+            "description": "List of routing form submissions with questions and answers"
+          },
+          "pagination": {
+            "type": "object",
+            "description": "Pagination information"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Operation success status"
+          }
+        }
+      }
+    }
+  }
+}

@@ -15,15 +15,25 @@ The NZBN (New Zealand Business Number) is a unique 13-digit identifier for NZ bu
 
 This integration uses Autohive's pre-configured NZBN API credentials with 2-legged OAuth (Client Credentials flow). **No user configuration required** - credentials are managed by Autohive.
 
+### API Endpoints
+
+The integration uses the **production** NZBN API endpoints:
+
+- Base URL: `https://api.business.govt.nz/gateway/nzbn/v5`
+- OAuth Scope: `https://api.business.govt.nz/gateway/.default`
+- Token URL: `https://login.microsoftonline.com/b2cessmapprd.onmicrosoft.com/oauth2/v2.0/token`
+
+These are configured in `nzbn.py` as `PRODUCTION_BASE_URL` and `PRODUCTION_SCOPE`.
+
 ### Deployment Configuration
 
-The following environment variables must be set at deployment time:
+The following environment variables **must** be set at deployment time:
 
 | Variable | Description |
 |----------|-------------|
 | `NZBN_CLIENT_ID` | OAuth Client ID (Autohive's registered NZBN app) |
 | `NZBN_CLIENT_SECRET` | OAuth Client Secret |
-| `NZBN_SUBSCRIPTION_KEY` | NZBN API Subscription Key |
+| `NZBN_SUBSCRIPTION_KEY` | NZBN API Subscription Key (Autohive's enterprise subscription) |
 
 ### Security Model
 
@@ -57,7 +67,7 @@ Search the NZBN directory by name, trading name, NZBN, or company number.
 
 ### get_entity
 
-Retrieve detailed information about a specific business entity.
+Retrieve detailed information about a specific business entity. Returns all available fields including addresses, contact information, roles, trading names, and more.
 
 **Inputs:**
 | Field | Type | Required | Description |
@@ -70,6 +80,38 @@ Retrieve detailed information about a specific business entity.
   "nzbn": "9429041525746"
 }
 ```
+
+**Output:** Full entity object with all 28+ fields (~40,000-60,000 characters)
+
+### get_entity_summary
+
+Retrieve essential entity information optimized for LLM token usage. Returns only NZBN, entity name, and registered office address. **Provides 99% token savings** compared to full entity details.
+
+**Inputs:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `nzbn` | string | Yes | The 13-digit NZBN identifier |
+
+**Example:**
+```json
+{
+  "nzbn": "9429037170301"
+}
+```
+
+**Output:**
+```json
+{
+  "result": true,
+  "summary": {
+    "nzbn": "9429037170301",
+    "entityName": "XERO LIMITED",
+    "registeredOffice": "Level 1, Old Bank, 98 Customhouse Quay, Wellington"
+  }
+}
+```
+
+**Token Savings:** ~135 characters vs ~40,000 characters (99.7% reduction)
 
 ### get_entity_addresses
 

@@ -6,7 +6,7 @@ Connects Autohive to the X API to enable posting, engagement management, user in
 
 This integration provides a comprehensive connection to X's social media platform. It allows users to automate post creation, search and retrieve posts, manage likes and reposts, follow/unfollow users, and retrieve user information directly from Autohive.
 
-The integration uses X API v2 with OAuth 2.0 authentication and implements 13 actions covering posts, reposts, and users.
+The integration uses X API v2 with OAuth 2.0 authentication and implements 15 actions covering posts, bookmarks, reposts, and users.
 
 ## Setup & Authentication
 
@@ -21,7 +21,7 @@ X supports multiple authentication methods:
    - Users authorize access to their account
    - Tokens are managed automatically by the platform
    - Recommended for multi-user integrations
-   - Required scopes: `tweet.read`, `tweet.write`, `media.write`, `users.read`, `follows.read`, `follows.write`, `like.read`, `offline.access`
+   - Required scopes: `tweet.read`, `tweet.write`, `media.write`, `users.read`, `follows.read`, `follows.write`, `like.read`, `bookmark.read`, `bookmark.write`, `offline.access`
 
 2. **OAuth 1.0a** (Alternative method)
    - Uses API Key, API Secret, Access Token, and Access Token Secret
@@ -65,52 +65,36 @@ Example error response:
 
 ## Actions
 
-### Posts (6 actions)
+### Posts (5 actions)
 
 #### `create_tweet`
-Creates a new post on X.
+Creates a new post on X, optionally with media (image, GIF, or video).
 
 **Inputs:**
 - `text` (required): The text content of the post (max 280 characters for standard accounts)
+- `file` (optional): Media file to upload and attach. Object containing:
+  - `content`: Base64-encoded file content
+  - `name`: Filename
+  - `contentType`: MIME type (image/jpeg, image/png, image/gif, video/mp4, etc.)
 - `reply_to` (optional): Post ID to reply to
 - `quote_tweet_id` (optional): Post ID to quote
-- `media_ids` (optional): Array of media IDs to attach
 - `poll_options` (optional): Poll options (2-4 options)
 - `poll_duration_minutes` (optional): Poll duration in minutes (default: 1440 = 24 hours)
 
 **Outputs:**
 - `post`: Created post object
+- `media_id`: The media ID that was uploaded (if media was included)
 - `result`: Success status (boolean)
 - `error`: Error message if action failed (optional)
 
-**Example:**
+**Example (text only):**
 ```json
 {
-  "text": "Hello from Autohive! #automation",
-  "media_ids": ["1234567890"]
+  "text": "Hello from Autohive! #automation"
 }
 ```
 
----
-
-#### `post_with_media`
-Creates a post with media (image, GIF, or video) in a single action. Automatically uploads the media and creates the post.
-
-**Inputs:**
-- `text` (required): The text content of the post (max 280 characters for standard accounts)
-- `file` (required): File object containing:
-  - `content`: Base64-encoded file content
-  - `name`: Filename
-  - `contentType`: MIME type (image/jpeg, image/png, image/gif, video/mp4, etc.)
-- `reply_to` (optional): Post ID to reply to
-
-**Outputs:**
-- `post`: Created post object
-- `media_id`: The media ID that was uploaded
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
-**Example:**
+**Example (with media):**
 ```json
 {
   "text": "Check out this image! #automation",
@@ -211,6 +195,53 @@ Retrieves posts liked by a user.
 - `posts`: Array of liked posts
 - `includes`: Additional data like user information
 - `meta`: Metadata including pagination tokens
+- `result`: Success status (boolean)
+- `error`: Error message if action failed (optional)
+
+---
+
+### Bookmarks (3 actions)
+
+#### `get_bookmarks`
+Retrieves the authenticated user's bookmarked posts.
+
+**Inputs:**
+- `user_id` (required): The ID of the authenticated user
+- `max_results` (optional): Maximum number of results (1-100, default: 10)
+- `pagination_token` (optional): Pagination token from previous response
+
+**Outputs:**
+- `posts`: Array of bookmarked posts
+- `includes`: Additional data like user information
+- `meta`: Metadata including pagination tokens
+- `result`: Success status (boolean)
+- `error`: Error message if action failed (optional)
+
+---
+
+#### `bookmark_tweet`
+Bookmarks a post for the authenticated user.
+
+**Inputs:**
+- `user_id` (required): The ID of the authenticated user
+- `post_id` (required): The ID of the post to bookmark
+
+**Outputs:**
+- `bookmarked`: Whether the post was bookmarked (boolean)
+- `result`: Success status (boolean)
+- `error`: Error message if action failed (optional)
+
+---
+
+#### `remove_bookmark`
+Removes a bookmark for the authenticated user.
+
+**Inputs:**
+- `user_id` (required): The ID of the authenticated user
+- `post_id` (required): The ID of the bookmarked post to remove
+
+**Outputs:**
+- `removed`: Whether the bookmark was removed (boolean)
 - `result`: Success status (boolean)
 - `error`: Error message if action failed (optional)
 
@@ -371,6 +402,14 @@ To test the integration:
 4. Escalate issues based on keywords
 
 ## Version History
+
+- **1.0.3** - Added bookmark actions
+  - Added get_bookmarks, bookmark_tweet, and remove_bookmark actions
+  - Added bookmark.read and bookmark.write OAuth scopes
+
+- **1.0.2** - Merged post actions
+  - Merged `post_with_media` into `create_tweet` (file parameter is now optional)
+  - Single action now supports text-only posts, posts with media, replies, quotes, and polls
 
 - **1.0.1** - Updated actions
   - Removed standalone upload_media action (use post_with_media instead)

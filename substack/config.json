@@ -1,0 +1,264 @@
+{
+    "name": "Substack",
+    "display_name": "Substack",
+    "version": "1.0.0",
+    "description": "Search Substack publications, read posts and comments. No authentication required.",
+    "entry_point": "substack.py",
+    "actions": {
+        "get_publication_posts": {
+            "display_name": "Get Publication Posts",
+            "description": "List posts from a Substack publication archive. Supports sorting, keyword filtering, and pagination.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "publication_url": {
+                        "type": "string",
+                        "description": "Base URL of the publication, e.g. https://example.substack.com or a custom domain."
+                    },
+                    "sort": {
+                        "type": "string",
+                        "enum": ["new", "top"],
+                        "description": "Sort order for posts.",
+                        "default": "new"
+                    },
+                    "search": {
+                        "type": "string",
+                        "description": "Optional keyword filter."
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Number of posts to skip for pagination.",
+                        "default": 0
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of posts to return.",
+                        "default": 12,
+                        "minimum": 1,
+                        "maximum": 50
+                    }
+                },
+                "required": ["publication_url"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "posts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "integer"},
+                                "slug": {"type": "string"},
+                                "title": {"type": "string"},
+                                "subtitle": {"type": "string"},
+                                "post_date": {"type": "string"},
+                                "canonical_url": {"type": "string"},
+                                "audience": {"type": "string"},
+                                "paywall": {"type": "boolean"},
+                                "reading_time_minutes": {"type": "integer"},
+                                "cover_image": {"type": "string"},
+                                "like_count": {"type": "integer"},
+                                "comment_count": {"type": "integer"},
+                                "type": {"type": "string"}
+                            }
+                        }
+                    },
+                    "count": {"type": "integer"}
+                }
+            }
+        },
+        "get_post": {
+            "display_name": "Get Post",
+            "description": "Fetch full content of a specific post by its slug. Body HTML is truncated for paywalled posts without a paid subscriber session.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "publication_url": {
+                        "type": "string",
+                        "description": "Base URL of the publication."
+                    },
+                    "slug": {
+                        "type": "string",
+                        "description": "Post slug from the URL or archive listing."
+                    }
+                },
+                "required": ["publication_url", "slug"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "slug": {"type": "string"},
+                    "title": {"type": "string"},
+                    "subtitle": {"type": "string"},
+                    "body_html": {"type": "string"},
+                    "post_date": {"type": "string"},
+                    "canonical_url": {"type": "string"},
+                    "audience": {"type": "string"},
+                    "paywall": {"type": "boolean"},
+                    "reading_time_minutes": {"type": "integer"},
+                    "cover_image": {"type": "string"},
+                    "like_count": {"type": "integer"},
+                    "comment_count": {"type": "integer"},
+                    "type": {"type": "string"},
+                    "audio_url": {"type": "string"}
+                }
+            }
+        },
+        "search_publications": {
+            "display_name": "Search Publications",
+            "description": "Search for Substack publications by keyword across the entire platform.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "0-based page number.",
+                        "default": 0
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Results per page.",
+                        "default": 10,
+                        "minimum": 1,
+                        "maximum": 100
+                    }
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "publications": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "integer"},
+                                "name": {"type": "string"},
+                                "subdomain": {"type": "string"},
+                                "custom_domain": {"type": "string"},
+                                "logo_url": {"type": "string"},
+                                "description": {"type": "string"},
+                                "subscriber_count": {"type": "integer"}
+                            }
+                        }
+                    },
+                    "more": {"type": "boolean"}
+                }
+            }
+        },
+        "search_posts": {
+            "display_name": "Search Posts",
+            "description": "Search posts within a specific Substack publication by keyword.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "publication_url": {
+                        "type": "string",
+                        "description": "Base URL of the publication."
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Search query."
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Pagination offset.",
+                        "default": 0
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results.",
+                        "default": 10,
+                        "minimum": 1,
+                        "maximum": 50
+                    }
+                },
+                "required": ["publication_url", "query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "posts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "integer"},
+                                "slug": {"type": "string"},
+                                "title": {"type": "string"},
+                                "subtitle": {"type": "string"},
+                                "post_date": {"type": "string"},
+                                "canonical_url": {"type": "string"},
+                                "audience": {"type": "string"},
+                                "paywall": {"type": "boolean"},
+                                "reading_time_minutes": {"type": "integer"},
+                                "cover_image": {"type": "string"},
+                                "like_count": {"type": "integer"},
+                                "comment_count": {"type": "integer"},
+                                "type": {"type": "string"}
+                            }
+                        }
+                    },
+                    "count": {"type": "integer"}
+                }
+            }
+        },
+        "get_post_comments": {
+            "display_name": "Get Post Comments",
+            "description": "Fetch comments for a specific post. Uses numeric post ID (from archive listing), not the slug.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "publication_url": {
+                        "type": "string",
+                        "description": "Base URL of the publication."
+                    },
+                    "post_id": {
+                        "type": "integer",
+                        "description": "Numeric post ID (the 'id' field from get_publication_posts or get_post)."
+                    },
+                    "sort": {
+                        "type": "string",
+                        "enum": ["best", "newest"],
+                        "description": "Sort order for comments.",
+                        "default": "best"
+                    },
+                    "all_comments": {
+                        "type": "boolean",
+                        "description": "Return all comments.",
+                        "default": true
+                    }
+                },
+                "required": ["publication_url", "post_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "comments": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "integer"},
+                                "body": {"type": "string"},
+                                "date": {"type": "string"},
+                                "author_name": {"type": "string"},
+                                "author_id": {"type": "integer"},
+                                "like_count": {"type": "integer"},
+                                "children": {"type": "array"}
+                            }
+                        }
+                    },
+                    "count": {"type": "integer"}
+                }
+            }
+        }
+    }
+}
