@@ -42,7 +42,9 @@ def make_context():
 
 async def test_missing_credentials():
     """Test that missing credentials fail fast with a clear error."""
-    async with ExecutionContext(auth={"auth_type": "oauth", "credentials": {}}) as context:
+    async with ExecutionContext(
+        auth={"auth_type": "oauth", "credentials": {}}
+    ) as context:
         result = await jira.execute_action("get_current_user", {}, context)
     assert result.data.get("result") is False, "Expected failure on missing credentials"
     assert (
@@ -72,7 +74,9 @@ async def test_search_users():
 async def test_get_user():
     """Test retrieving a specific user by account ID."""
     async with make_context() as context:
-        result = await jira.execute_action("get_user", {"accountId": TEST_USER_ACCOUNT_ID}, context)
+        result = await jira.execute_action(
+            "get_user", {"accountId": TEST_USER_ACCOUNT_ID}, context
+        )
     print("test_get_user:", result.data)
     return result.data
 
@@ -88,7 +92,9 @@ async def test_list_projects():
 async def test_get_project():
     """Test getting project details."""
     async with make_context() as context:
-        result = await jira.execute_action("get_project", {"projectKey": TEST_PROJECT_KEY}, context)
+        result = await jira.execute_action(
+            "get_project", {"projectKey": TEST_PROJECT_KEY}, context
+        )
     print("test_get_project:", result.data)
     return result.data
 
@@ -96,7 +102,9 @@ async def test_get_project():
 async def test_get_project_components():
     """Test listing project components."""
     async with make_context() as context:
-        result = await jira.execute_action("get_project_components", {"projectKey": TEST_PROJECT_KEY}, context)
+        result = await jira.execute_action(
+            "get_project_components", {"projectKey": TEST_PROJECT_KEY}, context
+        )
     print("test_get_project_components:", result.data)
     return result.data
 
@@ -104,7 +112,9 @@ async def test_get_project_components():
 async def test_get_project_versions():
     """Test listing project versions."""
     async with make_context() as context:
-        result = await jira.execute_action("get_project_versions", {"projectKey": TEST_PROJECT_KEY}, context)
+        result = await jira.execute_action(
+            "get_project_versions", {"projectKey": TEST_PROJECT_KEY}, context
+        )
     print("test_get_project_versions:", result.data)
     return result.data
 
@@ -131,7 +141,9 @@ async def test_create_issue():
 async def test_get_issue():
     """Test retrieving issue details."""
     async with make_context() as context:
-        result = await jira.execute_action("get_issue", {"issueKey": TEST_ISSUE_KEY}, context)
+        result = await jira.execute_action(
+            "get_issue", {"issueKey": TEST_ISSUE_KEY}, context
+        )
     print("test_get_issue:", result.data)
     return result.data
 
@@ -156,7 +168,12 @@ async def test_search_issues():
     """Test searching issues with JQL."""
     async with make_context() as context:
         result = await jira.execute_action(
-            "search_issues", {"jql": f"project = {TEST_PROJECT_KEY} ORDER BY created DESC", "maxResults": 5}, context
+            "search_issues",
+            {
+                "jql": f"project = {TEST_PROJECT_KEY} ORDER BY created DESC",
+                "maxResults": 5,
+            },
+            context,
         )
     print("test_search_issues:", result.data)
     return result.data
@@ -165,7 +182,9 @@ async def test_search_issues():
 async def test_get_issue_transitions():
     """Test retrieving available transitions for an issue."""
     async with make_context() as context:
-        result = await jira.execute_action("get_issue_transitions", {"issueKey": TEST_ISSUE_KEY}, context)
+        result = await jira.execute_action(
+            "get_issue_transitions", {"issueKey": TEST_ISSUE_KEY}, context
+        )
     print("test_get_issue_transitions:", result.data)
     return result.data
 
@@ -174,7 +193,12 @@ async def test_add_comment():
     """Test adding a comment to an issue."""
     async with make_context() as context:
         result = await jira.execute_action(
-            "add_comment", {"issueKey": TEST_ISSUE_KEY, "body": "Test comment from autohive integration."}, context
+            "add_comment",
+            {
+                "issueKey": TEST_ISSUE_KEY,
+                "body": "Test comment from autohive integration.",
+            },
+            context,
         )
     print("test_add_comment:", result.data)
     return result.data
@@ -183,7 +207,9 @@ async def test_add_comment():
 async def test_get_comments():
     """Test retrieving comments on an issue."""
     async with make_context() as context:
-        result = await jira.execute_action("get_comments", {"issueKey": TEST_ISSUE_KEY}, context)
+        result = await jira.execute_action(
+            "get_comments", {"issueKey": TEST_ISSUE_KEY}, context
+        )
     print("test_get_comments:", result.data)
     return result.data
 
@@ -193,7 +219,11 @@ async def test_add_worklog():
     async with make_context() as context:
         result = await jira.execute_action(
             "add_worklog",
-            {"issueKey": TEST_ISSUE_KEY, "timeSpent": "1h", "comment": "Test worklog from autohive integration."},
+            {
+                "issueKey": TEST_ISSUE_KEY,
+                "timeSpent": "1h",
+                "comment": "Test worklog from autohive integration.",
+            },
             context,
         )
     print("test_add_worklog:", result.data)
@@ -203,7 +233,9 @@ async def test_add_worklog():
 async def test_get_worklogs():
     """Test retrieving worklogs for an issue."""
     async with make_context() as context:
-        result = await jira.execute_action("get_worklogs", {"issueKey": TEST_ISSUE_KEY}, context)
+        result = await jira.execute_action(
+            "get_worklogs", {"issueKey": TEST_ISSUE_KEY}, context
+        )
     print("test_get_worklogs:", result.data)
     return result.data
 
@@ -211,7 +243,9 @@ async def test_get_worklogs():
 async def test_get_watchers():
     """Test retrieving watchers on an issue."""
     async with make_context() as context:
-        result = await jira.execute_action("get_watchers", {"issueKey": TEST_ISSUE_KEY}, context)
+        result = await jira.execute_action(
+            "get_watchers", {"issueKey": TEST_ISSUE_KEY}, context
+        )
     print("test_get_watchers:", result.data)
     return result.data
 
@@ -251,7 +285,9 @@ async def test_get_fields():
 async def test_get_issue_changelog():
     """Test retrieving issue changelog."""
     async with make_context() as context:
-        result = await jira.execute_action("get_issue_changelog", {"issueKey": TEST_ISSUE_KEY}, context)
+        result = await jira.execute_action(
+            "get_issue_changelog", {"issueKey": TEST_ISSUE_KEY}, context
+        )
     print("test_get_issue_changelog:", result.data)
     return result.data
 
@@ -267,7 +303,9 @@ async def test_list_boards():
 async def test_get_sprints():
     """Test getting sprints for a board."""
     async with make_context() as context:
-        result = await jira.execute_action("get_sprints", {"boardId": TEST_BOARD_ID, "state": "active"}, context)
+        result = await jira.execute_action(
+            "get_sprints", {"boardId": TEST_BOARD_ID, "state": "active"}, context
+        )
     print("test_get_sprints:", result.data)
     return result.data
 
@@ -275,7 +313,9 @@ async def test_get_sprints():
 async def test_get_sprint_issues():
     """Test getting issues in a sprint."""
     async with make_context() as context:
-        result = await jira.execute_action("get_sprint_issues", {"sprintId": TEST_SPRINT_ID, "maxResults": 10}, context)
+        result = await jira.execute_action(
+            "get_sprint_issues", {"sprintId": TEST_SPRINT_ID, "maxResults": 10}, context
+        )
     print("test_get_sprint_issues:", result.data)
     return result.data
 
@@ -291,7 +331,9 @@ async def test_get_status_categories():
 async def test_get_project_roles():
     """Test retrieving project roles."""
     async with make_context() as context:
-        result = await jira.execute_action("get_project_roles", {"projectKey": TEST_PROJECT_KEY}, context)
+        result = await jira.execute_action(
+            "get_project_roles", {"projectKey": TEST_PROJECT_KEY}, context
+        )
     print("test_get_project_roles:", result.data)
     return result.data
 

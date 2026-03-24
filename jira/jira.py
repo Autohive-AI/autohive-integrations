@@ -1,4 +1,9 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+)
 from typing import Dict, Any
 import aiohttp
 import json
@@ -27,7 +32,9 @@ def get_access_token(context: ExecutionContext) -> str:
     credentials = context.auth.get("credentials", {})
     token = (credentials.get("access_token") or "").strip()
     if not token:
-        raise ValueError("access_token is required — ensure the Jira OAuth connection is authorised")
+        raise ValueError(
+            "access_token is required — ensure the Jira OAuth connection is authorised"
+        )
     if "\n" in token or "\r" in token:
         raise ValueError("access_token contains invalid characters")
     return token
@@ -44,10 +51,14 @@ async def get_cloud_id(access_token: str) -> str:
 
     headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
     async with aiohttp.ClientSession() as session:
-        async with session.get(ACCESSIBLE_RESOURCES_URL, headers=headers, ssl=True) as response:
+        async with session.get(
+            ACCESSIBLE_RESOURCES_URL, headers=headers, ssl=True
+        ) as response:
             if not response.ok:
                 error_text = await response.text()
-                raise Exception(f"Failed to discover Jira Cloud ID: HTTP {response.status}: {error_text}")
+                raise Exception(
+                    f"Failed to discover Jira Cloud ID: HTTP {response.status}: {error_text}"
+                )
             resources = await response.json(content_type=None)
 
     if not resources:
@@ -108,7 +119,9 @@ def format_jira_datetime(dt_string: str = None) -> str:
         return fixed
 
     # Z suffix — replace with +0000
-    fixed = re.sub(r"Z$", ".000+0000", re.sub(r"(\d{2}:\d{2}:\d{2})Z$", r"\1.000+0000", dt_string))
+    fixed = re.sub(
+        r"Z$", ".000+0000", re.sub(r"(\d{2}:\d{2}:\d{2})Z$", r"\1.000+0000", dt_string)
+    )
     if re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{4}$", fixed):
         return fixed
 
@@ -132,7 +145,9 @@ def text_to_adf(text: str) -> dict:
     }
 
 
-async def jira_request(method: str, url: str, access_token: str, params: dict = None, payload: dict = None) -> tuple:
+async def jira_request(
+    method: str, url: str, access_token: str, params: dict = None, payload: dict = None
+) -> tuple:
     """
     Make an authenticated HTTP request to the Jira API.
     Returns (response_body, status_code).
@@ -145,7 +160,12 @@ async def jira_request(method: str, url: str, access_token: str, params: dict = 
     }
 
     async with aiohttp.ClientSession() as session:
-        kwargs: Dict[str, Any] = {"method": method, "url": url, "headers": headers, "ssl": True}
+        kwargs: Dict[str, Any] = {
+            "method": method,
+            "url": url,
+            "headers": headers,
+            "ssl": True,
+        }
         if params:
             kwargs["params"] = params
         if payload is not None:
@@ -234,7 +254,12 @@ class CreateIssueAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error creating issue: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error creating issue: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -256,7 +281,9 @@ class GetIssueAction(ActionHandler):
                 params["expand"] = expand
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}")
-            body, _ = await jira_request("GET", url, access_token, params=params or None)
+            body, _ = await jira_request(
+                "GET", url, access_token, params=params or None
+            )
 
             fields_data = body.get("fields", {}) if isinstance(body, dict) else {}
             assignee = fields_data.get("assignee") or {}
@@ -287,8 +314,12 @@ class GetIssueAction(ActionHandler):
                     "updated": fields_data.get("updated"),
                     "dueDate": fields_data.get("duedate"),
                     "labels": fields_data.get("labels", []),
-                    "components": [c.get("name") for c in (fields_data.get("components") or [])],
-                    "fixVersions": [v.get("name") for v in (fields_data.get("fixVersions") or [])],
+                    "components": [
+                        c.get("name") for c in (fields_data.get("components") or [])
+                    ],
+                    "fixVersions": [
+                        v.get("name") for v in (fields_data.get("fixVersions") or [])
+                    ],
                     "subtasks": fields_data.get("subtasks", []),
                     "parent": fields_data.get("parent"),
                     "rawFields": fields_data,
@@ -299,7 +330,12 @@ class GetIssueAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving issue: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error retrieving issue: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -357,15 +393,27 @@ class UpdateIssueAction(ActionHandler):
             params = {} if notify_users else {"notifyUsers": "false"}
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}")
-            await jira_request("PUT", url, access_token, params=params or None, payload=payload)
+            await jira_request(
+                "PUT", url, access_token, params=params or None, payload=payload
+            )
 
             return ActionResult(
-                data={"result": True, "issueKey": issue_key, "message": "Issue updated successfully"}, cost_usd=None
+                data={
+                    "result": True,
+                    "issueKey": issue_key,
+                    "message": "Issue updated successfully",
+                },
+                cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error updating issue: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error updating issue: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -384,12 +432,22 @@ class DeleteIssueAction(ActionHandler):
             await jira_request("DELETE", url, access_token, params=params)
 
             return ActionResult(
-                data={"result": True, "issueKey": issue_key, "message": "Issue deleted successfully"}, cost_usd=None
+                data={
+                    "result": True,
+                    "issueKey": issue_key,
+                    "message": "Issue deleted successfully",
+                },
+                cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error deleting issue: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error deleting issue: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -405,14 +463,26 @@ class SearchIssuesAction(ActionHandler):
             next_page_token = inputs.get("nextPageToken")
             fields = inputs.get(
                 "fields",
-                ["summary", "status", "assignee", "priority", "issuetype", "created", "updated"],
+                [
+                    "summary",
+                    "status",
+                    "assignee",
+                    "priority",
+                    "issuetype",
+                    "created",
+                    "updated",
+                ],
             )
             expand = inputs.get("expand")
 
             # /search/jql uses nextPageToken pagination — startAt is no longer supported
             fields_list = fields if isinstance(fields, list) else fields.split(",")
 
-            payload: Dict[str, Any] = {"jql": jql, "maxResults": max_results, "fields": fields_list}
+            payload: Dict[str, Any] = {
+                "jql": jql,
+                "maxResults": max_results,
+                "fields": fields_list,
+            }
             if next_page_token:
                 payload["nextPageToken"] = next_page_token
             if expand:
@@ -457,7 +527,12 @@ class SearchIssuesAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error searching issues: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error searching issues: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -481,15 +556,28 @@ class GetIssueTransitionsAction(ActionHandler):
                         "name": t.get("name"),
                         "toStatusId": to_status.get("id"),
                         "toStatusName": to_status.get("name"),
-                        "toStatusCategory": (to_status.get("statusCategory") or {}).get("name"),
+                        "toStatusCategory": (to_status.get("statusCategory") or {}).get(
+                            "name"
+                        ),
                     }
                 )
 
-            return ActionResult(data={"result": True, "issueKey": issue_key, "transitions": transitions}, cost_usd=None)
+            return ActionResult(
+                data={
+                    "result": True,
+                    "issueKey": issue_key,
+                    "transitions": transitions,
+                },
+                cost_usd=None,
+            )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error getting transitions: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error getting transitions: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -508,7 +596,9 @@ class TransitionIssueAction(ActionHandler):
 
             comment = inputs.get("comment")
             if comment:
-                payload["update"] = {"comment": [{"add": {"body": text_to_adf(comment)}}]}
+                payload["update"] = {
+                    "comment": [{"add": {"body": text_to_adf(comment)}}]
+                }
 
             resolution = inputs.get("resolution")
             if resolution:
@@ -529,7 +619,11 @@ class TransitionIssueAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error transitioning issue: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error transitioning issue: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -553,14 +647,21 @@ class AssignIssueAction(ActionHandler):
                     "result": True,
                     "issueKey": issue_key,
                     "accountId": account_id,
-                    "message": "Issue assigned successfully" if account_id else "Issue unassigned successfully",
+                    "message": "Issue assigned successfully"
+                    if account_id
+                    else "Issue unassigned successfully",
                 },
                 cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error assigning issue: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error assigning issue: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -579,21 +680,34 @@ class AddCommentAction(ActionHandler):
             payload: Dict[str, Any] = {"body": text_to_adf(body_text)}
 
             if visibility_type and visibility_value:
-                payload["visibility"] = {"type": visibility_type, "value": visibility_value}
+                payload["visibility"] = {
+                    "type": visibility_type,
+                    "value": visibility_value,
+                }
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/comment")
-            response_body, _ = await jira_request("POST", url, access_token, payload=payload)
+            response_body, _ = await jira_request(
+                "POST", url, access_token, payload=payload
+            )
 
-            author = (response_body.get("author") or {}) if isinstance(response_body, dict) else {}
+            author = (
+                (response_body.get("author") or {})
+                if isinstance(response_body, dict)
+                else {}
+            )
 
             return ActionResult(
                 data={
                     "result": True,
-                    "commentId": response_body.get("id") if isinstance(response_body, dict) else None,
+                    "commentId": response_body.get("id")
+                    if isinstance(response_body, dict)
+                    else None,
                     "issueKey": issue_key,
                     "authorDisplayName": author.get("displayName"),
                     "authorAccountId": author.get("accountId"),
-                    "created": response_body.get("created") if isinstance(response_body, dict) else None,
+                    "created": response_body.get("created")
+                    if isinstance(response_body, dict)
+                    else None,
                     "message": "Comment added successfully",
                 },
                 cost_usd=None,
@@ -601,7 +715,12 @@ class AddCommentAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error adding comment: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error adding comment: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -617,7 +736,11 @@ class GetCommentsAction(ActionHandler):
             max_results = inputs.get("maxResults", 50)
             order_by = inputs.get("orderBy", "created")
 
-            params = {"startAt": start_at, "maxResults": max_results, "orderBy": order_by}
+            params = {
+                "startAt": start_at,
+                "maxResults": max_results,
+                "orderBy": order_by,
+            }
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/comment")
             body, _ = await jira_request("GET", url, access_token, params=params)
@@ -649,7 +772,11 @@ class GetCommentsAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving comments: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving comments: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -670,17 +797,27 @@ class UpdateCommentAction(ActionHandler):
             visibility_type = inputs.get("visibilityType")
             visibility_value = inputs.get("visibilityValue")
             if visibility_type and visibility_value:
-                payload["visibility"] = {"type": visibility_type, "value": visibility_value}
+                payload["visibility"] = {
+                    "type": visibility_type,
+                    "value": visibility_value,
+                }
 
-            url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/comment/{safe_path(comment_id)}")
-            response_body, _ = await jira_request("PUT", url, access_token, payload=payload)
+            url = api_url(
+                cloud_id,
+                f"/issue/{safe_path(issue_key)}/comment/{safe_path(comment_id)}",
+            )
+            response_body, _ = await jira_request(
+                "PUT", url, access_token, payload=payload
+            )
 
             return ActionResult(
                 data={
                     "result": True,
                     "commentId": comment_id,
                     "issueKey": issue_key,
-                    "updated": response_body.get("updated") if isinstance(response_body, dict) else None,
+                    "updated": response_body.get("updated")
+                    if isinstance(response_body, dict)
+                    else None,
                     "message": "Comment updated successfully",
                 },
                 cost_usd=None,
@@ -688,7 +825,12 @@ class UpdateCommentAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error updating comment: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error updating comment: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -702,7 +844,10 @@ class DeleteCommentAction(ActionHandler):
             issue_key = inputs["issueKey"]
             comment_id = inputs["commentId"]
 
-            url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/comment/{safe_path(comment_id)}")
+            url = api_url(
+                cloud_id,
+                f"/issue/{safe_path(issue_key)}/comment/{safe_path(comment_id)}",
+            )
             await jira_request("DELETE", url, access_token)
 
             return ActionResult(
@@ -717,7 +862,12 @@ class DeleteCommentAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error deleting comment: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error deleting comment: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -734,7 +884,11 @@ class ListProjectsAction(ActionHandler):
             query = inputs.get("query")
             order_by = inputs.get("orderBy", "name")
 
-            params: Dict[str, Any] = {"startAt": start_at, "maxResults": max_results, "orderBy": order_by}
+            params: Dict[str, Any] = {
+                "startAt": start_at,
+                "maxResults": max_results,
+                "orderBy": order_by,
+            }
             if project_type:
                 params["typeKey"] = project_type
             if query:
@@ -772,7 +926,12 @@ class ListProjectsAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error listing projects: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error listing projects: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -791,7 +950,9 @@ class GetProjectAction(ActionHandler):
                 params["expand"] = expand
 
             url = api_url(cloud_id, f"/project/{safe_path(project_key)}")
-            body, _ = await jira_request("GET", url, access_token, params=params or None)
+            body, _ = await jira_request(
+                "GET", url, access_token, params=params or None
+            )
 
             lead = (body.get("lead") or {}) if isinstance(body, dict) else {}
 
@@ -807,11 +968,19 @@ class GetProjectAction(ActionHandler):
                     "leadDisplayName": lead.get("displayName"),
                     "leadAccountId": lead.get("accountId"),
                     "issueTypes": [
-                        {"id": it.get("id"), "name": it.get("name")} for it in (body.get("issueTypes") or [])
+                        {"id": it.get("id"), "name": it.get("name")}
+                        for it in (body.get("issueTypes") or [])
                     ],
-                    "components": [{"id": c.get("id"), "name": c.get("name")} for c in (body.get("components") or [])],
+                    "components": [
+                        {"id": c.get("id"), "name": c.get("name")}
+                        for c in (body.get("components") or [])
+                    ],
                     "versions": [
-                        {"id": v.get("id"), "name": v.get("name"), "released": v.get("released")}
+                        {
+                            "id": v.get("id"),
+                            "name": v.get("name"),
+                            "released": v.get("released"),
+                        }
                         for v in (body.get("versions") or [])
                     ],
                     "url": body.get("self"),
@@ -821,7 +990,12 @@ class GetProjectAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving project: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error retrieving project: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -852,13 +1026,22 @@ class GetProjectComponentsAction(ActionHandler):
                 )
 
             return ActionResult(
-                data={"result": True, "projectKey": project_key, "components": components, "count": len(components)},
+                data={
+                    "result": True,
+                    "projectKey": project_key,
+                    "components": components,
+                    "count": len(components),
+                },
                 cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving components: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving components: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -875,7 +1058,11 @@ class GetProjectVersionsAction(ActionHandler):
             max_results = inputs.get("maxResults", 50)
             order_by = inputs.get("orderBy", "sequence")
 
-            params = {"startAt": start_at, "maxResults": max_results, "orderBy": order_by}
+            params = {
+                "startAt": start_at,
+                "maxResults": max_results,
+                "orderBy": order_by,
+            }
 
             url = api_url(cloud_id, f"/project/{safe_path(project_key)}/version")
             body, _ = await jira_request("GET", url, access_token, params=params)
@@ -908,7 +1095,11 @@ class GetProjectVersionsAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving versions: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving versions: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -956,7 +1147,12 @@ class CreateProjectVersionAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error creating version: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error creating version: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -973,20 +1169,34 @@ class GetCurrentUserAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "accountId": body.get("accountId") if isinstance(body, dict) else None,
-                    "displayName": body.get("displayName") if isinstance(body, dict) else None,
-                    "emailAddress": body.get("emailAddress") if isinstance(body, dict) else None,
+                    "accountId": body.get("accountId")
+                    if isinstance(body, dict)
+                    else None,
+                    "displayName": body.get("displayName")
+                    if isinstance(body, dict)
+                    else None,
+                    "emailAddress": body.get("emailAddress")
+                    if isinstance(body, dict)
+                    else None,
                     "active": body.get("active") if isinstance(body, dict) else None,
                     "locale": body.get("locale") if isinstance(body, dict) else None,
-                    "timeZone": body.get("timeZone") if isinstance(body, dict) else None,
-                    "avatarUrls": body.get("avatarUrls") if isinstance(body, dict) else None,
+                    "timeZone": body.get("timeZone")
+                    if isinstance(body, dict)
+                    else None,
+                    "avatarUrls": body.get("avatarUrls")
+                    if isinstance(body, dict)
+                    else None,
                 },
                 cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving current user: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving current user: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -1007,19 +1217,34 @@ class GetUserAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "accountId": body.get("accountId") if isinstance(body, dict) else None,
-                    "displayName": body.get("displayName") if isinstance(body, dict) else None,
-                    "emailAddress": body.get("emailAddress") if isinstance(body, dict) else None,
+                    "accountId": body.get("accountId")
+                    if isinstance(body, dict)
+                    else None,
+                    "displayName": body.get("displayName")
+                    if isinstance(body, dict)
+                    else None,
+                    "emailAddress": body.get("emailAddress")
+                    if isinstance(body, dict)
+                    else None,
                     "active": body.get("active") if isinstance(body, dict) else None,
-                    "timeZone": body.get("timeZone") if isinstance(body, dict) else None,
-                    "avatarUrls": body.get("avatarUrls") if isinstance(body, dict) else None,
+                    "timeZone": body.get("timeZone")
+                    if isinstance(body, dict)
+                    else None,
+                    "avatarUrls": body.get("avatarUrls")
+                    if isinstance(body, dict)
+                    else None,
                 },
                 cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving user: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error retrieving user: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -1051,11 +1276,19 @@ class SearchUsersAction(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"result": True, "users": users, "count": len(users)}, cost_usd=None)
+            return ActionResult(
+                data={"result": True, "users": users, "count": len(users)},
+                cost_usd=None,
+            )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error searching users: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error searching users: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -1109,7 +1342,12 @@ class ListBoardsAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error listing boards: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error listing boards: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -1160,7 +1398,12 @@ class GetSprintsAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving sprints: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error retrieving sprints: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -1175,7 +1418,9 @@ class GetSprintIssuesAction(ActionHandler):
             start_at = inputs.get("startAt", 0)
             max_results = inputs.get("maxResults", 50)
             jql = inputs.get("jql")
-            fields = inputs.get("fields", ["summary", "status", "assignee", "priority", "issuetype"])
+            fields = inputs.get(
+                "fields", ["summary", "status", "assignee", "priority", "issuetype"]
+            )
 
             params: Dict[str, Any] = {
                 "startAt": start_at,
@@ -1221,7 +1466,11 @@ class GetSprintIssuesAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving sprint issues: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving sprint issues: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -1261,7 +1510,9 @@ class AddWorklogAction(ActionHandler):
                 payload["comment"] = text_to_adf(comment)
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/worklog")
-            body, _ = await jira_request("POST", url, access_token, params=params, payload=payload)
+            body, _ = await jira_request(
+                "POST", url, access_token, params=params, payload=payload
+            )
 
             author = (body.get("author") or {}) if isinstance(body, dict) else {}
 
@@ -1270,8 +1521,12 @@ class AddWorklogAction(ActionHandler):
                     "result": True,
                     "worklogId": body.get("id") if isinstance(body, dict) else None,
                     "issueKey": issue_key,
-                    "timeSpent": body.get("timeSpent") if isinstance(body, dict) else None,
-                    "timeSpentSeconds": body.get("timeSpentSeconds") if isinstance(body, dict) else None,
+                    "timeSpent": body.get("timeSpent")
+                    if isinstance(body, dict)
+                    else None,
+                    "timeSpentSeconds": body.get("timeSpentSeconds")
+                    if isinstance(body, dict)
+                    else None,
                     "authorDisplayName": author.get("displayName"),
                     "authorAccountId": author.get("accountId"),
                     "started": body.get("started") if isinstance(body, dict) else None,
@@ -1282,7 +1537,12 @@ class AddWorklogAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error adding worklog: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error adding worklog: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -1331,7 +1591,11 @@ class GetWorklogsAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving worklogs: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving worklogs: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -1373,7 +1637,12 @@ class LinkIssuesAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error linking issues: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error linking issues: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -1398,11 +1667,22 @@ class GetIssueLinkTypesAction(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"result": True, "linkTypes": link_types, "count": len(link_types)}, cost_usd=None)
+            return ActionResult(
+                data={
+                    "result": True,
+                    "linkTypes": link_types,
+                    "count": len(link_types),
+                },
+                cost_usd=None,
+            )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving link types: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving link types: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -1427,7 +1707,9 @@ class AddWatcherAction(ActionHandler):
             raw_body = json.dumps(account_id)
 
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, data=raw_body, ssl=True) as response:
+                async with session.post(
+                    url, headers=headers, data=raw_body, ssl=True
+                ) as response:
                     if not response.ok:
                         error_text = await response.text()
                         raise Exception(f"HTTP {response.status}: {error_text}")
@@ -1444,7 +1726,12 @@ class AddWatcherAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error adding watcher: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error adding watcher: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -1462,15 +1749,23 @@ class GetWatchersAction(ActionHandler):
             watchers = []
             for w in body.get("watchers") or []:
                 watchers.append(
-                    {"accountId": w.get("accountId"), "displayName": w.get("displayName"), "active": w.get("active")}
+                    {
+                        "accountId": w.get("accountId"),
+                        "displayName": w.get("displayName"),
+                        "active": w.get("active"),
+                    }
                 )
 
             return ActionResult(
                 data={
                     "result": True,
                     "issueKey": issue_key,
-                    "watchCount": body.get("watchCount", len(watchers)) if isinstance(body, dict) else len(watchers),
-                    "isWatching": body.get("isWatching") if isinstance(body, dict) else None,
+                    "watchCount": body.get("watchCount", len(watchers))
+                    if isinstance(body, dict)
+                    else len(watchers),
+                    "isWatching": body.get("isWatching")
+                    if isinstance(body, dict)
+                    else None,
                     "watchers": watchers,
                 },
                 cost_usd=None,
@@ -1478,7 +1773,11 @@ class GetWatchersAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving watchers: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving watchers: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -1522,12 +1821,21 @@ class GetIssueTypesAction(ActionHandler):
                     )
 
             return ActionResult(
-                data={"result": True, "issueTypes": issue_types, "count": len(issue_types)}, cost_usd=None
+                data={
+                    "result": True,
+                    "issueTypes": issue_types,
+                    "count": len(issue_types),
+                },
+                cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving issue types: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving issue types: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -1555,12 +1863,21 @@ class GetPrioritiesAction(ActionHandler):
                 )
 
             return ActionResult(
-                data={"result": True, "priorities": priorities, "count": len(priorities)}, cost_usd=None
+                data={
+                    "result": True,
+                    "priorities": priorities,
+                    "count": len(priorities),
+                },
+                cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving priorities: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving priorities: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -1597,11 +1914,19 @@ class GetFieldsAction(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"result": True, "fields": fields, "count": len(fields)}, cost_usd=None)
+            return ActionResult(
+                data={"result": True, "fields": fields, "count": len(fields)},
+                cost_usd=None,
+            )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving fields: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error retrieving fields: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -1659,7 +1984,11 @@ class GetIssueChangelogAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving changelog: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving changelog: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -1675,7 +2004,9 @@ class BulkCreateIssuesAction(ActionHandler):
             if not isinstance(issue_updates, list) or len(issue_updates) == 0:
                 raise ValueError("issues must be a non-empty list of issue definitions")
             if len(issue_updates) > 50:
-                raise ValueError("Maximum 50 issues can be created in a single bulk request")
+                raise ValueError(
+                    "Maximum 50 issues can be created in a single bulk request"
+                )
 
             issue_list = []
             for item in issue_updates:
@@ -1700,7 +2031,9 @@ class BulkCreateIssuesAction(ActionHandler):
 
             created = []
             for issue in body.get("issues") or []:
-                created.append({"issueId": issue.get("id"), "issueKey": issue.get("key")})
+                created.append(
+                    {"issueId": issue.get("id"), "issueKey": issue.get("key")}
+                )
 
             errors = body.get("errors", []) if isinstance(body, dict) else []
 
@@ -1717,7 +2050,11 @@ class BulkCreateIssuesAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error bulk creating issues: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error bulk creating issues: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -1733,7 +2070,9 @@ class GetBoardIssuesAction(ActionHandler):
             start_at = inputs.get("startAt", 0)
             max_results = inputs.get("maxResults", 50)
             jql = inputs.get("jql")
-            fields = inputs.get("fields", ["summary", "status", "assignee", "priority", "issuetype"])
+            fields = inputs.get(
+                "fields", ["summary", "status", "assignee", "priority", "issuetype"]
+            )
 
             params: Dict[str, Any] = {
                 "startAt": start_at,
@@ -1779,7 +2118,11 @@ class GetBoardIssuesAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving board issues: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving board issues: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -1795,7 +2138,9 @@ class GetBacklogIssuesAction(ActionHandler):
             start_at = inputs.get("startAt", 0)
             max_results = inputs.get("maxResults", 50)
             jql = inputs.get("jql")
-            fields = inputs.get("fields", ["summary", "status", "assignee", "priority", "issuetype"])
+            fields = inputs.get(
+                "fields", ["summary", "status", "assignee", "priority", "issuetype"]
+            )
 
             params: Dict[str, Any] = {
                 "startAt": start_at,
@@ -1837,7 +2182,12 @@ class GetBacklogIssuesAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving backlog: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error retrieving backlog: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -1870,7 +2220,11 @@ class MoveIssuesToSprintAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error moving issues to sprint: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error moving issues to sprint: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -1916,7 +2270,12 @@ class CreateSprintAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error creating sprint: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error creating sprint: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -1969,7 +2328,12 @@ class UpdateSprintAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error updating sprint: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error updating sprint: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -1988,15 +2352,27 @@ class GetProjectRolesAction(ActionHandler):
             if isinstance(body, dict):
                 for role_name, role_url in body.items():
                     role_id = role_url.rstrip("/").split("/")[-1] if role_url else None
-                    roles.append({"name": role_name, "roleId": role_id, "url": role_url})
+                    roles.append(
+                        {"name": role_name, "roleId": role_id, "url": role_url}
+                    )
 
             return ActionResult(
-                data={"result": True, "projectKey": project_key, "roles": roles, "count": len(roles)}, cost_usd=None
+                data={
+                    "result": True,
+                    "projectKey": project_key,
+                    "roles": roles,
+                    "count": len(roles),
+                },
+                cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving project roles: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving project roles: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -2014,16 +2390,30 @@ class GetStatusCategoriesAction(ActionHandler):
             categories = []
             for sc in body if isinstance(body, list) else []:
                 categories.append(
-                    {"id": sc.get("id"), "key": sc.get("key"), "name": sc.get("name"), "colorName": sc.get("colorName")}
+                    {
+                        "id": sc.get("id"),
+                        "key": sc.get("key"),
+                        "name": sc.get("name"),
+                        "colorName": sc.get("colorName"),
+                    }
                 )
 
             return ActionResult(
-                data={"result": True, "statusCategories": categories, "count": len(categories)}, cost_usd=None
+                data={
+                    "result": True,
+                    "statusCategories": categories,
+                    "count": len(categories),
+                },
+                cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving status categories: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving status categories: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -2055,7 +2445,9 @@ class ListDashboardsAction(ActionHandler):
                         "self": d.get("self"),
                         "view": d.get("view"),
                         "isFavourite": d.get("isFavourite"),
-                        "owner": d.get("owner", {}).get("displayName") if isinstance(d.get("owner"), dict) else None,
+                        "owner": d.get("owner", {}).get("displayName")
+                        if isinstance(d.get("owner"), dict)
+                        else None,
                     }
                 )
 
@@ -2072,7 +2464,12 @@ class ListDashboardsAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error listing dashboards: {str(e)}", "error": str(e)}, cost_usd=None
+                data={
+                    "result": False,
+                    "message": f"Error listing dashboards: {str(e)}",
+                    "error": str(e),
+                },
+                cost_usd=None,
             )
 
 
@@ -2095,7 +2492,9 @@ class GetDashboardAction(ActionHandler):
                     "self": body.get("self"),
                     "view": body.get("view"),
                     "isFavourite": body.get("isFavourite"),
-                    "owner": body.get("owner", {}).get("displayName") if isinstance(body.get("owner"), dict) else None,
+                    "owner": body.get("owner", {}).get("displayName")
+                    if isinstance(body.get("owner"), dict)
+                    else None,
                     "popularity": body.get("popularity"),
                     "rank": body.get("rank"),
                     "sharePermissions": body.get("sharePermissions", []),
@@ -2106,7 +2505,11 @@ class GetDashboardAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving dashboard: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving dashboard: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -2150,7 +2553,9 @@ class SearchDashboardsAction(ActionHandler):
                         "self": d.get("self"),
                         "view": d.get("view"),
                         "isFavourite": d.get("isFavourite"),
-                        "owner": d.get("owner", {}).get("displayName") if isinstance(d.get("owner"), dict) else None,
+                        "owner": d.get("owner", {}).get("displayName")
+                        if isinstance(d.get("owner"), dict)
+                        else None,
                     }
                 )
 
@@ -2167,7 +2572,11 @@ class SearchDashboardsAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error searching dashboards: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error searching dashboards: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
 
@@ -2191,7 +2600,9 @@ class GetDashboardGadgetsAction(ActionHandler):
                         "moduleKey": g.get("moduleKey"),
                         "uri": g.get("uri"),
                         "title": g.get("title"),
-                        "color": g.get("color", {}).get("label") if isinstance(g.get("color"), dict) else None,
+                        "color": g.get("color", {}).get("label")
+                        if isinstance(g.get("color"), dict)
+                        else None,
                         "position": g.get("position"),
                     }
                 )
@@ -2208,6 +2619,10 @@ class GetDashboardGadgetsAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"result": False, "message": f"Error retrieving dashboard gadgets: {str(e)}", "error": str(e)},
+                data={
+                    "result": False,
+                    "message": f"Error retrieving dashboard gadgets: {str(e)}",
+                    "error": str(e),
+                },
                 cost_usd=None,
             )
