@@ -19,12 +19,11 @@ from jira import jira
 from autohive_integrations_sdk import ExecutionContext
 
 # ------------------------------------------------------------
-# CREDENTIALS — Replace with real values to run tests.
+# CREDENTIALS — Replace with your OAuth access token to run tests.
+# Obtain via the platform OAuth flow or Atlassian developer console.
 # NEVER commit real values here.
 # ------------------------------------------------------------
-EMAIL = "YOUR_EMAIL_HERE"
-API_TOKEN = "YOUR_API_TOKEN_HERE"  # nosec B105
-DOMAIN = "YOUR_DOMAIN_HERE"  # e.g. "mycompany" from mycompany.atlassian.net
+ACCESS_TOKEN = "YOUR_ACCESS_TOKEN_HERE"  # nosec B105
 
 # Test data — replace with real values from your Jira instance
 TEST_PROJECT_KEY = "PROJ"
@@ -33,7 +32,7 @@ TEST_BOARD_ID = 1
 TEST_SPRINT_ID = 1
 TEST_USER_ACCOUNT_ID = "YOUR_ACCOUNT_ID_HERE"
 
-AUTH = {"auth_type": "custom", "credentials": {"email": EMAIL, "api_token": API_TOKEN, "domain": DOMAIN}}
+AUTH = {"auth_type": "oauth", "credentials": {"access_token": ACCESS_TOKEN}}
 
 
 def make_context():
@@ -43,10 +42,13 @@ def make_context():
 
 async def test_missing_credentials():
     """Test that missing credentials fail fast with a clear error."""
-    async with ExecutionContext(auth={"auth_type": "custom", "credentials": {}}) as context:
+    async with ExecutionContext(auth={"auth_type": "oauth", "credentials": {}}) as context:
         result = await jira.execute_action("get_current_user", {}, context)
     assert result.data.get("result") is False, "Expected failure on missing credentials"
-    assert "email" in (result.data.get("error") or "").lower() or "email" in (result.data.get("message") or "").lower()
+    assert (
+        "access_token" in (result.data.get("error") or "").lower()
+        or "access_token" in (result.data.get("message") or "").lower()
+    )
     print("test_missing_credentials: PASS")
     return result.data
 
