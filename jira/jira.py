@@ -2600,9 +2600,7 @@ class GetDashboardGadgetsAction(ActionHandler):
                         "moduleKey": g.get("moduleKey"),
                         "uri": g.get("uri"),
                         "title": g.get("title"),
-                        "color": g.get("color", {}).get("label")
-                        if isinstance(g.get("color"), dict)
-                        else None,
+                        "color": g.get("color"),
                         "position": g.get("position"),
                     }
                 )
