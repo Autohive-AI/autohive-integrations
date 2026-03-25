@@ -1,90 +1,89 @@
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
-import json
 from context import microsoft365
 
+
 class TestMicrosoft365Integration(unittest.TestCase):
-    
     def setUp(self):
         """Set up test fixtures."""
         self.mock_context = Mock()
         self.mock_context.fetch = AsyncMock()
-    
+
     async def test_send_email_success(self):
         """Test successful email sending."""
         # Mock successful API response
         self.mock_context.fetch.return_value = None
-        
+
         # Create action handler
         handler = microsoft365.SendEmailAction()
-        
+
         # Test inputs
         inputs = {
             "to": "test@example.com",
             "subject": "Test Email",
             "body": "This is a test email",
-            "body_type": "Text"
+            "body_type": "Text",
         }
-        
+
         # Execute action
         result = await handler.execute(inputs, self.mock_context)
-        
+
         # Verify result
         self.assertTrue(result.data["result"])
-        
+
         # Verify API call
         self.mock_context.fetch.assert_called_once()
         call_args = self.mock_context.fetch.call_args
         self.assertIn("sendMail", call_args[0][0])
         self.assertEqual(call_args[1]["method"], "POST")
-    
+
     async def test_send_email_with_cc_bcc(self):
         """Test email sending with CC and BCC."""
         self.mock_context.fetch.return_value = None
-        
+
         handler = microsoft365.SendEmailAction()
         inputs = {
             "to": "test@example.com",
             "subject": "Test Email",
             "body": "Test body",
             "cc": ["cc@example.com"],
-            "bcc": ["bcc@example.com"]
+            "bcc": ["bcc@example.com"],
         }
-        
+
         result = await handler.execute(inputs, self.mock_context)
-        
+
         self.assertTrue(result.data["result"])
-        
+
         # Check that the API was called with CC and BCC recipients
         call_args = self.mock_context.fetch.call_args
         email_data = call_args[1]["json"]
         self.assertIn("ccRecipients", email_data["message"])
         self.assertIn("bccRecipients", email_data["message"])
-    
+
     async def test_create_calendar_event_success(self):
         """Test successful calendar event creation."""
         # Mock API response
         mock_response = {
             "id": "event123",
-            "webLink": "https://outlook.office365.com/calendar/event123"
+            "webLink": "https://outlook.office365.com/calendar/event123",
         }
         self.mock_context.fetch.return_value = mock_response
-        
+
         handler = microsoft365.CreateCalendarEventAction()
         inputs = {
             "subject": "Test Event",
             "start_time": "2024-08-01T14:00:00Z",
             "end_time": "2024-08-01T15:00:00Z",
             "location": "Conference Room",
-            "attendees": ["attendee@example.com"]
+            "attendees": ["attendee@example.com"],
         }
-        
+
         result = await handler.execute(inputs, self.mock_context)
-        
+
         self.assertTrue(result.data["result"])
         self.assertEqual(result.data["id"], "event123")
         self.assertIn("webLink", result.data)
-    
+
     async def test_upload_file_success(self):
         """Test successful file upload."""
         # Mock API response
@@ -92,24 +91,24 @@ class TestMicrosoft365Integration(unittest.TestCase):
             "id": "file123",
             "webUrl": "https://onedrive.com/file123",
             "size": 1024,
-            "@microsoft.graph.downloadUrl": "https://download.url"
+            "@microsoft.graph.downloadUrl": "https://download.url",
         }
         self.mock_context.fetch.return_value = mock_response
-        
+
         handler = microsoft365.UploadFileAction()
         inputs = {
             "filename": "test.txt",
             "content": "Test content",
             "content_type": "text/plain",
-            "folder_path": "/Documents"
+            "folder_path": "/Documents",
         }
-        
+
         result = await handler.execute(inputs, self.mock_context)
-        
+
         self.assertTrue(result.data["result"])
         self.assertEqual(result.data["id"], "file123")
         self.assertEqual(result.data["size"], 1024)
-    
+
     async def test_list_files_success(self):
         """Test successful file listing."""
         # Mock API response
@@ -120,47 +119,47 @@ class TestMicrosoft365Integration(unittest.TestCase):
                     "name": "document.pdf",
                     "size": 2048,
                     "lastModifiedDateTime": "2024-08-01T10:00:00Z",
-                    "webUrl": "https://onedrive.com/file1"
+                    "webUrl": "https://onedrive.com/file1",
                 },
                 {
                     "id": "folder1",
                     "name": "My Folder",
                     "lastModifiedDateTime": "2024-08-01T09:00:00Z",
                     "webUrl": "https://onedrive.com/folder1",
-                    "folder": {}
-                }
+                    "folder": {},
+                },
             ]
         }
         self.mock_context.fetch.return_value = mock_response
-        
+
         handler = microsoft365.ListFilesAction()
         inputs = {"folder_path": "/", "limit": 100}
-        
+
         result = await handler.execute(inputs, self.mock_context)
-        
+
         self.assertTrue(result.data["result"])
         self.assertEqual(len(result.data["files"]), 2)
-        self.assertIsNone(result.data["files"][0]["folder"])     # document.pdf (no folder facet)
-        self.assertIsNotNone(result.data["files"][1]["folder"]) # My Folder (has folder facet)
-    
+        self.assertIsNone(
+            result.data["files"][0]["folder"]
+        )  # document.pdf (no folder facet)
+        self.assertIsNotNone(
+            result.data["files"][1]["folder"]
+        )  # My Folder (has folder facet)
+
     async def test_error_handling(self):
         """Test error handling in actions."""
         # Mock API error
         self.mock_context.fetch.side_effect = Exception("API Error")
-        
+
         handler = microsoft365.SendEmailAction()
-        inputs = {
-            "to": "test@example.com",
-            "subject": "Test",
-            "body": "Test"
-        }
-        
+        inputs = {"to": "test@example.com", "subject": "Test", "body": "Test"}
+
         result = await handler.execute(inputs, self.mock_context)
-        
+
         self.assertFalse(result.data["result"])
         self.assertIn("error", result.data)
         self.assertEqual(result.data["error"], "API Error")
-    
+
     async def test_search_onedrive_files_success(self):
         """Test successful OneDrive file search."""
         # Mock API response
@@ -168,51 +167,51 @@ class TestMicrosoft365Integration(unittest.TestCase):
             "value": [
                 {
                     "id": "file123",
-                    "name": "quarterly-report.docx", 
+                    "name": "quarterly-report.docx",
                     "size": 4096,
                     "lastModifiedDateTime": "2024-08-01T10:00:00Z",
                     "webUrl": "https://onedrive.com/file123",
                     "file": {
                         "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    }
+                    },
                 },
                 {
                     "id": "folder456",
                     "name": "Documents",
-                    "lastModifiedDateTime": "2024-08-01T09:00:00Z", 
+                    "lastModifiedDateTime": "2024-08-01T09:00:00Z",
                     "webUrl": "https://onedrive.com/folder456",
-                    "folder": {"childCount": 10}
-                }
+                    "folder": {"childCount": 10},
+                },
             ]
         }
         self.mock_context.fetch.return_value = mock_response
-        
+
         handler = microsoft365.SearchOneDriveFilesAction()
         inputs = {"query": "quarterly report", "limit": 10}
-        
+
         result = await handler.execute(inputs, self.mock_context)
-        
+
         self.assertTrue(result.data["result"])
         self.assertEqual(len(result.data["files"]), 2)
         self.assertEqual(result.data["query"], "quarterly report")
-        
+
         # Check file item structure
         file_item = result.data["files"][0]
         self.assertEqual(file_item["id"], "file123")
         self.assertEqual(file_item["name"], "quarterly-report.docx")
         self.assertIn("file", file_item)
-        
+
         # Check folder item structure
-        folder_item = result.data["files"][1] 
+        folder_item = result.data["files"][1]
         self.assertEqual(folder_item["id"], "folder456")
         self.assertIn("folder", folder_item)
-        
+
         # Verify API call with URL encoding
         call_args = self.mock_context.fetch.call_args
         api_url = call_args[0][0]
         self.assertIn("search(q='quarterly%20report')", api_url)
-    
-    @patch('microsoft365.microsoft365.fetch_binary_content')
+
+    @patch("microsoft365.microsoft365.fetch_binary_content")
     async def test_read_onedrive_file_content_success(self, mock_fetch_binary):
         """Test successful OneDrive file content reading."""
         # Mock metadata response
@@ -221,7 +220,7 @@ class TestMicrosoft365Integration(unittest.TestCase):
             "name": "document.docx",
             "size": 2048,
             "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "webUrl": "https://onedrive.com/file123"
+            "webUrl": "https://onedrive.com/file123",
         }
 
         # Mock content response (PDF conversion)
@@ -241,11 +240,13 @@ class TestMicrosoft365Integration(unittest.TestCase):
         self.assertEqual(result.data["file"]["name"], "document.docx")
         self.assertEqual(result.data["metadata"]["size"], 2048)
         self.assertEqual(result.data["file"]["contentType"], "application/pdf")
-        self.assertIsNotNone(result.data["file"]["content"])  # Should have base64 encoded PDF
+        self.assertIsNotNone(
+            result.data["file"]["content"]
+        )  # Should have base64 encoded PDF
 
         # Verify API calls
         self.mock_context.fetch.assert_called_once()  # Metadata call
-        mock_fetch_binary.assert_called_once()        # Binary content call
+        mock_fetch_binary.assert_called_once()  # Binary content call
 
         # Check metadata call
         metadata_call = self.mock_context.fetch.call_args
@@ -256,39 +257,41 @@ class TestMicrosoft365Integration(unittest.TestCase):
         binary_call_args = mock_fetch_binary.call_args[0]
         self.assertIn("/drive/items/file123/content", binary_call_args[0])
         self.assertIn("format=pdf", binary_call_args[0])
-    
+
     async def test_read_onedrive_file_content_non_office_file(self):
         """Test file content reading for non-Office files (no PDF conversion)."""
         # Mock metadata response for text file
         mock_metadata = {
-            "id": "file456", 
+            "id": "file456",
             "name": "notes.txt",
             "size": 512,
             "mimeType": "text/plain",
-            "webUrl": "https://onedrive.com/file456"
+            "webUrl": "https://onedrive.com/file456",
         }
-        
+
         # Mock content response
         mock_content = b"Sample text content"
-        
+
         self.mock_context.fetch.side_effect = [mock_metadata, mock_content]
-        
+
         handler = microsoft365.ReadOneDriveFileContentAction()
         inputs = {"file_id": "file456"}
-        
+
         result = await handler.execute(inputs, self.mock_context)
-        
+
         self.assertTrue(result.data["result"])
         self.assertEqual(result.data["file"]["name"], "notes.txt")
         self.assertEqual(result.data["file"]["contentType"], "text/plain")
-        self.assertIsNotNone(result.data["file"]["content"])  # Should have base64 encoded content
-        
+        self.assertIsNotNone(
+            result.data["file"]["content"]
+        )  # Should have base64 encoded content
+
         # Check content call (no PDF conversion for text file)
         content_call = self.mock_context.fetch.call_args_list[1]
         self.assertIn("/drive/items/file456/content", content_call[0][0])
         self.assertNotIn("format=pdf", content_call[0][0])
 
-    @patch('microsoft365.microsoft365.fetch_binary_content')
+    @patch("microsoft365.microsoft365.fetch_binary_content")
     async def test_read_onedrive_file_content_native_pdf(self, mock_fetch_binary):
         """Test file content reading for native PDF files."""
         # Mock metadata response for PDF file
@@ -297,7 +300,7 @@ class TestMicrosoft365Integration(unittest.TestCase):
             "name": "AICPA_SOC2_Compliance_Guide_on_AWS.pdf",
             "size": 755287,
             "mimeType": "application/pdf",
-            "webUrl": "https://onedrive.com/file789"
+            "webUrl": "https://onedrive.com/file789",
         }
 
         # Mock PDF binary content
@@ -313,9 +316,13 @@ class TestMicrosoft365Integration(unittest.TestCase):
         result = await handler.execute(inputs, self.mock_context)
 
         self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["file"]["name"], "AICPA_SOC2_Compliance_Guide_on_AWS.pdf")
+        self.assertEqual(
+            result.data["file"]["name"], "AICPA_SOC2_Compliance_Guide_on_AWS.pdf"
+        )
         self.assertEqual(result.data["file"]["contentType"], "application/pdf")
-        self.assertIsNotNone(result.data["file"]["content"])  # Should have base64 encoded content
+        self.assertIsNotNone(
+            result.data["file"]["content"]
+        )  # Should have base64 encoded content
 
         # Verify binary fetch was called with correct URL
         mock_fetch_binary.assert_called_once()
@@ -328,21 +335,26 @@ class TestMicrosoft365Integration(unittest.TestCase):
         # Mock metadata response
         mock_metadata = {
             "id": "file789",
-            "name": "restricted.pdf", 
+            "name": "restricted.pdf",
             "size": 1024,
             "mimeType": "application/pdf",
-            "webUrl": "https://onedrive.com/file789"
+            "webUrl": "https://onedrive.com/file789",
         }
-        
+
         # Mock content error
-        self.mock_context.fetch.side_effect = [mock_metadata, Exception("Access denied")]
-        
+        self.mock_context.fetch.side_effect = [
+            mock_metadata,
+            Exception("Access denied"),
+        ]
+
         handler = microsoft365.ReadOneDriveFileContentAction()
         inputs = {"file_id": "file789"}
-        
+
         result = await handler.execute(inputs, self.mock_context)
-        
-        self.assertFalse(result.data["result"])  # Operation fails when content retrieval fails
+
+        self.assertFalse(
+            result.data["result"]
+        )  # Operation fails when content retrieval fails
         self.assertEqual(result.data["file"]["name"], "restricted.pdf")
         self.assertEqual(result.data["file"]["content"], "")  # Empty content on failure
         self.assertIn("Access denied", result.data["error"])
@@ -364,35 +376,31 @@ class TestListCalendarEventsAction(unittest.TestCase):
                     "subject": "Team Meeting",
                     "start": {
                         "dateTime": "2024-08-20T14:00:00.0000000",
-                        "timeZone": "UTC"
+                        "timeZone": "UTC",
                     },
                     "end": {
                         "dateTime": "2024-08-20T15:00:00.0000000",
-                        "timeZone": "UTC"
+                        "timeZone": "UTC",
                     },
-                    "location": {
-                        "displayName": "Conference Room A"
-                    },
+                    "location": {"displayName": "Conference Room A"},
                     "bodyPreview": "Weekly team sync",
                     "organizer": {
                         "emailAddress": {
                             "address": "organizer@example.com",
-                            "name": "Organizer Name"
+                            "name": "Organizer Name",
                         }
                     },
                     "attendees": [
                         {
                             "emailAddress": {
                                 "address": "attendee@example.com",
-                                "name": "Attendee Name"
+                                "name": "Attendee Name",
                             },
-                            "status": {
-                                "response": "accepted"
-                            }
+                            "status": {"response": "accepted"},
                         }
                     ],
                     "webLink": "https://outlook.office365.com/calendar/item123",
-                    "isAllDay": False
+                    "isAllDay": False,
                 }
             ]
         }
@@ -403,7 +411,7 @@ class TestListCalendarEventsAction(unittest.TestCase):
         inputs = {
             "start_datetime": "2024-08-20T00:00:00Z",
             "end_datetime": "2024-08-20T23:59:59Z",
-            "limit": 50
+            "limit": 50,
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -433,7 +441,7 @@ class TestCreateDraftEmailAction(unittest.TestCase):
             "id": "draft123",
             "subject": "Test Draft",
             "createdDateTime": "2024-08-20T10:00:00Z",
-            "isDraft": True
+            "isDraft": True,
         }
         self.mock_context.fetch.return_value = mock_response
 
@@ -442,7 +450,7 @@ class TestCreateDraftEmailAction(unittest.TestCase):
             "subject": "Test Draft",
             "body": "This is a test draft",
             "body_type": "Text",
-            "to_recipients": ["test@example.com"]
+            "to_recipients": ["test@example.com"],
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -464,7 +472,7 @@ class TestCreateDraftEmailAction(unittest.TestCase):
             "id": "draft456",
             "subject": "Complete Draft",
             "createdDateTime": "2024-08-20T10:00:00Z",
-            "isDraft": True
+            "isDraft": True,
         }
         self.mock_context.fetch.return_value = mock_response
 
@@ -475,7 +483,7 @@ class TestCreateDraftEmailAction(unittest.TestCase):
             "to_recipients": [{"address": "to@example.com", "name": "To User"}],
             "cc_recipients": ["cc@example.com"],
             "bcc_recipients": [{"address": "bcc@example.com"}],
-            "importance": "High"
+            "importance": "High",
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -530,10 +538,7 @@ class TestReplyToEmailAction(unittest.TestCase):
         self.mock_context.fetch.return_value = None
 
         handler = microsoft365.ReplyToEmailAction()
-        inputs = {
-            "message_id": "msg123",
-            "comment": "Thanks for the email!"
-        }
+        inputs = {"message_id": "msg123", "comment": "Thanks for the email!"}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -579,8 +584,11 @@ class TestForwardEmailAction(unittest.TestCase):
         handler = microsoft365.ForwardEmailAction()
         inputs = {
             "message_id": "msg789",
-            "to_recipients": ["forward@example.com", {"address": "user@test.com", "name": "Test User"}],
-            "comment": "FYI"
+            "to_recipients": [
+                "forward@example.com",
+                {"address": "user@test.com", "name": "Test User"},
+            ],
+            "comment": "FYI",
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -607,7 +615,7 @@ class TestDownloadEmailAttachmentAction(unittest.TestCase):
         self.mock_context = Mock()
         self.mock_context.fetch = AsyncMock()
 
-    @patch('microsoft365.microsoft365.fetch_binary_content')
+    @patch("microsoft365.microsoft365.fetch_binary_content")
     async def test_download_attachment_success(self, mock_fetch_binary):
         """Test successful attachment download."""
         # Mock attachment metadata
@@ -616,7 +624,7 @@ class TestDownloadEmailAttachmentAction(unittest.TestCase):
             "name": "document.pdf",
             "contentType": "application/pdf",
             "size": 1024,
-            "isInline": False
+            "isInline": False,
         }
 
         # Mock binary content
@@ -629,7 +637,7 @@ class TestDownloadEmailAttachmentAction(unittest.TestCase):
         inputs = {
             "message_id": "msg123",
             "attachment_id": "att123",
-            "include_content": True
+            "include_content": True,
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -657,7 +665,7 @@ class TestDownloadEmailAttachmentAction(unittest.TestCase):
             "name": "image.jpg",
             "contentType": "image/jpeg",
             "size": 2048,
-            "isInline": True
+            "isInline": True,
         }
 
         self.mock_context.fetch.return_value = mock_metadata
@@ -666,7 +674,7 @@ class TestDownloadEmailAttachmentAction(unittest.TestCase):
         inputs = {
             "message_id": "msg456",
             "attachment_id": "att456",
-            "include_content": False
+            "include_content": False,
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -687,53 +695,53 @@ class TestSearchEmailsAction(unittest.TestCase):
         """Test successful email search."""
         # Mock search API response
         mock_response = {
-            "value": [{
-                "hitsContainers": [{
-                    "total": 2,
-                    "hits": [
+            "value": [
+                {
+                    "hitsContainers": [
                         {
-                            "resource": {
-                                "id": "msg1",
-                                "subject": "Project Update",
-                                "from": {
-                                    "emailAddress": {
-                                        "address": "sender@example.com",
-                                        "name": "Sender Name"
+                            "total": 2,
+                            "hits": [
+                                {
+                                    "resource": {
+                                        "id": "msg1",
+                                        "subject": "Project Update",
+                                        "from": {
+                                            "emailAddress": {
+                                                "address": "sender@example.com",
+                                                "name": "Sender Name",
+                                            }
+                                        },
+                                        "receivedDateTime": "2024-08-20T10:00:00Z",
+                                        "bodyPreview": "Here is the project update...",
+                                        "hasAttachments": True,
                                     }
                                 },
-                                "receivedDateTime": "2024-08-20T10:00:00Z",
-                                "bodyPreview": "Here is the project update...",
-                                "hasAttachments": True
-                            }
-                        },
-                        {
-                            "resource": {
-                                "id": "msg2",
-                                "subject": "Meeting Notes",
-                                "from": {
-                                    "emailAddress": {
-                                        "address": "colleague@example.com",
-                                        "name": "Colleague"
+                                {
+                                    "resource": {
+                                        "id": "msg2",
+                                        "subject": "Meeting Notes",
+                                        "from": {
+                                            "emailAddress": {
+                                                "address": "colleague@example.com",
+                                                "name": "Colleague",
+                                            }
+                                        },
+                                        "receivedDateTime": "2024-08-19T15:30:00Z",
+                                        "bodyPreview": "Notes from today's meeting...",
+                                        "hasAttachments": False,
                                     }
                                 },
-                                "receivedDateTime": "2024-08-19T15:30:00Z",
-                                "bodyPreview": "Notes from today's meeting...",
-                                "hasAttachments": False
-                            }
+                            ],
                         }
                     ]
-                }]
-            }]
+                }
+            ]
         }
 
         self.mock_context.fetch.return_value = mock_response
 
         handler = microsoft365.SearchEmailsAction()
-        inputs = {
-            "query": "project meeting",
-            "limit": 25,
-            "enable_top_results": True
-        }
+        inputs = {"query": "project meeting", "limit": 25, "enable_top_results": True}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -761,14 +769,7 @@ class TestSearchEmailsAction(unittest.TestCase):
 
     async def test_search_emails_no_results(self):
         """Test search with no results."""
-        mock_response = {
-            "value": [{
-                "hitsContainers": [{
-                    "total": 0,
-                    "hits": []
-                }]
-            }]
-        }
+        mock_response = {"value": [{"hitsContainers": [{"total": 0, "hits": []}]}]}
 
         self.mock_context.fetch.return_value = mock_response
 
@@ -785,28 +786,32 @@ class TestSearchEmailsAction(unittest.TestCase):
         """Test email search handles null subject and bodyPreview fields."""
         # Mock response with None values for optional fields
         mock_response = {
-            "value": [{
-                "hitsContainers": [{
-                    "total": 1,
-                    "hits": [
+            "value": [
+                {
+                    "hitsContainers": [
                         {
-                            "resource": {
-                                "id": "msg1",
-                                "subject": None,  # Null subject
-                                "from": {
-                                    "emailAddress": {
-                                        "address": "sender@example.com",
-                                        "name": "Sender Name"
+                            "total": 1,
+                            "hits": [
+                                {
+                                    "resource": {
+                                        "id": "msg1",
+                                        "subject": None,  # Null subject
+                                        "from": {
+                                            "emailAddress": {
+                                                "address": "sender@example.com",
+                                                "name": "Sender Name",
+                                            }
+                                        },
+                                        "receivedDateTime": "2024-08-20T10:00:00Z",
+                                        "bodyPreview": None,  # Null bodyPreview
+                                        "hasAttachments": False,
                                     }
-                                },
-                                "receivedDateTime": "2024-08-20T10:00:00Z",
-                                "bodyPreview": None,  # Null bodyPreview
-                                "hasAttachments": False
-                            }
+                                }
+                            ],
                         }
                     ]
-                }]
-            }]
+                }
+            ]
         }
 
         self.mock_context.fetch.return_value = mock_response
@@ -845,7 +850,7 @@ class TestSearchSharePointSitesAction(unittest.TestCase):
                     "description": "Site for Team A projects",
                     "webUrl": "https://contoso.sharepoint.com/sites/siteA",
                     "createdDateTime": "2024-01-15T10:00:00Z",
-                    "lastModifiedDateTime": "2024-08-20T14:30:00Z"
+                    "lastModifiedDateTime": "2024-08-20T14:30:00Z",
                 }
             ]
         }
@@ -885,18 +890,22 @@ class TestGetSharePointSiteDetailsAction(unittest.TestCase):
             "webUrl": "https://contoso.sharepoint.com/sites/siteA",
             "createdDateTime": "2024-01-15T10:00:00Z",
             "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-            "isPersonalSite": False
+            "isPersonalSite": False,
         }
         self.mock_context.fetch.return_value = mock_response
 
         handler = microsoft365.GetSharePointSiteDetailsAction()
-        inputs = {"site_id": "contoso.sharepoint.com,da60e844-ba1d-49bc-b4d4-d5e36bae9019,712a596e-90a1-49e3-9b48-bfa80bee8740"}
+        inputs = {
+            "site_id": "contoso.sharepoint.com,da60e844-ba1d-49bc-b4d4-d5e36bae9019,712a596e-90a1-49e3-9b48-bfa80bee8740"
+        }
 
         result = await handler.execute(inputs, self.mock_context)
 
         self.assertTrue(result.data["result"])
         self.assertEqual(result.data["site"]["name"], "Team A Site")
-        self.assertEqual(result.data["site"]["display_name"], "Team A Collaboration Site")
+        self.assertEqual(
+            result.data["site"]["display_name"], "Team A Collaboration Site"
+        )
         self.assertFalse(result.data["site"]["is_personal_site"])
 
         # Verify API call
@@ -926,7 +935,7 @@ class TestListSharePointLibrariesAction(unittest.TestCase):
                     "owner": {
                         "user": {
                             "displayName": "Site Owner",
-                            "email": "owner@contoso.com"
+                            "email": "owner@contoso.com",
                         }
                     },
                     "quota": {
@@ -934,8 +943,8 @@ class TestListSharePointLibrariesAction(unittest.TestCase):
                         "remaining": 1099217021300,
                         "used": 294606476,
                         "deleted": 0,
-                        "state": "normal"
-                    }
+                        "state": "normal",
+                    },
                 }
             ]
         }
@@ -973,16 +982,12 @@ class TestSearchSharePointDocumentsAction(unittest.TestCase):
         # Mock drives response (Step 1: Get all drives)
         mock_drives_response = {
             "value": [
-                {
-                    "id": "drive1",
-                    "name": "Documents",
-                    "driveType": "documentLibrary"
-                },
+                {"id": "drive1", "name": "Documents", "driveType": "documentLibrary"},
                 {
                     "id": "drive2",
                     "name": "HRDocumentLibrary",
-                    "driveType": "documentLibrary"
-                }
+                    "driveType": "documentLibrary",
+                },
             ]
         }
 
@@ -997,7 +1002,7 @@ class TestSearchSharePointDocumentsAction(unittest.TestCase):
                     "webUrl": "https://contoso.sharepoint.com/sites/siteA/Documents/Project Plan.docx",
                     "file": {
                         "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    }
+                    },
                 }
             ]
         }
@@ -1010,26 +1015,20 @@ class TestSearchSharePointDocumentsAction(unittest.TestCase):
                     "size": 23456,
                     "lastModifiedDateTime": "2024-08-19T15:30:00Z",
                     "webUrl": "https://contoso.sharepoint.com/sites/siteA/HRDocumentLibrary/HR Policy.pdf",
-                    "file": {
-                        "mimeType": "application/pdf"
-                    }
+                    "file": {"mimeType": "application/pdf"},
                 }
             ]
         }
 
         # Configure mock to return different responses for different calls
         self.mock_context.fetch.side_effect = [
-            mock_drives_response,           # First call: GET /sites/{site-id}/drives
-            mock_search_response_drive1,    # Second call: GET /drives/drive1/root/search
-            mock_search_response_drive2     # Third call: GET /drives/drive2/root/search
+            mock_drives_response,  # First call: GET /sites/{site-id}/drives
+            mock_search_response_drive1,  # Second call: GET /drives/drive1/root/search
+            mock_search_response_drive2,  # Third call: GET /drives/drive2/root/search
         ]
 
         handler = microsoft365.SearchSharePointDocumentsAction()
-        inputs = {
-            "site_id": "test-site-id",
-            "query": "project plan",
-            "limit": 10
-        }
+        inputs = {"site_id": "test-site-id", "query": "project plan", "limit": 10}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -1087,11 +1086,8 @@ class TestListSharePointPagesAction(unittest.TestCase):
                     "createdDateTime": "2024-01-15T10:00:00Z",
                     "lastModifiedDateTime": "2024-08-20T14:30:00Z",
                     "createdBy": {
-                        "user": {
-                            "displayName": "John Doe",
-                            "email": "john@contoso.com"
-                        }
-                    }
+                        "user": {"displayName": "John Doe", "email": "john@contoso.com"}
+                    },
                 }
             ]
         }
@@ -1115,7 +1111,9 @@ class TestListSharePointPagesAction(unittest.TestCase):
 
         # Verify API call
         call_args = self.mock_context.fetch.call_args
-        self.assertIn("/sites/test-site-id/pages/microsoft.graph.sitePage", call_args[0][0])
+        self.assertIn(
+            "/sites/test-site-id/pages/microsoft.graph.sitePage", call_args[0][0]
+        )
 
 
 class TestReadSharePointDocumentAction(unittest.TestCase):
@@ -1124,7 +1122,7 @@ class TestReadSharePointDocumentAction(unittest.TestCase):
         self.mock_context = Mock()
         self.mock_context.fetch = AsyncMock()
 
-    @patch('microsoft365.microsoft365.fetch_binary_content')
+    @patch("microsoft365.microsoft365.fetch_binary_content")
     async def test_read_sharepoint_document_success(self, mock_fetch_binary):
         """Test successful SharePoint document reading."""
         # Mock metadata response
@@ -1133,7 +1131,7 @@ class TestReadSharePointDocumentAction(unittest.TestCase):
             "name": "SharePoint_Report.docx",
             "size": 3072,
             "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "webUrl": "https://contoso.sharepoint.com/sites/siteA/Documents/SharePoint_Report.docx"
+            "webUrl": "https://contoso.sharepoint.com/sites/siteA/Documents/SharePoint_Report.docx",
         }
 
         # Mock PDF content from conversion
@@ -1155,15 +1153,19 @@ class TestReadSharePointDocumentAction(unittest.TestCase):
 
         # Verify API calls
         self.mock_context.fetch.assert_called_once()  # Metadata call
-        mock_fetch_binary.assert_called_once()        # Binary content call
+        mock_fetch_binary.assert_called_once()  # Binary content call
 
         # Check binary content call includes format=pdf for Office docs
         binary_call_args = mock_fetch_binary.call_args[0]
-        self.assertIn("/sites/test-site-id/drive/items/doc123/content", binary_call_args[0])
+        self.assertIn(
+            "/sites/test-site-id/drive/items/doc123/content", binary_call_args[0]
+        )
         self.assertIn("format=pdf", binary_call_args[0])
 
-    @patch('microsoft365.microsoft365.fetch_binary_content')
-    async def test_read_sharepoint_document_with_drive_id_success(self, mock_fetch_binary):
+    @patch("microsoft365.microsoft365.fetch_binary_content")
+    async def test_read_sharepoint_document_with_drive_id_success(
+        self, mock_fetch_binary
+    ):
         """Test successful SharePoint document reading with specific drive ID."""
         # Mock metadata response
         mock_metadata = {
@@ -1171,7 +1173,7 @@ class TestReadSharePointDocumentAction(unittest.TestCase):
             "name": "HR_Policy.pdf",
             "size": 4096,
             "mimeType": "application/pdf",
-            "webUrl": "https://contoso.sharepoint.com/sites/siteA/HRDocumentLibrary/HR_Policy.pdf"
+            "webUrl": "https://contoso.sharepoint.com/sites/siteA/HRDocumentLibrary/HR_Policy.pdf",
         }
         # Mock PDF content
         mock_content = b"%PDF-1.4\n%HR Policy document"
@@ -1182,7 +1184,7 @@ class TestReadSharePointDocumentAction(unittest.TestCase):
         inputs = {
             "site_id": "test-site-id",
             "file_id": "doc456",
-            "drive_id": "drive123"
+            "drive_id": "drive123",
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -1221,7 +1223,7 @@ class TestListMailFoldersAction(unittest.TestCase):
                     "childFolderCount": 2,
                     "unreadItemCount": 10,
                     "totalItemCount": 50,
-                    "isHidden": False
+                    "isHidden": False,
                 },
                 {
                     "id": "AQMkADYAAAIBXQAAAA==",
@@ -1230,8 +1232,8 @@ class TestListMailFoldersAction(unittest.TestCase):
                     "childFolderCount": 0,
                     "unreadItemCount": 0,
                     "totalItemCount": 100,
-                    "isHidden": False
-                }
+                    "isHidden": False,
+                },
             ]
         }
         self.mock_context.fetch.return_value = mock_response
@@ -1263,7 +1265,7 @@ class TestListMailFoldersAction(unittest.TestCase):
                     "childFolderCount": 0,
                     "unreadItemCount": 10,
                     "totalItemCount": 50,
-                    "isHidden": False
+                    "isHidden": False,
                 },
                 {
                     "id": "AQMkADYAAAIBXQAAAA==",
@@ -1272,10 +1274,10 @@ class TestListMailFoldersAction(unittest.TestCase):
                     "childFolderCount": 0,
                     "unreadItemCount": 0,
                     "totalItemCount": 100,
-                    "isHidden": False
-                }
+                    "isHidden": False,
+                },
             ],
-            "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/mailFolders?$skiptoken=xxx"
+            "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/mailFolders?$skiptoken=xxx",
         }
         # Second page without @odata.nextLink (last page)
         mock_page2 = {
@@ -1287,7 +1289,7 @@ class TestListMailFoldersAction(unittest.TestCase):
                     "childFolderCount": 0,
                     "unreadItemCount": 2,
                     "totalItemCount": 5,
-                    "isHidden": False
+                    "isHidden": False,
                 }
             ]
         }
@@ -1321,7 +1323,7 @@ class TestListMailFoldersAction(unittest.TestCase):
                     "childFolderCount": 1,
                     "unreadItemCount": 10,
                     "totalItemCount": 50,
-                    "isHidden": False
+                    "isHidden": False,
                 }
             ]
         }
@@ -1336,7 +1338,7 @@ class TestListMailFoldersAction(unittest.TestCase):
                     "childFolderCount": 0,
                     "unreadItemCount": 5,
                     "totalItemCount": 20,
-                    "isHidden": False
+                    "isHidden": False,
                 }
             ]
         }
@@ -1368,7 +1370,7 @@ class TestListMailFoldersAction(unittest.TestCase):
                     "childFolderCount": 0,
                     "unreadItemCount": 10,
                     "totalItemCount": 50,
-                    "isHidden": False
+                    "isHidden": False,
                 },
                 {
                     "id": "AQMkADYAAAIBFAAAAA==",
@@ -1377,8 +1379,8 @@ class TestListMailFoldersAction(unittest.TestCase):
                     "childFolderCount": 0,
                     "unreadItemCount": 0,
                     "totalItemCount": 5,
-                    "isHidden": True
-                }
+                    "isHidden": True,
+                },
             ]
         }
         self.mock_context.fetch.return_value = mock_response
@@ -1406,7 +1408,7 @@ class TestListMailFoldersAction(unittest.TestCase):
                     "childFolderCount": 0,
                     "unreadItemCount": 3,
                     "totalItemCount": 15,
-                    "isHidden": False
+                    "isHidden": False,
                 }
             ]
         }
@@ -1423,7 +1425,9 @@ class TestListMailFoldersAction(unittest.TestCase):
 
         # Verify API call uses childFolders endpoint
         call_args = self.mock_context.fetch.call_args
-        self.assertIn("/me/mailFolders/AQMkADYAAAIBDAAAAA==/childFolders", call_args[0][0])
+        self.assertIn(
+            "/me/mailFolders/AQMkADYAAAIBDAAAAA==/childFolders", call_args[0][0]
+        )
 
 
 class TestGetMailFolderAction(unittest.TestCase):
@@ -1441,7 +1445,7 @@ class TestGetMailFolderAction(unittest.TestCase):
             "childFolderCount": 2,
             "unreadItemCount": 10,
             "totalItemCount": 50,
-            "isHidden": False
+            "isHidden": False,
         }
         self.mock_context.fetch.return_value = mock_response
 
@@ -1467,7 +1471,7 @@ class TestGetMailFolderAction(unittest.TestCase):
             "childFolderCount": 0,
             "unreadItemCount": 0,
             "totalItemCount": 100,
-            "isHidden": False
+            "isHidden": False,
         }
         self.mock_context.fetch.return_value = mock_response
 
@@ -1507,15 +1511,12 @@ class TestMoveEmailAction(unittest.TestCase):
         mock_response = {
             "id": "msg123-moved",
             "parentFolderId": "AQMkADYAAAIBXQAAAA==",
-            "subject": "Test Email"
+            "subject": "Test Email",
         }
         self.mock_context.fetch.return_value = mock_response
 
         handler = microsoft365.MoveEmailAction()
-        inputs = {
-            "email_id": "msg123",
-            "destination_folder_id": "AQMkADYAAAIBXQAAAA=="
-        }
+        inputs = {"email_id": "msg123", "destination_folder_id": "AQMkADYAAAIBXQAAAA=="}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -1535,15 +1536,12 @@ class TestMoveEmailAction(unittest.TestCase):
         mock_response = {
             "id": "msg456-moved",
             "parentFolderId": "AQMkADYAAAIBGAAAAA==",
-            "subject": "Another Test Email"
+            "subject": "Another Test Email",
         }
         self.mock_context.fetch.return_value = mock_response
 
         handler = microsoft365.MoveEmailAction()
-        inputs = {
-            "email_id": "msg456",
-            "destination_folder_id": "deleteditems"
-        }
+        inputs = {"email_id": "msg456", "destination_folder_id": "deleteditems"}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -1559,10 +1557,7 @@ class TestMoveEmailAction(unittest.TestCase):
         self.mock_context.fetch.side_effect = Exception("Folder not found")
 
         handler = microsoft365.MoveEmailAction()
-        inputs = {
-            "email_id": "msg789",
-            "destination_folder_id": "invalid-folder"
-        }
+        inputs = {"email_id": "msg789", "destination_folder_id": "invalid-folder"}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -1589,10 +1584,7 @@ class TestReadSharePointPageContentAction(unittest.TestCase):
             "createdDateTime": "2024-01-15T10:00:00Z",
             "lastModifiedDateTime": "2024-08-20T14:30:00Z",
             "createdBy": {
-                "user": {
-                    "displayName": "Page Creator",
-                    "email": "creator@contoso.com"
-                }
+                "user": {"displayName": "Page Creator", "email": "creator@contoso.com"}
             },
             "canvasLayout": {
                 "horizontalSections": [
@@ -1603,14 +1595,14 @@ class TestReadSharePointPageContentAction(unittest.TestCase):
                                 "webparts": [
                                     {
                                         "@odata.type": "#oneDrive.textWebPart",
-                                        "innerHtml": "<h1>Welcome</h1><p>This is the home page content.</p>"
+                                        "innerHtml": "<h1>Welcome</h1><p>This is the home page content.</p>",
                                     }
                                 ]
                             }
-                        ]
+                        ],
                     }
                 ]
-            }
+            },
         }
 
         self.mock_context.fetch.return_value = mock_response
@@ -1619,7 +1611,7 @@ class TestReadSharePointPageContentAction(unittest.TestCase):
         inputs = {
             "site_id": "test-site-id",
             "page_id": "page123",
-            "include_content": True
+            "include_content": True,
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -1634,7 +1626,10 @@ class TestReadSharePointPageContentAction(unittest.TestCase):
 
         # Verify API call
         call_args = self.mock_context.fetch.call_args
-        self.assertIn("/sites/test-site-id/pages/page123/microsoft.graph.sitePage", call_args[0][0])
+        self.assertIn(
+            "/sites/test-site-id/pages/page123/microsoft.graph.sitePage",
+            call_args[0][0],
+        )
         self.assertIn("$expand", call_args[1]["params"])
         self.assertEqual(call_args[1]["params"]["$expand"], "canvasLayout")
 
@@ -1645,7 +1640,7 @@ class TestReadSharePointPageContentAction(unittest.TestCase):
             "name": "About.aspx",
             "title": "About Us",
             "webUrl": "https://contoso.sharepoint.com/sites/siteA/SitePages/About.aspx",
-            "pageLayout": "article"
+            "pageLayout": "article",
         }
 
         self.mock_context.fetch.return_value = mock_response
@@ -1654,14 +1649,16 @@ class TestReadSharePointPageContentAction(unittest.TestCase):
         inputs = {
             "site_id": "test-site-id",
             "page_id": "page456",
-            "include_content": False
+            "include_content": False,
         }
 
         result = await handler.execute(inputs, self.mock_context)
 
         self.assertTrue(result.data["result"])
         self.assertEqual(result.data["page"]["title"], "About Us")
-        self.assertNotIn("content", result.data["page"])  # No content when include_content=False
+        self.assertNotIn(
+            "content", result.data["page"]
+        )  # No content when include_content=False
 
         # Verify API call doesn't include $expand
         call_args = self.mock_context.fetch.call_args
@@ -1688,7 +1685,7 @@ class TestListSharePointSubsitesAction(unittest.TestCase):
                     "webUrl": "https://contoso.sharepoint.com/sites/main/hr",
                     "createdDateTime": "2024-03-01T10:00:00Z",
                     "lastModifiedDateTime": "2024-08-15T09:00:00Z",
-                    "isPersonalSite": False
+                    "isPersonalSite": False,
                 },
                 {
                     "id": "contoso.sharepoint.com,sub2-guid,sub2-web-guid",
@@ -1698,8 +1695,8 @@ class TestListSharePointSubsitesAction(unittest.TestCase):
                     "webUrl": "https://contoso.sharepoint.com/sites/main/finance",
                     "createdDateTime": "2024-04-01T10:00:00Z",
                     "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-                    "isPersonalSite": False
-                }
+                    "isPersonalSite": False,
+                },
             ]
         }
         self.mock_context.fetch.return_value = mock_response
@@ -1718,7 +1715,10 @@ class TestListSharePointSubsitesAction(unittest.TestCase):
 
         # Verify API call
         call_args = self.mock_context.fetch.call_args
-        self.assertIn("/sites/contoso.sharepoint.com,main-guid,main-web-guid/sites", call_args[0][0])
+        self.assertIn(
+            "/sites/contoso.sharepoint.com,main-guid,main-web-guid/sites",
+            call_args[0][0],
+        )
 
     async def test_list_sharepoint_subsites_with_limit(self):
         """Test listing subsites with a limit parameter."""
@@ -1726,7 +1726,10 @@ class TestListSharePointSubsitesAction(unittest.TestCase):
         self.mock_context.fetch.return_value = mock_response
 
         handler = microsoft365.ListSharePointSubsitesAction()
-        inputs = {"site_id": "contoso.sharepoint.com,main-guid,main-web-guid", "limit": 5}
+        inputs = {
+            "site_id": "contoso.sharepoint.com,main-guid,main-web-guid",
+            "limit": 5,
+        }
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -1780,7 +1783,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "lastModifiedDateTime": "2024-08-15T09:00:00Z",
                     "folder": {"childCount": 12},
                     "createdBy": {"user": {"displayName": "John Smith"}},
-                    "lastModifiedBy": {"user": {"displayName": "Jane Doe"}}
+                    "lastModifiedBy": {"user": {"displayName": "Jane Doe"}},
                 },
                 {
                     "id": "file-1",
@@ -1789,10 +1792,12 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "size": 45678,
                     "createdDateTime": "2024-07-01T10:00:00Z",
                     "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-                    "file": {"mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+                    "file": {
+                        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    },
                     "createdBy": {"user": {"displayName": "Jane Doe"}},
-                    "lastModifiedBy": {"user": {"displayName": "Jane Doe"}}
-                }
+                    "lastModifiedBy": {"user": {"displayName": "Jane Doe"}},
+                },
             ]
         }
         self.mock_context.fetch.return_value = mock_response
@@ -1815,7 +1820,10 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         # Check file item
         file_item = result.data["items"][1]
         self.assertFalse(file_item["is_folder"])
-        self.assertEqual(file_item["mime_type"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        self.assertEqual(
+            file_item["mime_type"],
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
         self.assertEqual(file_item["size"], 45678)
 
         # Verify API call uses root path
@@ -1833,7 +1841,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "size": 102400,
                     "createdDateTime": "2024-06-01T10:00:00Z",
                     "lastModifiedDateTime": "2024-06-15T09:00:00Z",
-                    "file": {"mimeType": "application/pdf"}
+                    "file": {"mimeType": "application/pdf"},
                 }
             ]
         }
@@ -1857,7 +1865,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         """Test that has_more is set when next page link exists."""
         mock_response = {
             "value": [{"id": "file-1", "name": "file.txt", "size": 100}],
-            "@odata.nextLink": "https://graph.microsoft.com/v1.0/next-page-token"
+            "@odata.nextLink": "https://graph.microsoft.com/v1.0/next-page-token",
         }
         self.mock_context.fetch.return_value = mock_response
 
@@ -1881,7 +1889,6 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         self.assertFalse(result.data["result"])
         self.assertIn("Drive not found", result.data["error"])
 
-
     # ---- Meeting Scheduling & Room Management Tests ----
 
     async def test_find_meeting_times_success(self):
@@ -1890,46 +1897,69 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
             "meetingTimeSuggestions": [
                 {
                     "meetingTimeSlot": {
-                        "start": {"dateTime": "2024-08-20T10:00:00.0000000", "timeZone": "UTC"},
-                        "end": {"dateTime": "2024-08-20T11:00:00.0000000", "timeZone": "UTC"}
+                        "start": {
+                            "dateTime": "2024-08-20T10:00:00.0000000",
+                            "timeZone": "UTC",
+                        },
+                        "end": {
+                            "dateTime": "2024-08-20T11:00:00.0000000",
+                            "timeZone": "UTC",
+                        },
                     },
                     "confidence": 100,
                     "organizerAvailability": "free",
                     "attendeeAvailability": [
                         {
-                            "attendee": {"emailAddress": {"address": "john@example.com"}},
-                            "availability": "free"
+                            "attendee": {
+                                "emailAddress": {"address": "john@example.com"}
+                            },
+                            "availability": "free",
                         },
                         {
-                            "attendee": {"emailAddress": {"address": "sarah@example.com"}},
-                            "availability": "free"
-                        }
+                            "attendee": {
+                                "emailAddress": {"address": "sarah@example.com"}
+                            },
+                            "availability": "free",
+                        },
                     ],
                     "locations": [
-                        {"displayName": "Conference Room A", "locationEmailAddress": "conf-a@example.com"}
-                    ]
+                        {
+                            "displayName": "Conference Room A",
+                            "locationEmailAddress": "conf-a@example.com",
+                        }
+                    ],
                 },
                 {
                     "meetingTimeSlot": {
-                        "start": {"dateTime": "2024-08-20T14:00:00.0000000", "timeZone": "UTC"},
-                        "end": {"dateTime": "2024-08-20T15:00:00.0000000", "timeZone": "UTC"}
+                        "start": {
+                            "dateTime": "2024-08-20T14:00:00.0000000",
+                            "timeZone": "UTC",
+                        },
+                        "end": {
+                            "dateTime": "2024-08-20T15:00:00.0000000",
+                            "timeZone": "UTC",
+                        },
                     },
                     "confidence": 80,
                     "organizerAvailability": "free",
                     "attendeeAvailability": [
                         {
-                            "attendee": {"emailAddress": {"address": "john@example.com"}},
-                            "availability": "free"
+                            "attendee": {
+                                "emailAddress": {"address": "john@example.com"}
+                            },
+                            "availability": "free",
                         },
                         {
-                            "attendee": {"emailAddress": {"address": "sarah@example.com"}},
-                            "availability": "tentative"
-                        }
+                            "attendee": {
+                                "emailAddress": {"address": "sarah@example.com"}
+                            },
+                            "availability": "tentative",
+                        },
                     ],
-                    "locations": []
-                }
+                    "locations": [],
+                },
             ],
-            "emptySuggestionsReason": ""
+            "emptySuggestionsReason": "",
         }
         self.mock_context.fetch.return_value = mock_response
 
@@ -1939,7 +1969,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
             "duration_minutes": 60,
             "start_datetime": "2024-08-19T08:00:00Z",
             "end_datetime": "2024-08-23T18:00:00Z",
-            "max_candidates": 5
+            "max_candidates": 5,
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -1947,8 +1977,18 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         self.assertTrue(result.data["result"])
         self.assertEqual(len(result.data["meeting_time_suggestions"]), 2)
         self.assertEqual(result.data["meeting_time_suggestions"][0]["confidence"], 100)
-        self.assertEqual(result.data["meeting_time_suggestions"][0]["attendee_availability"][0]["email"], "john@example.com")
-        self.assertEqual(result.data["meeting_time_suggestions"][0]["suggested_locations"][0]["displayName"], "Conference Room A")
+        self.assertEqual(
+            result.data["meeting_time_suggestions"][0]["attendee_availability"][0][
+                "email"
+            ],
+            "john@example.com",
+        )
+        self.assertEqual(
+            result.data["meeting_time_suggestions"][0]["suggested_locations"][0][
+                "displayName"
+            ],
+            "Conference Room A",
+        )
 
         # Verify API call
         self.mock_context.fetch.assert_called_once()
@@ -1960,21 +2000,20 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         """Test when no meeting times are available."""
         mock_response = {
             "meetingTimeSuggestions": [],
-            "emptySuggestionsReason": "attendeesUnavailable"
+            "emptySuggestionsReason": "attendeesUnavailable",
         }
         self.mock_context.fetch.return_value = mock_response
 
         handler = microsoft365.FindMeetingTimesAction()
-        inputs = {
-            "attendees": ["john@example.com"],
-            "duration_minutes": 60
-        }
+        inputs = {"attendees": ["john@example.com"], "duration_minutes": 60}
 
         result = await handler.execute(inputs, self.mock_context)
 
         self.assertTrue(result.data["result"])
         self.assertEqual(len(result.data["meeting_time_suggestions"]), 0)
-        self.assertEqual(result.data["empty_suggestions_reason"], "attendeesUnavailable")
+        self.assertEqual(
+            result.data["empty_suggestions_reason"], "attendeesUnavailable"
+        )
 
     async def test_find_meeting_times_with_location_constraint(self):
         """Test finding meeting times with a specific room."""
@@ -1982,13 +2021,19 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
             "meetingTimeSuggestions": [
                 {
                     "meetingTimeSlot": {
-                        "start": {"dateTime": "2024-08-20T10:00:00.0000000", "timeZone": "UTC"},
-                        "end": {"dateTime": "2024-08-20T11:00:00.0000000", "timeZone": "UTC"}
+                        "start": {
+                            "dateTime": "2024-08-20T10:00:00.0000000",
+                            "timeZone": "UTC",
+                        },
+                        "end": {
+                            "dateTime": "2024-08-20T11:00:00.0000000",
+                            "timeZone": "UTC",
+                        },
                     },
                     "confidence": 100,
                     "organizerAvailability": "free",
                     "attendeeAvailability": [],
-                    "locations": []
+                    "locations": [],
                 }
             ]
         }
@@ -1998,7 +2043,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         inputs = {
             "attendees": ["john@example.com"],
             "duration_minutes": 30,
-            "location_constraint": "conf-room@example.com"
+            "location_constraint": "conf-room@example.com",
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -2008,11 +2053,16 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         call_args = self.mock_context.fetch.call_args
         body = call_args[1]["json"]
         self.assertIn("locationConstraint", body)
-        self.assertEqual(body["locationConstraint"]["locations"][0]["locationEmailAddress"], "conf-room@example.com")
+        self.assertEqual(
+            body["locationConstraint"]["locations"][0]["locationEmailAddress"],
+            "conf-room@example.com",
+        )
 
     async def test_find_meeting_times_error(self):
         """Test error handling for find meeting times."""
-        self.mock_context.fetch.side_effect = Exception("API Error: Insufficient permissions")
+        self.mock_context.fetch.side_effect = Exception(
+            "API Error: Insufficient permissions"
+        )
 
         handler = microsoft365.FindMeetingTimesAction()
         inputs = {"attendees": ["john@example.com"]}
@@ -2032,19 +2082,31 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "scheduleItems": [
                         {
                             "status": "busy",
-                            "start": {"dateTime": "2024-08-20T10:00:00.0000000", "timeZone": "UTC"},
-                            "end": {"dateTime": "2024-08-20T11:00:00.0000000", "timeZone": "UTC"},
+                            "start": {
+                                "dateTime": "2024-08-20T10:00:00.0000000",
+                                "timeZone": "UTC",
+                            },
+                            "end": {
+                                "dateTime": "2024-08-20T11:00:00.0000000",
+                                "timeZone": "UTC",
+                            },
                             "subject": "Team Standup",
                             "location": "Teams",
-                            "isPrivate": False
+                            "isPrivate": False,
                         }
                     ],
                     "workingHours": {
                         "startTime": "08:00:00.0000000",
                         "endTime": "17:00:00.0000000",
-                        "daysOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-                        "timeZone": {"name": "Pacific Standard Time"}
-                    }
+                        "daysOfWeek": [
+                            "monday",
+                            "tuesday",
+                            "wednesday",
+                            "thursday",
+                            "friday",
+                        ],
+                        "timeZone": {"name": "Pacific Standard Time"},
+                    },
                 },
                 {
                     "scheduleId": "sarah@example.com",
@@ -2053,10 +2115,16 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "workingHours": {
                         "startTime": "09:00:00.0000000",
                         "endTime": "18:00:00.0000000",
-                        "daysOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-                        "timeZone": {"name": "Eastern Standard Time"}
-                    }
-                }
+                        "daysOfWeek": [
+                            "monday",
+                            "tuesday",
+                            "wednesday",
+                            "thursday",
+                            "friday",
+                        ],
+                        "timeZone": {"name": "Eastern Standard Time"},
+                    },
+                },
             ]
         }
         self.mock_context.fetch.return_value = mock_response
@@ -2066,7 +2134,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
             "schedules": ["john@example.com", "sarah@example.com"],
             "start_datetime": "2024-08-20T08:00:00Z",
             "end_datetime": "2024-08-20T18:00:00Z",
-            "availability_view_interval": 30
+            "availability_view_interval": 30,
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -2076,8 +2144,13 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         self.assertEqual(result.data["schedules"][0]["email"], "john@example.com")
         self.assertEqual(result.data["schedules"][0]["availability_view"], "0000220000")
         self.assertEqual(len(result.data["schedules"][0]["schedule_items"]), 1)
-        self.assertEqual(result.data["schedules"][0]["schedule_items"][0]["status"], "busy")
-        self.assertEqual(result.data["schedules"][0]["working_hours"]["timezone"], "Pacific Standard Time")
+        self.assertEqual(
+            result.data["schedules"][0]["schedule_items"][0]["status"], "busy"
+        )
+        self.assertEqual(
+            result.data["schedules"][0]["working_hours"]["timezone"],
+            "Pacific Standard Time",
+        )
         self.assertEqual(len(result.data["schedules"][1]["schedule_items"]), 0)
 
         # Verify API call
@@ -2093,7 +2166,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         inputs = {
             "schedules": ["john@example.com"],
             "start_datetime": "2024-08-20T08:00:00Z",
-            "end_datetime": "2024-08-20T18:00:00Z"
+            "end_datetime": "2024-08-20T18:00:00Z",
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -2116,8 +2189,8 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "isWheelChairAccessible": True,
                     "audioDeviceName": "Polycom",
                     "videoDeviceName": "Logitech Rally",
-                    "displayDeviceName": "Samsung 65\"",
-                    "phone": "555-0101"
+                    "displayDeviceName": 'Samsung 65"',
+                    "phone": "555-0101",
                 },
                 {
                     "id": "room2",
@@ -2131,8 +2204,8 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "audioDeviceName": "Cisco",
                     "videoDeviceName": "Cisco Webex Board",
                     "displayDeviceName": "Cisco Webex Board 85",
-                    "phone": "555-0102"
-                }
+                    "phone": "555-0102",
+                },
             ]
         }
         self.mock_context.fetch.return_value = mock_response
@@ -2161,7 +2234,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "id": "list1",
                     "displayName": "Building A",
                     "emailAddress": "building-a@example.com",
-                    "phone": ""
+                    "phone": "",
                 }
             ]
         }
@@ -2189,7 +2262,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "emailAddress": "room101@example.com",
                     "capacity": 6,
                     "building": "Building A",
-                    "floorNumber": 1
+                    "floorNumber": 1,
                 }
             ]
         }
@@ -2198,14 +2271,16 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         handler = microsoft365.ListRoomsAction()
         inputs = {
             "list_type": "rooms_in_list",
-            "room_list_email": "building-a@example.com"
+            "room_list_email": "building-a@example.com",
         }
 
         result = await handler.execute(inputs, self.mock_context)
 
         self.assertTrue(result.data["result"])
         self.assertEqual(result.data["total_count"], 1)
-        self.assertEqual(result.data["rooms"][0]["email_address"], "room101@example.com")
+        self.assertEqual(
+            result.data["rooms"][0]["email_address"], "room101@example.com"
+        )
 
     async def test_list_rooms_in_list_missing_email(self):
         """Test error when room list email is missing."""
@@ -2219,7 +2294,9 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
 
     async def test_list_rooms_error(self):
         """Test error handling for list rooms."""
-        self.mock_context.fetch.side_effect = Exception("Forbidden: Insufficient privileges")
+        self.mock_context.fetch.side_effect = Exception(
+            "Forbidden: Insufficient privileges"
+        )
 
         handler = microsoft365.ListRoomsAction()
         inputs = {"list_type": "rooms"}
@@ -2236,13 +2313,13 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                 {
                     "scheduleId": "conf-a@example.com",
                     "availabilityView": "0000",
-                    "scheduleItems": []
+                    "scheduleItems": [],
                 },
                 {
                     "scheduleId": "conf-b@example.com",
                     "availabilityView": "0000",
-                    "scheduleItems": []
-                }
+                    "scheduleItems": [],
+                },
             ]
         }
         self.mock_context.fetch.return_value = mock_response
@@ -2251,7 +2328,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         inputs = {
             "room_emails": ["conf-a@example.com", "conf-b@example.com"],
             "start_datetime": "2024-08-20T14:00:00Z",
-            "end_datetime": "2024-08-20T15:00:00Z"
+            "end_datetime": "2024-08-20T15:00:00Z",
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -2260,7 +2337,9 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         self.assertEqual(len(result.data["rooms"]), 2)
         self.assertTrue(result.data["rooms"][0]["is_available"])
         self.assertTrue(result.data["rooms"][1]["is_available"])
-        self.assertEqual(result.data["available_rooms"], ["conf-a@example.com", "conf-b@example.com"])
+        self.assertEqual(
+            result.data["available_rooms"], ["conf-a@example.com", "conf-b@example.com"]
+        )
         self.assertEqual(result.data["unavailable_rooms"], [])
 
     async def test_check_room_availability_with_conflicts(self):
@@ -2270,7 +2349,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                 {
                     "scheduleId": "conf-a@example.com",
                     "availabilityView": "0000",
-                    "scheduleItems": []
+                    "scheduleItems": [],
                 },
                 {
                     "scheduleId": "conf-b@example.com",
@@ -2278,12 +2357,18 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "scheduleItems": [
                         {
                             "status": "busy",
-                            "start": {"dateTime": "2024-08-20T14:00:00.0000000", "timeZone": "UTC"},
-                            "end": {"dateTime": "2024-08-20T14:30:00.0000000", "timeZone": "UTC"},
-                            "subject": "Existing Meeting"
+                            "start": {
+                                "dateTime": "2024-08-20T14:00:00.0000000",
+                                "timeZone": "UTC",
+                            },
+                            "end": {
+                                "dateTime": "2024-08-20T14:30:00.0000000",
+                                "timeZone": "UTC",
+                            },
+                            "subject": "Existing Meeting",
                         }
-                    ]
-                }
+                    ],
+                },
             ]
         }
         self.mock_context.fetch.return_value = mock_response
@@ -2292,7 +2377,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         inputs = {
             "room_emails": ["conf-a@example.com", "conf-b@example.com"],
             "start_datetime": "2024-08-20T14:00:00Z",
-            "end_datetime": "2024-08-20T15:00:00Z"
+            "end_datetime": "2024-08-20T15:00:00Z",
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -2301,7 +2386,9 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         self.assertTrue(result.data["rooms"][0]["is_available"])
         self.assertFalse(result.data["rooms"][1]["is_available"])
         self.assertEqual(len(result.data["rooms"][1]["conflicts"]), 1)
-        self.assertEqual(result.data["rooms"][1]["conflicts"][0]["subject"], "Existing Meeting")
+        self.assertEqual(
+            result.data["rooms"][1]["conflicts"][0]["subject"], "Existing Meeting"
+        )
         self.assertEqual(result.data["available_rooms"], ["conf-a@example.com"])
         self.assertEqual(result.data["unavailable_rooms"], ["conf-b@example.com"])
 
@@ -2313,7 +2400,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         inputs = {
             "room_emails": ["conf-a@example.com"],
             "start_datetime": "2024-08-20T14:00:00Z",
-            "end_datetime": "2024-08-20T15:00:00Z"
+            "end_datetime": "2024-08-20T15:00:00Z",
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -2322,5 +2409,5 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         self.assertIn("Timeout", result.data["error"])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
