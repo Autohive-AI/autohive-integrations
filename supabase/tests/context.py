@@ -3,4 +3,4 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import supabase  # noqa: F401, E402
+from supabase import supabase  # noqa: F401, E402
