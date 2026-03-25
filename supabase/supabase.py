@@ -203,6 +203,7 @@ class DeleteRecordsAction(ActionHandler):
                 params[key] = value
 
             # Determine if we should return records
+            return_minimal = not inputs.get("return_records")
             if inputs.get("return_records"):
                 headers["Prefer"] = "return=representation"
             else:
@@ -216,11 +217,12 @@ class DeleteRecordsAction(ActionHandler):
             )
 
             result_records = response if isinstance(response, list) else []
+            count = None if return_minimal else len(result_records)
 
             return ActionResult(
                 data={
                     "records": result_records,
-                    "count": len(result_records),
+                    "count": count,
                     "result": True,
                 },
                 cost_usd=0.0,
