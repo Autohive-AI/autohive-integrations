@@ -5,7 +5,6 @@ from autohive_integrations_sdk import (
     ActionResult,
 )
 from typing import Dict, Any
-import aiohttp
 import json
 import os
 import re
@@ -38,7 +37,7 @@ def get_access_token(context: ExecutionContext) -> str:
     return token
 
 
-async def get_cloud_id(access_token: str) -> str:
+async def get_cloud_id(access_token: str, context: ExecutionContext) -> str:
     """
     Return the Atlassian Cloud ID for the authenticated account.
     Uses JIRA_CLOUD_ID env var if set to skip the API call.
@@ -47,13 +46,14 @@ async def get_cloud_id(access_token: str) -> str:
     if JIRA_CLOUD_ID_OVERRIDE:
         return JIRA_CLOUD_ID_OVERRIDE
 
-    headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
-    async with aiohttp.ClientSession() as session:
-        async with session.get(ACCESSIBLE_RESOURCES_URL, headers=headers, ssl=True) as response:
-            if not response.ok:
-                error_text = await response.text()
-                raise Exception(f"Failed to discover Jira Cloud ID: HTTP {response.status}: {error_text}")
-            resources = await response.json(content_type=None)
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json",
+    }
+    try:
+        resources = await context.fetch(ACCESSIBLE_RESOURCES_URL, headers=headers)
+    except Exception as e:
+        raise Exception(f"Failed to discover Jira Cloud ID: {e}")
 
     if not resources:
         raise ValueError(
@@ -141,13 +141,14 @@ async def jira_request(
     method: str,
     url: str,
     access_token: str,
+    context: ExecutionContext,
     params: dict = None,
     payload: dict = None,
     raw_body: str = None,
-) -> tuple:
+):
     """
     Make an authenticated HTTP request to the Jira API.
-    Returns (response_body, status_code).
+    Returns the response body.
     Raises on non-2xx responses.
     """
     headers = {
@@ -155,41 +156,11 @@ async def jira_request(
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
-
-    async with aiohttp.ClientSession() as session:
-        kwargs: Dict[str, Any] = {
-            "method": method,
-            "url": url,
-            "headers": headers,
-            "ssl": True,
-        }
-        if params:
-            kwargs["params"] = params
-        if raw_body is not None:
-            kwargs["data"] = raw_body
-        elif payload is not None:
-            kwargs["data"] = json.dumps(payload)
-
-        async with session.request(**kwargs) as response:
-            status = response.status
-
-            if status == 204:
-                return None, status
-
-            content_type = response.headers.get("Content-Type", "")
-            if "application/json" in content_type:
-                try:
-                    body = await response.json(content_type=None)
-                except Exception:
-                    body = await response.text()
-            else:
-                body = await response.text()
-
-            if not response.ok:
-                error_detail = body if isinstance(body, str) else json.dumps(body)
-                raise Exception(f"HTTP {status}: {error_detail}")
-
-            return body, status
+    if raw_body is not None:
+        body = await context.fetch(url, method=method, params=params, data=raw_body, headers=headers)
+    else:
+        body = await context.fetch(url, method=method, params=params, json=payload, headers=headers)
+    return body
 
 
 # ---- Action Handlers ----
@@ -200,7 +171,7 @@ class CreateIssueAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             project_key = inputs["projectKey"]
             summary = inputs["summary"]
@@ -238,7 +209,7 @@ class CreateIssueAction(ActionHandler):
 
             payload = {"fields": fields}
             url = api_url(cloud_id, "/issue")
-            body, _ = await jira_request("POST", url, access_token, payload=payload)
+            body = await jira_request("POST", url, access_token, context, payload=payload)
 
             return ActionResult(
                 data={
@@ -267,7 +238,7 @@ class GetIssueAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             fields_param = inputs.get("fields")
@@ -280,7 +251,7 @@ class GetIssueAction(ActionHandler):
                 params["expand"] = expand
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}")
-            body, _ = await jira_request("GET", url, access_token, params=params or None)
+            body = await jira_request("GET", url, access_token, context, params=params or None)
 
             fields_data = body.get("fields", {}) if isinstance(body, dict) else {}
             assignee = fields_data.get("assignee") or {}
@@ -337,7 +308,7 @@ class UpdateIssueAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             fields: Dict[str, Any] = {}
@@ -386,7 +357,7 @@ class UpdateIssueAction(ActionHandler):
             params = {} if notify_users else {"notifyUsers": "false"}
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}")
-            await jira_request("PUT", url, access_token, params=params or None, payload=payload)
+            await jira_request("PUT", url, access_token, context, params=params or None, payload=payload)
 
             return ActionResult(
                 data={
@@ -413,14 +384,14 @@ class DeleteIssueAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             delete_subtasks = inputs.get("deleteSubtasks", False)
 
             params = {"deleteSubtasks": "true" if delete_subtasks else "false"}
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}")
-            await jira_request("DELETE", url, access_token, params=params)
+            await jira_request("DELETE", url, access_token, context, params=params)
 
             return ActionResult(
                 data={
@@ -447,7 +418,7 @@ class SearchIssuesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             jql = inputs["jql"]
             max_results = inputs.get("maxResults", 50)
@@ -480,7 +451,7 @@ class SearchIssuesAction(ActionHandler):
                 payload["expand"] = expand if isinstance(expand, list) else [expand]
 
             url = api_url(cloud_id, "/search/jql")
-            body, _ = await jira_request("POST", url, access_token, payload=payload)
+            body = await jira_request("POST", url, access_token, context, payload=payload)
 
             issues = []
             for issue in body.get("issues") or []:
@@ -532,11 +503,11 @@ class GetIssueTransitionsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/transitions")
-            body, _ = await jira_request("GET", url, access_token)
+            body = await jira_request("GET", url, access_token, context)
 
             transitions = []
             for t in body.get("transitions") or []:
@@ -576,7 +547,7 @@ class TransitionIssueAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             transition_id = inputs["transitionId"]
@@ -592,7 +563,7 @@ class TransitionIssueAction(ActionHandler):
                 payload["fields"] = {"resolution": {"name": resolution}}
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/transitions")
-            await jira_request("POST", url, access_token, payload=payload)
+            await jira_request("POST", url, access_token, context, payload=payload)
 
             return ActionResult(
                 data={
@@ -620,14 +591,14 @@ class AssignIssueAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             account_id = inputs.get("accountId")
 
             payload = {"accountId": account_id}
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/assignee")
-            await jira_request("PUT", url, access_token, payload=payload)
+            await jira_request("PUT", url, access_token, context, payload=payload)
 
             return ActionResult(
                 data={
@@ -655,7 +626,7 @@ class AddCommentAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             body_text = inputs["body"]
@@ -671,7 +642,7 @@ class AddCommentAction(ActionHandler):
                 }
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/comment")
-            response_body, _ = await jira_request("POST", url, access_token, payload=payload)
+            response_body = await jira_request("POST", url, access_token, context, payload=payload)
 
             author = (response_body.get("author") or {}) if isinstance(response_body, dict) else {}
 
@@ -704,7 +675,7 @@ class GetCommentsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             start_at = inputs.get("startAt", 0)
@@ -718,7 +689,7 @@ class GetCommentsAction(ActionHandler):
             }
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/comment")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             comments = []
             for c in body.get("comments") or []:
@@ -761,7 +732,7 @@ class UpdateCommentAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             comment_id = inputs["commentId"]
@@ -781,7 +752,7 @@ class UpdateCommentAction(ActionHandler):
                 cloud_id,
                 f"/issue/{safe_path(issue_key)}/comment/{safe_path(comment_id)}",
             )
-            response_body, _ = await jira_request("PUT", url, access_token, payload=payload)
+            response_body = await jira_request("PUT", url, access_token, context, payload=payload)
 
             return ActionResult(
                 data={
@@ -810,7 +781,7 @@ class DeleteCommentAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             comment_id = inputs["commentId"]
@@ -819,7 +790,7 @@ class DeleteCommentAction(ActionHandler):
                 cloud_id,
                 f"/issue/{safe_path(issue_key)}/comment/{safe_path(comment_id)}",
             )
-            await jira_request("DELETE", url, access_token)
+            await jira_request("DELETE", url, access_token, context)
 
             return ActionResult(
                 data={
@@ -847,7 +818,7 @@ class ListProjectsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             start_at = inputs.get("startAt", 0)
             max_results = inputs.get("maxResults", 50)
@@ -866,7 +837,7 @@ class ListProjectsAction(ActionHandler):
                 params["query"] = query
 
             url = api_url(cloud_id, "/project/search")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             projects = []
             for p in body.get("values") or []:
@@ -911,7 +882,7 @@ class GetProjectAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             project_key = inputs["projectKey"]
             expand = inputs.get("expand")
@@ -921,7 +892,7 @@ class GetProjectAction(ActionHandler):
                 params["expand"] = expand
 
             url = api_url(cloud_id, f"/project/{safe_path(project_key)}")
-            body, _ = await jira_request("GET", url, access_token, params=params or None)
+            body = await jira_request("GET", url, access_token, context, params=params or None)
 
             lead = (body.get("lead") or {}) if isinstance(body, dict) else {}
 
@@ -969,11 +940,11 @@ class GetProjectComponentsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             project_key = inputs["projectKey"]
             url = api_url(cloud_id, f"/project/{safe_path(project_key)}/components")
-            body, _ = await jira_request("GET", url, access_token)
+            body = await jira_request("GET", url, access_token, context)
 
             components = []
             for c in body if isinstance(body, list) else []:
@@ -1016,7 +987,7 @@ class GetProjectVersionsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             project_key = inputs["projectKey"]
             start_at = inputs.get("startAt", 0)
@@ -1030,7 +1001,7 @@ class GetProjectVersionsAction(ActionHandler):
             }
 
             url = api_url(cloud_id, f"/project/{safe_path(project_key)}/version")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             versions = []
             for v in body.get("values") or []:
@@ -1074,7 +1045,7 @@ class CreateProjectVersionAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             project_key = inputs["projectKey"]
             name = inputs["name"]
@@ -1097,7 +1068,7 @@ class CreateProjectVersionAction(ActionHandler):
                 payload["released"] = inputs["released"]
 
             url = api_url(cloud_id, "/version")
-            body, _ = await jira_request("POST", url, access_token, payload=payload)
+            body = await jira_request("POST", url, access_token, context, payload=payload)
 
             return ActionResult(
                 data={
@@ -1126,10 +1097,10 @@ class GetCurrentUserAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             url = api_url(cloud_id, "/myself")
-            body, _ = await jira_request("GET", url, access_token)
+            body = await jira_request("GET", url, access_token, context)
 
             return ActionResult(
                 data={
@@ -1161,13 +1132,13 @@ class GetUserAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             account_id = inputs["accountId"]
             params = {"accountId": account_id}
 
             url = api_url(cloud_id, "/user")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             return ActionResult(
                 data={
@@ -1198,7 +1169,7 @@ class SearchUsersAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             query = inputs["query"]
             start_at = inputs.get("startAt", 0)
@@ -1207,7 +1178,7 @@ class SearchUsersAction(ActionHandler):
             params = {"query": query, "startAt": start_at, "maxResults": max_results}
 
             url = api_url(cloud_id, "/user/search")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             users = []
             for u in body if isinstance(body, list) else []:
@@ -1242,7 +1213,7 @@ class ListBoardsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             start_at = inputs.get("startAt", 0)
             max_results = inputs.get("maxResults", 50)
@@ -1259,7 +1230,7 @@ class ListBoardsAction(ActionHandler):
                 params["name"] = name_filter
 
             url = agile_url(cloud_id, "/board")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             boards = []
             for b in body.get("values") or []:
@@ -1301,7 +1272,7 @@ class GetSprintsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             board_id = inputs["boardId"]
             start_at = inputs.get("startAt", 0)
@@ -1313,7 +1284,7 @@ class GetSprintsAction(ActionHandler):
                 params["state"] = state
 
             url = agile_url(cloud_id, f"/board/{safe_path(str(board_id))}/sprint")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             sprints = []
             for s in body.get("values") or []:
@@ -1357,7 +1328,7 @@ class GetSprintIssuesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             sprint_id = inputs["sprintId"]
             start_at = inputs.get("startAt", 0)
@@ -1374,7 +1345,7 @@ class GetSprintIssuesAction(ActionHandler):
                 params["jql"] = jql
 
             url = agile_url(cloud_id, f"/sprint/{safe_path(str(sprint_id))}/issue")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             issues = []
             for issue in body.get("issues") or []:
@@ -1423,7 +1394,7 @@ class AddWorklogAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             time_spent = inputs["timeSpent"]
@@ -1453,7 +1424,7 @@ class AddWorklogAction(ActionHandler):
                 payload["comment"] = text_to_adf(comment)
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/worklog")
-            body, _ = await jira_request("POST", url, access_token, params=params, payload=payload)
+            body = await jira_request("POST", url, access_token, context, params=params, payload=payload)
 
             author = (body.get("author") or {}) if isinstance(body, dict) else {}
 
@@ -1488,7 +1459,7 @@ class GetWorklogsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             start_at = inputs.get("startAt", 0)
@@ -1497,7 +1468,7 @@ class GetWorklogsAction(ActionHandler):
             params = {"startAt": start_at, "maxResults": max_results}
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/worklog")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             worklogs = []
             for w in body.get("worklogs") or []:
@@ -1542,7 +1513,7 @@ class LinkIssuesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             link_type = inputs["linkType"]
             inward_issue_key = inputs["inwardIssueKey"]
@@ -1559,7 +1530,7 @@ class LinkIssuesAction(ActionHandler):
                 payload["comment"] = {"body": text_to_adf(comment)}
 
             url = api_url(cloud_id, "/issueLink")
-            await jira_request("POST", url, access_token, payload=payload)
+            await jira_request("POST", url, access_token, context, payload=payload)
 
             return ActionResult(
                 data={
@@ -1588,10 +1559,10 @@ class GetIssueLinkTypesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             url = api_url(cloud_id, "/issueLinkType")
-            body, _ = await jira_request("GET", url, access_token)
+            body = await jira_request("GET", url, access_token, context)
 
             link_types = []
             for lt in body.get("issueLinkTypes") or []:
@@ -1629,7 +1600,7 @@ class AddWatcherAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             account_id = inputs["accountId"]
@@ -1637,7 +1608,7 @@ class AddWatcherAction(ActionHandler):
             # Jira's add-watcher endpoint expects a raw JSON-encoded string as the body
             raw_body = json.dumps(account_id)
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/watchers")
-            await jira_request("POST", url, access_token, raw_body=raw_body)
+            await jira_request("POST", url, access_token, context, raw_body=raw_body)
 
             return ActionResult(
                 data={
@@ -1665,11 +1636,11 @@ class GetWatchersAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/watchers")
-            body, _ = await jira_request("GET", url, access_token)
+            body = await jira_request("GET", url, access_token, context)
 
             watchers = []
             for w in body.get("watchers") or []:
@@ -1708,7 +1679,7 @@ class GetIssueTypesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             project_key = inputs.get("projectKey")
 
@@ -1717,7 +1688,8 @@ class GetIssueTypesAction(ActionHandler):
             else:
                 url = api_url(cloud_id, "/issuetype")
 
-            body, _ = await jira_request("GET", url, access_token)
+            body = await jira_request("GET", url, access_token, context)
+
             issue_types = [
                 {
                     "id": it.get("id"),
@@ -1754,10 +1726,10 @@ class GetPrioritiesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             url = api_url(cloud_id, "/priority")
-            body, _ = await jira_request("GET", url, access_token)
+            body = await jira_request("GET", url, access_token, context)
 
             priorities = []
             for p in body if isinstance(body, list) else []:
@@ -1796,10 +1768,10 @@ class GetFieldsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             url = api_url(cloud_id, "/field")
-            body, _ = await jira_request("GET", url, access_token)
+            body = await jira_request("GET", url, access_token, context)
 
             fields = []
             custom_only = inputs.get("customOnly", False)
@@ -1844,7 +1816,7 @@ class GetIssueChangelogAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_key = inputs["issueKey"]
             start_at = inputs.get("startAt", 0)
@@ -1853,7 +1825,7 @@ class GetIssueChangelogAction(ActionHandler):
             params = {"startAt": start_at, "maxResults": max_results}
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/changelog")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             changelog = []
             for entry in body.get("values") or []:
@@ -1907,7 +1879,7 @@ class BulkCreateIssuesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             issue_updates = inputs["issues"]
             if not isinstance(issue_updates, list) or len(issue_updates) == 0:
@@ -1934,7 +1906,7 @@ class BulkCreateIssuesAction(ActionHandler):
 
             payload = {"issueUpdates": issue_list}
             url = api_url(cloud_id, "/issue/bulk")
-            body, _ = await jira_request("POST", url, access_token, payload=payload)
+            body = await jira_request("POST", url, access_token, context, payload=payload)
 
             created = []
             for issue in body.get("issues") or []:
@@ -1969,7 +1941,7 @@ class GetBoardIssuesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             board_id = inputs["boardId"]
             start_at = inputs.get("startAt", 0)
@@ -1986,7 +1958,7 @@ class GetBoardIssuesAction(ActionHandler):
                 params["jql"] = jql
 
             url = agile_url(cloud_id, f"/board/{safe_path(str(board_id))}/issue")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             issues = []
             for issue in body.get("issues") or []:
@@ -2035,7 +2007,7 @@ class GetBacklogIssuesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             board_id = inputs["boardId"]
             start_at = inputs.get("startAt", 0)
@@ -2052,7 +2024,7 @@ class GetBacklogIssuesAction(ActionHandler):
                 params["jql"] = jql
 
             url = agile_url(cloud_id, f"/board/{safe_path(str(board_id))}/backlog")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             issues = []
             for issue in body.get("issues") or []:
@@ -2097,7 +2069,7 @@ class MoveIssuesToSprintAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             sprint_id = inputs["sprintId"]
             issue_keys = inputs["issueKeys"]
@@ -2107,7 +2079,7 @@ class MoveIssuesToSprintAction(ActionHandler):
 
             payload = {"issues": issue_keys}
             url = agile_url(cloud_id, f"/sprint/{safe_path(str(sprint_id))}/issue")
-            await jira_request("POST", url, access_token, payload=payload)
+            await jira_request("POST", url, access_token, context, payload=payload)
 
             return ActionResult(
                 data={
@@ -2135,7 +2107,7 @@ class CreateSprintAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             board_id = inputs["boardId"]
             name = inputs["name"]
@@ -2155,7 +2127,7 @@ class CreateSprintAction(ActionHandler):
                 payload["goal"] = goal
 
             url = agile_url(cloud_id, "/sprint")
-            body, _ = await jira_request("POST", url, access_token, payload=payload)
+            body = await jira_request("POST", url, access_token, context, payload=payload)
 
             return ActionResult(
                 data={
@@ -2185,7 +2157,7 @@ class UpdateSprintAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             sprint_id = inputs["sprintId"]
             payload: Dict[str, Any] = {}
@@ -2214,7 +2186,7 @@ class UpdateSprintAction(ActionHandler):
                 raise ValueError("At least one field to update must be provided")
 
             url = agile_url(cloud_id, f"/sprint/{safe_path(str(sprint_id))}")
-            body, _ = await jira_request("POST", url, access_token, payload=payload)
+            body = await jira_request("POST", url, access_token, context, payload=payload)
 
             return ActionResult(
                 data={
@@ -2243,11 +2215,11 @@ class GetProjectRolesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             project_key = inputs["projectKey"]
             url = api_url(cloud_id, f"/project/{safe_path(project_key)}/role")
-            body, _ = await jira_request("GET", url, access_token)
+            body = await jira_request("GET", url, access_token, context)
 
             roles = []
             if isinstance(body, dict):
@@ -2281,10 +2253,10 @@ class GetStatusCategoriesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             url = api_url(cloud_id, "/statuscategory")
-            body, _ = await jira_request("GET", url, access_token)
+            body = await jira_request("GET", url, access_token, context)
 
             categories = []
             for sc in body if isinstance(body, list) else []:
@@ -2322,7 +2294,7 @@ class ListDashboardsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             params = {
                 "startAt": inputs.get("startAt", 0),
@@ -2333,7 +2305,7 @@ class ListDashboardsAction(ActionHandler):
                 params["filter"] = filter_val
 
             url = api_url(cloud_id, "/dashboard")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             dashboards = []
             for d in body.get("dashboards", []) if isinstance(body, dict) else []:
@@ -2375,11 +2347,11 @@ class GetDashboardAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             dashboard_id = inputs["dashboardId"]
             url = api_url(cloud_id, f"/dashboard/{safe_path(str(dashboard_id))}")
-            body, _ = await jira_request("GET", url, access_token)
+            body = await jira_request("GET", url, access_token, context)
 
             return ActionResult(
                 data={
@@ -2414,7 +2386,7 @@ class SearchDashboardsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             params = {
                 "startAt": inputs.get("startAt", 0),
@@ -2437,7 +2409,7 @@ class SearchDashboardsAction(ActionHandler):
                 params["orderBy"] = order_by
 
             url = api_url(cloud_id, "/dashboard/search")
-            body, _ = await jira_request("GET", url, access_token, params=params)
+            body = await jira_request("GET", url, access_token, context, params=params)
 
             dashboards = []
             for d in body.get("values", []) if isinstance(body, dict) else []:
@@ -2479,11 +2451,11 @@ class GetDashboardGadgetsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             access_token = get_access_token(context)
-            cloud_id = await get_cloud_id(access_token)
+            cloud_id = await get_cloud_id(access_token, context)
 
             dashboard_id = inputs["dashboardId"]
             url = api_url(cloud_id, f"/dashboard/{safe_path(str(dashboard_id))}/gadget")
-            body, _ = await jira_request("GET", url, access_token)
+            body = await jira_request("GET", url, access_token, context)
 
             gadgets = []
             for g in body.get("gadgets", []) if isinstance(body, dict) else []:
