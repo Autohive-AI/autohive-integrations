@@ -355,7 +355,7 @@ class DeleteBucketAction(ActionHandler):
             bucket_id = inputs["bucket_id"]
 
             # Remove Content-Type for DELETE without body
-            del headers["Content-Type"]
+            headers.pop("Content-Type", None)
 
             await context.fetch(
                 f"{base_url}/storage/v1/bucket/{bucket_id}",
@@ -535,7 +535,7 @@ class DeleteUserAction(ActionHandler):
             user_id = inputs["user_id"]
 
             # Remove Content-Type for DELETE without body
-            del headers["Content-Type"]
+            headers.pop("Content-Type", None)
 
             await context.fetch(
                 f"{base_url}/auth/v1/admin/users/{user_id}",
