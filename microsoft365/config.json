@@ -377,10 +377,6 @@
                         "type": "integer",
                         "description": "Maximum number of events to return",
                         "default": 100
-                    },
-                    "user_timezone": {
-                        "type": "string",
-                        "description": "User's timezone (e.g., 'America/Los_Angeles') for intelligent date defaults. Optional - defaults to UTC."
                     }
                 }
             },
