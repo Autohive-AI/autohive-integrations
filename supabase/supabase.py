@@ -103,11 +103,7 @@ class InsertRecordsAction(ActionHandler):
 
             # Determine if we should return records
             if inputs.get("return_records") is False:
-                prefer = (
-                    "resolution=merge-duplicates,return=minimal"
-                    if inputs.get("on_conflict")
-                    else "return=minimal"
-                )
+                prefer = "resolution=merge-duplicates,return=minimal" if inputs.get("on_conflict") else "return=minimal"
                 headers["Prefer"] = prefer
 
             response = await context.fetch(
@@ -256,9 +252,7 @@ class CallFunctionAction(ActionHandler):
             return ActionResult(data={"data": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"data": None, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"data": None, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Storage Handlers ----
@@ -273,18 +267,14 @@ class ListBucketsAction(ActionHandler):
             base_url = get_base_url(context)
             headers = get_headers(context)
 
-            response = await context.fetch(
-                f"{base_url}/storage/v1/bucket", method="GET", headers=headers
-            )
+            response = await context.fetch(f"{base_url}/storage/v1/bucket", method="GET", headers=headers)
 
             buckets = response if isinstance(response, list) else []
 
             return ActionResult(data={"buckets": buckets, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"buckets": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"buckets": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @supabase.action("get_bucket")
@@ -306,9 +296,7 @@ class GetBucketAction(ActionHandler):
             return ActionResult(data={"bucket": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @supabase.action("create_bucket")
@@ -339,9 +327,7 @@ class CreateBucketAction(ActionHandler):
             return ActionResult(data={"bucket": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @supabase.action("delete_bucket")
@@ -366,9 +352,7 @@ class DeleteBucketAction(ActionHandler):
             return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @supabase.action("list_files")
@@ -402,9 +386,7 @@ class ListFilesAction(ActionHandler):
             return ActionResult(data={"files": files, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"files": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"files": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @supabase.action("delete_files")
@@ -430,9 +412,7 @@ class DeleteFilesAction(ActionHandler):
             return ActionResult(data={"deleted": deleted, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"deleted": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"deleted": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @supabase.action("get_public_url")
@@ -447,14 +427,10 @@ class GetPublicUrlAction(ActionHandler):
 
             public_url = f"{base_url}/storage/v1/object/public/{bucket_id}/{path}"
 
-            return ActionResult(
-                data={"public_url": public_url, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"public_url": public_url, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"public_url": "", "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"public_url": "", "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Auth Admin Handlers ----
@@ -483,15 +459,9 @@ class ListUsersAction(ActionHandler):
             )
 
             users = response.get("users", []) if isinstance(response, dict) else []
-            total = (
-                response.get("total", len(users))
-                if isinstance(response, dict)
-                else len(users)
-            )
+            total = response.get("total", len(users)) if isinstance(response, dict) else len(users)
 
-            return ActionResult(
-                data={"users": users, "total": total, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"users": users, "total": total, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -519,9 +489,7 @@ class GetUserAction(ActionHandler):
             return ActionResult(data={"user": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @supabase.action("delete_user")
@@ -546,6 +514,4 @@ class DeleteUserAction(ActionHandler):
             return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
