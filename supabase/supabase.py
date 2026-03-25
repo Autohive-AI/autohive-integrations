@@ -155,7 +155,8 @@ class UpdateRecordsAction(ActionHandler):
                 params[key] = value
 
             # Determine if we should return records
-            if inputs.get("return_records") is False:
+            return_minimal = inputs.get("return_records") is False
+            if return_minimal:
                 headers["Prefer"] = "return=minimal"
 
             response = await context.fetch(
@@ -167,11 +168,12 @@ class UpdateRecordsAction(ActionHandler):
             )
 
             result_records = response if isinstance(response, list) else []
+            count = None if return_minimal else len(result_records)
 
             return ActionResult(
                 data={
                     "records": result_records,
-                    "count": len(result_records),
+                    "count": count,
                     "result": True,
                 },
                 cost_usd=0.0,
