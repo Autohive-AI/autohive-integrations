@@ -119,11 +119,12 @@ class InsertRecordsAction(ActionHandler):
             )
 
             result_records = response if isinstance(response, list) else []
+            count = len(result_records) if result_records else len(records)
 
             return ActionResult(
                 data={
                     "records": result_records,
-                    "count": len(result_records),
+                    "count": count,
                     "result": True,
                 },
                 cost_usd=0.0,
