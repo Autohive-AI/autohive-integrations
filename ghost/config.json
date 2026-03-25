@@ -1,0 +1,371 @@
+{
+    "name": "ghost",
+    "display_name": "Ghost",
+    "version": "1.0.0",
+    "description": "Ghost CMS integration for reading and managing posts, pages, members, and newsletters",
+    "entry_point": "ghost.py",
+    "auth": {
+        "type": "custom",
+        "title": "Ghost Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_url": {
+                    "type": "string",
+                    "format": "text",
+                    "label": "Ghost Admin URL",
+                    "help_text": "Your Ghost admin base URL, e.g. https://yoursite.ghost.io (must match admin domain if different from public site)"
+                },
+                "content_api_key": {
+                    "type": "string",
+                    "format": "text",
+                    "label": "Content API Key",
+                    "help_text": "From Ghost Admin → Settings → Integrations → Content API key"
+                },
+                "admin_api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Admin API Key",
+                    "help_text": "From Ghost Admin → Settings → Integrations → Admin API key (format: id:secret)"
+                }
+            }
+        }
+    },
+    "actions": {
+        "get_posts": {
+            "display_name": "Get Posts",
+            "description": "List posts from your Ghost site",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "description": "Number of posts to return (default: 15)"},
+                    "page": {"type": "integer", "description": "Page number for pagination"},
+                    "filter": {"type": "string", "description": "Ghost filter string, e.g. 'featured:true'"},
+                    "include": {"type": "string", "description": "Comma-separated relations to include, e.g. 'tags,authors'"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "posts": {"type": "array", "description": "List of post objects"},
+                    "meta": {"type": "object", "description": "Pagination metadata"},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "get_post": {
+            "display_name": "Get Post",
+            "description": "Get a single post by ID or slug",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Post ID"},
+                    "slug": {"type": "string", "description": "Post slug (used if id not provided)"},
+                    "include": {"type": "string", "description": "Comma-separated relations to include"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "post": {"type": ["object", "null"], "description": "Post object"},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "get_pages": {
+            "display_name": "Get Pages",
+            "description": "List pages from your Ghost site",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "description": "Number of pages to return (default: 15)"},
+                    "page": {"type": "integer", "description": "Page number for pagination"},
+                    "filter": {"type": "string", "description": "Ghost filter string"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "pages": {"type": "array", "description": "List of page objects"},
+                    "meta": {"type": "object"},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "get_page": {
+            "display_name": "Get Page",
+            "description": "Get a single page by ID or slug",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Page ID"},
+                    "slug": {"type": "string", "description": "Page slug (used if id not provided)"},
+                    "include": {"type": "string", "description": "Comma-separated relations to include"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "page": {"type": ["object", "null"], "description": "Page object"},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "get_tags": {
+            "display_name": "Get Tags",
+            "description": "List tags from your Ghost site",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "description": "Number of tags to return (default: 15)"},
+                    "page": {"type": "integer", "description": "Page number for pagination"},
+                    "filter": {"type": "string", "description": "Ghost filter string"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "tags": {"type": "array"},
+                    "meta": {"type": "object"},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "get_authors": {
+            "display_name": "Get Authors",
+            "description": "List authors from your Ghost site",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "description": "Number of authors to return (default: 15)"},
+                    "page": {"type": "integer", "description": "Page number for pagination"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "authors": {"type": "array"},
+                    "meta": {"type": "object"},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "get_settings": {
+            "display_name": "Get Settings",
+            "description": "Get site-wide settings (title, description, logo, etc.)",
+            "input_schema": {"type": "object", "properties": {}, "required": []},
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "settings": {"type": "object"},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "get_tiers": {
+            "display_name": "Get Tiers",
+            "description": "List membership tiers",
+            "input_schema": {"type": "object", "properties": {}, "required": []},
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "tiers": {"type": "array"},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "create_post": {
+            "display_name": "Create Post",
+            "description": "Create a new post in Ghost",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Post title"},
+                    "html": {"type": "string", "description": "Post body HTML"},
+                    "lexical": {"type": "string", "description": "Post body in Lexical JSON format"},
+                    "status": {"type": "string", "description": "Post status: draft or published (default: draft)"},
+                    "tags": {"type": "array", "description": "List of tag objects, e.g. [{\"name\": \"news\"}]"},
+                    "authors": {"type": "array", "description": "List of author objects, e.g. [{\"email\": \"author@example.com\"}]"},
+                    "feature_image": {"type": "string", "description": "URL of the feature image"},
+                    "excerpt": {"type": "string", "description": "Post excerpt"}
+                },
+                "required": ["title"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "post": {"type": ["object", "null"]},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "update_post": {
+            "display_name": "Update Post",
+            "description": "Update an existing post. updated_at is required for conflict detection.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Post ID"},
+                    "updated_at": {"type": "string", "description": "ISO 8601 timestamp from the post you are updating (required by Ghost)"},
+                    "title": {"type": "string"},
+                    "html": {"type": "string"},
+                    "lexical": {"type": "string"},
+                    "status": {"type": "string"},
+                    "tags": {"type": "array"},
+                    "authors": {"type": "array"},
+                    "feature_image": {"type": "string"},
+                    "excerpt": {"type": "string"}
+                },
+                "required": ["id", "updated_at"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "post": {"type": ["object", "null"]},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "create_page": {
+            "display_name": "Create Page",
+            "description": "Create a new page in Ghost",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Page title"},
+                    "html": {"type": "string"},
+                    "lexical": {"type": "string"},
+                    "status": {"type": "string", "description": "Page status: draft or published (default: draft)"}
+                },
+                "required": ["title"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "page": {"type": ["object", "null"]},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "upload_image": {
+            "display_name": "Upload Image",
+            "description": "Upload an image from the local filesystem to Ghost",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "Absolute path to the image file on the local filesystem"},
+                    "purpose": {"type": "string", "description": "Image purpose: image, profile_image, or icon (default: image)"}
+                },
+                "required": ["file_path"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "image": {"type": ["object", "null"]},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "create_member": {
+            "display_name": "Create Member",
+            "description": "Create a new member in Ghost",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "email": {"type": "string", "description": "Member email address"},
+                    "name": {"type": "string"},
+                    "labels": {"type": "array", "description": "List of label objects, e.g. [{\"name\": \"vip\"}]"},
+                    "newsletters": {"type": "array", "description": "List of newsletter objects to subscribe to"},
+                    "note": {"type": "string"}
+                },
+                "required": ["email"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "member": {"type": ["object", "null"]},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "update_member": {
+            "display_name": "Update Member",
+            "description": "Update an existing member",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Member ID"},
+                    "email": {"type": "string"},
+                    "name": {"type": "string"},
+                    "labels": {"type": "array"},
+                    "newsletters": {"type": "array"},
+                    "note": {"type": "string"}
+                },
+                "required": ["id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "member": {"type": ["object", "null"]},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        },
+        "send_newsletter": {
+            "display_name": "Send Newsletter",
+            "description": "Trigger email delivery of a published post to subscribers",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "post_id": {"type": "string", "description": "ID of the post to send as a newsletter"},
+                    "updated_at": {"type": "string", "description": "ISO 8601 updated_at timestamp from the post (required for conflict detection)"},
+                    "newsletter_slug": {"type": "string", "description": "Slug of the newsletter to send to"}
+                },
+                "required": ["post_id", "updated_at", "newsletter_slug"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "post": {"type": ["object", "null"]},
+                    "error": {"type": ["string", "null"]},
+                    "error_type": {"type": ["string", "null"]}
+                }
+            }
+        }
+    }
+}
