@@ -2216,6 +2216,143 @@ class ReadSharePointPageContentAction(ActionHandler):
                 cost_usd=0.0
             )
 
+@microsoft365.action("list_sharepoint_subsites")
+class ListSharePointSubsitesAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            site_id = inputs["site_id"]
+
+            # List subsites according to Microsoft Graph API spec
+            # GET /sites/{site-id}/sites
+            params = {}
+            if inputs.get("limit"):
+                params["$top"] = inputs["limit"]
+
+            response = await context.fetch(
+                f"{GRAPH_API_BASE}/sites/{site_id}/sites",
+                params=params
+            )
+
+            # Process response
+            subsites = []
+            for site in response.get("value", []):
+                subsites.append({
+                    "id": site.get("id", ""),
+                    "name": site.get("name", ""),
+                    "display_name": site.get("displayName", ""),
+                    "description": site.get("description", ""),
+                    "web_url": site.get("webUrl", ""),
+                    "created_datetime": site.get("createdDateTime", ""),
+                    "last_modified_datetime": site.get("lastModifiedDateTime", ""),
+                    "is_personal_site": site.get("isPersonalSite", False)
+                })
+
+            return ActionResult(
+                data={
+                "result": True,
+                "site_id": site_id,
+                "subsites": subsites,
+                "total_subsites": len(subsites),
+                "has_more": "@odata.nextLink" in response
+            },
+                cost_usd=0.0
+            )
+
+        except Exception as e:
+            return ActionResult(
+                data={
+                "result": False,
+                "site_id": inputs.get("site_id", ""),
+                "subsites": [],
+                "total_subsites": 0,
+                "has_more": False,
+                "error": str(e)
+            },
+                cost_usd=0.0
+            )
+
+
+@microsoft365.action("list_sharepoint_folder_contents")
+class ListSharePointFolderContentsAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            drive_id = inputs["drive_id"]
+            folder_id = inputs.get("folder_id")
+            limit = inputs.get("limit", 50)
+
+            # Build URL based on whether a folder_id is provided
+            # If folder_id: GET /drives/{drive-id}/items/{item-id}/children
+            # If no folder_id: GET /drives/{drive-id}/root/children (root of library)
+            if folder_id:
+                url = f"{GRAPH_API_BASE}/drives/{drive_id}/items/{folder_id}/children"
+            else:
+                url = f"{GRAPH_API_BASE}/drives/{drive_id}/root/children"
+
+            params = {
+                "$top": limit,
+                "$select": "id,name,size,lastModifiedDateTime,webUrl,folder,file,createdDateTime,createdBy,lastModifiedBy"
+            }
+
+            response = await context.fetch(url, params=params)
+
+            # Process response
+            items = []
+            for item in response.get("value", []):
+                item_data = {
+                    "id": item.get("id", ""),
+                    "name": item.get("name", ""),
+                    "web_url": item.get("webUrl", ""),
+                    "size": item.get("size", 0),
+                    "created_datetime": item.get("createdDateTime", ""),
+                    "last_modified_datetime": item.get("lastModifiedDateTime", ""),
+                    "is_folder": "folder" in item,
+                    "drive_id": drive_id
+                }
+
+                # Add folder-specific info
+                if "folder" in item:
+                    item_data["child_count"] = item["folder"].get("childCount", 0)
+
+                # Add file-specific info
+                if "file" in item:
+                    item_data["mime_type"] = item["file"].get("mimeType", "")
+
+                # Add creator info if available
+                if "createdBy" in item and "user" in item.get("createdBy", {}):
+                    item_data["created_by"] = item["createdBy"]["user"].get("displayName", "")
+
+                # Add modifier info if available
+                if "lastModifiedBy" in item and "user" in item.get("lastModifiedBy", {}):
+                    item_data["last_modified_by"] = item["lastModifiedBy"]["user"].get("displayName", "")
+
+                items.append(item_data)
+
+            result = {
+                "result": True,
+                "drive_id": drive_id,
+                "folder_id": folder_id or "root",
+                "items": items,
+                "total_items": len(items)
+            }
+
+            # Include pagination indicator
+            result["has_more"] = "@odata.nextLink" in response
+
+            return ActionResult(data=result, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionResult(
+                data={
+                "result": False,
+                "drive_id": inputs.get("drive_id", ""),
+                "folder_id": inputs.get("folder_id", "root"),
+                "items": [],
+                "total_items": 0,
+                "error": str(e)
+            },
+                cost_usd=0.0
+            )
+
 
 # ---- Meeting Scheduling & Room Management Handlers ----
 

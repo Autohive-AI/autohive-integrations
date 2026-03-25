@@ -1798,7 +1798,7 @@
         },
         "search_sharepoint_sites": {
             "display_name": "Search SharePoint Sites",
-            "description": "Search for SharePoint sites across the organization",
+            "description": "Search for SharePoint sites across the organization. Note: this searches top-level site collections only and may not return subsites. To discover subsites, first find the parent site with this action, then use list_sharepoint_subsites to enumerate its child sites.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -2441,6 +2441,218 @@
                     "result",
                     "site_id",
                     "page"
+                ]
+            }
+        },
+        "list_sharepoint_subsites": {
+            "display_name": "List SharePoint Subsites",
+            "description": "List all subsites (child sites) under a SharePoint site",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "site_id": {
+                        "type": "string",
+                        "description": "The ID of the parent SharePoint site"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of subsites to return",
+                        "default": 50
+                    }
+                },
+                "required": [
+                    "site_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "site_id": {
+                        "type": "string",
+                        "description": "The parent SharePoint site ID"
+                    },
+                    "subsites": {
+                        "type": "array",
+                        "description": "List of subsites under the parent site",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Subsite ID (use this to access the subsite's libraries, documents, etc.)"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Subsite name"
+                                },
+                                "display_name": {
+                                    "type": "string",
+                                    "description": "Subsite display name"
+                                },
+                                "description": {
+                                    "type": "string",
+                                    "description": "Subsite description"
+                                },
+                                "web_url": {
+                                    "type": "string",
+                                    "description": "Web URL to access the subsite"
+                                },
+                                "created_datetime": {
+                                    "type": "string",
+                                    "description": "When the subsite was created"
+                                },
+                                "last_modified_datetime": {
+                                    "type": "string",
+                                    "description": "When the subsite was last modified"
+                                },
+                                "is_personal_site": {
+                                    "type": "boolean",
+                                    "description": "Whether this is a personal site"
+                                }
+                            }
+                        }
+                    },
+                    "total_subsites": {
+                        "type": "integer",
+                        "description": "Total number of subsites returned"
+                    },
+                    "has_more": {
+                        "type": "boolean",
+                        "description": "Whether there are more subsites beyond the limit"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": [
+                    "result",
+                    "site_id",
+                    "subsites",
+                    "total_subsites",
+                    "has_more"
+                ]
+            }
+        },
+        "list_sharepoint_folder_contents": {
+            "display_name": "List SharePoint Folder Contents",
+            "description": "List files and folders within a SharePoint document library or folder. Use without folder_id to list root contents, or with folder_id to browse into subfolders.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "drive_id": {
+                        "type": "string",
+                        "description": "The ID of the document library (drive) to browse"
+                    },
+                    "folder_id": {
+                        "type": "string",
+                        "description": "Optional: The ID of a specific folder to list contents of. If not provided, lists the root of the document library."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of items to return (default: 50)",
+                        "default": 50
+                    }
+                },
+                "required": [
+                    "drive_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "drive_id": {
+                        "type": "string",
+                        "description": "The document library (drive) ID"
+                    },
+                    "folder_id": {
+                        "type": "string",
+                        "description": "The folder ID that was listed (or 'root')"
+                    },
+                    "items": {
+                        "type": "array",
+                        "description": "List of files and folders in the specified location",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Item ID (use as folder_id to browse deeper, or as file_id with read_sharepoint_document)"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "File or folder name"
+                                },
+                                "web_url": {
+                                    "type": "string",
+                                    "description": "Web URL to access the item"
+                                },
+                                "size": {
+                                    "type": "integer",
+                                    "description": "File size in bytes (0 for folders)"
+                                },
+                                "is_folder": {
+                                    "type": "boolean",
+                                    "description": "Whether this item is a folder"
+                                },
+                                "child_count": {
+                                    "type": "integer",
+                                    "description": "Number of children (only present for folders)"
+                                },
+                                "mime_type": {
+                                    "type": "string",
+                                    "description": "MIME type of the file (only present for files)"
+                                },
+                                "drive_id": {
+                                    "type": "string",
+                                    "description": "The drive ID containing this item"
+                                },
+                                "created_datetime": {
+                                    "type": "string",
+                                    "description": "When the item was created"
+                                },
+                                "last_modified_datetime": {
+                                    "type": "string",
+                                    "description": "When the item was last modified"
+                                },
+                                "created_by": {
+                                    "type": "string",
+                                    "description": "Display name of the creator"
+                                },
+                                "last_modified_by": {
+                                    "type": "string",
+                                    "description": "Display name of the last modifier"
+                                }
+                            }
+                        }
+                    },
+                    "total_items": {
+                        "type": "integer",
+                        "description": "Total number of items returned"
+                    },
+                    "has_more": {
+                        "type": "boolean",
+                        "description": "Whether there are more items beyond the limit"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the operation failed"
+                    }
+                },
+                "required": [
+                    "result",
+                    "drive_id",
+                    "folder_id",
+                    "items",
+                    "total_items"
                 ]
             }
         },

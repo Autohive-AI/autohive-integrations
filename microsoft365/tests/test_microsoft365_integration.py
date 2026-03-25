@@ -1667,6 +1667,221 @@ class TestReadSharePointPageContentAction(unittest.TestCase):
         call_args = self.mock_context.fetch.call_args
         self.assertNotIn("$expand", call_args[1]["params"])
 
+    # ---- SharePoint Subsites & Folder Contents Tests ----
+
+
+class TestListSharePointSubsitesAction(unittest.TestCase):
+    def setUp(self):
+        """Set up test fixtures for SharePoint subsites tests."""
+        self.mock_context = Mock()
+        self.mock_context.fetch = AsyncMock()
+
+    async def test_list_sharepoint_subsites_success(self):
+        """Test successful listing of SharePoint subsites."""
+        mock_response = {
+            "value": [
+                {
+                    "id": "contoso.sharepoint.com,sub1-guid,sub1-web-guid",
+                    "name": "HR Subsite",
+                    "displayName": "Human Resources",
+                    "description": "HR team subsite",
+                    "webUrl": "https://contoso.sharepoint.com/sites/main/hr",
+                    "createdDateTime": "2024-03-01T10:00:00Z",
+                    "lastModifiedDateTime": "2024-08-15T09:00:00Z",
+                    "isPersonalSite": False
+                },
+                {
+                    "id": "contoso.sharepoint.com,sub2-guid,sub2-web-guid",
+                    "name": "Finance Subsite",
+                    "displayName": "Finance",
+                    "description": "Finance team subsite",
+                    "webUrl": "https://contoso.sharepoint.com/sites/main/finance",
+                    "createdDateTime": "2024-04-01T10:00:00Z",
+                    "lastModifiedDateTime": "2024-08-20T14:30:00Z",
+                    "isPersonalSite": False
+                }
+            ]
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.ListSharePointSubsitesAction()
+        inputs = {"site_id": "contoso.sharepoint.com,main-guid,main-web-guid"}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertEqual(result.data["total_subsites"], 2)
+        self.assertEqual(len(result.data["subsites"]), 2)
+        self.assertEqual(result.data["subsites"][0]["name"], "HR Subsite")
+        self.assertEqual(result.data["subsites"][0]["display_name"], "Human Resources")
+        self.assertEqual(result.data["subsites"][1]["name"], "Finance Subsite")
+
+        # Verify API call
+        call_args = self.mock_context.fetch.call_args
+        self.assertIn("/sites/contoso.sharepoint.com,main-guid,main-web-guid/sites", call_args[0][0])
+
+    async def test_list_sharepoint_subsites_with_limit(self):
+        """Test listing subsites with a limit parameter."""
+        mock_response = {"value": []}
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.ListSharePointSubsitesAction()
+        inputs = {"site_id": "contoso.sharepoint.com,main-guid,main-web-guid", "limit": 5}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        call_args = self.mock_context.fetch.call_args
+        self.assertEqual(call_args[1]["params"]["$top"], 5)
+
+    async def test_list_sharepoint_subsites_empty(self):
+        """Test listing subsites when site has no subsites."""
+        mock_response = {"value": []}
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.ListSharePointSubsitesAction()
+        inputs = {"site_id": "contoso.sharepoint.com,main-guid,main-web-guid"}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertEqual(result.data["total_subsites"], 0)
+        self.assertEqual(result.data["subsites"], [])
+
+    async def test_list_sharepoint_subsites_error(self):
+        """Test error handling when listing subsites fails."""
+        self.mock_context.fetch.side_effect = Exception("Site not found")
+
+        handler = microsoft365.ListSharePointSubsitesAction()
+        inputs = {"site_id": "invalid-site-id"}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertFalse(result.data["result"])
+        self.assertIn("Site not found", result.data["error"])
+
+
+class TestListSharePointFolderContentsAction(unittest.TestCase):
+    def setUp(self):
+        """Set up test fixtures for SharePoint folder contents tests."""
+        self.mock_context = Mock()
+        self.mock_context.fetch = AsyncMock()
+
+    async def test_list_folder_contents_root_success(self):
+        """Test listing root folder contents of a document library."""
+        mock_response = {
+            "value": [
+                {
+                    "id": "folder-1",
+                    "name": "Reports",
+                    "webUrl": "https://contoso.sharepoint.com/sites/main/Documents/Reports",
+                    "size": 0,
+                    "createdDateTime": "2024-01-10T10:00:00Z",
+                    "lastModifiedDateTime": "2024-08-15T09:00:00Z",
+                    "folder": {"childCount": 12},
+                    "createdBy": {"user": {"displayName": "John Smith"}},
+                    "lastModifiedBy": {"user": {"displayName": "Jane Doe"}}
+                },
+                {
+                    "id": "file-1",
+                    "name": "Q3 Summary.docx",
+                    "webUrl": "https://contoso.sharepoint.com/sites/main/Documents/Q3 Summary.docx",
+                    "size": 45678,
+                    "createdDateTime": "2024-07-01T10:00:00Z",
+                    "lastModifiedDateTime": "2024-08-20T14:30:00Z",
+                    "file": {"mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+                    "createdBy": {"user": {"displayName": "Jane Doe"}},
+                    "lastModifiedBy": {"user": {"displayName": "Jane Doe"}}
+                }
+            ]
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.ListSharePointFolderContentsAction()
+        inputs = {"drive_id": "drive-123"}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertEqual(result.data["folder_id"], "root")
+        self.assertEqual(result.data["total_items"], 2)
+
+        # Check folder item
+        folder_item = result.data["items"][0]
+        self.assertTrue(folder_item["is_folder"])
+        self.assertEqual(folder_item["child_count"], 12)
+        self.assertEqual(folder_item["name"], "Reports")
+
+        # Check file item
+        file_item = result.data["items"][1]
+        self.assertFalse(file_item["is_folder"])
+        self.assertEqual(file_item["mime_type"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        self.assertEqual(file_item["size"], 45678)
+
+        # Verify API call uses root path
+        call_args = self.mock_context.fetch.call_args
+        self.assertIn("/drives/drive-123/root/children", call_args[0][0])
+
+    async def test_list_folder_contents_subfolder_success(self):
+        """Test listing contents of a specific subfolder."""
+        mock_response = {
+            "value": [
+                {
+                    "id": "file-2",
+                    "name": "Report.pdf",
+                    "webUrl": "https://contoso.sharepoint.com/sites/main/Documents/Reports/Report.pdf",
+                    "size": 102400,
+                    "createdDateTime": "2024-06-01T10:00:00Z",
+                    "lastModifiedDateTime": "2024-06-15T09:00:00Z",
+                    "file": {"mimeType": "application/pdf"}
+                }
+            ]
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.ListSharePointFolderContentsAction()
+        inputs = {"drive_id": "drive-123", "folder_id": "folder-1"}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertEqual(result.data["folder_id"], "folder-1")
+        self.assertEqual(result.data["total_items"], 1)
+        self.assertEqual(result.data["items"][0]["name"], "Report.pdf")
+
+        # Verify API call uses folder path
+        call_args = self.mock_context.fetch.call_args
+        self.assertIn("/drives/drive-123/items/folder-1/children", call_args[0][0])
+
+    async def test_list_folder_contents_with_pagination(self):
+        """Test that has_more is set when next page link exists."""
+        mock_response = {
+            "value": [{"id": "file-1", "name": "file.txt", "size": 100}],
+            "@odata.nextLink": "https://graph.microsoft.com/v1.0/next-page-token"
+        }
+        self.mock_context.fetch.return_value = mock_response
+
+        handler = microsoft365.ListSharePointFolderContentsAction()
+        inputs = {"drive_id": "drive-123"}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertTrue(result.data["result"])
+        self.assertTrue(result.data["has_more"])
+
+    async def test_list_folder_contents_error(self):
+        """Test error handling when folder listing fails."""
+        self.mock_context.fetch.side_effect = Exception("Drive not found")
+
+        handler = microsoft365.ListSharePointFolderContentsAction()
+        inputs = {"drive_id": "invalid-drive"}
+
+        result = await handler.execute(inputs, self.mock_context)
+
+        self.assertFalse(result.data["result"])
+        self.assertIn("Drive not found", result.data["error"])
+
+
     # ---- Meeting Scheduling & Room Management Tests ----
 
     async def test_find_meeting_times_success(self):
