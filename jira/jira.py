@@ -137,7 +137,14 @@ def text_to_adf(text: str) -> dict:
     }
 
 
-async def jira_request(method: str, url: str, access_token: str, params: dict = None, payload: dict = None) -> tuple:
+async def jira_request(
+    method: str,
+    url: str,
+    access_token: str,
+    params: dict = None,
+    payload: dict = None,
+    raw_body: str = None,
+) -> tuple:
     """
     Make an authenticated HTTP request to the Jira API.
     Returns (response_body, status_code).
@@ -158,7 +165,9 @@ async def jira_request(method: str, url: str, access_token: str, params: dict = 
         }
         if params:
             kwargs["params"] = params
-        if payload is not None:
+        if raw_body is not None:
+            kwargs["data"] = raw_body
+        elif payload is not None:
             kwargs["data"] = json.dumps(payload)
 
         async with session.request(**kwargs) as response:
@@ -1626,19 +1635,9 @@ class AddWatcherAction(ActionHandler):
             account_id = inputs["accountId"]
 
             # Jira's add-watcher endpoint expects a raw JSON-encoded string as the body
-            url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/watchers")
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            }
             raw_body = json.dumps(account_id)
-
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, data=raw_body, ssl=True) as response:
-                    if not response.ok:
-                        error_text = await response.text()
-                        raise Exception(f"HTTP {response.status}: {error_text}")
+            url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/watchers")
+            await jira_request("POST", url, access_token, raw_body=raw_body)
 
             return ActionResult(
                 data={
