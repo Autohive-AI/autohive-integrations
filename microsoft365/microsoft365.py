@@ -756,7 +756,10 @@ class ReadContactsAction(ActionHandler):
             # Build query parameters
             params = {
                 "$top": limit,
-                "$select": "id,displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,companyName,jobTitle",
+                "$select": (
+                    "id,displayName,givenName,surname,emailAddresses,"
+                    "businessPhones,homePhones,mobilePhone,companyName,jobTitle"
+                ),
             }
 
             response = await context.fetch(api_url, params=params)
@@ -1997,7 +2000,9 @@ class ReadSharePointPageContentAction(ActionHandler):
             # Build request according to Microsoft Graph API spec
             # GET /sites/{site-id}/pages/{page-id}/microsoft.graph.sitePage
             params = {
-                "$select": "id,name,webUrl,title,pageLayout,createdDateTime,lastModifiedDateTime,createdBy,lastModifiedBy"
+                "$select": (
+                    "id,name,webUrl,title,pageLayout,createdDateTime,lastModifiedDateTime,createdBy,lastModifiedBy"
+                )
             }
 
             # Include page content if requested
@@ -2120,7 +2125,9 @@ class ListSharePointFolderContentsAction(ActionHandler):
 
             params = {
                 "$top": limit,
-                "$select": "id,name,size,lastModifiedDateTime,webUrl,folder,file,createdDateTime,createdBy,lastModifiedBy",
+                "$select": (
+                    "id,name,size,lastModifiedDateTime,webUrl,folder,file,createdDateTime,createdBy,lastModifiedBy"
+                ),
             }
 
             response = await context.fetch(url, params=params)

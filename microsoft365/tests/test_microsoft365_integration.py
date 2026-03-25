@@ -828,7 +828,7 @@ class TestSearchSharePointSitesAction(unittest.TestCase):
         mock_response = {
             "value": [
                 {
-                    "id": "contoso.sharepoint.com,da60e844-ba1d-49bc-b4d4-d5e36bae9019,712a596e-90a1-49e3-9b48-bfa80bee8740",
+                    "id": "contoso.sharepoint.com,da60e844-ba1d-49bc,712a596e-90a1-49e3",
                     "name": "Team A Site",
                     "displayName": "Team A Collaboration Site",
                     "description": "Site for Team A projects",
@@ -867,7 +867,7 @@ class TestGetSharePointSiteDetailsAction(unittest.TestCase):
         """Test successful SharePoint site details retrieval."""
         # Mock API response
         mock_response = {
-            "id": "contoso.sharepoint.com,da60e844-ba1d-49bc-b4d4-d5e36bae9019,712a596e-90a1-49e3-9b48-bfa80bee8740",
+            "id": "contoso.sharepoint.com,da60e844-ba1d-49bc,712a596e-90a1-49e3",
             "displayName": "Team A Collaboration Site",
             "name": "Team A Site",
             "description": "Site for Team A projects and documentation",
@@ -879,9 +879,7 @@ class TestGetSharePointSiteDetailsAction(unittest.TestCase):
         self.mock_context.fetch.return_value = mock_response
 
         handler = microsoft365.GetSharePointSiteDetailsAction()
-        inputs = {
-            "site_id": "contoso.sharepoint.com,da60e844-ba1d-49bc-b4d4-d5e36bae9019,712a596e-90a1-49e3-9b48-bfa80bee8740"
-        }
+        inputs = {"site_id": "contoso.sharepoint.com,da60e844-ba1d-49bc,712a596e-90a1-49e3"}
 
         result = await handler.execute(inputs, self.mock_context)
 
