@@ -1715,32 +1715,20 @@ class GetIssueTypesAction(ActionHandler):
 
             if project_key:
                 url = api_url(cloud_id, f"/project/{safe_path(project_key)}/issuetypes")
-                body, _ = await jira_request("GET", url, access_token)
-                issue_types = []
-                for it in body if isinstance(body, list) else []:
-                    issue_types.append(
-                        {
-                            "id": it.get("id"),
-                            "name": it.get("name"),
-                            "description": it.get("description"),
-                            "subtask": it.get("subtask"),
-                            "hierarchyLevel": it.get("hierarchyLevel"),
-                        }
-                    )
             else:
                 url = api_url(cloud_id, "/issuetype")
-                body, _ = await jira_request("GET", url, access_token)
-                issue_types = []
-                for it in body if isinstance(body, list) else []:
-                    issue_types.append(
-                        {
-                            "id": it.get("id"),
-                            "name": it.get("name"),
-                            "description": it.get("description"),
-                            "subtask": it.get("subtask"),
-                            "hierarchyLevel": it.get("hierarchyLevel"),
-                        }
-                    )
+
+            body, _ = await jira_request("GET", url, access_token)
+            issue_types = [
+                {
+                    "id": it.get("id"),
+                    "name": it.get("name"),
+                    "description": it.get("description"),
+                    "subtask": it.get("subtask"),
+                    "hierarchyLevel": it.get("hierarchyLevel"),
+                }
+                for it in (body if isinstance(body, list) else [])
+            ]
 
             return ActionResult(
                 data={
