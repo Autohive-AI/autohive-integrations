@@ -139,12 +139,8 @@ class TestMicrosoft365Integration(unittest.TestCase):
 
         self.assertTrue(result.data["result"])
         self.assertEqual(len(result.data["files"]), 2)
-        self.assertIsNone(
-            result.data["files"][0]["folder"]
-        )  # document.pdf (no folder facet)
-        self.assertIsNotNone(
-            result.data["files"][1]["folder"]
-        )  # My Folder (has folder facet)
+        self.assertIsNone(result.data["files"][0]["folder"])  # document.pdf (no folder facet)
+        self.assertIsNotNone(result.data["files"][1]["folder"])  # My Folder (has folder facet)
 
     async def test_error_handling(self):
         """Test error handling in actions."""
@@ -171,9 +167,7 @@ class TestMicrosoft365Integration(unittest.TestCase):
                     "size": 4096,
                     "lastModifiedDateTime": "2024-08-01T10:00:00Z",
                     "webUrl": "https://onedrive.com/file123",
-                    "file": {
-                        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    },
+                    "file": {"mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
                 },
                 {
                     "id": "folder456",
@@ -240,9 +234,7 @@ class TestMicrosoft365Integration(unittest.TestCase):
         self.assertEqual(result.data["file"]["name"], "document.docx")
         self.assertEqual(result.data["metadata"]["size"], 2048)
         self.assertEqual(result.data["file"]["contentType"], "application/pdf")
-        self.assertIsNotNone(
-            result.data["file"]["content"]
-        )  # Should have base64 encoded PDF
+        self.assertIsNotNone(result.data["file"]["content"])  # Should have base64 encoded PDF
 
         # Verify API calls
         self.mock_context.fetch.assert_called_once()  # Metadata call
@@ -282,9 +274,7 @@ class TestMicrosoft365Integration(unittest.TestCase):
         self.assertTrue(result.data["result"])
         self.assertEqual(result.data["file"]["name"], "notes.txt")
         self.assertEqual(result.data["file"]["contentType"], "text/plain")
-        self.assertIsNotNone(
-            result.data["file"]["content"]
-        )  # Should have base64 encoded content
+        self.assertIsNotNone(result.data["file"]["content"])  # Should have base64 encoded content
 
         # Check content call (no PDF conversion for text file)
         content_call = self.mock_context.fetch.call_args_list[1]
@@ -316,13 +306,9 @@ class TestMicrosoft365Integration(unittest.TestCase):
         result = await handler.execute(inputs, self.mock_context)
 
         self.assertTrue(result.data["result"])
-        self.assertEqual(
-            result.data["file"]["name"], "AICPA_SOC2_Compliance_Guide_on_AWS.pdf"
-        )
+        self.assertEqual(result.data["file"]["name"], "AICPA_SOC2_Compliance_Guide_on_AWS.pdf")
         self.assertEqual(result.data["file"]["contentType"], "application/pdf")
-        self.assertIsNotNone(
-            result.data["file"]["content"]
-        )  # Should have base64 encoded content
+        self.assertIsNotNone(result.data["file"]["content"])  # Should have base64 encoded content
 
         # Verify binary fetch was called with correct URL
         mock_fetch_binary.assert_called_once()
@@ -352,9 +338,7 @@ class TestMicrosoft365Integration(unittest.TestCase):
 
         result = await handler.execute(inputs, self.mock_context)
 
-        self.assertFalse(
-            result.data["result"]
-        )  # Operation fails when content retrieval fails
+        self.assertFalse(result.data["result"])  # Operation fails when content retrieval fails
         self.assertEqual(result.data["file"]["name"], "restricted.pdf")
         self.assertEqual(result.data["file"]["content"], "")  # Empty content on failure
         self.assertIn("Access denied", result.data["error"])
@@ -903,9 +887,7 @@ class TestGetSharePointSiteDetailsAction(unittest.TestCase):
 
         self.assertTrue(result.data["result"])
         self.assertEqual(result.data["site"]["name"], "Team A Site")
-        self.assertEqual(
-            result.data["site"]["display_name"], "Team A Collaboration Site"
-        )
+        self.assertEqual(result.data["site"]["display_name"], "Team A Collaboration Site")
         self.assertFalse(result.data["site"]["is_personal_site"])
 
         # Verify API call
@@ -1000,9 +982,7 @@ class TestSearchSharePointDocumentsAction(unittest.TestCase):
                     "size": 45678,
                     "lastModifiedDateTime": "2024-08-20T10:00:00Z",
                     "webUrl": "https://contoso.sharepoint.com/sites/siteA/Documents/Project Plan.docx",
-                    "file": {
-                        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    },
+                    "file": {"mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
                 }
             ]
         }
@@ -1085,9 +1065,7 @@ class TestListSharePointPagesAction(unittest.TestCase):
                     "pageLayout": "home",
                     "createdDateTime": "2024-01-15T10:00:00Z",
                     "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-                    "createdBy": {
-                        "user": {"displayName": "John Doe", "email": "john@contoso.com"}
-                    },
+                    "createdBy": {"user": {"displayName": "John Doe", "email": "john@contoso.com"}},
                 }
             ]
         }
@@ -1111,9 +1089,7 @@ class TestListSharePointPagesAction(unittest.TestCase):
 
         # Verify API call
         call_args = self.mock_context.fetch.call_args
-        self.assertIn(
-            "/sites/test-site-id/pages/microsoft.graph.sitePage", call_args[0][0]
-        )
+        self.assertIn("/sites/test-site-id/pages/microsoft.graph.sitePage", call_args[0][0])
 
 
 class TestReadSharePointDocumentAction(unittest.TestCase):
@@ -1157,15 +1133,11 @@ class TestReadSharePointDocumentAction(unittest.TestCase):
 
         # Check binary content call includes format=pdf for Office docs
         binary_call_args = mock_fetch_binary.call_args[0]
-        self.assertIn(
-            "/sites/test-site-id/drive/items/doc123/content", binary_call_args[0]
-        )
+        self.assertIn("/sites/test-site-id/drive/items/doc123/content", binary_call_args[0])
         self.assertIn("format=pdf", binary_call_args[0])
 
     @patch("microsoft365.microsoft365.fetch_binary_content")
-    async def test_read_sharepoint_document_with_drive_id_success(
-        self, mock_fetch_binary
-    ):
+    async def test_read_sharepoint_document_with_drive_id_success(self, mock_fetch_binary):
         """Test successful SharePoint document reading with specific drive ID."""
         # Mock metadata response
         mock_metadata = {
@@ -1425,9 +1397,7 @@ class TestListMailFoldersAction(unittest.TestCase):
 
         # Verify API call uses childFolders endpoint
         call_args = self.mock_context.fetch.call_args
-        self.assertIn(
-            "/me/mailFolders/AQMkADYAAAIBDAAAAA==/childFolders", call_args[0][0]
-        )
+        self.assertIn("/me/mailFolders/AQMkADYAAAIBDAAAAA==/childFolders", call_args[0][0])
 
 
 class TestGetMailFolderAction(unittest.TestCase):
@@ -1583,9 +1553,7 @@ class TestReadSharePointPageContentAction(unittest.TestCase):
             "pageLayout": "home",
             "createdDateTime": "2024-01-15T10:00:00Z",
             "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-            "createdBy": {
-                "user": {"displayName": "Page Creator", "email": "creator@contoso.com"}
-            },
+            "createdBy": {"user": {"displayName": "Page Creator", "email": "creator@contoso.com"}},
             "canvasLayout": {
                 "horizontalSections": [
                     {
@@ -1656,9 +1624,7 @@ class TestReadSharePointPageContentAction(unittest.TestCase):
 
         self.assertTrue(result.data["result"])
         self.assertEqual(result.data["page"]["title"], "About Us")
-        self.assertNotIn(
-            "content", result.data["page"]
-        )  # No content when include_content=False
+        self.assertNotIn("content", result.data["page"])  # No content when include_content=False
 
         # Verify API call doesn't include $expand
         call_args = self.mock_context.fetch.call_args
@@ -1792,9 +1758,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "size": 45678,
                     "createdDateTime": "2024-07-01T10:00:00Z",
                     "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-                    "file": {
-                        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    },
+                    "file": {"mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
                     "createdBy": {"user": {"displayName": "Jane Doe"}},
                     "lastModifiedBy": {"user": {"displayName": "Jane Doe"}},
                 },
@@ -1910,15 +1874,11 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "organizerAvailability": "free",
                     "attendeeAvailability": [
                         {
-                            "attendee": {
-                                "emailAddress": {"address": "john@example.com"}
-                            },
+                            "attendee": {"emailAddress": {"address": "john@example.com"}},
                             "availability": "free",
                         },
                         {
-                            "attendee": {
-                                "emailAddress": {"address": "sarah@example.com"}
-                            },
+                            "attendee": {"emailAddress": {"address": "sarah@example.com"}},
                             "availability": "free",
                         },
                     ],
@@ -1944,15 +1904,11 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
                     "organizerAvailability": "free",
                     "attendeeAvailability": [
                         {
-                            "attendee": {
-                                "emailAddress": {"address": "john@example.com"}
-                            },
+                            "attendee": {"emailAddress": {"address": "john@example.com"}},
                             "availability": "free",
                         },
                         {
-                            "attendee": {
-                                "emailAddress": {"address": "sarah@example.com"}
-                            },
+                            "attendee": {"emailAddress": {"address": "sarah@example.com"}},
                             "availability": "tentative",
                         },
                     ],
@@ -1978,15 +1934,11 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         self.assertEqual(len(result.data["meeting_time_suggestions"]), 2)
         self.assertEqual(result.data["meeting_time_suggestions"][0]["confidence"], 100)
         self.assertEqual(
-            result.data["meeting_time_suggestions"][0]["attendee_availability"][0][
-                "email"
-            ],
+            result.data["meeting_time_suggestions"][0]["attendee_availability"][0]["email"],
             "john@example.com",
         )
         self.assertEqual(
-            result.data["meeting_time_suggestions"][0]["suggested_locations"][0][
-                "displayName"
-            ],
+            result.data["meeting_time_suggestions"][0]["suggested_locations"][0]["displayName"],
             "Conference Room A",
         )
 
@@ -2011,9 +1963,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
 
         self.assertTrue(result.data["result"])
         self.assertEqual(len(result.data["meeting_time_suggestions"]), 0)
-        self.assertEqual(
-            result.data["empty_suggestions_reason"], "attendeesUnavailable"
-        )
+        self.assertEqual(result.data["empty_suggestions_reason"], "attendeesUnavailable")
 
     async def test_find_meeting_times_with_location_constraint(self):
         """Test finding meeting times with a specific room."""
@@ -2060,9 +2010,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
 
     async def test_find_meeting_times_error(self):
         """Test error handling for find meeting times."""
-        self.mock_context.fetch.side_effect = Exception(
-            "API Error: Insufficient permissions"
-        )
+        self.mock_context.fetch.side_effect = Exception("API Error: Insufficient permissions")
 
         handler = microsoft365.FindMeetingTimesAction()
         inputs = {"attendees": ["john@example.com"]}
@@ -2144,9 +2092,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         self.assertEqual(result.data["schedules"][0]["email"], "john@example.com")
         self.assertEqual(result.data["schedules"][0]["availability_view"], "0000220000")
         self.assertEqual(len(result.data["schedules"][0]["schedule_items"]), 1)
-        self.assertEqual(
-            result.data["schedules"][0]["schedule_items"][0]["status"], "busy"
-        )
+        self.assertEqual(result.data["schedules"][0]["schedule_items"][0]["status"], "busy")
         self.assertEqual(
             result.data["schedules"][0]["working_hours"]["timezone"],
             "Pacific Standard Time",
@@ -2278,9 +2224,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
 
         self.assertTrue(result.data["result"])
         self.assertEqual(result.data["total_count"], 1)
-        self.assertEqual(
-            result.data["rooms"][0]["email_address"], "room101@example.com"
-        )
+        self.assertEqual(result.data["rooms"][0]["email_address"], "room101@example.com")
 
     async def test_list_rooms_in_list_missing_email(self):
         """Test error when room list email is missing."""
@@ -2294,9 +2238,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
 
     async def test_list_rooms_error(self):
         """Test error handling for list rooms."""
-        self.mock_context.fetch.side_effect = Exception(
-            "Forbidden: Insufficient privileges"
-        )
+        self.mock_context.fetch.side_effect = Exception("Forbidden: Insufficient privileges")
 
         handler = microsoft365.ListRoomsAction()
         inputs = {"list_type": "rooms"}
@@ -2337,9 +2279,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         self.assertEqual(len(result.data["rooms"]), 2)
         self.assertTrue(result.data["rooms"][0]["is_available"])
         self.assertTrue(result.data["rooms"][1]["is_available"])
-        self.assertEqual(
-            result.data["available_rooms"], ["conf-a@example.com", "conf-b@example.com"]
-        )
+        self.assertEqual(result.data["available_rooms"], ["conf-a@example.com", "conf-b@example.com"])
         self.assertEqual(result.data["unavailable_rooms"], [])
 
     async def test_check_room_availability_with_conflicts(self):
@@ -2386,9 +2326,7 @@ class TestListSharePointFolderContentsAction(unittest.TestCase):
         self.assertTrue(result.data["rooms"][0]["is_available"])
         self.assertFalse(result.data["rooms"][1]["is_available"])
         self.assertEqual(len(result.data["rooms"][1]["conflicts"]), 1)
-        self.assertEqual(
-            result.data["rooms"][1]["conflicts"][0]["subject"], "Existing Meeting"
-        )
+        self.assertEqual(result.data["rooms"][1]["conflicts"][0]["subject"], "Existing Meeting")
         self.assertEqual(result.data["available_rooms"], ["conf-a@example.com"])
         self.assertEqual(result.data["unavailable_rooms"], ["conf-b@example.com"])
 

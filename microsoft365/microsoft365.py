@@ -36,9 +36,7 @@ async def fetch_binary_content(url: str, context: ExecutionContext) -> bytes:
 
 @microsoft365.action("send_email")
 class SendEmailAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             # Build email message
             message = {
@@ -52,22 +50,16 @@ class SendEmailAction(ActionHandler):
 
             # Add CC recipients if provided
             if inputs.get("cc"):
-                message["ccRecipients"] = [
-                    {"emailAddress": {"address": email}} for email in inputs["cc"]
-                ]
+                message["ccRecipients"] = [{"emailAddress": {"address": email}} for email in inputs["cc"]]
 
             # Add BCC recipients if provided
             if inputs.get("bcc"):
-                message["bccRecipients"] = [
-                    {"emailAddress": {"address": email}} for email in inputs["bcc"]
-                ]
+                message["bccRecipients"] = [{"emailAddress": {"address": email}} for email in inputs["bcc"]]
 
             # Send email
             email_data = {"message": message, "saveToSentItems": True}
 
-            await context.fetch(
-                f"{GRAPH_API_BASE}/me/sendMail", method="POST", json=email_data
-            )
+            await context.fetch(f"{GRAPH_API_BASE}/me/sendMail", method="POST", json=email_data)
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
@@ -77,9 +69,7 @@ class SendEmailAction(ActionHandler):
 
 @microsoft365.action("create_calendar_event")
 class CreateCalendarEventAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             # Build event data
             event_data = {
@@ -105,9 +95,7 @@ class CreateCalendarEventAction(ActionHandler):
                 ]
 
             # Create event
-            response = await context.fetch(
-                f"{GRAPH_API_BASE}/me/events", method="POST", json=event_data
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE}/me/events", method="POST", json=event_data)
 
             return ActionResult(
                 data={
@@ -124,9 +112,7 @@ class CreateCalendarEventAction(ActionHandler):
 
 @microsoft365.action("upload_file")
 class UploadFileAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             filename = inputs["filename"]
             content = inputs["content"]
@@ -138,9 +124,7 @@ class UploadFileAction(ActionHandler):
 
             # Build upload URL
             if folder_path:
-                upload_url = (
-                    f"{GRAPH_API_BASE}/me/drive/root:/{folder_path}/{filename}:/content"
-                )
+                upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{folder_path}/{filename}:/content"
             else:
                 upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{filename}:/content"
 
@@ -168,9 +152,7 @@ class UploadFileAction(ActionHandler):
 
 @microsoft365.action("list_files")
 class ListFilesAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             folder_path = inputs.get("folder_path", "/").strip("/")
             limit = inputs.get("limit", 100)
@@ -207,16 +189,12 @@ class ListFilesAction(ActionHandler):
             return ActionResult(data={"files": files, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"files": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"files": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft365.action("update_calendar_event")
 class UpdateCalendarEventAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             event_id = inputs["event_id"]
 
@@ -272,9 +250,7 @@ class UpdateCalendarEventAction(ActionHandler):
 
 @microsoft365.action("list_calendar_events")
 class ListCalendarEventsAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             # Accept either datetime or date parameters, with intelligent defaults
             if "start_datetime" in inputs:
@@ -349,16 +325,12 @@ class ListCalendarEventsAction(ActionHandler):
             return ActionResult(data={"events": events, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"events": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"events": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft365.action("list_emails")
 class ListEmailsAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             # Accept either datetime or date parameters, with intelligent defaults
             if "start_datetime" in inputs:
@@ -414,16 +386,12 @@ class ListEmailsAction(ActionHandler):
             return ActionResult(data={"emails": emails, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"emails": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"emails": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft365.action("list_emails_from_contact")
 class ListEmailsFromContactAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             contact_email = inputs["contact_email"]
             limit = inputs.get("limit", 5)
@@ -477,9 +445,7 @@ class ListEmailsFromContactAction(ActionHandler):
 
 @microsoft365.action("mark_email_read")
 class MarkEmailReadAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             email_id = inputs["email_id"]
             is_read = inputs["is_read"]
@@ -515,15 +481,11 @@ class ListMailFoldersAction(ActionHandler):
     Use include_children to recursively fetch all nested folders.
     """
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             include_hidden = inputs.get("include_hidden", False)
             include_children = inputs.get("include_children", False)
-            folder_id = inputs.get(
-                "folder_id"
-            )  # Optional: list children of specific folder
+            folder_id = inputs.get("folder_id")  # Optional: list children of specific folder
 
             # Build API URL
             if folder_id:
@@ -571,9 +533,7 @@ class ListMailFoldersAction(ActionHandler):
 
                 # Recursively fetch child folders if requested
                 if include_children and folder.get("childFolderCount", 0) > 0:
-                    child_folders = await self._fetch_child_folders_recursive(
-                        folder["id"], context, include_hidden
-                    )
+                    child_folders = await self._fetch_child_folders_recursive(folder["id"], context, include_hidden)
                     folders.extend(child_folders)
 
             return ActionResult(
@@ -635,9 +595,7 @@ class ListMailFoldersAction(ActionHandler):
 
                 # Recursively fetch children if this folder has child folders
                 if folder.get("childFolderCount", 0) > 0:
-                    child_folders = await self._fetch_child_folders_recursive(
-                        folder["id"], context, include_hidden
-                    )
+                    child_folders = await self._fetch_child_folders_recursive(folder["id"], context, include_hidden)
                     folders.extend(child_folders)
 
             return folders
@@ -654,9 +612,7 @@ class GetMailFolderAction(ActionHandler):
     archive, outbox, clutter, scheduled, searchfolders, conversationhistory
     """
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             folder_id = inputs["folder_id"]
 
@@ -679,14 +635,10 @@ class GetMailFolderAction(ActionHandler):
                 "isHidden": response.get("isHidden", False),
             }
 
-            return ActionResult(
-                data={"folder": folder_data, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"folder": folder_data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft365.action("move_email")
@@ -701,9 +653,7 @@ class MoveEmailAction(ActionHandler):
     For custom folders, use list_mail_folders with include_children=true to find the folder ID.
     """
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             email_id = inputs["email_id"]
             destination_folder_id = inputs["destination_folder_id"]
@@ -733,9 +683,7 @@ class MoveEmailAction(ActionHandler):
 
 @microsoft365.action("read_email")
 class ReadEmailAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             email_id = inputs["email_id"]
             include_attachments = inputs.get("include_attachments", True)
@@ -743,9 +691,7 @@ class ReadEmailAction(ActionHandler):
             # Get email details
             email_response = await context.fetch(
                 f"{GRAPH_API_BASE}/me/messages/{email_id}",
-                params={
-                    "$select": "id,subject,sender,receivedDateTime,body,hasAttachments"
-                },
+                params={"$select": "id,subject,sender,receivedDateTime,body,hasAttachments"},
             )
 
             # Format email details
@@ -762,17 +708,13 @@ class ReadEmailAction(ActionHandler):
 
             if include_attachments and email_details["hasAttachments"]:
                 # Get attachments
-                attachments_response = await context.fetch(
-                    f"{GRAPH_API_BASE}/me/messages/{email_id}/attachments"
-                )
+                attachments_response = await context.fetch(f"{GRAPH_API_BASE}/me/messages/{email_id}/attachments")
 
                 for attachment in attachments_response.get("value", []):
                     attachment_id = attachment["id"]
                     attachment_name = attachment["name"]
                     attachment_size = attachment.get("size", 0)
-                    content_type = attachment.get(
-                        "contentType", "application/octet-stream"
-                    )
+                    content_type = attachment.get("contentType", "application/octet-stream")
 
                     # Return attachment metadata only (no content download)
                     attachment_data = {
@@ -803,9 +745,7 @@ class ReadEmailAction(ActionHandler):
 
 @microsoft365.action("read_contacts")
 class ReadContactsAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             limit = inputs.get("limit", 100)
             search = inputs.get("search")
@@ -912,16 +852,12 @@ class ReadContactsAction(ActionHandler):
                 )
 
         except Exception as e:
-            return ActionResult(
-                data={"contacts": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"contacts": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft365.action("search_onedrive_files")
 class SearchOneDriveFilesAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             search_query = inputs["query"]
             limit = inputs.get("limit", 10)
@@ -968,9 +904,7 @@ class SearchOneDriveFilesAction(ActionHandler):
 
 @microsoft365.action("read_onedrive_file_content")
 class ReadOneDriveFileContentAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             file_id = inputs["file_id"]
 
@@ -989,13 +923,8 @@ class ReadOneDriveFileContentAction(ActionHandler):
             content = None
             try:
                 # For Office documents, use Microsoft's PDF conversion API
-                if any(
-                    ext in file_name.lower()
-                    for ext in [".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"]
-                ):
-                    content_url = (
-                        f"{GRAPH_API_BASE}/me/drive/items/{file_id}/content?format=pdf"
-                    )
+                if any(ext in file_name.lower() for ext in [".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"]):
+                    content_url = f"{GRAPH_API_BASE}/me/drive/items/{file_id}/content?format=pdf"
                     # Use binary fetch to avoid SDK text parsing for converted PDFs
                     content_bytes = await fetch_binary_content(content_url, context)
 
@@ -1014,9 +943,7 @@ class ReadOneDriveFileContentAction(ActionHandler):
                     content = base64.b64encode(content_bytes).decode("utf-8")
                     content_type = "application/pdf"
                     content_available = True
-                    content_info = (
-                        "PDF content retrieved and encoded for LLM processing"
-                    )
+                    content_info = "PDF content retrieved and encoded for LLM processing"
                 else:
                     # For text files, get raw content
                     content_url = f"{GRAPH_API_BASE}/me/drive/items/{file_id}/content"
@@ -1027,13 +954,9 @@ class ReadOneDriveFileContentAction(ActionHandler):
                         content = base64.b64encode(content_response).decode("utf-8")
                     elif isinstance(content_response, str):
                         # Use latin-1 encoding to preserve binary data in string
-                        content = base64.b64encode(
-                            content_response.encode("latin-1")
-                        ).decode("utf-8")
+                        content = base64.b64encode(content_response.encode("latin-1")).decode("utf-8")
                     else:
-                        content = base64.b64encode(
-                            str(content_response).encode("latin-1")
-                        ).decode("utf-8")
+                        content = base64.b64encode(str(content_response).encode("latin-1")).decode("utf-8")
 
                     content_type = mime_type or "text/plain"
                     content_available = True
@@ -1122,9 +1045,7 @@ class ReadOneDriveFileContentAction(ActionHandler):
 
 @microsoft365.action("create_draft_email")
 class CreateDraftEmailAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             # Build email message according to Microsoft Graph API spec
             message = {
@@ -1139,16 +1060,12 @@ class CreateDraftEmailAction(ActionHandler):
             # Add to recipients (required)
             for recipient in inputs["to_recipients"]:
                 if isinstance(recipient, str):
-                    message["toRecipients"].append(
-                        {"emailAddress": {"address": recipient}}
-                    )
+                    message["toRecipients"].append({"emailAddress": {"address": recipient}})
                 else:
                     message["toRecipients"].append(
                         {
                             "emailAddress": {
-                                "address": recipient.get(
-                                    "address", recipient.get("email")
-                                ),
+                                "address": recipient.get("address", recipient.get("email")),
                                 "name": recipient.get("name", ""),
                             }
                         }
@@ -1159,16 +1076,12 @@ class CreateDraftEmailAction(ActionHandler):
                 message["ccRecipients"] = []
                 for recipient in inputs["cc_recipients"]:
                     if isinstance(recipient, str):
-                        message["ccRecipients"].append(
-                            {"emailAddress": {"address": recipient}}
-                        )
+                        message["ccRecipients"].append({"emailAddress": {"address": recipient}})
                     else:
                         message["ccRecipients"].append(
                             {
                                 "emailAddress": {
-                                    "address": recipient.get(
-                                        "address", recipient.get("email")
-                                    ),
+                                    "address": recipient.get("address", recipient.get("email")),
                                     "name": recipient.get("name", ""),
                                 }
                             }
@@ -1179,16 +1092,12 @@ class CreateDraftEmailAction(ActionHandler):
                 message["bccRecipients"] = []
                 for recipient in inputs["bcc_recipients"]:
                     if isinstance(recipient, str):
-                        message["bccRecipients"].append(
-                            {"emailAddress": {"address": recipient}}
-                        )
+                        message["bccRecipients"].append({"emailAddress": {"address": recipient}})
                     else:
                         message["bccRecipients"].append(
                             {
                                 "emailAddress": {
-                                    "address": recipient.get(
-                                        "address", recipient.get("email")
-                                    ),
+                                    "address": recipient.get("address", recipient.get("email")),
                                     "name": recipient.get("name", ""),
                                 }
                             }
@@ -1199,9 +1108,7 @@ class CreateDraftEmailAction(ActionHandler):
                 message["importance"] = inputs["importance"]
 
             # Create draft using Microsoft Graph API
-            response = await context.fetch(
-                f"{GRAPH_API_BASE}/me/messages", method="POST", json=message
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE}/me/messages", method="POST", json=message)
 
             return ActionResult(
                 data={
@@ -1220,9 +1127,7 @@ class CreateDraftEmailAction(ActionHandler):
 
 @microsoft365.action("send_draft_email")
 class SendDraftEmailAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             draft_id = inputs["draft_id"]
 
@@ -1252,9 +1157,7 @@ class SendDraftEmailAction(ActionHandler):
 
 @microsoft365.action("reply_to_email")
 class ReplyToEmailAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             message_id = inputs["message_id"]
 
@@ -1295,9 +1198,7 @@ class ReplyToEmailAction(ActionHandler):
 
 @microsoft365.action("forward_email")
 class ForwardEmailAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             message_id = inputs["message_id"]
 
@@ -1307,16 +1208,12 @@ class ForwardEmailAction(ActionHandler):
             # Add to recipients (required)
             for recipient in inputs["to_recipients"]:
                 if isinstance(recipient, str):
-                    forward_data["toRecipients"].append(
-                        {"emailAddress": {"address": recipient}}
-                    )
+                    forward_data["toRecipients"].append({"emailAddress": {"address": recipient}})
                 else:
                     forward_data["toRecipients"].append(
                         {
                             "emailAddress": {
-                                "address": recipient.get(
-                                    "address", recipient.get("email")
-                                ),
+                                "address": recipient.get("address", recipient.get("email")),
                                 "name": recipient.get("name", ""),
                             }
                         }
@@ -1358,9 +1255,7 @@ class ForwardEmailAction(ActionHandler):
 
 @microsoft365.action("download_email_attachment")
 class DownloadEmailAttachmentAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             message_id = inputs["message_id"]
             attachment_id = inputs["attachment_id"]
@@ -1375,9 +1270,7 @@ class DownloadEmailAttachmentAction(ActionHandler):
             # Extract metadata
             attachment_id_val = attachment_response["id"]
             attachment_name = attachment_response.get("name") or ""
-            content_type = (
-                attachment_response.get("contentType") or "application/octet-stream"
-            )
+            content_type = attachment_response.get("contentType") or "application/octet-stream"
             size = attachment_response.get("size", 0)
             is_inline = attachment_response.get("isInline", False)
 
@@ -1405,9 +1298,7 @@ class DownloadEmailAttachmentAction(ActionHandler):
                     else:
                         content = ""
                         content_available = False
-                        content_error_msg = (
-                            f"Content retrieval failed: {str(content_error)}"
-                        )
+                        content_error_msg = f"Content retrieval failed: {str(content_error)}"
 
             # Return in same format as OneDrive/SharePoint for consistency
             if content_available and content:
@@ -1477,9 +1368,7 @@ class DownloadEmailAttachmentAction(ActionHandler):
 
 @microsoft365.action("search_emails")
 class SearchEmailsAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             query = inputs["query"]
             limit = inputs.get("limit", 25)
@@ -1522,12 +1411,8 @@ class SearchEmailsAction(ActionHandler):
                         sender = {}
                         if message_data.get("from"):
                             sender = {
-                                "emailAddress": message_data["from"].get(
-                                    "emailAddress", {}
-                                ),
-                                "name": message_data["from"]
-                                .get("emailAddress", {})
-                                .get("name", ""),
+                                "emailAddress": message_data["from"].get("emailAddress", {}),
+                                "name": message_data["from"].get("emailAddress", {}).get("name", ""),
                             }
 
                         messages.append(
@@ -1535,14 +1420,9 @@ class SearchEmailsAction(ActionHandler):
                                 "message_id": message_data.get("id") or "",
                                 "subject": message_data.get("subject") or "",
                                 "sender": sender,
-                                "received_datetime": message_data.get(
-                                    "receivedDateTime"
-                                )
-                                or "",
+                                "received_datetime": message_data.get("receivedDateTime") or "",
                                 "body_preview": message_data.get("bodyPreview") or "",
-                                "has_attachments": message_data.get(
-                                    "hasAttachments", False
-                                ),
+                                "has_attachments": message_data.get("hasAttachments", False),
                             }
                         )
 
@@ -1571,9 +1451,7 @@ class SearchEmailsAction(ActionHandler):
 
 @microsoft365.action("search_sharepoint_sites")
 class SearchSharePointSitesAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             search_query = inputs["query"]
 
@@ -1598,8 +1476,7 @@ class SearchSharePointSitesAction(ActionHandler):
                         "description": site.get("description") or "",
                         "web_url": site.get("webUrl") or "",
                         "created_datetime": site.get("createdDateTime") or "",
-                        "last_modified_datetime": site.get("lastModifiedDateTime")
-                        or "",
+                        "last_modified_datetime": site.get("lastModifiedDateTime") or "",
                     }
                 )
 
@@ -1628,9 +1505,7 @@ class SearchSharePointSitesAction(ActionHandler):
 
 @microsoft365.action("get_sharepoint_site_details")
 class GetSharePointSiteDetailsAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             site_id = inputs["site_id"]
 
@@ -1654,21 +1529,15 @@ class GetSharePointSiteDetailsAction(ActionHandler):
             if "siteCollection" in response:
                 site_details["site_collection"] = response["siteCollection"]
 
-            return ActionResult(
-                data={"result": True, "site": site_details}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "site": site_details}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "site": {}, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "site": {}, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft365.action("list_sharepoint_libraries")
 class ListSharePointLibrariesAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             site_id = inputs["site_id"]
 
@@ -1693,9 +1562,7 @@ class ListSharePointLibrariesAction(ActionHandler):
                     "sharepointIds",
                     "system",
                 }
-                requested_fields = [
-                    f.strip() for f in inputs["select_fields"].split(",")
-                ]
+                requested_fields = [f.strip() for f in inputs["select_fields"].split(",")]
                 valid_fields = [f for f in requested_fields if f in valid_drive_fields]
 
                 if valid_fields:
@@ -1703,9 +1570,7 @@ class ListSharePointLibrariesAction(ActionHandler):
 
             # List drives (document libraries) according to Microsoft Graph API spec
             # GET /sites/{site-id}/drives
-            response = await context.fetch(
-                f"{GRAPH_API_BASE}/sites/{site_id}/drives", params=params
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE}/sites/{site_id}/drives", params=params)
 
             # Process response according to API documentation
             libraries = []
@@ -1764,9 +1629,7 @@ class ListSharePointLibrariesAction(ActionHandler):
 
 @microsoft365.action("search_sharepoint_documents")
 class SearchSharePointDocumentsAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             site_id = inputs["site_id"]
             search_query = inputs["query"]
@@ -1774,9 +1637,7 @@ class SearchSharePointDocumentsAction(ActionHandler):
 
             # Step 1: Get all drives (document libraries) for the site
             # GET /sites/{site-id}/drives
-            drives_response = await context.fetch(
-                f"{GRAPH_API_BASE}/sites/{site_id}/drives"
-            )
+            drives_response = await context.fetch(f"{GRAPH_API_BASE}/sites/{site_id}/drives")
 
             drives = drives_response.get("value", [])
             if not drives:
@@ -1838,9 +1699,7 @@ class SearchSharePointDocumentsAction(ActionHandler):
                             break
 
                 except Exception as drive_error:
-                    search_errors.append(
-                        f"Drive '{drive.get('name', drive.get('id'))}': {str(drive_error)}"
-                    )
+                    search_errors.append(f"Drive '{drive.get('name', drive.get('id'))}': {str(drive_error)}")
                     continue
 
                 # Stop if we've reached the limit
@@ -1882,9 +1741,7 @@ class SearchSharePointDocumentsAction(ActionHandler):
 
 @microsoft365.action("read_sharepoint_document")
 class ReadSharePointDocumentAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             site_id = inputs["site_id"]
             file_id = inputs["file_id"]
@@ -1901,9 +1758,7 @@ class ReadSharePointDocumentAction(ActionHandler):
                 # Fallback to site default drive for backward compatibility
                 metadata_url = f"{GRAPH_API_BASE}/sites/{site_id}/drive/items/{file_id}"
 
-            metadata_response = await context.fetch(
-                metadata_url, params=metadata_params
-            )
+            metadata_response = await context.fetch(metadata_url, params=metadata_params)
 
             file_name = metadata_response["name"]
             file_size = metadata_response.get("size", 0)
@@ -1914,10 +1769,7 @@ class ReadSharePointDocumentAction(ActionHandler):
             content = None
             try:
                 # For Office documents, use Microsoft's PDF conversion API
-                if any(
-                    ext in file_name.lower()
-                    for ext in [".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"]
-                ):
+                if any(ext in file_name.lower() for ext in [".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"]):
                     if drive_id:
                         content_url = f"{GRAPH_API_BASE}/drives/{drive_id}/items/{file_id}/content?format=pdf"
                     else:
@@ -1943,9 +1795,7 @@ class ReadSharePointDocumentAction(ActionHandler):
                     content = base64.b64encode(content_bytes).decode("utf-8")
                     content_type = "application/pdf"
                     content_available = True
-                    content_info = (
-                        "PDF content retrieved and encoded for LLM processing"
-                    )
+                    content_info = "PDF content retrieved and encoded for LLM processing"
                 else:
                     # For text files, get raw content
                     if drive_id:
@@ -1959,13 +1809,9 @@ class ReadSharePointDocumentAction(ActionHandler):
                         content = base64.b64encode(content_response).decode("utf-8")
                     elif isinstance(content_response, str):
                         # Use latin-1 encoding to preserve binary data in string
-                        content = base64.b64encode(
-                            content_response.encode("latin-1")
-                        ).decode("utf-8")
+                        content = base64.b64encode(content_response.encode("latin-1")).decode("utf-8")
                     else:
-                        content = base64.b64encode(
-                            str(content_response).encode("latin-1")
-                        ).decode("utf-8")
+                        content = base64.b64encode(str(content_response).encode("latin-1")).decode("utf-8")
 
                     content_type = mime_type or "text/plain"
                     content_available = True
@@ -2062,9 +1908,7 @@ class ReadSharePointDocumentAction(ActionHandler):
 
 @microsoft365.action("list_sharepoint_pages")
 class ListSharePointPagesAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             site_id = inputs["site_id"]
 
@@ -2106,18 +1950,14 @@ class ListSharePointPagesAction(ActionHandler):
                 # Add creator information if available
                 if "createdBy" in page and "user" in page["createdBy"]:
                     page_data["created_by"] = {
-                        "display_name": page["createdBy"]["user"].get(
-                            "displayName", ""
-                        ),
+                        "display_name": page["createdBy"]["user"].get("displayName", ""),
                         "email": page["createdBy"]["user"].get("email", ""),
                     }
 
                 # Add last modifier information if available
                 if "lastModifiedBy" in page and "user" in page["lastModifiedBy"]:
                     page_data["last_modified_by"] = {
-                        "display_name": page["lastModifiedBy"]["user"].get(
-                            "displayName", ""
-                        ),
+                        "display_name": page["lastModifiedBy"]["user"].get("displayName", ""),
                         "email": page["lastModifiedBy"]["user"].get("email", ""),
                     }
 
@@ -2148,9 +1988,7 @@ class ListSharePointPagesAction(ActionHandler):
 
 @microsoft365.action("read_sharepoint_page_content")
 class ReadSharePointPageContentAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             site_id = inputs["site_id"]
             page_id = inputs["page_id"]
@@ -2185,9 +2023,7 @@ class ReadSharePointPageContentAction(ActionHandler):
             # Add creator information if available
             if "createdBy" in response and "user" in response["createdBy"]:
                 page_data["created_by"] = {
-                    "display_name": response["createdBy"]["user"].get(
-                        "displayName", ""
-                    ),
+                    "display_name": response["createdBy"]["user"].get("displayName", ""),
                     "email": response["createdBy"]["user"].get("email", ""),
                 }
 
@@ -2214,21 +2050,16 @@ class ReadSharePointPageContentAction(ActionHandler):
 
 @microsoft365.action("list_sharepoint_subsites")
 class ListSharePointSubsitesAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             site_id = inputs["site_id"]
 
             # List subsites according to Microsoft Graph API spec
             # GET /sites/{site-id}/sites
-            params = {}
-            if inputs.get("limit"):
-                params["$top"] = inputs["limit"]
+            limit = inputs.get("limit", 50)
+            params = {"$top": limit}
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE}/sites/{site_id}/sites", params=params
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE}/sites/{site_id}/sites", params=params)
 
             # Process response
             subsites = []
@@ -2273,9 +2104,7 @@ class ListSharePointSubsitesAction(ActionHandler):
 
 @microsoft365.action("list_sharepoint_folder_contents")
 class ListSharePointFolderContentsAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             drive_id = inputs["drive_id"]
             folder_id = inputs.get("folder_id")
@@ -2320,17 +2149,11 @@ class ListSharePointFolderContentsAction(ActionHandler):
 
                 # Add creator info if available
                 if "createdBy" in item and "user" in item.get("createdBy", {}):
-                    item_data["created_by"] = item["createdBy"]["user"].get(
-                        "displayName", ""
-                    )
+                    item_data["created_by"] = item["createdBy"]["user"].get("displayName", "")
 
                 # Add modifier info if available
-                if "lastModifiedBy" in item and "user" in item.get(
-                    "lastModifiedBy", {}
-                ):
-                    item_data["last_modified_by"] = item["lastModifiedBy"]["user"].get(
-                        "displayName", ""
-                    )
+                if "lastModifiedBy" in item and "user" in item.get("lastModifiedBy", {}):
+                    item_data["last_modified_by"] = item["lastModifiedBy"]["user"].get("displayName", "")
 
                 items.append(item_data)
 
@@ -2366,9 +2189,7 @@ class ListSharePointFolderContentsAction(ActionHandler):
 
 @microsoft365.action("find_meeting_times")
 class FindMeetingTimesAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             attendees_emails = inputs["attendees"]
             duration_minutes = inputs.get("duration_minutes", 60)
@@ -2379,9 +2200,7 @@ class FindMeetingTimesAction(ActionHandler):
             # Build attendees list
             attendees = []
             for email in attendees_emails:
-                attendees.append(
-                    {"type": "required", "emailAddress": {"address": email}}
-                )
+                attendees.append({"type": "required", "emailAddress": {"address": email}})
 
             # Build time constraint with defaults
             # Microsoft Graph's findMeetingTimes API automatically respects:
@@ -2456,9 +2275,7 @@ class FindMeetingTimesAction(ActionHandler):
                     ],
                 }
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE}/me/findMeetingTimes", method="POST", json=body
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE}/me/findMeetingTimes", method="POST", json=body)
 
             # Process meeting time suggestions
             suggestions = []
@@ -2470,11 +2287,7 @@ class FindMeetingTimesAction(ActionHandler):
                 # Process attendee availability
                 attendee_avail = []
                 for att in suggestion.get("attendeeAvailability", []):
-                    att_email = (
-                        att.get("attendee", {})
-                        .get("emailAddress", {})
-                        .get("address", "")
-                    )
+                    att_email = att.get("attendee", {}).get("emailAddress", {}).get("address", "")
                     attendee_avail.append(
                         {
                             "email": att_email,
@@ -2497,9 +2310,7 @@ class FindMeetingTimesAction(ActionHandler):
                         "start": start_info.get("dateTime", ""),
                         "end": end_info.get("dateTime", ""),
                         "confidence": suggestion.get("confidence", 0),
-                        "organizer_availability": suggestion.get(
-                            "organizerAvailability", "unknown"
-                        ),
+                        "organizer_availability": suggestion.get("organizerAvailability", "unknown"),
                         "attendee_availability": attendee_avail,
                         "suggested_locations": locations,
                     }
@@ -2523,9 +2334,7 @@ class FindMeetingTimesAction(ActionHandler):
 
 @microsoft365.action("get_schedule")
 class GetScheduleAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             schedules_list = inputs["schedules"]
             start_dt = inputs["start_datetime"]
@@ -2539,9 +2348,7 @@ class GetScheduleAction(ActionHandler):
                 "availabilityViewInterval": interval,
             }
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE}/me/calendar/getSchedule", method="POST", json=body
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE}/me/calendar/getSchedule", method="POST", json=body)
 
             # Process schedule responses
             schedules = []
@@ -2587,21 +2394,15 @@ class GetScheduleAction(ActionHandler):
 
                 schedules.append(schedule_data)
 
-            return ActionResult(
-                data={"result": True, "schedules": schedules}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "schedules": schedules}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "schedules": [], "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "schedules": [], "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft365.action("list_rooms")
 class ListRoomsAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             list_type = inputs.get("list_type", "rooms")
             limit = inputs.get("limit", 100)
@@ -2614,9 +2415,7 @@ class ListRoomsAction(ActionHandler):
                 next_url = url
                 is_first = True
                 while next_url and len(all_items) < limit:
-                    response = await context.fetch(
-                        next_url, params=params if is_first else None
-                    )
+                    response = await context.fetch(next_url, params=params if is_first else None)
                     is_first = False
                     all_items.extend(response.get("value", []))
                     next_url = response.get("@odata.nextLink")
@@ -2651,9 +2450,7 @@ class ListRoomsAction(ActionHandler):
                 next_url = url
                 is_first = True
                 while next_url and len(all_items) < limit:
-                    response = await context.fetch(
-                        next_url, params=params if is_first else None
-                    )
+                    response = await context.fetch(next_url, params=params if is_first else None)
                     is_first = False
                     all_items.extend(response.get("value", []))
                     next_url = response.get("@odata.nextLink")
@@ -2670,9 +2467,7 @@ class ListRoomsAction(ActionHandler):
                             "building": room.get("building", ""),
                             "floor_number": room.get("floorNumber", None),
                             "floor_label": room.get("floorLabel", ""),
-                            "is_wheelchair_accessible": room.get(
-                                "isWheelChairAccessible", None
-                            ),
+                            "is_wheelchair_accessible": room.get("isWheelChairAccessible", None),
                             "audio_device_name": room.get("audioDeviceName", ""),
                             "video_device_name": room.get("videoDeviceName", ""),
                             "display_device_name": room.get("displayDeviceName", ""),
@@ -2689,9 +2484,7 @@ class ListRoomsAction(ActionHandler):
                 next_url = url
                 is_first = True
                 while next_url and len(all_items) < limit:
-                    response = await context.fetch(
-                        next_url, params=params if is_first else None
-                    )
+                    response = await context.fetch(next_url, params=params if is_first else None)
                     is_first = False
                     all_items.extend(response.get("value", []))
                     next_url = response.get("@odata.nextLink")
@@ -2708,9 +2501,7 @@ class ListRoomsAction(ActionHandler):
                             "building": room.get("building", ""),
                             "floor_number": room.get("floorNumber", None),
                             "floor_label": room.get("floorLabel", ""),
-                            "is_wheelchair_accessible": room.get(
-                                "isWheelChairAccessible", None
-                            ),
+                            "is_wheelchair_accessible": room.get("isWheelChairAccessible", None),
                             "audio_device_name": room.get("audioDeviceName", ""),
                             "video_device_name": room.get("videoDeviceName", ""),
                             "display_device_name": room.get("displayDeviceName", ""),
@@ -2732,9 +2523,7 @@ class ListRoomsAction(ActionHandler):
 
 @microsoft365.action("check_room_availability")
 class CheckRoomAvailabilityAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             room_emails = inputs["room_emails"]
             start_dt = inputs["start_datetime"]
@@ -2748,9 +2537,7 @@ class CheckRoomAvailabilityAction(ActionHandler):
                 "availabilityViewInterval": 15,
             }
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE}/me/calendar/getSchedule", method="POST", json=body
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE}/me/calendar/getSchedule", method="POST", json=body)
 
             rooms = []
             available_rooms = []
