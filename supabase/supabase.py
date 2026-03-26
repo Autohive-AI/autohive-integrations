@@ -407,6 +407,12 @@ class DeleteFilesAction(ActionHandler):
                 json={"prefixes": paths},
             )
 
+            if isinstance(response, dict) and response.get("error"):
+                return ActionResult(
+                    data={"deleted": [], "result": False, "error": response.get("message", response["error"])},
+                    cost_usd=0.0,
+                )
+
             deleted = response if isinstance(response, list) else []
 
             return ActionResult(data={"deleted": deleted, "result": True}, cost_usd=0.0)
