@@ -1,0 +1,261 @@
+{
+    "name": "Meetup",
+    "display_name": "Meetup",
+    "version": "1.0.0",
+    "description": "Meetup integration for managing events across multiple groups",
+    "entry_point": "meetup.py",
+    "auth": {
+        "type": "platform",
+        "provider": "Meetup",
+        "scopes": [
+            "basic",
+            "event_management"
+        ]
+    },
+    "actions": {
+        "get_self": {
+            "display_name": "Get Current User",
+            "description": "Retrieves the authenticated user's Meetup profile.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean", "description": "Whether the operation was successful"},
+                    "user": {"type": "object", "description": "User profile details"},
+                    "error": {"type": "string", "description": "Error message if the action failed"}
+                },
+                "required": ["result"]
+            }
+        },
+        "list_groups": {
+            "display_name": "List Organized Groups",
+            "description": "Lists all Meetup groups the authenticated user organizes.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "first": {
+                        "type": "integer",
+                        "description": "Maximum number of groups to return (default 50)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "groups": {"type": "array", "items": {"type": "object"}, "description": "List of groups"},
+                    "error": {"type": "string"}
+                },
+                "required": ["result"]
+            }
+        },
+        "get_group": {
+            "display_name": "Get Group",
+            "description": "Retrieves details of a specific Meetup group by its urlname.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "urlname": {
+                        "type": "string",
+                        "description": "The URL slug of the group (e.g. 'my-tech-meetup')"
+                    }
+                },
+                "required": ["urlname"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "group": {"type": "object", "description": "Group details"},
+                    "error": {"type": "string"}
+                },
+                "required": ["result"]
+            }
+        },
+        "list_events": {
+            "display_name": "List Events",
+            "description": "Lists events for a Meetup group.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "urlname": {
+                        "type": "string",
+                        "description": "The URL slug of the group"
+                    },
+                    "first": {
+                        "type": "integer",
+                        "description": "Number of events to return (default 20)"
+                    },
+                    "past": {
+                        "type": "boolean",
+                        "description": "If true, return past events instead of upcoming (default false)"
+                    }
+                },
+                "required": ["urlname"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "events": {"type": "array", "items": {"type": "object"}},
+                    "error": {"type": "string"}
+                },
+                "required": ["result"]
+            }
+        },
+        "get_event": {
+            "display_name": "Get Event",
+            "description": "Retrieves details of a specific Meetup event by its ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The ID of the event"
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "event": {"type": "object"},
+                    "error": {"type": "string"}
+                },
+                "required": ["result"]
+            }
+        },
+        "create_event": {
+            "display_name": "Create Event",
+            "description": "Creates a new event (as a draft) in a Meetup group.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "group_urlname": {
+                        "type": "string",
+                        "description": "The URL slug of the group to create the event in"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Event title"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Event description (HTML supported)"
+                    },
+                    "start_date_time": {
+                        "type": "string",
+                        "description": "Event start time in ISO 8601 format (e.g. '2026-04-15T18:00:00')"
+                    },
+                    "duration": {
+                        "type": "integer",
+                        "description": "Event duration in minutes"
+                    },
+                    "venue_id": {
+                        "type": "string",
+                        "description": "Optional venue ID"
+                    },
+                    "how_to_find_us": {
+                        "type": "string",
+                        "description": "Optional directions or meeting instructions"
+                    },
+                    "is_online": {
+                        "type": "boolean",
+                        "description": "Whether this is an online event (default false)"
+                    }
+                },
+                "required": ["group_urlname", "title", "start_date_time", "duration"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "event": {"type": "object"},
+                    "error": {"type": "string"}
+                },
+                "required": ["result"]
+            }
+        },
+        "update_event": {
+            "display_name": "Update Event",
+            "description": "Updates an existing Meetup event.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The ID of the event to update"
+                    },
+                    "title": {"type": "string", "description": "New event title"},
+                    "description": {"type": "string", "description": "New event description"},
+                    "start_date_time": {"type": "string", "description": "New start time (ISO 8601)"},
+                    "duration": {"type": "integer", "description": "New duration in minutes"},
+                    "venue_id": {"type": "string", "description": "New venue ID"},
+                    "how_to_find_us": {"type": "string", "description": "Updated directions"},
+                    "is_online": {"type": "boolean", "description": "Whether this is an online event"}
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "event": {"type": "object"},
+                    "error": {"type": "string"}
+                },
+                "required": ["result"]
+            }
+        },
+        "delete_event": {
+            "display_name": "Delete Event",
+            "description": "Deletes (cancels) a Meetup event.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The ID of the event to delete"
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "error": {"type": "string"}
+                },
+                "required": ["result"]
+            }
+        },
+        "publish_event": {
+            "display_name": "Publish Event",
+            "description": "Publishes a draft Meetup event, making it visible to group members.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "The ID of the draft event to publish"
+                    }
+                },
+                "required": ["event_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "event": {"type": "object"},
+                    "error": {"type": "string"}
+                },
+                "required": ["result"]
+            }
+        }
+    }
+}
