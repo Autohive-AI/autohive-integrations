@@ -61,6 +61,13 @@ async def get_cloud_id(access_token: str, context: ExecutionContext) -> str:
             "Ensure the token has the correct scopes and the account has access to a Jira site."
         )
 
+    jira_resource = next(
+        (r for r in resources if any("jira" in s.lower() for s in r.get("scopes", []))),
+        None,
+    )
+    if jira_resource:
+        return jira_resource["id"]
+
     return resources[0]["id"]
 
 
