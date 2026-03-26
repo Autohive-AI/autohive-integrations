@@ -310,7 +310,7 @@ class CreateBucketAction(ActionHandler):
 
             body = {"id": inputs["name"], "name": inputs["name"]}
 
-            if "public" in inputs:
+            if inputs.get("public") is not None:
                 body["public"] = inputs["public"]
             if inputs.get("file_size_limit"):
                 body["file_size_limit"] = inputs["file_size_limit"]
