@@ -2193,7 +2193,7 @@ class UpdateSprintAction(ActionHandler):
                 raise ValueError("At least one field to update must be provided")
 
             url = agile_url(cloud_id, f"/sprint/{safe_path(str(sprint_id))}")
-            body = await jira_request("POST", url, access_token, context, payload=payload)
+            body = await jira_request("PUT", url, access_token, context, payload=payload)
 
             return ActionResult(
                 data={
