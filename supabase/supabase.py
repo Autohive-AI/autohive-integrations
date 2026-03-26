@@ -55,7 +55,7 @@ class SelectRecordsAction(ActionHandler):
             if inputs.get("order"):
                 params["order"] = inputs["order"]
 
-            if inputs.get("limit"):
+            if inputs.get("limit") is not None:
                 headers["Range-Unit"] = "items"
                 offset = inputs.get("offset", 0)
                 limit = inputs["limit"]
