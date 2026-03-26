@@ -222,7 +222,6 @@
         "type": "object",
         "properties": {
           "data": {
-            "type": "any",
             "description": "Function return value"
           },
           "result": {
