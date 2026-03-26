@@ -127,7 +127,8 @@ def format_jira_datetime(dt_string: str = None) -> str:
     # Last resort: parse and reformat in UTC
     try:
         parsed = datetime.fromisoformat(dt_string.replace("Z", "+00:00"))
-        return parsed.strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+        utc = parsed.astimezone(timezone.utc)
+        return utc.strftime("%Y-%m-%dT%H:%M:%S.000+0000")
     except Exception:
         raise ValueError(
             f"Cannot parse datetime '{dt_string}'. "
