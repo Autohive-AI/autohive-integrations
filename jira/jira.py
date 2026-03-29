@@ -31,7 +31,9 @@ def get_access_token(context: ExecutionContext) -> str:
     credentials = context.auth.get("credentials", {})
     token = (credentials.get("access_token") or "").strip()
     if not token:
-        raise ValueError("access_token is required — ensure the Jira OAuth connection is authorised")
+        raise ValueError(
+            "access_token is required — ensure the Jira OAuth connection is authorised"
+        )
     if "\n" in token or "\r" in token:
         raise ValueError("access_token contains invalid characters")
     return token
@@ -120,7 +122,9 @@ def format_jira_datetime(dt_string: str = None) -> str:
         return fixed
 
     # Z suffix — replace with +0000
-    fixed = re.sub(r"Z$", ".000+0000", re.sub(r"(\d{2}:\d{2}:\d{2})Z$", r"\1.000+0000", dt_string))
+    fixed = re.sub(
+        r"Z$", ".000+0000", re.sub(r"(\d{2}:\d{2}:\d{2})Z$", r"\1.000+0000", dt_string)
+    )
     if re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{4}$", fixed):
         return fixed
 
@@ -165,9 +169,13 @@ async def jira_request(
         "Accept": "application/json",
     }
     if raw_body is not None:
-        body = await context.fetch(url, method=method, params=params, data=raw_body, headers=headers)
+        body = await context.fetch(
+            url, method=method, params=params, data=raw_body, headers=headers
+        )
     else:
-        body = await context.fetch(url, method=method, params=params, json=payload, headers=headers)
+        body = await context.fetch(
+            url, method=method, params=params, json=payload, headers=headers
+        )
     return body
 
 
@@ -217,7 +225,9 @@ class CreateIssueAction(ActionHandler):
 
             payload = {"fields": fields}
             url = api_url(cloud_id, "/issue")
-            body = await jira_request("POST", url, access_token, context, payload=payload)
+            body = await jira_request(
+                "POST", url, access_token, context, payload=payload
+            )
 
             return ActionResult(
                 data={
@@ -259,7 +269,9 @@ class GetIssueAction(ActionHandler):
                 params["expand"] = expand
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}")
-            body = await jira_request("GET", url, access_token, context, params=params or None)
+            body = await jira_request(
+                "GET", url, access_token, context, params=params or None
+            )
 
             fields_data = body.get("fields", {}) if isinstance(body, dict) else {}
             assignee = fields_data.get("assignee") or {}
@@ -290,8 +302,12 @@ class GetIssueAction(ActionHandler):
                     "updated": fields_data.get("updated"),
                     "dueDate": fields_data.get("duedate"),
                     "labels": fields_data.get("labels", []),
-                    "components": [c.get("name") for c in (fields_data.get("components") or [])],
-                    "fixVersions": [v.get("name") for v in (fields_data.get("fixVersions") or [])],
+                    "components": [
+                        c.get("name") for c in (fields_data.get("components") or [])
+                    ],
+                    "fixVersions": [
+                        v.get("name") for v in (fields_data.get("fixVersions") or [])
+                    ],
                     "subtasks": fields_data.get("subtasks", []),
                     "parent": fields_data.get("parent"),
                     "rawFields": fields_data,
@@ -365,7 +381,14 @@ class UpdateIssueAction(ActionHandler):
             params = {} if notify_users else {"notifyUsers": "false"}
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}")
-            await jira_request("PUT", url, access_token, context, params=params or None, payload=payload)
+            await jira_request(
+                "PUT",
+                url,
+                access_token,
+                context,
+                params=params or None,
+                payload=payload,
+            )
 
             return ActionResult(
                 data={
@@ -459,7 +482,9 @@ class SearchIssuesAction(ActionHandler):
                 payload["expand"] = expand if isinstance(expand, list) else [expand]
 
             url = api_url(cloud_id, "/search/jql")
-            body = await jira_request("POST", url, access_token, context, payload=payload)
+            body = await jira_request(
+                "POST", url, access_token, context, payload=payload
+            )
 
             issues = []
             for issue in body.get("issues") or []:
@@ -526,7 +551,9 @@ class GetIssueTransitionsAction(ActionHandler):
                         "name": t.get("name"),
                         "toStatusId": to_status.get("id"),
                         "toStatusName": to_status.get("name"),
-                        "toStatusCategory": (to_status.get("statusCategory") or {}).get("name"),
+                        "toStatusCategory": (to_status.get("statusCategory") or {}).get(
+                            "name"
+                        ),
                     }
                 )
 
@@ -564,7 +591,9 @@ class TransitionIssueAction(ActionHandler):
 
             comment = inputs.get("comment")
             if comment:
-                payload["update"] = {"comment": [{"add": {"body": text_to_adf(comment)}}]}
+                payload["update"] = {
+                    "comment": [{"add": {"body": text_to_adf(comment)}}]
+                }
 
             resolution = inputs.get("resolution")
             if resolution:
@@ -613,7 +642,9 @@ class AssignIssueAction(ActionHandler):
                     "result": True,
                     "issueKey": issue_key,
                     "accountId": account_id,
-                    "message": "Issue assigned successfully" if account_id else "Issue unassigned successfully",
+                    "message": "Issue assigned successfully"
+                    if account_id
+                    else "Issue unassigned successfully",
                 },
                 cost_usd=None,
             )
@@ -650,18 +681,28 @@ class AddCommentAction(ActionHandler):
                 }
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/comment")
-            response_body = await jira_request("POST", url, access_token, context, payload=payload)
+            response_body = await jira_request(
+                "POST", url, access_token, context, payload=payload
+            )
 
-            author = (response_body.get("author") or {}) if isinstance(response_body, dict) else {}
+            author = (
+                (response_body.get("author") or {})
+                if isinstance(response_body, dict)
+                else {}
+            )
 
             return ActionResult(
                 data={
                     "result": True,
-                    "commentId": response_body.get("id") if isinstance(response_body, dict) else None,
+                    "commentId": response_body.get("id")
+                    if isinstance(response_body, dict)
+                    else None,
                     "issueKey": issue_key,
                     "authorDisplayName": author.get("displayName"),
                     "authorAccountId": author.get("accountId"),
-                    "created": response_body.get("created") if isinstance(response_body, dict) else None,
+                    "created": response_body.get("created")
+                    if isinstance(response_body, dict)
+                    else None,
                     "message": "Comment added successfully",
                 },
                 cost_usd=None,
@@ -760,14 +801,18 @@ class UpdateCommentAction(ActionHandler):
                 cloud_id,
                 f"/issue/{safe_path(issue_key)}/comment/{safe_path(comment_id)}",
             )
-            response_body = await jira_request("PUT", url, access_token, context, payload=payload)
+            response_body = await jira_request(
+                "PUT", url, access_token, context, payload=payload
+            )
 
             return ActionResult(
                 data={
                     "result": True,
                     "commentId": comment_id,
                     "issueKey": issue_key,
-                    "updated": response_body.get("updated") if isinstance(response_body, dict) else None,
+                    "updated": response_body.get("updated")
+                    if isinstance(response_body, dict)
+                    else None,
                     "message": "Comment updated successfully",
                 },
                 cost_usd=None,
@@ -900,7 +945,9 @@ class GetProjectAction(ActionHandler):
                 params["expand"] = expand
 
             url = api_url(cloud_id, f"/project/{safe_path(project_key)}")
-            body = await jira_request("GET", url, access_token, context, params=params or None)
+            body = await jira_request(
+                "GET", url, access_token, context, params=params or None
+            )
 
             lead = (body.get("lead") or {}) if isinstance(body, dict) else {}
 
@@ -916,9 +963,13 @@ class GetProjectAction(ActionHandler):
                     "leadDisplayName": lead.get("displayName"),
                     "leadAccountId": lead.get("accountId"),
                     "issueTypes": [
-                        {"id": it.get("id"), "name": it.get("name")} for it in (body.get("issueTypes") or [])
+                        {"id": it.get("id"), "name": it.get("name")}
+                        for it in (body.get("issueTypes") or [])
                     ],
-                    "components": [{"id": c.get("id"), "name": c.get("name")} for c in (body.get("components") or [])],
+                    "components": [
+                        {"id": c.get("id"), "name": c.get("name")}
+                        for c in (body.get("components") or [])
+                    ],
                     "versions": [
                         {
                             "id": v.get("id"),
@@ -1076,7 +1127,9 @@ class CreateProjectVersionAction(ActionHandler):
                 payload["released"] = inputs["released"]
 
             url = api_url(cloud_id, "/version")
-            body = await jira_request("POST", url, access_token, context, payload=payload)
+            body = await jira_request(
+                "POST", url, access_token, context, payload=payload
+            )
 
             return ActionResult(
                 data={
@@ -1113,13 +1166,23 @@ class GetCurrentUserAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "accountId": body.get("accountId") if isinstance(body, dict) else None,
-                    "displayName": body.get("displayName") if isinstance(body, dict) else None,
-                    "emailAddress": body.get("emailAddress") if isinstance(body, dict) else None,
+                    "accountId": body.get("accountId")
+                    if isinstance(body, dict)
+                    else None,
+                    "displayName": body.get("displayName")
+                    if isinstance(body, dict)
+                    else None,
+                    "emailAddress": body.get("emailAddress")
+                    if isinstance(body, dict)
+                    else None,
                     "active": body.get("active") if isinstance(body, dict) else None,
                     "locale": body.get("locale") if isinstance(body, dict) else None,
-                    "timeZone": body.get("timeZone") if isinstance(body, dict) else None,
-                    "avatarUrls": body.get("avatarUrls") if isinstance(body, dict) else None,
+                    "timeZone": body.get("timeZone")
+                    if isinstance(body, dict)
+                    else None,
+                    "avatarUrls": body.get("avatarUrls")
+                    if isinstance(body, dict)
+                    else None,
                 },
                 cost_usd=None,
             )
@@ -1151,12 +1214,22 @@ class GetUserAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "accountId": body.get("accountId") if isinstance(body, dict) else None,
-                    "displayName": body.get("displayName") if isinstance(body, dict) else None,
-                    "emailAddress": body.get("emailAddress") if isinstance(body, dict) else None,
+                    "accountId": body.get("accountId")
+                    if isinstance(body, dict)
+                    else None,
+                    "displayName": body.get("displayName")
+                    if isinstance(body, dict)
+                    else None,
+                    "emailAddress": body.get("emailAddress")
+                    if isinstance(body, dict)
+                    else None,
                     "active": body.get("active") if isinstance(body, dict) else None,
-                    "timeZone": body.get("timeZone") if isinstance(body, dict) else None,
-                    "avatarUrls": body.get("avatarUrls") if isinstance(body, dict) else None,
+                    "timeZone": body.get("timeZone")
+                    if isinstance(body, dict)
+                    else None,
+                    "avatarUrls": body.get("avatarUrls")
+                    if isinstance(body, dict)
+                    else None,
                 },
                 cost_usd=None,
             )
@@ -1342,7 +1415,9 @@ class GetSprintIssuesAction(ActionHandler):
             start_at = inputs.get("startAt", 0)
             max_results = inputs.get("maxResults", 50)
             jql = inputs.get("jql")
-            fields = inputs.get("fields", ["summary", "status", "assignee", "priority", "issuetype"])
+            fields = inputs.get(
+                "fields", ["summary", "status", "assignee", "priority", "issuetype"]
+            )
 
             params: Dict[str, Any] = {
                 "startAt": start_at,
@@ -1432,7 +1507,9 @@ class AddWorklogAction(ActionHandler):
                 payload["comment"] = text_to_adf(comment)
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/worklog")
-            body = await jira_request("POST", url, access_token, context, params=params, payload=payload)
+            body = await jira_request(
+                "POST", url, access_token, context, params=params, payload=payload
+            )
 
             author = (body.get("author") or {}) if isinstance(body, dict) else {}
 
@@ -1441,8 +1518,12 @@ class AddWorklogAction(ActionHandler):
                     "result": True,
                     "worklogId": body.get("id") if isinstance(body, dict) else None,
                     "issueKey": issue_key,
-                    "timeSpent": body.get("timeSpent") if isinstance(body, dict) else None,
-                    "timeSpentSeconds": body.get("timeSpentSeconds") if isinstance(body, dict) else None,
+                    "timeSpent": body.get("timeSpent")
+                    if isinstance(body, dict)
+                    else None,
+                    "timeSpentSeconds": body.get("timeSpentSeconds")
+                    if isinstance(body, dict)
+                    else None,
                     "authorDisplayName": author.get("displayName"),
                     "authorAccountId": author.get("accountId"),
                     "started": body.get("started") if isinstance(body, dict) else None,
@@ -1664,8 +1745,12 @@ class GetWatchersAction(ActionHandler):
                 data={
                     "result": True,
                     "issueKey": issue_key,
-                    "watchCount": body.get("watchCount", len(watchers)) if isinstance(body, dict) else len(watchers),
-                    "isWatching": body.get("isWatching") if isinstance(body, dict) else None,
+                    "watchCount": body.get("watchCount", len(watchers))
+                    if isinstance(body, dict)
+                    else len(watchers),
+                    "isWatching": body.get("isWatching")
+                    if isinstance(body, dict)
+                    else None,
                     "watchers": watchers,
                 },
                 cost_usd=None,
@@ -1893,7 +1978,9 @@ class BulkCreateIssuesAction(ActionHandler):
             if not isinstance(issue_updates, list) or len(issue_updates) == 0:
                 raise ValueError("issues must be a non-empty list of issue definitions")
             if len(issue_updates) > 50:
-                raise ValueError("Maximum 50 issues can be created in a single bulk request")
+                raise ValueError(
+                    "Maximum 50 issues can be created in a single bulk request"
+                )
 
             issue_list = []
             for item in issue_updates:
@@ -1914,11 +2001,15 @@ class BulkCreateIssuesAction(ActionHandler):
 
             payload = {"issueUpdates": issue_list}
             url = api_url(cloud_id, "/issue/bulk")
-            body = await jira_request("POST", url, access_token, context, payload=payload)
+            body = await jira_request(
+                "POST", url, access_token, context, payload=payload
+            )
 
             created = []
             for issue in body.get("issues") or []:
-                created.append({"issueId": issue.get("id"), "issueKey": issue.get("key")})
+                created.append(
+                    {"issueId": issue.get("id"), "issueKey": issue.get("key")}
+                )
 
             errors = body.get("errors", []) if isinstance(body, dict) else []
 
@@ -1955,7 +2046,9 @@ class GetBoardIssuesAction(ActionHandler):
             start_at = inputs.get("startAt", 0)
             max_results = inputs.get("maxResults", 50)
             jql = inputs.get("jql")
-            fields = inputs.get("fields", ["summary", "status", "assignee", "priority", "issuetype"])
+            fields = inputs.get(
+                "fields", ["summary", "status", "assignee", "priority", "issuetype"]
+            )
 
             params: Dict[str, Any] = {
                 "startAt": start_at,
@@ -2021,7 +2114,9 @@ class GetBacklogIssuesAction(ActionHandler):
             start_at = inputs.get("startAt", 0)
             max_results = inputs.get("maxResults", 50)
             jql = inputs.get("jql")
-            fields = inputs.get("fields", ["summary", "status", "assignee", "priority", "issuetype"])
+            fields = inputs.get(
+                "fields", ["summary", "status", "assignee", "priority", "issuetype"]
+            )
 
             params: Dict[str, Any] = {
                 "startAt": start_at,
@@ -2135,7 +2230,9 @@ class CreateSprintAction(ActionHandler):
                 payload["goal"] = goal
 
             url = agile_url(cloud_id, "/sprint")
-            body = await jira_request("POST", url, access_token, context, payload=payload)
+            body = await jira_request(
+                "POST", url, access_token, context, payload=payload
+            )
 
             return ActionResult(
                 data={
@@ -2194,7 +2291,9 @@ class UpdateSprintAction(ActionHandler):
                 raise ValueError("At least one field to update must be provided")
 
             url = agile_url(cloud_id, f"/sprint/{safe_path(str(sprint_id))}")
-            body = await jira_request("PUT", url, access_token, context, payload=payload)
+            body = await jira_request(
+                "PUT", url, access_token, context, payload=payload
+            )
 
             return ActionResult(
                 data={
@@ -2233,7 +2332,9 @@ class GetProjectRolesAction(ActionHandler):
             if isinstance(body, dict):
                 for role_name, role_url in body.items():
                     role_id = role_url.rstrip("/").split("/")[-1] if role_url else None
-                    roles.append({"name": role_name, "roleId": role_id, "url": role_url})
+                    roles.append(
+                        {"name": role_name, "roleId": role_id, "url": role_url}
+                    )
 
             return ActionResult(
                 data={
@@ -2324,7 +2425,9 @@ class ListDashboardsAction(ActionHandler):
                         "self": d.get("self"),
                         "view": d.get("view"),
                         "isFavourite": d.get("isFavourite"),
-                        "owner": d.get("owner", {}).get("displayName") if isinstance(d.get("owner"), dict) else None,
+                        "owner": d.get("owner", {}).get("displayName")
+                        if isinstance(d.get("owner"), dict)
+                        else None,
                     }
                 )
 
@@ -2369,7 +2472,9 @@ class GetDashboardAction(ActionHandler):
                     "self": body.get("self"),
                     "view": body.get("view"),
                     "isFavourite": body.get("isFavourite"),
-                    "owner": body.get("owner", {}).get("displayName") if isinstance(body.get("owner"), dict) else None,
+                    "owner": body.get("owner", {}).get("displayName")
+                    if isinstance(body.get("owner"), dict)
+                    else None,
                     "popularity": body.get("popularity"),
                     "rank": body.get("rank"),
                     "sharePermissions": body.get("sharePermissions", []),
@@ -2428,7 +2533,9 @@ class SearchDashboardsAction(ActionHandler):
                         "self": d.get("self"),
                         "view": d.get("view"),
                         "isFavourite": d.get("isFavourite"),
-                        "owner": d.get("owner", {}).get("displayName") if isinstance(d.get("owner"), dict) else None,
+                        "owner": d.get("owner", {}).get("displayName")
+                        if isinstance(d.get("owner"), dict)
+                        else None,
                     }
                 )
 

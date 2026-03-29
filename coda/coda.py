@@ -1,7 +1,5 @@
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler
-)
-from typing import Dict, Any, List, Optional
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from typing import Dict, Any
 
 # Create the integration using the config.json
 coda = Integration.load()
@@ -11,6 +9,7 @@ CODA_API_BASE_URL = "https://coda.io/apis/v1"
 
 
 # ---- Helper Functions ----
+
 
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     """
@@ -25,13 +24,11 @@ def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     credentials = context.auth.get("credentials", {})
     api_token = credentials.get("api_token", "")
 
-    return {
-        "Authorization": f"Bearer {api_token}",
-        "Content-Type": "application/json"
-    }
+    return {"Authorization": f"Bearer {api_token}", "Content-Type": "application/json"}
 
 
 # ---- Action Handlers ----
+
 
 @coda.action("list_docs")
 class ListDocsAction(ActionHandler):
@@ -69,26 +66,16 @@ class ListDocsAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs"
             response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers,
-                params=params
+                url, method="GET", headers=headers, params=params
             )
 
             # Extract docs from response
             docs = response.get("items", [])
 
-            return {
-                "docs": docs,
-                "result": True
-            }
+            return {"docs": docs, "result": True}
 
         except Exception as e:
-            return {
-                "docs": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"docs": [], "result": False, "error": str(e)}
 
 
 @coda.action("get_doc")
@@ -107,23 +94,12 @@ class GetDocAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}"
-            response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers
-            )
+            response = await context.fetch(url, method="GET", headers=headers)
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("create_doc")
@@ -137,9 +113,7 @@ class CreateDocAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Build request body
-            body = {
-                "title": inputs["title"]
-            }
+            body = {"title": inputs["title"]}
 
             # Add optional fields if provided
             if "source_doc" in inputs and inputs["source_doc"]:
@@ -157,23 +131,13 @@ class CreateDocAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs"
             response = await context.fetch(
-                url,
-                method="POST",
-                headers=headers,
-                json=body
+                url, method="POST", headers=headers, json=body
             )
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("update_doc")
@@ -203,23 +167,13 @@ class UpdateDocAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}"
             response = await context.fetch(
-                url,
-                method="PATCH",
-                headers=headers,
-                json=body
+                url, method="PATCH", headers=headers, json=body
             )
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("delete_doc")
@@ -240,23 +194,12 @@ class DeleteDocAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}"
-            response = await context.fetch(
-                url,
-                method="DELETE",
-                headers=headers
-            )
+            response = await context.fetch(url, method="DELETE", headers=headers)
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("list_pages")
@@ -286,20 +229,14 @@ class ListPagesAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages"
             response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers,
-                params=params
+                url, method="GET", headers=headers, params=params
             )
 
             # Extract pages from response
             pages = response.get("items", [])
             next_page_token = response.get("nextPageToken")
 
-            result = {
-                "pages": pages,
-                "result": True
-            }
+            result = {"pages": pages, "result": True}
 
             if next_page_token:
                 result["next_page_token"] = next_page_token
@@ -307,11 +244,7 @@ class ListPagesAction(ActionHandler):
             return result
 
         except Exception as e:
-            return {
-                "pages": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"pages": [], "result": False, "error": str(e)}
 
 
 @coda.action("get_page")
@@ -331,23 +264,12 @@ class GetPageAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages/{page_id_or_name}"
-            response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers
-            )
+            response = await context.fetch(url, method="GET", headers=headers)
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("create_page")
@@ -365,9 +287,7 @@ class CreatePageAction(ActionHandler):
             name = inputs["name"]
 
             # Build request body
-            body = {
-                "name": name
-            }
+            body = {"name": name}
 
             # Add optional fields
             if "subtitle" in inputs and inputs["subtitle"]:
@@ -389,8 +309,8 @@ class CreatePageAction(ActionHandler):
                     "type": "canvas",
                     "canvasContent": {
                         "format": content_format,
-                        "content": inputs["content"]
-                    }
+                        "content": inputs["content"],
+                    },
                 }
 
             # Get auth headers
@@ -399,23 +319,13 @@ class CreatePageAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages"
             response = await context.fetch(
-                url,
-                method="POST",
-                headers=headers,
-                json=body
+                url, method="POST", headers=headers, json=body
             )
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("update_page")
@@ -454,23 +364,13 @@ class UpdatePageAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages/{page_id_or_name}"
             response = await context.fetch(
-                url,
-                method="PUT",
-                headers=headers,
-                json=body
+                url, method="PUT", headers=headers, json=body
             )
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("delete_page")
@@ -492,23 +392,12 @@ class DeletePageAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages/{page_id_or_name}"
-            response = await context.fetch(
-                url,
-                method="DELETE",
-                headers=headers
-            )
+            response = await context.fetch(url, method="DELETE", headers=headers)
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("list_tables")
@@ -544,20 +433,14 @@ class ListTablesAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables"
             response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers,
-                params=params
+                url, method="GET", headers=headers, params=params
             )
 
             # Extract tables from response
             tables = response.get("items", [])
             next_page_token = response.get("nextPageToken")
 
-            result = {
-                "tables": tables,
-                "result": True
-            }
+            result = {"tables": tables, "result": True}
 
             if next_page_token:
                 result["next_page_token"] = next_page_token
@@ -565,11 +448,7 @@ class ListTablesAction(ActionHandler):
             return result
 
         except Exception as e:
-            return {
-                "tables": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"tables": [], "result": False, "error": str(e)}
 
 
 @coda.action("get_table")
@@ -589,23 +468,12 @@ class GetTableAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}"
-            response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers
-            )
+            response = await context.fetch(url, method="GET", headers=headers)
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("list_columns")
@@ -639,20 +507,14 @@ class ListColumnsAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/columns"
             response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers,
-                params=params
+                url, method="GET", headers=headers, params=params
             )
 
             # Extract columns from response
             columns = response.get("items", [])
             next_page_token = response.get("nextPageToken")
 
-            result = {
-                "columns": columns,
-                "result": True
-            }
+            result = {"columns": columns, "result": True}
 
             if next_page_token:
                 result["next_page_token"] = next_page_token
@@ -660,11 +522,7 @@ class ListColumnsAction(ActionHandler):
             return result
 
         except Exception as e:
-            return {
-                "columns": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"columns": [], "result": False, "error": str(e)}
 
 
 @coda.action("get_column")
@@ -685,23 +543,12 @@ class GetColumnAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/columns/{column_id_or_name}"
-            response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers
-            )
+            response = await context.fetch(url, method="GET", headers=headers)
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("list_rows")
@@ -747,20 +594,14 @@ class ListRowsAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows"
             response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers,
-                params=params
+                url, method="GET", headers=headers, params=params
             )
 
             # Extract rows from response
             rows = response.get("items", [])
             next_page_token = response.get("nextPageToken")
 
-            result = {
-                "rows": rows,
-                "result": True
-            }
+            result = {"rows": rows, "result": True}
 
             if next_page_token:
                 result["next_page_token"] = next_page_token
@@ -768,11 +609,7 @@ class ListRowsAction(ActionHandler):
             return result
 
         except Exception as e:
-            return {
-                "rows": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"rows": [], "result": False, "error": str(e)}
 
 
 @coda.action("get_row")
@@ -803,23 +640,13 @@ class GetRowAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows/{row_id_or_name}"
             response = await context.fetch(
-                url,
-                method="GET",
-                headers=headers,
-                params=params
+                url, method="GET", headers=headers, params=params
             )
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("upsert_rows")
@@ -838,9 +665,7 @@ class UpsertRowsAction(ActionHandler):
             rows = inputs["rows"]
 
             # Build request body
-            body = {
-                "rows": rows
-            }
+            body = {"rows": rows}
 
             # Add optional keyColumns for upsert behavior
             if "key_columns" in inputs and inputs["key_columns"]:
@@ -857,24 +682,13 @@ class UpsertRowsAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows"
             response = await context.fetch(
-                url,
-                method="POST",
-                headers=headers,
-                params=params,
-                json=body
+                url, method="POST", headers=headers, params=params, json=body
             )
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("update_row")
@@ -894,11 +708,7 @@ class UpdateRowAction(ActionHandler):
             cells = inputs["cells"]
 
             # Build request body
-            body = {
-                "row": {
-                    "cells": cells
-                }
-            }
+            body = {"row": {"cells": cells}}
 
             # Build query parameters
             params = {}
@@ -911,24 +721,13 @@ class UpdateRowAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows/{row_id_or_name}"
             response = await context.fetch(
-                url,
-                method="PUT",
-                headers=headers,
-                params=params,
-                json=body
+                url, method="PUT", headers=headers, params=params, json=body
             )
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("delete_row")
@@ -950,23 +749,12 @@ class DeleteRowAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows/{row_id_or_name}"
-            response = await context.fetch(
-                url,
-                method="DELETE",
-                headers=headers
-            )
+            response = await context.fetch(url, method="DELETE", headers=headers)
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
 
 
 @coda.action("delete_rows")
@@ -984,9 +772,7 @@ class DeleteRowsAction(ActionHandler):
             row_ids = inputs["row_ids"]
 
             # Build request body
-            body = {
-                "rowIds": row_ids
-            }
+            body = {"rowIds": row_ids}
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -994,20 +780,10 @@ class DeleteRowsAction(ActionHandler):
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows"
             response = await context.fetch(
-                url,
-                method="DELETE",
-                headers=headers,
-                json=body
+                url, method="DELETE", headers=headers, json=body
             )
 
-            return {
-                "data": response,
-                "result": True
-            }
+            return {"data": response, "result": True}
 
         except Exception as e:
-            return {
-                "data": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"data": {}, "result": False, "error": str(e)}
