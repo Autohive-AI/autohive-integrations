@@ -1,5 +1,5 @@
 {
-    "name": "jira",
+    "name": "Jira",
     "version": "1.0.0",
     "description": "Integration for Jira Cloud. Covers issues, comments, projects, users, boards, sprints, worklogs, issue links, watchers, and field metadata using the Jira REST API v3 and Agile API v1.",
     "entry_point": "jira.py",

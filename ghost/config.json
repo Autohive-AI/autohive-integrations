@@ -1,5 +1,5 @@
 {
-    "name": "ghost",
+    "name": "Ghost",
     "display_name": "Ghost",
     "version": "1.0.0",
     "description": "Ghost CMS integration for reading and managing posts, pages, members, and newsletters",

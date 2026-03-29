@@ -1,5 +1,5 @@
 {
-    "name": "coda",
+    "name": "Coda",
     "version": "1.0.0",
     "description": "Coda integration for managing documents, pages, tables, and rows",
     "entry_point": "coda.py",
