@@ -1,0 +1,1130 @@
+{
+  "name": "Shotstack",
+  "display_name": "Shotstack",
+  "version": "2.0.0",
+  "description": "Shotstack integration for automated video editing. Create professional videos by combining clips, adding text overlays, logos, audio tracks, and more.",
+  "entry_point": "shotstack.py",
+  "auth": {
+    "type": "custom",
+    "title": "Shotstack API Credentials",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "format": "password",
+          "label": "API Key",
+          "help_text": "Your Shotstack API Key from https://dashboard.shotstack.io/apikeys"
+        },
+        "environment": {
+          "type": "string",
+          "label": "Environment",
+          "help_text": "Use 'v1' for production (no watermarks) or 'stage' for development sandbox (watermarked)",
+          "default": "stage"
+        }
+      }
+    }
+  },
+  "actions": {
+    "upload_file": {
+      "display_name": "Upload File",
+      "description": "Upload a file (video/image/audio) from conversation context to Shotstack. Returns a source_id immediately. Use check_source_status to poll until the file is ready, then use the source_url in video edits.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "object",
+            "description": "File to upload to Shotstack",
+            "properties": {
+              "content": {
+                "type": "string",
+                "description": "Base64-encoded file content"
+              },
+              "name": {
+                "type": "string",
+                "description": "Filename with extension (e.g., 'video.mp4', 'logo.png')"
+              },
+              "contentType": {
+                "type": "string",
+                "description": "MIME type of the file"
+              }
+            },
+            "required": ["content", "name", "contentType"]
+          },
+          "wait_for_ready": {
+            "type": "boolean",
+            "description": "Wait and poll until file is ready (default: false). Leave as false to avoid timeout, then use check_source_status to poll."
+          }
+        },
+        "required": ["file"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": ["string", "null"],
+            "description": "ID for tracking the upload"
+          },
+          "source_url": {
+            "type": ["string", "null"],
+            "description": "URL to use in video edits (available when status is ready)"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Status: ready, processing, failed"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the operation failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "check_source_status": {
+      "display_name": "Check Source Status",
+      "description": "Check the status of an uploaded file. Call this after upload_file returns to check when the file is ready. Status progression: importing -> ready (or failed).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "description": "The source_id returned from upload_file"
+          }
+        },
+        "required": ["source_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": ["string", "null"],
+            "description": "The source ID"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Current status: importing, ready, or failed"
+          },
+          "source_url": {
+            "type": ["string", "null"],
+            "description": "URL to use in video edits (only when status is 'ready')"
+          },
+          "message": {
+            "type": ["string", "null"],
+            "description": "Human-readable status message"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the check was successful (false if source failed)"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the source failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "get_upload_url": {
+      "display_name": "Get Upload URL",
+      "description": "Get a presigned URL for direct file upload. For advanced use cases where you want to handle the upload separately. Use upload_file for simpler workflow.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "upload_url": {
+            "type": ["string", "null"],
+            "description": "Presigned URL for PUT request"
+          },
+          "source_id": {
+            "type": ["string", "null"],
+            "description": "ID to check status later"
+          },
+          "expires": {
+            "type": ["string", "null"],
+            "description": "When the presigned URL expires"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the operation failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "download_render": {
+      "display_name": "Download Render",
+      "description": "Download a rendered video/image by render_id or URL. Returns base64-encoded content that can be passed to other integrations.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": "string",
+            "description": "ID of the render job (will fetch URL automatically)"
+          },
+          "url": {
+            "type": "string",
+            "description": "Direct URL to download (use if you already have the URL)"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": ["string", "null"],
+            "description": "Base64-encoded file content"
+          },
+          "content_type": {
+            "type": ["string", "null"],
+            "description": "MIME type (e.g., 'video/mp4')"
+          },
+          "filename": {
+            "type": ["string", "null"],
+            "description": "Suggested filename"
+          },
+          "size": {
+            "type": ["number", "null"],
+            "description": "File size in bytes"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the operation failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "submit_render": {
+      "display_name": "Submit Render",
+      "description": "Submit a render job and return immediately with a render_id. Does NOT wait for completion - use check_render_status to poll for results. This is the recommended approach for complex renders that may take more than 30 seconds.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "timeline": {
+            "type": "object",
+            "description": "The timeline object containing tracks with clips"
+          },
+          "output": {
+            "type": "object",
+            "description": "Output configuration (format, resolution, fps, quality)",
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": ["mp4", "gif", "mp3", "jpg", "png"]
+              },
+              "resolution": {
+                "type": "string",
+                "enum": ["preview", "mobile", "sd", "hd", "1080", "4k"]
+              },
+              "fps": {
+                "type": "number"
+              },
+              "quality": {
+                "type": "string",
+                "enum": ["low", "medium", "high"]
+              }
+            }
+          }
+        },
+        "required": ["timeline", "output"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": ["string", "null"],
+            "description": "The unique ID of the render job - use with check_render_status"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Initial status (usually 'queued')"
+          },
+          "message": {
+            "type": ["string", "null"],
+            "description": "Instructions for next steps"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the submission was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the submission failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "check_render_status": {
+      "display_name": "Check Render Status",
+      "description": "Check the status of a previously submitted render job. Call this repeatedly (every 5-10 seconds) until status is 'done' or 'failed'. Status progression: queued -> fetching -> rendering -> saving -> done.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": "string",
+            "description": "The render_id returned from submit_render or custom_edit"
+          }
+        },
+        "required": ["render_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": ["string", "null"],
+            "description": "The render job ID"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Current status: queued, fetching, rendering, saving, done, or failed"
+          },
+          "url": {
+            "type": ["string", "null"],
+            "description": "URL of the rendered output (only when status is 'done')"
+          },
+          "duration": {
+            "type": ["number", "null"],
+            "description": "Duration of the rendered video in seconds (only when done)"
+          },
+          "message": {
+            "type": ["string", "null"],
+            "description": "Human-readable status message"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the check was successful (false if render failed)"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the render failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "render_and_wait": {
+      "display_name": "Render and Wait",
+      "description": "Submit a render job and poll until complete. WARNING: May timeout for complex renders. For renders that might take more than 30 seconds, use submit_render + check_render_status instead.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "timeline": {
+            "type": "object",
+            "description": "The timeline object containing tracks with clips"
+          },
+          "output": {
+            "type": "object",
+            "description": "Output configuration (format, resolution, fps, quality)",
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": ["mp4", "gif", "mp3", "jpg", "png"]
+              },
+              "resolution": {
+                "type": "string",
+                "enum": ["preview", "mobile", "sd", "hd", "1080", "4k"]
+              },
+              "fps": {
+                "type": "number"
+              },
+              "quality": {
+                "type": "string",
+                "enum": ["low", "medium", "high"]
+              }
+            }
+          },
+          "max_wait_seconds": {
+            "type": "number",
+            "description": "Maximum time to wait for completion (default: 300)"
+          },
+          "poll_interval_seconds": {
+            "type": "number",
+            "description": "Seconds between status checks (default: 5)"
+          }
+        },
+        "required": ["timeline", "output"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": ["string", "null"],
+            "description": "The unique ID of the render job"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Final status: done, failed, or timeout"
+          },
+          "url": {
+            "type": ["string", "null"],
+            "description": "URL of the rendered output (when done)"
+          },
+          "duration": {
+            "type": ["number", "null"],
+            "description": "Duration of the rendered video in seconds"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the operation failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "custom_edit": {
+      "display_name": "Custom Video Edit",
+      "description": "Create a fully customizable video edit using Shotstack's timeline structure.\n\n**IMPORTANT**: For complex renders that may take more than 30 seconds, set wait_for_completion=false and use check_render_status to poll for results, OR use submit_render + check_render_status instead.\n\n## Timeline Structure\nA timeline contains tracks (layers). Tracks at index 0 are on top (foreground).\n- timeline.tracks: array of Track objects\n- timeline.background: hex color (e.g., '#000000')\n- timeline.soundtrack: optional audio track\n\n## Tracks and Clips\nEach track contains clips placed at specific times:\n- clip.asset: the media asset (video, image, title, audio, html)\n- clip.start: when the clip starts (seconds from timeline start)\n- clip.length: how long the clip plays (seconds)\n- clip.fit: how to fit the asset ('crop', 'cover', 'contain', 'none')\n- clip.scale: scale factor (1 = 100%)\n- clip.position: position preset ('center', 'top', 'topRight', 'right', 'bottomRight', 'bottom', 'bottomLeft', 'left', 'topLeft')\n- clip.offset: {x, y} offset from position (-1 to 1, relative to frame)\n- clip.transition: {in: 'fade', out: 'fade'} - see transitions below\n- clip.effect: motion effect ('zoomIn', 'zoomOut', 'slideLeft', etc.)\n- clip.filter: visual filter ('greyscale')\n- clip.opacity: 0 to 1\n\n## Asset Types\n\n### VideoAsset\n{type: 'video', src: 'https://...', trim: 5, volume: 0.8}\n- src: video URL\n- trim: start playback from this point (seconds)\n- volume: 0 to 1\n\n### ImageAsset\n{type: 'image', src: 'https://...'}\n- src: image URL\n\n### TitleAsset (Text)\n{type: 'title', text: 'Hello World', style: 'minimal', color: '#ffffff', size: 'medium', position: 'center'}\n- text: the text to display\n- style: 'minimal', 'blockbuster', 'vogue', 'sketch', 'chunk', 'marker', 'future', 'subtitle'\n- color: hex color\n- size: 'xx-small', 'x-small', 'small', 'medium', 'large', 'x-large', 'xx-large'\n- position: 'top', 'topRight', 'right', 'bottomRight', 'bottom', 'bottomLeft', 'left', 'topLeft', 'center'\n- background: hex color for text background\n\n### AudioAsset\n{type: 'audio', src: 'https://...', trim: 0, volume: 1, effect: 'fadeIn'}\n- src: audio URL\n- trim: start from this point\n- volume: 0 to 1\n- effect: 'fadeIn', 'fadeOut', 'fadeInFadeOut'\n\n### HtmlAsset\n{type: 'html', html: '<p>HTML content</p>', css: 'p { color: white; }', width: 400, height: 300}\n\n## Transitions (for clip.transition.in or .out)\n- fade, fadeSlow, fadeFast\n- fadeBlack, fadeWhite\n- wipeLeft, wipeRight (+ Slow/Fast variants)\n- slideLeft, slideRight, slideUp, slideDown (+ Slow/Fast)\n- carouselLeft, carouselRight, carouselUp, carouselDown\n- zoom, reveal\n\n## Motion Effects (for clip.effect)\n- zoomIn, zoomOut (+ Slow/Fast)\n- slideLeft, slideRight, slideUp, slideDown (+ Slow/Fast)\n\n## Output Configuration\n- format: 'mp4', 'gif', 'mp3', 'jpg', 'png'\n- resolution: 'preview', 'mobile', 'sd', 'hd', '1080', '4k'\n- aspectRatio: '16:9', '9:16', '1:1', '4:5', '4:3'\n- fps: 12-60\n- quality: 'low', 'medium', 'high'\n- poster: {capture: 1} - capture frame at 1 second as thumbnail\n\n## Example: Video with text overlay\n{\n  timeline: {\n    tracks: [\n      {clips: [{asset: {type: 'title', text: 'My Title', style: 'blockbuster'}, start: 0, length: 5}]},\n      {clips: [{asset: {type: 'video', src: 'https://example.com/video.mp4'}, start: 0, length: 10}]}\n    ]\n  },\n  output: {format: 'mp4', resolution: 'hd'}\n}",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "timeline": {
+            "type": "object",
+            "description": "Full Shotstack timeline object with tracks and clips"
+          },
+          "output": {
+            "type": "object",
+            "description": "Output configuration",
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": ["mp4", "gif", "mp3", "jpg", "png"]
+              },
+              "resolution": {
+                "type": "string",
+                "enum": ["preview", "mobile", "sd", "hd", "1080", "4k"]
+              },
+              "aspectRatio": {
+                "type": "string",
+                "enum": ["16:9", "9:16", "1:1", "4:5", "4:3"]
+              },
+              "fps": {
+                "type": "number"
+              },
+              "quality": {
+                "type": "string",
+                "enum": ["low", "medium", "high"]
+              }
+            }
+          },
+          "wait_for_completion": {
+            "type": "boolean",
+            "description": "Wait for render to complete (default: true)"
+          },
+          "max_wait_seconds": {
+            "type": "number",
+            "description": "Maximum time to wait for completion (default: 300)"
+          }
+        },
+        "required": ["timeline", "output"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": ["string", "null"],
+            "description": "The unique ID of the render job"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Status: done, failed, timeout, or queued"
+          },
+          "url": {
+            "type": ["string", "null"],
+            "description": "URL of the rendered output (when done)"
+          },
+          "duration": {
+            "type": ["number", "null"],
+            "description": "Duration of the rendered video in seconds"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the operation failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "compose_video": {
+      "display_name": "Compose Video",
+      "description": "Combine multiple video/image clips with transitions into a single video. Clips are placed sequentially on the timeline. For images, specify a duration.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "clips": {
+            "type": "array",
+            "description": "Array of clips to combine",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "URL of video or image"
+                },
+                "duration": {
+                  "type": "number",
+                  "description": "Duration in seconds (required for images)"
+                },
+                "start_from": {
+                  "type": "number",
+                  "description": "Start playback from this point in the source video"
+                },
+                "length": {
+                  "type": "number",
+                  "description": "How much of the video to use"
+                },
+                "fit": {
+                  "type": "string",
+                  "description": "How to fit the asset",
+                  "enum": ["crop", "cover", "contain", "none"]
+                },
+                "effect": {
+                  "type": "string",
+                  "description": "Motion effect",
+                  "enum": ["zoomIn", "zoomOut", "zoomInSlow", "zoomOutSlow", "slideLeft", "slideRight", "slideUp", "slideDown"]
+                },
+                "transition": {
+                  "type": "object",
+                  "description": "Transition effects",
+                  "properties": {
+                    "in": {
+                      "type": "string",
+                      "description": "Transition in effect"
+                    },
+                    "out": {
+                      "type": "string",
+                      "description": "Transition out effect"
+                    }
+                  }
+                }
+              },
+              "required": ["url"]
+            }
+          },
+          "output": {
+            "type": "object",
+            "description": "Output configuration",
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": ["mp4", "gif"]
+              },
+              "resolution": {
+                "type": "string",
+                "enum": ["preview", "mobile", "sd", "hd", "1080", "4k"]
+              },
+              "fps": {
+                "type": "number"
+              }
+            }
+          },
+          "background_color": {
+            "type": "string",
+            "description": "Background color as hex (default: #000000)"
+          },
+          "wait_for_completion": {
+            "type": "boolean",
+            "description": "Wait for render to complete (default: true)"
+          }
+        },
+        "required": ["clips"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": ["string", "null"],
+            "description": "The unique ID of the render job"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Status: done, failed, timeout, or queued"
+          },
+          "url": {
+            "type": ["string", "null"],
+            "description": "URL of the rendered output (when done)"
+          },
+          "duration": {
+            "type": ["number", "null"],
+            "description": "Duration of the rendered video in seconds"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the operation failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "add_text_overlay": {
+      "display_name": "Add Text Overlay",
+      "description": "Add text/titles to a video at specified time and position. The text is rendered as an overlay on top of the video.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "video_url": {
+            "type": "string",
+            "description": "URL of the video to add text to"
+          },
+          "text": {
+            "type": "string",
+            "description": "The text to display"
+          },
+          "style": {
+            "type": "string",
+            "description": "Text style preset",
+            "enum": ["minimal", "blockbuster", "vogue", "sketch", "chunk", "marker", "future", "subtitle"]
+          },
+          "position": {
+            "type": "string",
+            "description": "Position on screen",
+            "enum": ["top", "center", "bottom", "topLeft", "topRight", "bottomLeft", "bottomRight"]
+          },
+          "start_time": {
+            "type": "number",
+            "description": "When to show text (seconds from start, default: 0)"
+          },
+          "duration": {
+            "type": "number",
+            "description": "How long to show text (default: entire video)"
+          },
+          "font_size": {
+            "type": "string",
+            "description": "Text size",
+            "enum": ["xx-small", "x-small", "small", "medium", "large", "x-large", "xx-large"]
+          },
+          "color": {
+            "type": "string",
+            "description": "Text color as hex (default: #ffffff)"
+          },
+          "background_color": {
+            "type": "string",
+            "description": "Text background color as hex"
+          },
+          "effect": {
+            "type": "string",
+            "description": "Motion effect for text",
+            "enum": ["zoomIn", "zoomOut", "slideLeft", "slideRight", "slideUp", "slideDown"]
+          },
+          "transition": {
+            "type": "object",
+            "description": "Transition effects for text appearance",
+            "properties": {
+              "in": {
+                "type": "string"
+              },
+              "out": {
+                "type": "string"
+              }
+            }
+          },
+          "output": {
+            "type": "object",
+            "description": "Output configuration"
+          },
+          "wait_for_completion": {
+            "type": "boolean",
+            "description": "Wait for render to complete (default: true)"
+          }
+        },
+        "required": ["video_url", "text"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": ["string", "null"],
+            "description": "The unique ID of the render job"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Status: done, failed, timeout, or queued"
+          },
+          "url": {
+            "type": ["string", "null"],
+            "description": "URL of the rendered output (when done)"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the operation failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "add_logo_overlay": {
+      "display_name": "Add Logo Overlay",
+      "description": "Add a logo or watermark to a video. PNG with transparency recommended for best results.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "video_url": {
+            "type": "string",
+            "description": "URL of the video to add logo to"
+          },
+          "logo_url": {
+            "type": "string",
+            "description": "URL of the logo image (PNG with transparency recommended)"
+          },
+          "position": {
+            "type": "string",
+            "description": "Position on screen",
+            "enum": ["topLeft", "topRight", "bottomLeft", "bottomRight", "center"]
+          },
+          "scale": {
+            "type": "number",
+            "description": "Scale factor 0.1 to 1.0 (default: 0.15)"
+          },
+          "opacity": {
+            "type": "number",
+            "description": "Opacity 0 to 1 (default: 1)"
+          },
+          "offset_x": {
+            "type": "number",
+            "description": "Horizontal offset -1 to 1 (relative to frame)"
+          },
+          "offset_y": {
+            "type": "number",
+            "description": "Vertical offset -1 to 1 (relative to frame)"
+          },
+          "start_time": {
+            "type": "number",
+            "description": "When to show logo (default: 0)"
+          },
+          "duration": {
+            "type": "number",
+            "description": "How long to show logo (default: entire video)"
+          },
+          "output": {
+            "type": "object",
+            "description": "Output configuration"
+          },
+          "wait_for_completion": {
+            "type": "boolean",
+            "description": "Wait for render to complete (default: true)"
+          }
+        },
+        "required": ["video_url", "logo_url"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": ["string", "null"],
+            "description": "The unique ID of the render job"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Status: done, failed, timeout, or queued"
+          },
+          "url": {
+            "type": ["string", "null"],
+            "description": "URL of the rendered output (when done)"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the operation failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "add_audio_track": {
+      "display_name": "Add Audio Track",
+      "description": "Add background music or voiceover to a video. Can either mix with existing audio or replace it entirely.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "video_url": {
+            "type": "string",
+            "description": "URL of the video"
+          },
+          "audio_url": {
+            "type": "string",
+            "description": "URL of the audio file to add"
+          },
+          "volume": {
+            "type": "number",
+            "description": "Audio volume 0 to 1 (default: 1)"
+          },
+          "start_time": {
+            "type": "number",
+            "description": "When to start audio in the video (default: 0)"
+          },
+          "trim_from": {
+            "type": "number",
+            "description": "Start point within the audio file"
+          },
+          "trim_duration": {
+            "type": "number",
+            "description": "How much of the audio to use"
+          },
+          "fade_in": {
+            "type": "boolean",
+            "description": "Apply fade in effect"
+          },
+          "fade_out": {
+            "type": "boolean",
+            "description": "Apply fade out effect"
+          },
+          "mix_mode": {
+            "type": "string",
+            "description": "How to combine with video audio",
+            "enum": ["mix", "replace"]
+          },
+          "output": {
+            "type": "object",
+            "description": "Output configuration"
+          },
+          "wait_for_completion": {
+            "type": "boolean",
+            "description": "Wait for render to complete (default: true)"
+          }
+        },
+        "required": ["video_url", "audio_url"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": ["string", "null"],
+            "description": "The unique ID of the render job"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Status: done, failed, timeout, or queued"
+          },
+          "url": {
+            "type": ["string", "null"],
+            "description": "URL of the rendered output (when done)"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the operation failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "trim_video": {
+      "display_name": "Trim Video",
+      "description": "Extract a segment from a video by specifying start time and either end time or duration.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "video_url": {
+            "type": "string",
+            "description": "URL of the video to trim"
+          },
+          "start_time": {
+            "type": "number",
+            "description": "Start time in seconds"
+          },
+          "end_time": {
+            "type": "number",
+            "description": "End time in seconds (either end_time or duration required)"
+          },
+          "duration": {
+            "type": "number",
+            "description": "Duration of the segment (either end_time or duration required)"
+          },
+          "output": {
+            "type": "object",
+            "description": "Output configuration"
+          },
+          "wait_for_completion": {
+            "type": "boolean",
+            "description": "Wait for render to complete (default: true)"
+          }
+        },
+        "required": ["video_url", "start_time"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": ["string", "null"],
+            "description": "The unique ID of the render job"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Status: done, failed, timeout, or queued"
+          },
+          "url": {
+            "type": ["string", "null"],
+            "description": "URL of the rendered output (when done)"
+          },
+          "duration": {
+            "type": ["number", "null"],
+            "description": "Duration of the trimmed video in seconds"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the operation failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "concatenate_videos": {
+      "display_name": "Concatenate Videos",
+      "description": "Join multiple videos sequentially into a single video. Optionally add transitions between clips.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "videos": {
+            "type": "array",
+            "description": "Array of video URLs to join in order",
+            "items": {
+              "type": "string"
+            }
+          },
+          "transition": {
+            "type": "string",
+            "description": "Transition between videos",
+            "enum": ["none", "fade", "fadeSlow", "fadeFast", "wipeLeft", "wipeRight", "slideLeft", "slideRight", "slideUp", "slideDown"]
+          },
+          "transition_duration": {
+            "type": "number",
+            "description": "Transition duration in seconds (default: 0.5)"
+          },
+          "output": {
+            "type": "object",
+            "description": "Output configuration"
+          },
+          "wait_for_completion": {
+            "type": "boolean",
+            "description": "Wait for render to complete (default: true)"
+          }
+        },
+        "required": ["videos"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": ["string", "null"],
+            "description": "The unique ID of the render job"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Status: done, failed, timeout, or queued"
+          },
+          "url": {
+            "type": ["string", "null"],
+            "description": "URL of the rendered output (when done)"
+          },
+          "duration": {
+            "type": ["number", "null"],
+            "description": "Total duration of the concatenated video"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the operation failed"
+          }
+        },
+        "required": ["result"]
+      }
+    },
+    "add_captions": {
+      "display_name": "Add Captions",
+      "description": "Add auto-generated or manual captions/subtitles to a video with customizable styling. Supports automatic speech-to-text transcription or manual SRT/VTT subtitle files. Captions are burned into the video.\n\n## Caption Source\n- **Auto-generate**: Set auto_generate=true to automatically transcribe audio from the video using AI speech recognition\n- **Manual**: Provide a subtitle_url pointing to an SRT or VTT file\n\n## Font Styling\n- font_family: Font name (e.g., 'Open Sans', 'Roboto', 'Arial')\n- font_size: Size in pixels (default: 16)\n- font_color: Hex color (default: '#ffffff')\n- line_height: Line spacing multiplier\n- stroke_color: Text outline color (e.g., '#000000' for black outline)\n- stroke_width: Outline thickness in pixels\n\n## Background Styling\n- background_color: Background color behind text (e.g., '#000000')\n- background_opacity: 0-1 transparency (default: 0.8)\n- background_padding: Padding in pixels (default: 10)\n- background_border_radius: Rounded corners (default: 4)\n\n## Position\n- position: 'top', 'bottom', or 'center' (default: 'bottom')\n- margin_top/bottom/left/right: Fine-tune position (0-1 relative to frame)\n- width/height: Caption box dimensions",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "video_url": {
+            "type": "string",
+            "description": "URL of the video to add captions to"
+          },
+          "subtitle_url": {
+            "type": "string",
+            "description": "URL to SRT or VTT subtitle file (if not auto-generating)"
+          },
+          "auto_generate": {
+            "type": "boolean",
+            "description": "Auto-generate captions from video audio using AI (default: true)"
+          },
+          "font_family": {
+            "type": "string",
+            "description": "Font name (e.g., 'Open Sans', 'Roboto', 'Arial')"
+          },
+          "font_size": {
+            "type": "number",
+            "description": "Font size in pixels (default: 16)"
+          },
+          "font_color": {
+            "type": "string",
+            "description": "Text color as hex (default: '#ffffff')"
+          },
+          "line_height": {
+            "type": "number",
+            "description": "Line height multiplier for spacing"
+          },
+          "stroke_color": {
+            "type": "string",
+            "description": "Text outline color as hex (e.g., '#000000')"
+          },
+          "stroke_width": {
+            "type": "number",
+            "description": "Text outline width in pixels"
+          },
+          "background_color": {
+            "type": "string",
+            "description": "Background color behind caption text as hex"
+          },
+          "background_opacity": {
+            "type": "number",
+            "description": "Background transparency 0-1 (default: 0.8)"
+          },
+          "background_padding": {
+            "type": "number",
+            "description": "Padding around text in pixels (default: 10)"
+          },
+          "background_border_radius": {
+            "type": "number",
+            "description": "Rounded corner radius (default: 4)"
+          },
+          "position": {
+            "type": "string",
+            "description": "Vertical position of captions",
+            "enum": ["top", "center", "bottom"]
+          },
+          "margin_top": {
+            "type": "number",
+            "description": "Top margin 0-1 relative to frame"
+          },
+          "margin_bottom": {
+            "type": "number",
+            "description": "Bottom margin 0-1 relative to frame (default: 0.1)"
+          },
+          "margin_left": {
+            "type": "number",
+            "description": "Left margin 0-1 relative to frame"
+          },
+          "margin_right": {
+            "type": "number",
+            "description": "Right margin 0-1 relative to frame"
+          },
+          "width": {
+            "type": "number",
+            "description": "Caption box width in pixels"
+          },
+          "height": {
+            "type": "number",
+            "description": "Caption box height in pixels"
+          },
+          "output": {
+            "type": "object",
+            "description": "Output configuration",
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": ["mp4", "gif"]
+              },
+              "resolution": {
+                "type": "string",
+                "enum": ["preview", "mobile", "sd", "hd", "1080", "4k"]
+              },
+              "fps": {
+                "type": "number"
+              },
+              "quality": {
+                "type": "string",
+                "enum": ["low", "medium", "high"]
+              }
+            }
+          },
+          "wait_for_completion": {
+            "type": "boolean",
+            "description": "Wait for render to complete (default: true)"
+          },
+          "max_wait_seconds": {
+            "type": "number",
+            "description": "Maximum time to wait for completion (default: 300)"
+          }
+        },
+        "required": ["video_url"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "render_id": {
+            "type": ["string", "null"],
+            "description": "The unique ID of the render job"
+          },
+          "status": {
+            "type": ["string", "null"],
+            "description": "Status: done, failed, timeout, or queued"
+          },
+          "url": {
+            "type": ["string", "null"],
+            "description": "URL of the rendered video with captions (when done)"
+          },
+          "duration": {
+            "type": ["number", "null"],
+            "description": "Duration of the video in seconds"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "Whether the operation was successful"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if the operation failed"
+          }
+        },
+        "required": ["result"]
+      }
+    }
+  }
+}
