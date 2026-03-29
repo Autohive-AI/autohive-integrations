@@ -10,19 +10,21 @@ Requires a Shotstack API key and environment selection (`stage` or `v1`).
 
 | Action | Description |
 |--------|-------------|
-| `upload_media` | Upload a media file from a URL to Shotstack Ingest |
-| `get_source` | Get the status and details of an ingested source |
-| `list_sources` | List all ingested media sources |
-| `delete_source` | Delete an ingested media source |
-| `create_video` | Render a video from a list of clips with optional effects/transitions |
-| `create_video_advanced` | Render a video using a full Shotstack Edit API timeline payload |
-| `add_text_overlay` | Add a text overlay to an existing video |
-| `add_logo_overlay` | Add an image/logo overlay to an existing video |
-| `add_audio_track` | Add a background audio track to a video |
-| `get_render` | Get the status and result URL of a render job |
-| `list_renders` | List recent render jobs |
-| `get_media_info` | Probe a media URL for metadata (duration, dimensions, codec, etc.) |
-| `download_media` | Download a rendered video as base64 |
+| `upload_file` | Upload a file (video/image/audio) from conversation context to Shotstack Ingest |
+| `check_source_status` | Poll the status of an uploaded file until ready or failed |
+| `get_upload_url` | Get a presigned URL for direct file upload (advanced use) |
+| `download_render` | Download a rendered video/image as base64 by render ID or URL |
+| `submit_render` | Submit a render job and return immediately with a render_id (no waiting) |
+| `check_render_status` | Check the status of a previously submitted render job |
+| `render_and_wait` | Submit a render job and poll until complete (up to 5 minutes) |
+| `custom_edit` | Full timeline-based video edit with optional wait for completion |
+| `compose_video` | Combine multiple video/image clips sequentially with transitions |
+| `add_text_overlay` | Add a text/title overlay to a video at a specified time and position |
+| `add_logo_overlay` | Add a logo or watermark image to a video |
+| `add_audio_track` | Add background music or voiceover to a video |
+| `trim_video` | Extract a segment from a video by start time and end time or duration |
+| `concatenate_videos` | Join multiple videos sequentially into one |
+| `add_captions` | Add auto-generated or manual subtitles/captions to a video |
 
 ## Notes
 
