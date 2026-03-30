@@ -35,9 +35,7 @@ async def test_get_transcript():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await fathom.execute_action("get_transcript", inputs, context)
-            print(
-                f"✓ get_transcript returned {len(result.get('transcript', []))} segments"
-            )
+            print(f"✓ get_transcript returned {len(result.get('transcript', []))} segments")
         except Exception as e:
             print(f"✗ Error testing get_transcript: {str(e)}")
 
@@ -69,9 +67,7 @@ async def test_list_team_members():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await fathom.execute_action("list_team_members", inputs, context)
-            print(
-                f"✓ list_team_members returned {len(result.get('team_members', []))} members"
-            )
+            print(f"✓ list_team_members returned {len(result.get('team_members', []))} members")
         except Exception as e:
             print(f"✗ Error testing list_team_members: {str(e)}")
 

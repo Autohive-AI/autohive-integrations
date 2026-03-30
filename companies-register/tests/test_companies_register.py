@@ -46,14 +46,10 @@ async def test_get_company_details():
     """Get company by NZBN (registered company, status 50)."""
     async with ExecutionContext(auth=make_auth()) as context:
         try:
-            result = await companies_register.execute_action(
-                "get_company_details", {"companyUuid": TEST_NZBN}, context
-            )
+            result = await companies_register.execute_action("get_company_details", {"companyUuid": TEST_NZBN}, context)
             print(f"\n[get_company_details] {result.data}")
             assert result.data.get("result") is True
-            assert result.data.get("etag") is not None, (
-                "ETag missing — required for annual return"
-            )
+            assert result.data.get("etag") is not None, "ETag missing — required for annual return"
             print(f"  companyName     : {result.data.get('companyName')}")
             print(f"  nzbn            : {result.data.get('nzbn')}")
             print(f"  statusCode      : {result.data.get('companyStatusCode')}")
@@ -69,11 +65,10 @@ async def test_get_company_details_by_uuid():
     """Get company by UUID (pre-incorporated company)."""
     async with ExecutionContext(auth=make_auth()) as context:
         try:
-            result = await companies_register.execute_action(
-                "get_company_details", {"companyUuid": TEST_UUID}, context
-            )
+            result = await companies_register.execute_action("get_company_details", {"companyUuid": TEST_UUID}, context)
             print(
-                f"\n[get_company_details by UUID] {result.data.get('companyName')} — status {result.data.get('companyStatusCode')}"
+                f"\n[get_company_details by UUID] {result.data.get('companyName')}"
+                f" — status {result.data.get('companyStatusCode')}"
             )
             return result
         except Exception as e:
@@ -99,7 +94,8 @@ async def test_get_company_contacts():
             print(f"  etag            : {result.data.get('etag')}")
             for addr in addresses:
                 print(
-                    f"    [{addr.get('addressPurpose')}] {addr.get('address1')}, {addr.get('address3')} — id: {addr.get('addressId')}"
+                    f"    [{addr.get('addressPurpose')}] {addr.get('address1')},"
+                    f" {addr.get('address3')} — id: {addr.get('addressId')}"
                 )
             return result
         except Exception as e:
@@ -122,7 +118,8 @@ async def test_search_nz_address():
             print(f"  found           : {result.data.get('count')} addresses")
             for addr in addresses[:3]:
                 print(
-                    f"    dpid={addr.get('dpid')} — {addr.get('address1')}, {addr.get('address3')} {addr.get('postCode')}"
+                    f"    dpid={addr.get('dpid')} — {addr.get('address1')},"
+                    f" {addr.get('address3')} {addr.get('postCode')}"
                 )
             return result
         except Exception as e:
@@ -134,16 +131,12 @@ async def test_search_nz_address_by_dpid():
     """Look up a specific NZ Post address by DPID."""
     async with ExecutionContext(auth=make_auth()) as context:
         try:
-            result = await companies_register.execute_action(
-                "search_nz_address", {"dpid": "1889019"}, context
-            )
+            result = await companies_register.execute_action("search_nz_address", {"dpid": "1889019"}, context)
             print("\n[search_nz_address by DPID]")
             addresses = result.data.get("addresses", [])
             if addresses:
                 a = addresses[0]
-                print(
-                    f"  dpid={a.get('dpid')} — {a.get('address1')}, {a.get('address3')} {a.get('postCode')}"
-                )
+                print(f"  dpid={a.get('dpid')} — {a.get('address1')}, {a.get('address3')} {a.get('postCode')}")
             return result
         except Exception as e:
             print(f"  ERROR: {e}")
@@ -382,15 +375,9 @@ async def test_address_update_workflow():
                 "get_company_contacts", {"companyUuid": TEST_NZBN}, context
             )
             contacts_etag = contacts_result.data.get("etag")
-            physical_addresses = contacts_result.data.get(
-                "physicalOrPostalAddresses", []
-            )
+            physical_addresses = contacts_result.data.get("physicalOrPostalAddresses", [])
             registered_office = next(
-                (
-                    a
-                    for a in physical_addresses
-                    if a.get("addressPurpose") == "Registered Office Address"
-                ),
+                (a for a in physical_addresses if a.get("addressPurpose") == "Registered Office Address"),
                 None,
             )
             if not registered_office:

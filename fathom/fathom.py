@@ -50,13 +50,9 @@ class FathomAPIClient:
         if method == "GET":
             return await self.context.fetch(url, params=params, headers=headers)
         elif method == "POST":
-            return await self.context.fetch(
-                url, method="POST", json=data, headers=headers
-            )
+            return await self.context.fetch(url, method="POST", json=data, headers=headers)
         elif method == "PUT":
-            return await self.context.fetch(
-                url, method="PUT", json=data, headers=headers
-            )
+            return await self.context.fetch(url, method="PUT", json=data, headers=headers)
         elif method == "DELETE":
             return await self.context.fetch(url, method="DELETE", headers=headers)
         else:
@@ -94,9 +90,7 @@ class ListMeetingsAction(ActionHandler):
         if inputs.get("created_before"):
             params["created_before"] = inputs["created_before"]
         if inputs.get("calendar_invitees_domains_type"):
-            params["calendar_invitees_domains_type"] = inputs[
-                "calendar_invitees_domains_type"
-            ]
+            params["calendar_invitees_domains_type"] = inputs["calendar_invitees_domains_type"]
         if inputs.get("meeting_type"):
             params["meeting_type"] = inputs["meeting_type"]
 
@@ -147,9 +141,7 @@ class GetTranscriptAction(ActionHandler):
         recording_id = inputs["recording_id"]
 
         try:
-            response = await client._make_request(
-                f"recordings/{recording_id}/transcript"
-            )
+            response = await client._make_request(f"recordings/{recording_id}/transcript")
 
             transcript = []
             for segment in response.get("transcript", []):

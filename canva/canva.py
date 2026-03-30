@@ -21,14 +21,10 @@ class CanvaConnectedAccountHandler(ConnectedAccountHandler):
     async def get_account_info(self, context: ExecutionContext) -> ConnectedAccountInfo:
         """Fetch Canva user information"""
         # Get user profile (returns display name)
-        profile_response = await context.fetch(
-            f"{service_endpoint}/v1/users/me/profile", method="GET"
-        )
+        profile_response = await context.fetch(f"{service_endpoint}/v1/users/me/profile", method="GET")
 
         # Get user details (returns user_id and team_id)
-        user_response = await context.fetch(
-            f"{service_endpoint}/v1/users/me", method="GET"
-        )
+        user_response = await context.fetch(f"{service_endpoint}/v1/users/me", method="GET")
 
         # Extract information from responses
         display_name = profile_response.get("profile", {}).get("display_name")
@@ -62,9 +58,7 @@ class CanvaConnectedAccountHandler(ConnectedAccountHandler):
 class GetUserCapabilities(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            response = await context.fetch(
-                f"{service_endpoint}/v1/users/me/capabilities", method="GET"
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/users/me/capabilities", method="GET")
 
             return ActionResult(
                 data={"result": True, "capabilities": response.get("capabilities", [])},
@@ -136,9 +130,7 @@ class GetAssetUploadStatus(ActionHandler):
         try:
             job_id = inputs["job_id"]
 
-            response = await context.fetch(
-                f"{service_endpoint}/v1/asset-uploads/{job_id}", method="GET"
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/asset-uploads/{job_id}", method="GET")
 
             result = {"result": True}
             job_data = response.get("job", {})
@@ -159,9 +151,7 @@ class GetAsset(ActionHandler):
         try:
             asset_id = inputs["asset_id"]
 
-            response = await context.fetch(
-                f"{service_endpoint}/v1/assets/{asset_id}", method="GET"
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/assets/{asset_id}", method="GET")
 
             result = {"result": True}
 
@@ -203,9 +193,7 @@ class DeleteAsset(ActionHandler):
         try:
             asset_id = inputs["asset_id"]
 
-            await context.fetch(
-                f"{service_endpoint}/v1/assets/{asset_id}", method="DELETE"
-            )
+            await context.fetch(f"{service_endpoint}/v1/assets/{asset_id}", method="DELETE")
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:
@@ -220,9 +208,7 @@ class CreateDesign(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Build design creation payload
-            design_data = {
-                "design_type": {"type": "preset", "name": inputs["preset_type"]}
-            }
+            design_data = {"design_type": {"type": "preset", "name": inputs["preset_type"]}}
 
             # Add optional fields
             if "title" in inputs:
@@ -230,9 +216,7 @@ class CreateDesign(ActionHandler):
             if "asset_id" in inputs:
                 design_data["asset_id"] = inputs["asset_id"]
 
-            response = await context.fetch(
-                f"{service_endpoint}/v1/designs", method="POST", json=design_data
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/designs", method="POST", json=design_data)
 
             result = {"result": True}
 
@@ -259,9 +243,7 @@ class ListDesigns(ActionHandler):
             if "sort_by" in inputs:
                 params["sort_by"] = inputs["sort_by"]
 
-            response = await context.fetch(
-                f"{service_endpoint}/v1/designs", method="GET", params=params
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/designs", method="GET", params=params)
 
             # Wrap response to match output schema
             result = {"designs": response.get("items", []), "result": True}
@@ -272,9 +254,7 @@ class ListDesigns(ActionHandler):
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"designs": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"designs": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @canva.action("get_design")
@@ -283,9 +263,7 @@ class GetDesign(ActionHandler):
         try:
             design_id = inputs["design_id"]
 
-            response = await context.fetch(
-                f"{service_endpoint}/v1/designs/{design_id}", method="GET"
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/designs/{design_id}", method="GET")
 
             result = {"result": True}
 
@@ -346,17 +324,9 @@ class ExportDesign(ActionHandler):
                     format_obj["height"] = inputs["height"]
                 if "lossless" in inputs and inputs["lossless"] is not None:
                     format_obj["lossless"] = inputs["lossless"]
-                if (
-                    "transparent_background" in inputs
-                    and inputs["transparent_background"] is not None
-                ):
-                    format_obj["transparent_background"] = inputs[
-                        "transparent_background"
-                    ]
-                if (
-                    "as_single_image" in inputs
-                    and inputs["as_single_image"] is not None
-                ):
+                if "transparent_background" in inputs and inputs["transparent_background"] is not None:
+                    format_obj["transparent_background"] = inputs["transparent_background"]
+                if "as_single_image" in inputs and inputs["as_single_image"] is not None:
                     format_obj["as_single_image"] = inputs["as_single_image"]
                 if "pages" in inputs and inputs["pages"]:
                     format_obj["pages"] = inputs["pages"]
@@ -375,9 +345,7 @@ class ExportDesign(ActionHandler):
             # Build export payload
             export_data = {"design_id": design_id, "format": format_obj}
 
-            response = await context.fetch(
-                f"{service_endpoint}/v1/exports", method="POST", json=export_data
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/exports", method="POST", json=export_data)
 
             job_id = response.get("job", {}).get("id")
 
@@ -395,9 +363,7 @@ class GetExportStatus(ActionHandler):
         try:
             export_id = inputs["export_id"]
 
-            response = await context.fetch(
-                f"{service_endpoint}/v1/exports/{export_id}", method="GET"
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/exports/{export_id}", method="GET")
 
             result = {"result": True}
             job_data = response.get("job", {})
@@ -447,9 +413,7 @@ class ImportDesign(ActionHandler):
             # Prepare headers
             headers = {
                 "Content-Type": "application/octet-stream",
-                "Import-Metadata": str(metadata).replace(
-                    "'", '"'
-                ),  # Convert to JSON format
+                "Import-Metadata": str(metadata).replace("'", '"'),  # Convert to JSON format
             }
 
             # Make the import request with binary data
@@ -479,9 +443,7 @@ class GetDesignImportStatus(ActionHandler):
         try:
             job_id = inputs["job_id"]
 
-            response = await context.fetch(
-                f"{service_endpoint}/v1/imports/{job_id}", method="GET"
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/imports/{job_id}", method="GET")
 
             result = {"result": True}
             job_data = response.get("job", {})
@@ -507,9 +469,7 @@ class ImportDesignFromUrl(ActionHandler):
             if "mime_type" in inputs:
                 import_data["mime_type"] = inputs["mime_type"]
 
-            response = await context.fetch(
-                f"{service_endpoint}/v1/url-imports", method="POST", json=import_data
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/url-imports", method="POST", json=import_data)
 
             result = {"result": True}
             job_data = response.get("job", {})
@@ -530,9 +490,7 @@ class GetUrlImportStatus(ActionHandler):
         try:
             job_id = inputs["job_id"]
 
-            response = await context.fetch(
-                f"{service_endpoint}/v1/url-imports/{job_id}", method="GET"
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/url-imports/{job_id}", method="GET")
 
             result = {"result": True}
             job_data = response.get("job", {})
@@ -561,13 +519,9 @@ class CreateFolder(ActionHandler):
                 "parent_folder_id": inputs.get("parent_folder_id", "root"),
             }
 
-            response = await context.fetch(
-                f"{service_endpoint}/v1/folders", method="POST", json=folder_data
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/folders", method="POST", json=folder_data)
 
-            return ActionResult(
-                data={"result": True, "folder": response.get("folder")}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "folder": response.get("folder")}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -578,9 +532,7 @@ class GetFolder(ActionHandler):
         try:
             folder_id = inputs["folder_id"]
 
-            response = await context.fetch(
-                f"{service_endpoint}/v1/folders/{folder_id}", method="GET"
-            )
+            response = await context.fetch(f"{service_endpoint}/v1/folders/{folder_id}", method="GET")
 
             result = {"result": True}
 
@@ -617,9 +569,7 @@ class ListFolderItems(ActionHandler):
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"items": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"items": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @canva.action("update_folder")
@@ -648,9 +598,7 @@ class DeleteFolder(ActionHandler):
         try:
             folder_id = inputs["folder_id"]
 
-            await context.fetch(
-                f"{service_endpoint}/v1/folders/{folder_id}", method="DELETE"
-            )
+            await context.fetch(f"{service_endpoint}/v1/folders/{folder_id}", method="DELETE")
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:
@@ -667,9 +615,7 @@ class MoveItemToFolder(ActionHandler):
                 "item_id": inputs["item_id"],
             }
 
-            await context.fetch(
-                f"{service_endpoint}/v1/folders/move", method="POST", json=move_data
-            )
+            await context.fetch(f"{service_endpoint}/v1/folders/move", method="POST", json=move_data)
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:

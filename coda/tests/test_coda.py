@@ -279,9 +279,7 @@ async def test_delete_doc():
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create a test doc
-            create_result = await coda.execute_action(
-                "create_doc", {"title": "Test Doc - To Be Deleted"}, context
-            )
+            create_result = await coda.execute_action("create_doc", {"title": "Test Doc - To Be Deleted"}, context)
 
             if not create_result.get("result"):
                 print("\nTest 10: Delete Doc (SKIPPED - Could not create test doc)")
@@ -371,9 +369,7 @@ async def test_get_page():
             doc_id = list_result["docs"][0]["id"]
 
             # Get pages
-            pages_result = await coda.execute_action(
-                "list_pages", {"doc_id": doc_id, "limit": 1}, context
-            )
+            pages_result = await coda.execute_action("list_pages", {"doc_id": doc_id, "limit": 1}, context)
 
             if not pages_result.get("result") or not pages_result.get("pages"):
                 print("\nTest 10: Get Page (SKIPPED - No pages available)")
@@ -455,9 +451,7 @@ async def test_create_page_with_content():
             list_result = await coda.execute_action("list_docs", list_inputs, context)
 
             if not list_result.get("result") or not list_result.get("docs"):
-                print(
-                    "\nTest 12: Create Page with Content (SKIPPED - No docs available)"
-                )
+                print("\nTest 12: Create Page with Content (SKIPPED - No docs available)")
                 return None
 
             doc_id = list_result["docs"][0]["id"]
@@ -503,9 +497,7 @@ async def test_update_page():
             doc_id = list_result["docs"][0]["id"]
 
             # Get pages
-            pages_result = await coda.execute_action(
-                "list_pages", {"doc_id": doc_id, "limit": 1}, context
-            )
+            pages_result = await coda.execute_action("list_pages", {"doc_id": doc_id, "limit": 1}, context)
 
             if not pages_result.get("result") or not pages_result.get("pages"):
                 print("\nTest 13: Update Page (SKIPPED - No pages available)")
@@ -569,9 +561,7 @@ async def test_delete_page():
             await asyncio.sleep(2)
 
             # Get the created page ID from list
-            pages_result = await coda.execute_action(
-                "list_pages", {"doc_id": doc_id}, context
-            )
+            pages_result = await coda.execute_action("list_pages", {"doc_id": doc_id}, context)
 
             # Find the page we just created
             page_id = None
@@ -660,9 +650,7 @@ async def test_get_table():
             doc_id = list_result["docs"][0]["id"]
 
             # Get tables
-            tables_result = await coda.execute_action(
-                "list_tables", {"doc_id": doc_id, "limit": 1}, context
-            )
+            tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id, "limit": 1}, context)
 
             if not tables_result.get("result") or not tables_result.get("tables"):
                 print("\nTest 16: Get Table (SKIPPED - No tables available)")
@@ -685,9 +673,7 @@ async def test_get_table():
                 print(f"ID: {table.get('id')}")
                 print(f"Type: {table.get('type')}")
                 print(f"Row Count: {table.get('rowCount', 0)}")
-                print(
-                    f"Display Column: {table.get('displayColumn', {}).get('name', 'N/A')}"
-                )
+                print(f"Display Column: {table.get('displayColumn', {}).get('name', 'N/A')}")
 
             return result
         except Exception as e:
@@ -712,9 +698,7 @@ async def test_list_columns():
             doc_id = list_result["docs"][0]["id"]
 
             # Get tables
-            tables_result = await coda.execute_action(
-                "list_tables", {"doc_id": doc_id, "limit": 1}, context
-            )
+            tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id, "limit": 1}, context)
 
             if not tables_result.get("result") or not tables_result.get("tables"):
                 print("\nTest 17: List Columns (SKIPPED - No tables available)")
@@ -762,9 +746,7 @@ async def test_get_column():
             doc_id = list_result["docs"][0]["id"]
 
             # Get tables
-            tables_result = await coda.execute_action(
-                "list_tables", {"doc_id": doc_id, "limit": 1}, context
-            )
+            tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id, "limit": 1}, context)
 
             if not tables_result.get("result") or not tables_result.get("tables"):
                 print("\nTest 18: Get Column (SKIPPED - No tables available)")
@@ -825,9 +807,7 @@ async def test_list_rows():
                 return None
 
             doc_id = list_result["docs"][0]["id"]
-            tables_result = await coda.execute_action(
-                "list_tables", {"doc_id": doc_id, "limit": 1}, context
-            )
+            tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id, "limit": 1}, context)
 
             if not tables_result.get("result") or not tables_result.get("tables"):
                 print("\nTest 19: List Rows (SKIPPED - No tables available)")
@@ -867,9 +847,7 @@ async def test_get_row():
                 return None
 
             doc_id = list_result["docs"][0]["id"]
-            tables_result = await coda.execute_action(
-                "list_tables", {"doc_id": doc_id, "limit": 1}, context
-            )
+            tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id, "limit": 1}, context)
 
             if not tables_result.get("result") or not tables_result.get("tables"):
                 print("\nTest 20: Get Row (SKIPPED - No tables available)")
@@ -954,9 +932,7 @@ async def test_upsert_rows():
             inputs = {
                 "doc_id": doc_id,
                 "table_id_or_name": table_id,
-                "rows": [
-                    {"cells": [{"column": column_id, "value": "Test Row from API"}]}
-                ],
+                "rows": [{"cells": [{"column": column_id, "value": "Test Row from API"}]}],
             }
             result = await coda.execute_action("upsert_rows", inputs, context)
 
@@ -985,9 +961,7 @@ async def test_update_row():
                 return None
 
             doc_id = list_result["docs"][0]["id"]
-            tables_result = await coda.execute_action(
-                "list_tables", {"doc_id": doc_id, "limit": 1}, context
-            )
+            tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id, "limit": 1}, context)
 
             if not tables_result.get("result") or not tables_result.get("tables"):
                 print("\nTest 22: Update Row (SKIPPED - No tables available)")
@@ -1081,9 +1055,7 @@ async def test_delete_row():
                 {
                     "doc_id": doc_id,
                     "table_id_or_name": table_id,
-                    "rows": [
-                        {"cells": [{"column": column_id, "value": "Row to Delete"}]}
-                    ],
+                    "rows": [{"cells": [{"column": column_id, "value": "Row to Delete"}]}],
                 },
                 context,
             )
@@ -1207,9 +1179,7 @@ async def test_delete_rows():
                     break
 
             if len(row_ids) < 2:
-                print(
-                    f"\nTest 24: Delete Rows (SKIPPED - Could not find test rows, found {len(row_ids)})"
-                )
+                print(f"\nTest 24: Delete Rows (SKIPPED - Could not find test rows, found {len(row_ids)})")
                 return None
 
             print("\nTest 24: Delete Rows")

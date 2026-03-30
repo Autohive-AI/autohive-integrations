@@ -65,9 +65,7 @@ class ListDocsAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs"
-            response = await context.fetch(
-                url, method="GET", headers=headers, params=params
-            )
+            response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Extract docs from response
             docs = response.get("items", [])
@@ -130,9 +128,7 @@ class CreateDocAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs"
-            response = await context.fetch(
-                url, method="POST", headers=headers, json=body
-            )
+            response = await context.fetch(url, method="POST", headers=headers, json=body)
 
             return {"data": response, "result": True}
 
@@ -166,9 +162,7 @@ class UpdateDocAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}"
-            response = await context.fetch(
-                url, method="PATCH", headers=headers, json=body
-            )
+            response = await context.fetch(url, method="PATCH", headers=headers, json=body)
 
             return {"data": response, "result": True}
 
@@ -228,9 +222,7 @@ class ListPagesAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages"
-            response = await context.fetch(
-                url, method="GET", headers=headers, params=params
-            )
+            response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Extract pages from response
             pages = response.get("items", [])
@@ -318,9 +310,7 @@ class CreatePageAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages"
-            response = await context.fetch(
-                url, method="POST", headers=headers, json=body
-            )
+            response = await context.fetch(url, method="POST", headers=headers, json=body)
 
             return {"data": response, "result": True}
 
@@ -363,9 +353,7 @@ class UpdatePageAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages/{page_id_or_name}"
-            response = await context.fetch(
-                url, method="PUT", headers=headers, json=body
-            )
+            response = await context.fetch(url, method="PUT", headers=headers, json=body)
 
             return {"data": response, "result": True}
 
@@ -432,9 +420,7 @@ class ListTablesAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables"
-            response = await context.fetch(
-                url, method="GET", headers=headers, params=params
-            )
+            response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Extract tables from response
             tables = response.get("items", [])
@@ -506,9 +492,7 @@ class ListColumnsAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/columns"
-            response = await context.fetch(
-                url, method="GET", headers=headers, params=params
-            )
+            response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Extract columns from response
             columns = response.get("items", [])
@@ -593,9 +577,7 @@ class ListRowsAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows"
-            response = await context.fetch(
-                url, method="GET", headers=headers, params=params
-            )
+            response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Extract rows from response
             rows = response.get("items", [])
@@ -639,9 +621,7 @@ class GetRowAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows/{row_id_or_name}"
-            response = await context.fetch(
-                url, method="GET", headers=headers, params=params
-            )
+            response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             return {"data": response, "result": True}
 
@@ -681,9 +661,7 @@ class UpsertRowsAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows"
-            response = await context.fetch(
-                url, method="POST", headers=headers, params=params, json=body
-            )
+            response = await context.fetch(url, method="POST", headers=headers, params=params, json=body)
 
             return {"data": response, "result": True}
 
@@ -720,9 +698,7 @@ class UpdateRowAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows/{row_id_or_name}"
-            response = await context.fetch(
-                url, method="PUT", headers=headers, params=params, json=body
-            )
+            response = await context.fetch(url, method="PUT", headers=headers, params=params, json=body)
 
             return {"data": response, "result": True}
 
@@ -779,9 +755,7 @@ class DeleteRowsAction(ActionHandler):
 
             # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows"
-            response = await context.fetch(
-                url, method="DELETE", headers=headers, json=body
-            )
+            response = await context.fetch(url, method="DELETE", headers=headers, json=body)
 
             return {"data": response, "result": True}
 

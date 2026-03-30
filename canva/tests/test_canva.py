@@ -23,9 +23,7 @@ async def test_get_user_capabilities():
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await canva.execute_action(
-                "get_user_capabilities", inputs, context
-            )
+            result = await canva.execute_action("get_user_capabilities", inputs, context)
 
             if result.data.get("result"):
                 capabilities = result.data.get("capabilities", [])
@@ -66,9 +64,7 @@ async def test_create_design():
 
                 print(f"✓ Created design: {design.get('title')}")
                 print(f"  ID: {test_design_id}")
-                print(
-                    f"  Edit URL: {design.get('urls', {}).get('edit_url', 'N/A')[:60]}..."
-                )
+                print(f"  Edit URL: {design.get('urls', {}).get('edit_url', 'N/A')[:60]}...")
 
                 return result
             else:
@@ -101,9 +97,7 @@ async def test_list_designs():
 
                     # Show first few designs
                     for i, design in enumerate(designs[:3]):
-                        print(
-                            f"  - {design.get('title', 'Untitled')} (ID: {design.get('id')})"
-                        )
+                        print(f"  - {design.get('title', 'Untitled')} (ID: {design.get('id')})")
 
                 return result
             else:
@@ -195,9 +189,7 @@ async def test_get_asset_upload_status():
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await canva.execute_action(
-                "get_asset_upload_status", inputs, context
-            )
+            result = await canva.execute_action("get_asset_upload_status", inputs, context)
 
             if result.data.get("result"):
                 status = result.data.get("status")

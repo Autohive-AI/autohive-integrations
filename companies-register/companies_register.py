@@ -41,14 +41,10 @@ def safe_path(value: str) -> str:
 def validate_request_id(request_id: str):
     """Validate requestId contains only safe characters."""
     if request_id and not re.match(r"^[a-zA-Z0-9\-]+$", request_id):
-        raise ValueError(
-            "requestId must contain only alphanumeric characters and hyphens"
-        )
+        raise ValueError("requestId must contain only alphanumeric characters and hyphens")
 
 
-def get_api_headers(
-    context: ExecutionContext, additional_headers: Dict[str, str] = None
-) -> Dict[str, str]:
+def get_api_headers(context: ExecutionContext, additional_headers: Dict[str, str] = None) -> Dict[str, str]:
     """Build headers for API requests."""
     headers = {}
 
@@ -147,9 +143,7 @@ class GetCompanyDetailsAction(ActionHandler):
 
             headers = get_api_headers(context, optional_headers)
 
-            response, response_headers = await fetch_with_headers(
-                url=url, method="GET", headers=headers
-            )
+            response, response_headers = await fetch_with_headers(url=url, method="GET", headers=headers)
 
             etag = response_headers.get("ETag")
 
@@ -170,14 +164,10 @@ class GetCompanyDetailsAction(ActionHandler):
                     "nzbn": response.get("nzbn"),
                     "entityType": response.get("entityType"),
                     "companyStatusCode": response.get("companyStatusCode"),
-                    "companyStatusDescription": response.get(
-                        "companyStatusDescription"
-                    ),
+                    "companyStatusDescription": response.get("companyStatusDescription"),
                     "companyStatusExpiryDate": response.get("companyStatusExpiryDate"),
                     "registrationDate": response.get("registrationDate"),
-                    "isUltimateHoldingCompany": response.get(
-                        "isUltimateHoldingCompany"
-                    ),
+                    "isUltimateHoldingCompany": response.get("isUltimateHoldingCompany"),
                     "annualReturnFilingMonth": response.get("annualReturnFilingMonth"),
                     "annualReturnLastFiled": response.get("annualReturnLastFiled"),
                     "isConstitutionFiled": response.get("isConstitutionFiled"),
@@ -236,22 +226,16 @@ class GetCompanyContactsAction(ActionHandler):
 
             headers = get_api_headers(context, optional_headers)
 
-            response, response_headers = await fetch_with_headers(
-                url=url, method="GET", headers=headers
-            )
+            response, response_headers = await fetch_with_headers(url=url, method="GET", headers=headers)
 
             etag = response_headers.get("ETag")
-            raw_contacts = (
-                response.get("contacts") if isinstance(response, dict) else None
-            )
+            raw_contacts = response.get("contacts") if isinstance(response, dict) else None
             contacts = raw_contacts if isinstance(raw_contacts, dict) else {}
 
             return ActionResult(
                 data={
                     "contacts": contacts,
-                    "physicalOrPostalAddresses": contacts.get(
-                        "physicalOrPostalAddresses", []
-                    ),
+                    "physicalOrPostalAddresses": contacts.get("physicalOrPostalAddresses", []),
                     "phoneContacts": contacts.get("phoneContacts", []),
                     "emailAddresses": contacts.get("emailAddresses", []),
                     "etag": etag,
@@ -305,9 +289,7 @@ class UpdateCompanyContactAction(ActionHandler):
                 if not address.get("addressPurpose"):
                     raise ValueError("addressPurpose is required for address updates")
                 if not address.get("addressType"):
-                    raise ValueError(
-                        "addressType is required for address updates ('Physical' or 'Postal')"
-                    )
+                    raise ValueError("addressType is required for address updates ('Physical' or 'Postal')")
 
                 # Validate: address1 + address3 required (do NOT use dpid for updates)
                 if not address.get("address1") or not address.get("address3"):
@@ -346,9 +328,7 @@ class UpdateCompanyContactAction(ActionHandler):
             elif contact_type == "phone":
                 phone = inputs.get("phoneContact", {})
                 if not phone.get("phoneNumber"):
-                    raise ValueError(
-                        "phoneNumber is required for phone contact updates"
-                    )
+                    raise ValueError("phoneNumber is required for phone contact updates")
                 phone_payload = {}
                 for field in [
                     "phoneContactId",
@@ -364,9 +344,7 @@ class UpdateCompanyContactAction(ActionHandler):
             elif contact_type == "email":
                 email = inputs.get("emailAddress", {})
                 if not email.get("emailAddress"):
-                    raise ValueError(
-                        "emailAddress is required for email contact updates"
-                    )
+                    raise ValueError("emailAddress is required for email contact updates")
                 email_payload = {}
                 for field in ["emailAddressId", "emailAddress", "emailPurpose"]:
                     if email.get(field) is not None:
@@ -374,9 +352,7 @@ class UpdateCompanyContactAction(ActionHandler):
                 payload["emailAddress"] = email_payload
 
             else:
-                raise ValueError(
-                    f"Invalid contactType '{contact_type}'. Use: address, phone, or email"
-                )
+                raise ValueError(f"Invalid contactType '{contact_type}'. Use: address, phone, or email")
 
             optional_headers = {"If-Match": etag}
             if request_id:
@@ -440,9 +416,7 @@ class AddCompanyContactAction(ActionHandler):
                 if not address.get("addressPurpose"):
                     raise ValueError("addressPurpose is required for address contacts")
                 if not address.get("addressType"):
-                    raise ValueError(
-                        "addressType is required for address contacts ('Physical' or 'Postal')"
-                    )
+                    raise ValueError("addressType is required for address contacts ('Physical' or 'Postal')")
 
                 has_dpid = address.get("dpid")
                 has_address1 = address.get("address1")
@@ -494,9 +468,7 @@ class AddCompanyContactAction(ActionHandler):
                 }
 
             else:
-                raise ValueError(
-                    f"Invalid contactType '{contact_type}'. Use: address, phone, or email"
-                )
+                raise ValueError(f"Invalid contactType '{contact_type}'. Use: address, phone, or email")
 
             optional_headers = {}
             if request_id:
@@ -504,9 +476,7 @@ class AddCompanyContactAction(ActionHandler):
 
             headers = get_api_headers(context, optional_headers)
 
-            response = await context.fetch(
-                url, method="POST", json=payload, headers=headers
-            )
+            response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
             return ActionResult(
                 data={
@@ -582,13 +552,9 @@ class SearchNZAddressAction(ActionHandler):
 
             headers = get_api_headers(context, optional_headers)
 
-            response = await context.fetch(
-                url, method="GET", params=params, headers=headers
-            )
+            response = await context.fetch(url, method="GET", params=params, headers=headers)
 
-            addresses = (
-                response.get("items", []) if isinstance(response, dict) else response
-            )
+            addresses = response.get("items", []) if isinstance(response, dict) else response
 
             return ActionResult(
                 data={
@@ -656,24 +622,18 @@ class FileAnnualReturnAction(ActionHandler):
 
             if payment_method == "creditCard":
                 if not inputs.get("redirectUrl"):
-                    raise ValueError(
-                        "redirectUrl is required when paymentMethod is 'creditCard'"
-                    )
+                    raise ValueError("redirectUrl is required when paymentMethod is 'creditCard'")
                 payment_info["redirectURL"] = inputs["redirectUrl"]
 
             payload["paymentInfo"] = payment_info
 
             # Optional: Co-operative consent document
             if inputs.get("annualReturnConsentDocumentRef"):
-                payload["annualReturnConsentDocumentRef"] = inputs[
-                    "annualReturnConsentDocumentRef"
-                ]
+                payload["annualReturnConsentDocumentRef"] = inputs["annualReturnConsentDocumentRef"]
 
             # Optional: Shareholder list document (required for extensive shareholding)
             if inputs.get("annualReturnShareholderListDocumentRef"):
-                payload["annualReturnShareholderListDocumentRef"] = inputs[
-                    "annualReturnShareholderListDocumentRef"
-                ]
+                payload["annualReturnShareholderListDocumentRef"] = inputs["annualReturnShareholderListDocumentRef"]
 
             # Optional: charge to organisation account
             if inputs.get("organisationId"):
@@ -688,30 +648,18 @@ class FileAnnualReturnAction(ActionHandler):
 
             headers = get_api_headers(context, optional_headers)
 
-            response = await context.fetch(
-                url, method="POST", json=payload, headers=headers
-            )
+            response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
             is_credit_card = payment_method == "creditCard"
-            payment_info_resp = (
-                response.get("paymentInfo", {}) if isinstance(response, dict) else {}
-            )
+            payment_info_resp = response.get("paymentInfo", {}) if isinstance(response, dict) else {}
 
             return ActionResult(
                 data={
-                    "documentId": response.get("documentId")
-                    if not is_credit_card
-                    else None,
-                    "documentType": response.get("documentType")
-                    if not is_credit_card
-                    else None,
+                    "documentId": response.get("documentId") if not is_credit_card else None,
+                    "documentType": response.get("documentType") if not is_credit_card else None,
                     "status": response.get("status") if not is_credit_card else None,
-                    "startDate": response.get("startDate")
-                    if not is_credit_card
-                    else None,
-                    "paymentUrl": payment_info_resp.get("paymentUrl")
-                    if is_credit_card
-                    else None,
+                    "startDate": response.get("startDate") if not is_credit_card else None,
+                    "paymentUrl": payment_info_resp.get("paymentUrl") if is_credit_card else None,
                     "billingReference": payment_info_resp.get("billingReference"),
                     "paymentMethod": payment_method,
                     "result": True,
