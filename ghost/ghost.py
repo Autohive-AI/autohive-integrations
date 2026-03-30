@@ -25,9 +25,7 @@ def _get_base_url(context: ExecutionContext) -> str:
     return url.rstrip("/")
 
 
-def _content_get(
-    context: ExecutionContext, endpoint: str, params: Optional[Dict] = None
-) -> Dict:
+def _content_get(context: ExecutionContext, endpoint: str, params: Optional[Dict] = None) -> Dict:
     credentials = context.auth.get("credentials", {})
     content_key = credentials.get("content_api_key", "")
     if not content_key:
@@ -71,14 +69,10 @@ def _admin_request(
     token = _make_admin_jwt(context)
     headers = {"Authorization": f"Ghost {token}"}
     if files:
-        response = requests.request(
-            method, url, headers=headers, files=files, params=params, timeout=30
-        )
+        response = requests.request(method, url, headers=headers, files=files, params=params, timeout=30)
     else:
         headers["Content-Type"] = "application/json"
-        response = requests.request(
-            method, url, headers=headers, json=json, params=params, timeout=30
-        )
+        response = requests.request(method, url, headers=headers, json=json, params=params, timeout=30)
     response.raise_for_status()
     return response.json() if response.content else {}
 
@@ -108,9 +102,7 @@ def _parse_error(e: Exception) -> tuple:
 
 def _error(e: Exception) -> ActionResult:
     error_msg, error_type = _parse_error(e)
-    return ActionResult(
-        data={"result": False, "error": error_msg, "error_type": error_type}
-    )
+    return ActionResult(data={"result": False, "error": error_msg, "error_type": error_type})
 
 
 # ---- Content API Actions ----
@@ -122,16 +114,10 @@ class GetPostsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = {
-                k: inputs[k]
-                for k in ("limit", "page", "filter", "include")
-                if inputs.get(k)
-            }
+            params = {k: inputs[k] for k in ("limit", "page", "filter", "include") if inputs.get(k)}
             params.setdefault("limit", 15)
             data = _content_get(context, "posts", params)
-            return _success(
-                {"posts": data.get("posts", []), "meta": data.get("meta", {})}
-            )
+            return _success({"posts": data.get("posts", []), "meta": data.get("meta", {})})
         except Exception as e:
             return _error(e)
 
@@ -165,14 +151,10 @@ class GetPagesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = {
-                k: inputs[k] for k in ("limit", "page", "filter") if inputs.get(k)
-            }
+            params = {k: inputs[k] for k in ("limit", "page", "filter") if inputs.get(k)}
             params.setdefault("limit", 15)
             data = _content_get(context, "pages", params)
-            return _success(
-                {"pages": data.get("pages", []), "meta": data.get("meta", {})}
-            )
+            return _success({"pages": data.get("pages", []), "meta": data.get("meta", {})})
         except Exception as e:
             return _error(e)
 
@@ -206,14 +188,10 @@ class GetTagsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = {
-                k: inputs[k] for k in ("limit", "page", "filter") if inputs.get(k)
-            }
+            params = {k: inputs[k] for k in ("limit", "page", "filter") if inputs.get(k)}
             params.setdefault("limit", 15)
             data = _content_get(context, "tags", params)
-            return _success(
-                {"tags": data.get("tags", []), "meta": data.get("meta", {})}
-            )
+            return _success({"tags": data.get("tags", []), "meta": data.get("meta", {})})
         except Exception as e:
             return _error(e)
 
@@ -227,9 +205,7 @@ class GetAuthorsAction(ActionHandler):
             params = {k: inputs[k] for k in ("limit", "page") if inputs.get(k)}
             params.setdefault("limit", 15)
             data = _content_get(context, "authors", params)
-            return _success(
-                {"authors": data.get("authors", []), "meta": data.get("meta", {})}
-            )
+            return _success({"authors": data.get("authors", []), "meta": data.get("meta", {})})
         except Exception as e:
             return _error(e)
 
@@ -281,9 +257,7 @@ class CreatePostAction(ActionHandler):
                     post[field] = inputs[field]
             post.setdefault("status", "draft")
             params = {"source": "html"} if inputs.get("html") else None
-            data = _admin_request(
-                context, "POST", "posts", json={"posts": [post]}, params=params
-            )
+            data = _admin_request(context, "POST", "posts", json={"posts": [post]}, params=params)
             posts = data.get("posts", [])
             return _success({"post": posts[0] if posts else None})
         except Exception as e:
@@ -336,9 +310,7 @@ class CreatePageAction(ActionHandler):
                     page[field] = inputs[field]
             page.setdefault("status", "draft")
             params = {"source": "html"} if inputs.get("html") else None
-            data = _admin_request(
-                context, "POST", "pages", json={"pages": [page]}, params=params
-            )
+            data = _admin_request(context, "POST", "pages", json={"pages": [page]}, params=params)
             pages = data.get("pages", [])
             return _success({"page": pages[0] if pages else None})
         except Exception as e:
@@ -378,9 +350,7 @@ class CreateMemberAction(ActionHandler):
             for field in ["name", "labels", "newsletters", "note"]:
                 if inputs.get(field) is not None:
                     member[field] = inputs[field]
-            data = _admin_request(
-                context, "POST", "members", json={"members": [member]}
-            )
+            data = _admin_request(context, "POST", "members", json={"members": [member]})
             members = data.get("members", [])
             return _success({"member": members[0] if members else None})
         except Exception as e:
@@ -398,9 +368,7 @@ class UpdateMemberAction(ActionHandler):
             for field in ["email", "name", "labels", "newsletters", "note"]:
                 if inputs.get(field) is not None:
                     member[field] = inputs[field]
-            data = _admin_request(
-                context, "PUT", f"members/{member_id}", json={"members": [member]}
-            )
+            data = _admin_request(context, "PUT", f"members/{member_id}", json={"members": [member]})
             members = data.get("members", [])
             return _success({"member": members[0] if members else None})
         except Exception as e:

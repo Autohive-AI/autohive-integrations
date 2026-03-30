@@ -365,7 +365,14 @@ class UpdateIssueAction(ActionHandler):
             params = {} if notify_users else {"notifyUsers": "false"}
 
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}")
-            await jira_request("PUT", url, access_token, context, params=params or None, payload=payload)
+            await jira_request(
+                "PUT",
+                url,
+                access_token,
+                context,
+                params=params or None,
+                payload=payload,
+            )
 
             return ActionResult(
                 data={

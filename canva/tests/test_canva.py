@@ -5,11 +5,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 # Test configuration
 # IMPORTANT: Replace with your actual Canva OAuth credentials
-TEST_AUTH = {
-    "credentials": {
-        "access_token": "your_access_token_here"
-    }
-}
+TEST_AUTH = {"credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
 # Store IDs for dependent tests
 test_asset_id = None
@@ -29,8 +25,8 @@ async def test_get_user_capabilities():
         try:
             result = await canva.execute_action("get_user_capabilities", inputs, context)
 
-            if result.data.get('result'):
-                capabilities = result.data.get('capabilities', [])
+            if result.data.get("result"):
+                capabilities = result.data.get("capabilities", [])
                 print(f"✓ Found {len(capabilities)} capabilities")
 
                 # Show key capabilities
@@ -54,17 +50,17 @@ async def test_create_design():
 
     inputs = {
         "preset_type": "presentation",
-        "title": "Test Presentation from Integration"
+        "title": "Test Presentation from Integration",
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await canva.execute_action("create_design", inputs, context)
 
-            if result.data.get('result'):
-                design = result.data.get('design', {})
+            if result.data.get("result"):
+                design = result.data.get("design", {})
                 global test_design_id
-                test_design_id = design.get('id')
+                test_design_id = design.get("id")
 
                 print(f"✓ Created design: {design.get('title')}")
                 print(f"  ID: {test_design_id}")
@@ -84,22 +80,20 @@ async def test_list_designs():
     """Test listing user's designs."""
     print("\n[TEST] Listing user's designs...")
 
-    inputs = {
-        "sort_by": "modified_descending"
-    }
+    inputs = {"sort_by": "modified_descending"}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await canva.execute_action("list_designs", inputs, context)
 
-            if result.data.get('result'):
-                designs = result.data.get('designs', [])
+            if result.data.get("result"):
+                designs = result.data.get("designs", [])
                 print(f"✓ Found {len(designs)} design(s)")
 
                 if designs:
                     global test_design_id
                     if not test_design_id:
-                        test_design_id = designs[0].get('id')
+                        test_design_id = designs[0].get("id")
 
                     # Show first few designs
                     for i, design in enumerate(designs[:3]):
@@ -123,16 +117,14 @@ async def test_get_design():
 
     print(f"\n[TEST] Getting design details for {test_design_id}...")
 
-    inputs = {
-        "design_id": test_design_id
-    }
+    inputs = {"design_id": test_design_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await canva.execute_action("get_design", inputs, context)
 
-            if result.data.get('result'):
-                design = result.data.get('design', {})
+            if result.data.get("result"):
+                design = result.data.get("design", {})
                 print(f"✓ Retrieved design: {design.get('title')}")
                 print(f"  Created: {design.get('created_at')}")
                 print(f"  Updated: {design.get('updated_at')}")
@@ -153,14 +145,13 @@ async def test_upload_asset():
     print("  NOTE: This will create an asset in your Canva account")
 
     # Simple 1x1 red pixel PNG
-    import base64
     png_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
 
     inputs = {
         "file": {
             "content": png_base64,
             "name": "test_image.png",
-            "contentType": "image/png"
+            "contentType": "image/png",
         }
     }
 
@@ -168,11 +159,11 @@ async def test_upload_asset():
         try:
             result = await canva.execute_action("upload_asset", inputs, context)
 
-            if result.data.get('result'):
+            if result.data.get("result"):
                 global test_upload_job_id
-                test_upload_job_id = result.data.get('job_id')
+                test_upload_job_id = result.data.get("job_id")
 
-                print(f"✓ Upload initiated")
+                print("✓ Upload initiated")
                 print(f"  Job ID: {test_upload_job_id}")
                 print(f"  Status: {result.data.get('status')}")
 
@@ -194,22 +185,20 @@ async def test_get_asset_upload_status():
 
     print(f"\n[TEST] Checking upload status for job {test_upload_job_id}...")
 
-    inputs = {
-        "job_id": test_upload_job_id
-    }
+    inputs = {"job_id": test_upload_job_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await canva.execute_action("get_asset_upload_status", inputs, context)
 
-            if result.data.get('result'):
-                status = result.data.get('status')
+            if result.data.get("result"):
+                status = result.data.get("status")
                 print(f"✓ Upload status: {status}")
 
-                if status == 'success':
-                    asset = result.data.get('asset', {})
+                if status == "success":
+                    asset = result.data.get("asset", {})
                     global test_asset_id
-                    test_asset_id = asset.get('id')
+                    test_asset_id = asset.get("id")
                     print(f"  Asset ID: {test_asset_id}")
                     print(f"  Asset Name: {asset.get('name')}")
 
@@ -227,19 +216,16 @@ async def test_create_folder():
     """Test creating a folder."""
     print("\n[TEST] Creating a test folder...")
 
-    inputs = {
-        "name": "Test Folder from Integration",
-        "parent_folder_id": "root"
-    }
+    inputs = {"name": "Test Folder from Integration", "parent_folder_id": "root"}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await canva.execute_action("create_folder", inputs, context)
 
-            if result.data.get('result'):
-                folder = result.data.get('folder', {})
+            if result.data.get("result"):
+                folder = result.data.get("folder", {})
                 global test_folder_id
-                test_folder_id = folder.get('id')
+                test_folder_id = folder.get("id")
 
                 print(f"✓ Created folder: {folder.get('name')}")
                 print(f"  ID: {test_folder_id}")
@@ -262,16 +248,14 @@ async def test_list_folder_items():
 
     print(f"\n[TEST] Listing items in folder {test_folder_id}...")
 
-    inputs = {
-        "folder_id": test_folder_id
-    }
+    inputs = {"folder_id": test_folder_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await canva.execute_action("list_folder_items", inputs, context)
 
-            if result.data.get('result'):
-                items = result.data.get('items', [])
+            if result.data.get("result"):
+                items = result.data.get("items", [])
                 print(f"✓ Found {len(items)} item(s)")
 
                 if items:
@@ -296,20 +280,17 @@ async def test_export_design():
 
     print(f"\n[TEST] Exporting design {test_design_id} to PDF...")
 
-    inputs = {
-        "design_id": test_design_id,
-        "format": "pdf"
-    }
+    inputs = {"design_id": test_design_id, "format": "pdf"}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await canva.execute_action("export_design", inputs, context)
 
-            if result.data.get('result'):
+            if result.data.get("result"):
                 global test_export_job_id
-                test_export_job_id = result.data.get('job_id')
+                test_export_job_id = result.data.get("job_id")
 
-                print(f"✓ Export initiated")
+                print("✓ Export initiated")
                 print(f"  Job ID: {test_export_job_id}")
 
                 return result
@@ -330,20 +311,18 @@ async def test_get_export_status():
 
     print(f"\n[TEST] Checking export status for job {test_export_job_id}...")
 
-    inputs = {
-        "export_id": test_export_job_id
-    }
+    inputs = {"export_id": test_export_job_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await canva.execute_action("get_export_status", inputs, context)
 
-            if result.data.get('result'):
-                status = result.data.get('status')
+            if result.data.get("result"):
+                status = result.data.get("status")
                 print(f"✓ Export status: {status}")
 
-                if status == 'success':
-                    urls = result.data.get('urls', [])
+                if status == "success":
+                    urls = result.data.get("urls", [])
                     print(f"  Download URLs: {len(urls)}")
                     if urls:
                         print(f"  First URL: {urls[0][:60]}...")
