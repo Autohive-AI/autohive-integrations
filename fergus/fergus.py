@@ -4,7 +4,6 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
-    HTTPError,
 )
 
 fergus = Integration.load()
@@ -24,16 +23,6 @@ def _success(data: Dict[str, Any]) -> ActionResult:
 
 
 def _error(e: Exception) -> ActionResult:
-    if isinstance(e, HTTPError):
-        return ActionResult(
-            data={
-                "result": False,
-                "error": e.message,
-                "error_type": "HTTPError",
-                "status_code": e.status,
-                "response": e.response_data,
-            }
-        )
     return ActionResult(data={"result": False, "error": str(e), "error_type": type(e).__name__})
 
 
