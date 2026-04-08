@@ -78,6 +78,8 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Fathom
 
+[fergus](fergus): Field service job management integration with Fergus for automating maintenance partner (MP) work order workflows. Supports creating draft and non-draft jobs from inbound work orders, updating and finalising draft jobs, retrieving completed job and invoice data for BCTI (Buyer Created Tax Invoice) reporting, searching customers and sites by name, and listing technicians for job assignment. Features Personal Access Token authentication, draft job workflow (create → update → finalise), pagination with cursor support, and free-text search across jobs, customers, and sites. Includes 9 actions covering the full inbound MP-to-Fergus flow and outbound Fergus-to-MP reporting flow. Ideal for trade and field service businesses managing work orders from multiple maintenance partners.
+
 [fathom](fathom): Conversation intelligence integration with Fathom AI for accessing meeting recordings, transcripts, and team data. Supports listing and filtering meeting recordings with advanced search capabilities by date range, participants, domains, and meeting type, retrieving full transcripts with speaker attribution and timestamps, accessing team and team member information, and comprehensive pagination support for all endpoints. Features OAuth 2.0 authentication with public_api scope and integration with Fathom's video meeting recording and transcription platform. Includes 4 actions covering meeting data access, transcript retrieval, and team management. Ideal for meeting analytics, conversation intelligence workflows, and automated report generation from meeting data.
 ### Eventbrite
 
