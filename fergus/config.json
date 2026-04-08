@@ -1,0 +1,193 @@
+{
+  "name": "Fergus",
+  "display_name": "Fergus",
+  "version": "0.5.0",
+  "description": "Manage jobs in Fergus for field service and trade workflows.",
+  "entry_point": "fergus.py",
+  "auth": {
+    "type": "custom",
+    "title": "Fergus",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_token": {
+          "type": "string",
+          "format": "password",
+          "label": "Fergus Personal Access Token",
+          "help_text": "Generate a Personal Access Token from Settings → Fergus API inside your Fergus account."
+        }
+      }
+    }
+  },
+  "actions": {
+    "create_job": {
+      "display_name": "Create Job",
+      "description": "Creates a new job in Fergus from a work order. Set is_draft=true to create a draft (only job_type and title required), then use update_job to fill in details and finalise_job to activate it. For non-draft jobs, description, customer_id and site_id are also required.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_type": { "type": "string", "description": "Job type — must be one of: Quote, Estimate, Charge Up" },
+          "title": { "type": "string", "description": "Job title, e.g. Leaking Tap Repair – Kitchen Sink" },
+          "description": { "type": "string", "description": "Job description / work order details. Required for non-draft jobs." },
+          "customer_id": { "type": "integer", "description": "ID of the Fergus customer. Use search_customers to find it. Required for non-draft jobs." },
+          "site_id": { "type": "integer", "description": "ID of the site where work is to be done. Use list_sites to find it. Required for non-draft jobs." },
+          "customer_reference": { "type": "string", "description": "External reference number from the maintenance partner (MP) work order." },
+          "is_draft": { "type": "boolean", "description": "Set to true to create a draft job. Draft jobs only require job_type and title — fill in remaining details via update_job, then call finalise_job to activate.", "default": false }
+        },
+        "required": ["job_type", "title"]
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {}
+      }
+    },
+    "update_job": {
+      "display_name": "Update Job",
+      "description": "Updates a DRAFT job in Fergus. Fergus only allows updating jobs that are still in draft status — this will fail on active jobs. Call finalise_job after updating to make the job active.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": { "type": "integer", "description": "ID of the draft job to update" },
+          "job_type": { "type": "string", "description": "Job type — Quote, Estimate, or Charge Up" },
+          "title": { "type": "string", "description": "Updated job title" },
+          "description": { "type": "string", "description": "Updated job description" },
+          "customer_id": { "type": "integer", "description": "Updated customer ID" },
+          "site_id": { "type": "integer", "description": "Updated site ID" },
+          "customer_reference": { "type": "string", "description": "Updated external reference number from the MP work order" }
+        },
+        "required": ["job_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {}
+      }
+    },
+    "finalise_job": {
+      "display_name": "Finalise Job",
+      "description": "Finalises a draft job in Fergus, making it active and ready to assign to a technician. Call this after update_job once all job details are confirmed.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": { "type": "integer", "description": "ID of the draft job to finalise" }
+        },
+        "required": ["job_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {}
+      }
+    },
+    "get_job": {
+      "display_name": "Get Job",
+      "description": "Retrieves full details of a single job from Fergus, including invoice and completion data for BCTI reporting.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": { "type": "integer", "description": "ID of the job to retrieve" }
+        },
+        "required": ["job_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {}
+      }
+    },
+    "list_jobs": {
+      "display_name": "List Jobs",
+      "description": "Lists jobs from Fergus with optional filters. Use status=Completed or status=Invoiced to pull jobs ready for BCTI outbound reporting to maintenance partners.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "description": "Filter by job status, e.g. Active, Completed, Invoiced" },
+          "job_type": { "type": "string", "description": "Filter by job type — Quote, Estimate, or Charge Up" },
+          "customer_id": { "type": "integer", "description": "Filter by customer ID" },
+          "site_id": { "type": "integer", "description": "Filter by site ID" },
+          "job_number": { "type": "string", "description": "Filter by Fergus job number" },
+          "search": { "type": "string", "description": "Free-text search across job fields" },
+          "sort_order": { "type": "string", "description": "Sort order — asc or desc (default desc)" },
+          "page_size": { "type": "integer", "description": "Number of results per page (default 10)" },
+          "page_cursor": { "type": "string", "description": "Pagination cursor from a previous response" }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {}
+      }
+    },
+    "search_customers": {
+      "display_name": "Search Customers",
+      "description": "Search for customers in Fergus by name. Use this to find a customer_id before creating a job.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search": { "type": "string", "description": "Search term — matches against customer name and other fields" },
+          "sort_order": { "type": "string", "description": "Sort order — asc or desc" },
+          "page_size": { "type": "integer", "description": "Number of results per page (default 10)" },
+          "page_cursor": { "type": "string", "description": "Pagination cursor from a previous response" }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {}
+      }
+    },
+    "get_customer": {
+      "display_name": "Get Customer",
+      "description": "Get full details of a single Fergus customer.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_id": { "type": "integer", "description": "ID of the customer to retrieve" }
+        },
+        "required": ["customer_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {}
+      }
+    },
+    "list_sites": {
+      "display_name": "List Sites",
+      "description": "List sites (job locations) in Fergus. Use to find a site_id before creating a job.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search": { "type": "string", "description": "Search term — matches against site address or name" },
+          "sort_order": { "type": "string", "description": "Sort order — asc or desc" },
+          "page_size": { "type": "integer", "description": "Number of results per page (default 10)" },
+          "page_cursor": { "type": "string", "description": "Pagination cursor from a previous response" }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {}
+      }
+    },
+    "list_users": {
+      "display_name": "List Users",
+      "description": "List all users (technicians and staff) in Fergus. Use to find user IDs when assigning jobs.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search": { "type": "string", "description": "Search term — matches against user name" },
+          "sort_order": { "type": "string", "description": "Sort order — asc or desc" },
+          "page_size": { "type": "integer", "description": "Number of results per page (default 50)" },
+          "page_cursor": { "type": "string", "description": "Pagination cursor from a previous response" }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {}
+      }
+    }
+  }
+}
