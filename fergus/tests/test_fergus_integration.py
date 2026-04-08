@@ -1,6 +1,7 @@
 import asyncio
+import context  # noqa: F401 - sets up sys.path
 from pprint import pprint
-from context import fergus
+from fergus import fergus
 from autohive_integrations_sdk import ExecutionContext
 
 AUTH = {"api_token": "YOUR_FERGUS_PAT"}  # nosec B105
