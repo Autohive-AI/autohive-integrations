@@ -24,17 +24,13 @@ def _success(data: Dict[str, Any]) -> ActionResult:
 
 
 def _error(e: Exception) -> ActionResult:
-    return ActionResult(
-        data={"result": False, "error": str(e), "error_type": type(e).__name__}
-    )
+    return ActionResult(data={"result": False, "error": str(e), "error_type": type(e).__name__})
 
 
 def _get_token(context: ExecutionContext) -> str:
     token = context.auth.get("credentials", {}).get("api_token")
     if not token:
-        raise ValueError(
-            "Fergus Personal Access Token is required in auth (field 'api_token')."
-        )
+        raise ValueError("Fergus Personal Access Token is required in auth (field 'api_token').")
     return token
 
 
@@ -67,9 +63,9 @@ class CreateJob(ActionHandler):
                 if inputs.get("customer_reference"):
                     body["customerReference"] = inputs["customer_reference"]
             else:
-                missing = [
-                    f for f in ("customer_id", "site_id") if inputs.get(f) is None
-                ] + (["description"] if not inputs.get("description") else [])
+                missing = [f for f in ("customer_id", "site_id") if inputs.get(f) is None] + (
+                    ["description"] if not inputs.get("description") else []
+                )
                 if missing:
                     raise ValueError(
                         f"Fields required for non-draft jobs: {', '.join(missing)}. "
@@ -81,9 +77,7 @@ class CreateJob(ActionHandler):
                 if inputs.get("customer_reference"):
                     body["customerReference"] = inputs["customer_reference"]
 
-            resp = await context.fetch(
-                f"{BASE_URL}/jobs", method="POST", headers=headers, json=body
-            )
+            resp = await context.fetch(f"{BASE_URL}/jobs", method="POST", headers=headers, json=body)
             return _success({"job": resp})
         except Exception as e:
             return _error(e)
@@ -117,9 +111,7 @@ class UpdateJob(ActionHandler):
             if not body:
                 raise ValueError("At least one field must be provided to update a job.")
 
-            resp = await context.fetch(
-                f"{BASE_URL}/jobs/{job_id}", method="PUT", headers=headers, json=body
-            )
+            resp = await context.fetch(f"{BASE_URL}/jobs/{job_id}", method="PUT", headers=headers, json=body)
             return _success({"job": resp})
         except Exception as e:
             return _error(e)
@@ -156,9 +148,7 @@ class GetJob(ActionHandler):
             headers = _auth_headers(token)
             job_id = int(inputs["job_id"])
 
-            resp = await context.fetch(
-                f"{BASE_URL}/jobs/{job_id}", method="GET", headers=headers
-            )
+            resp = await context.fetch(f"{BASE_URL}/jobs/{job_id}", method="GET", headers=headers)
             return _success({"job": resp})
         except Exception as e:
             return _error(e)
@@ -191,9 +181,7 @@ class ListJobs(ActionHandler):
             if inputs.get("search"):
                 params["filterSearchText"] = inputs["search"]
 
-            resp = await context.fetch(
-                f"{BASE_URL}/jobs", method="GET", headers=headers, params=params
-            )
+            resp = await context.fetch(f"{BASE_URL}/jobs", method="GET", headers=headers, params=params)
             return _success({"jobs": resp})
         except Exception as e:
             return _error(e)
@@ -216,9 +204,7 @@ class SearchCustomers(ActionHandler):
             if inputs.get("search"):
                 params["filterSearchText"] = inputs["search"]
 
-            resp = await context.fetch(
-                f"{BASE_URL}/customers", method="GET", headers=headers, params=params
-            )
+            resp = await context.fetch(f"{BASE_URL}/customers", method="GET", headers=headers, params=params)
             return _success({"customers": resp})
         except Exception as e:
             return _error(e)
@@ -234,9 +220,7 @@ class GetCustomer(ActionHandler):
             headers = _auth_headers(token)
             customer_id = int(inputs["customer_id"])
 
-            resp = await context.fetch(
-                f"{BASE_URL}/customers/{customer_id}", method="GET", headers=headers
-            )
+            resp = await context.fetch(f"{BASE_URL}/customers/{customer_id}", method="GET", headers=headers)
             return _success({"customer": resp})
         except Exception as e:
             return _error(e)
@@ -259,9 +243,7 @@ class ListSites(ActionHandler):
             if inputs.get("search"):
                 params["filterSearchText"] = inputs["search"]
 
-            resp = await context.fetch(
-                f"{BASE_URL}/sites", method="GET", headers=headers, params=params
-            )
+            resp = await context.fetch(f"{BASE_URL}/sites", method="GET", headers=headers, params=params)
             return _success({"sites": resp})
         except Exception as e:
             return _error(e)
@@ -284,9 +266,7 @@ class ListUsers(ActionHandler):
             if inputs.get("search"):
                 params["filterSearchText"] = inputs["search"]
 
-            resp = await context.fetch(
-                f"{BASE_URL}/users", method="GET", headers=headers, params=params
-            )
+            resp = await context.fetch(f"{BASE_URL}/users", method="GET", headers=headers, params=params)
             return _success({"users": resp})
         except Exception as e:
             return _error(e)
