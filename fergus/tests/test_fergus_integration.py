@@ -23,8 +23,8 @@ async def test_create_job():
 
 async def test_list_jobs():
     inputs = {
-        "status": "completed",
-        "limit": 10,
+        "status": "Completed",
+        "page_size": 10,
     }
     async with ExecutionContext(auth=AUTH) as context:
         result = await fergus.execute_action("list_jobs", inputs, context)
