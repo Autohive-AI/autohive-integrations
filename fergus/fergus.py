@@ -63,7 +63,11 @@ class CreateJob(ActionHandler):
                 if inputs.get("customer_reference"):
                     body["customerReference"] = inputs["customer_reference"]
             else:
-                missing = [f for f in ("description", "customer_id", "site_id") if not inputs.get(f)]
+                missing = [
+                    f
+                    for f in ("customer_id", "site_id")
+                    if inputs.get(f) is None
+                ] + (["description"] if not inputs.get("description") else [])
                 if missing:
                     raise ValueError(
                         f"Fields required for non-draft jobs: {', '.join(missing)}. "
