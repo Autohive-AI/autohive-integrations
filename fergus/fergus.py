@@ -163,7 +163,7 @@ class ListJobs(ActionHandler):
             token = _get_token(context)
             headers = _auth_headers(token)
 
-            params: Dict[str, Any] = {"pageSize": int(inputs.get("page_size") or 10)}
+            params: Dict[str, Any] = {"pageSize": max(1, int(inputs.get("page_size") or 10))}
             if inputs.get("page_cursor"):
                 params["pageCursor"] = inputs["page_cursor"]
             if inputs.get("sort_order"):
@@ -196,7 +196,7 @@ class SearchCustomers(ActionHandler):
             token = _get_token(context)
             headers = _auth_headers(token)
 
-            params: Dict[str, Any] = {"pageSize": int(inputs.get("page_size") or 10)}
+            params: Dict[str, Any] = {"pageSize": max(1, int(inputs.get("page_size") or 10))}
             if inputs.get("page_cursor"):
                 params["pageCursor"] = inputs["page_cursor"]
             if inputs.get("sort_order"):
@@ -235,7 +235,7 @@ class ListSites(ActionHandler):
             token = _get_token(context)
             headers = _auth_headers(token)
 
-            params: Dict[str, Any] = {"pageSize": int(inputs.get("page_size") or 10)}
+            params: Dict[str, Any] = {"pageSize": max(1, int(inputs.get("page_size") or 10))}
             if inputs.get("page_cursor"):
                 params["pageCursor"] = inputs["page_cursor"]
             if inputs.get("sort_order"):
