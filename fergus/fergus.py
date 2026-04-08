@@ -110,6 +110,9 @@ class UpdateJob(ActionHandler):
             if inputs.get("customer_reference"):
                 body["customerReference"] = inputs["customer_reference"]
 
+            if not body:
+                raise ValueError("At least one field must be provided to update a job.")
+
             resp = await context.fetch(f"{BASE_URL}/jobs/{job_id}", method="PUT", headers=headers, json=body)
             return _success({"job": resp})
         except Exception as e:
