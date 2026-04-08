@@ -11,12 +11,11 @@ fergus = Integration.load()
 BASE_URL = "https://api.fergus.com"
 
 
-def _auth_headers(api_token: str) -> Dict[str, str]:
-    return {
-        "Authorization": f"Bearer {api_token}",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
+def _auth_headers(api_token: str, include_content_type: bool = False) -> Dict[str, str]:
+    headers = {"Authorization": f"Bearer {api_token}", "Accept": "application/json"}
+    if include_content_type:
+        headers["Content-Type"] = "application/json"
+    return headers
 
 
 def _success(data: Dict[str, Any]) -> ActionResult:
@@ -44,7 +43,7 @@ class CreateJob(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             token = _get_token(context)
-            headers = _auth_headers(token)
+            headers = _auth_headers(token, include_content_type=True)
             is_draft = inputs.get("is_draft", False)
 
             body: Dict[str, Any] = {
@@ -91,7 +90,7 @@ class UpdateJob(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             token = _get_token(context)
-            headers = _auth_headers(token)
+            headers = _auth_headers(token, include_content_type=True)
             job_id = int(inputs["job_id"])
 
             body: Dict[str, Any] = {}
@@ -124,7 +123,7 @@ class FinaliseJob(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             token = _get_token(context)
-            headers = _auth_headers(token)
+            headers = _auth_headers(token, include_content_type=True)
             job_id = int(inputs["job_id"])
 
             resp = await context.fetch(
