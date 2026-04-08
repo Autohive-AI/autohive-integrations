@@ -1,5 +1,5 @@
 {
-    "name": "aws",
+    "name": "AWS - Security",
     "display_name": "Amazon Web Services",
     "version": "1.0.0",
     "description": "AWS security and monitoring integration for Security Hub, GuardDuty, CloudWatch, and CloudTrail",

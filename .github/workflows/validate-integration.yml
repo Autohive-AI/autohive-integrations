@@ -3,6 +3,7 @@ name: Validate Integration (Tooling)
 on:
   pull_request:
     branches: [master, main]
+  workflow_dispatch:
 
 jobs:
   validate:
@@ -20,4 +21,4 @@ jobs:
       - name: Validate
         uses: autohive-ai/autohive-integrations-tooling@1.0.3
         with:
-          base_ref: origin/${{ github.base_ref }}
+          base_ref: origin/${{ github.base_ref || 'master' }}
