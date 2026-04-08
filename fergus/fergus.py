@@ -1,8 +1,7 @@
-from pathlib import Path
 from typing import Dict, Any
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 
-fergus = Integration.load(config_path=Path(__file__).parent / "config.json")
+fergus = Integration.load()
 
 BASE_URL = "https://api.fergus.com"
 
