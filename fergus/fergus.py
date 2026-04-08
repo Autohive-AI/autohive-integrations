@@ -1,5 +1,10 @@
 from typing import Dict, Any
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+)
 
 fergus = Integration.load()
 
@@ -19,23 +24,18 @@ def _success(data: Dict[str, Any]) -> ActionResult:
 
 
 def _error(e: Exception) -> ActionResult:
-    return ActionResult(data={"result": False, "error": str(e), "error_type": type(e).__name__})
+    return ActionResult(
+        data={"result": False, "error": str(e), "error_type": type(e).__name__}
+    )
 
 
 def _get_token(context: ExecutionContext) -> str:
     token = context.auth.get("credentials", {}).get("api_token")
     if not token:
-        raise ValueError("Fergus Personal Access Token is required in auth (field 'api_token').")
+        raise ValueError(
+            "Fergus Personal Access Token is required in auth (field 'api_token')."
+        )
     return token
-
-
-def _pagination_params(inputs: Dict[str, Any], default_page_size: int = 10) -> Dict[str, Any]:
-    params: Dict[str, Any] = {"pageSize": int(inputs.get("page_size") or default_page_size)}
-    if inputs.get("page_cursor"):
-        params["pageCursor"] = inputs["page_cursor"]
-    if inputs.get("sort_order"):
-        params["sortOrder"] = inputs["sort_order"]
-    return params
 
 
 @fergus.action("create_job")
@@ -67,7 +67,11 @@ class CreateJob(ActionHandler):
                 if inputs.get("customer_reference"):
                     body["customerReference"] = inputs["customer_reference"]
             else:
-                missing = [f for f in ("description", "customer_id", "site_id") if not inputs.get(f)]
+                missing = [
+                    f
+                    for f in ("description", "customer_id", "site_id")
+                    if not inputs.get(f)
+                ]
                 if missing:
                     raise ValueError(
                         f"Fields required for non-draft jobs: {', '.join(missing)}. "
@@ -79,7 +83,9 @@ class CreateJob(ActionHandler):
                 if inputs.get("customer_reference"):
                     body["customerReference"] = inputs["customer_reference"]
 
-            resp = await context.fetch(f"{BASE_URL}/jobs", method="POST", headers=headers, json=body)
+            resp = await context.fetch(
+                f"{BASE_URL}/jobs", method="POST", headers=headers, json=body
+            )
             return _success({"job": resp})
         except Exception as e:
             return _error(e)
@@ -129,7 +135,10 @@ class FinaliseJob(ActionHandler):
             job_id = int(inputs["job_id"])
 
             resp = await context.fetch(
-                f"{BASE_URL}/jobs/{job_id}/finalise", method="PUT", headers=headers, json={}
+                f"{BASE_URL}/jobs/{job_id}/finalise",
+                method="PUT",
+                headers=headers,
+                json={},
             )
             return _success({"job": resp})
         except Exception as e:
@@ -146,7 +155,9 @@ class GetJob(ActionHandler):
             headers = _auth_headers(token)
             job_id = int(inputs["job_id"])
 
-            resp = await context.fetch(f"{BASE_URL}/jobs/{job_id}", method="GET", headers=headers)
+            resp = await context.fetch(
+                f"{BASE_URL}/jobs/{job_id}", method="GET", headers=headers
+            )
             return _success({"job": resp})
         except Exception as e:
             return _error(e)
@@ -161,7 +172,11 @@ class ListJobs(ActionHandler):
             token = _get_token(context)
             headers = _auth_headers(token)
 
-            params = _pagination_params(inputs)
+            params: Dict[str, Any] = {"pageSize": int(inputs.get("page_size") or 10)}
+            if inputs.get("page_cursor"):
+                params["pageCursor"] = inputs["page_cursor"]
+            if inputs.get("sort_order"):
+                params["sortOrder"] = inputs["sort_order"]
             if inputs.get("status"):
                 params["filterJobStatus"] = inputs["status"]
             if inputs.get("job_type"):
@@ -175,7 +190,9 @@ class ListJobs(ActionHandler):
             if inputs.get("search"):
                 params["filterSearchText"] = inputs["search"]
 
-            resp = await context.fetch(f"{BASE_URL}/jobs", method="GET", headers=headers, params=params)
+            resp = await context.fetch(
+                f"{BASE_URL}/jobs", method="GET", headers=headers, params=params
+            )
             return _success({"jobs": resp})
         except Exception as e:
             return _error(e)
@@ -190,11 +207,17 @@ class SearchCustomers(ActionHandler):
             token = _get_token(context)
             headers = _auth_headers(token)
 
-            params = _pagination_params(inputs)
+            params: Dict[str, Any] = {"pageSize": int(inputs.get("page_size") or 10)}
+            if inputs.get("page_cursor"):
+                params["pageCursor"] = inputs["page_cursor"]
+            if inputs.get("sort_order"):
+                params["sortOrder"] = inputs["sort_order"]
             if inputs.get("search"):
                 params["filterSearchText"] = inputs["search"]
 
-            resp = await context.fetch(f"{BASE_URL}/customers", method="GET", headers=headers, params=params)
+            resp = await context.fetch(
+                f"{BASE_URL}/customers", method="GET", headers=headers, params=params
+            )
             return _success({"customers": resp})
         except Exception as e:
             return _error(e)
@@ -227,11 +250,17 @@ class ListSites(ActionHandler):
             token = _get_token(context)
             headers = _auth_headers(token)
 
-            params = _pagination_params(inputs)
+            params: Dict[str, Any] = {"pageSize": int(inputs.get("page_size") or 10)}
+            if inputs.get("page_cursor"):
+                params["pageCursor"] = inputs["page_cursor"]
+            if inputs.get("sort_order"):
+                params["sortOrder"] = inputs["sort_order"]
             if inputs.get("search"):
                 params["filterSearchText"] = inputs["search"]
 
-            resp = await context.fetch(f"{BASE_URL}/sites", method="GET", headers=headers, params=params)
+            resp = await context.fetch(
+                f"{BASE_URL}/sites", method="GET", headers=headers, params=params
+            )
             return _success({"sites": resp})
         except Exception as e:
             return _error(e)
@@ -246,11 +275,17 @@ class ListUsers(ActionHandler):
             token = _get_token(context)
             headers = _auth_headers(token)
 
-            params = _pagination_params(inputs, default_page_size=50)
+            params: Dict[str, Any] = {"pageSize": int(inputs.get("page_size") or 50)}
+            if inputs.get("page_cursor"):
+                params["pageCursor"] = inputs["page_cursor"]
+            if inputs.get("sort_order"):
+                params["sortOrder"] = inputs["sort_order"]
             if inputs.get("search"):
                 params["filterSearchText"] = inputs["search"]
 
-            resp = await context.fetch(f"{BASE_URL}/users", method="GET", headers=headers, params=params)
+            resp = await context.fetch(
+                f"{BASE_URL}/users", method="GET", headers=headers, params=params
+            )
             return _success({"users": resp})
         except Exception as e:
             return _error(e)
