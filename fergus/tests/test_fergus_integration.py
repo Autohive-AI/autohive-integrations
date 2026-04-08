@@ -3,7 +3,7 @@ from pprint import pprint
 from context import fergus
 from autohive_integrations_sdk import ExecutionContext
 
-AUTH = {"api_token": "YOUR_FERGUS_PAT"}  # nosec B105
+AUTH = {"credentials": {"api_token": "YOUR_FERGUS_PAT"}}  # nosec B105
 
 
 async def test_create_job():
