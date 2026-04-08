@@ -4,8 +4,8 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
-    HTTPError,
 )
+from autohive_integrations_sdk.integration import HTTPError
 
 fergus = Integration.load()
 
