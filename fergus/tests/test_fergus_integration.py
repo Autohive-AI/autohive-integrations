@@ -3,9 +3,7 @@ from pprint import pprint
 from context import fergus_app
 from autohive_integrations_sdk import ExecutionContext
 
-AUTH = {
-    "api_token": "YOUR_FERGUS_PAT"
-}
+AUTH = {"api_token": "YOUR_FERGUS_PAT"}  # nosec B105
 
 
 async def test_create_job():
@@ -13,8 +11,8 @@ async def test_create_job():
         "job_type": "Charge Up",
         "title": "Leaking Tap Repair – Kitchen Sink",
         "description": "Customer reports dripping tap under sink. Access via front door.",
-        "customer_id": 111,   # replace with a real customer ID
-        "site_id": 222,       # replace with a real site ID
+        "customer_id": 111,  # replace with a real customer ID
+        "site_id": 222,  # replace with a real site ID
         "customer_reference": "MP-WO-12345",
     }
     async with ExecutionContext(auth=AUTH) as context:
