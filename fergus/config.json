@@ -1,5 +1,6 @@
 {
   "name": "Fergus",
+  "display_name": "Fergus",
   "version": "0.5.0",
   "description": "Manage jobs in Fergus for field service and trade workflows.",
   "entry_point": "fergus.py",
