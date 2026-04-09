@@ -31,9 +31,7 @@ async def test_writing_score_workflow():
         analyze_inputs = {"filename": "test_document.txt", "file_content": SAMPLE_TEXT}
 
         async with ExecutionContext(auth=auth) as context:
-            analyze_result = await grammarly.execute_action(
-                "analyze_writing_score", analyze_inputs, context
-            )
+            analyze_result = await grammarly.execute_action("analyze_writing_score", analyze_inputs, context)
 
             if analyze_result.get("result"):
                 score_request_id = analyze_result.get("score_request_id")
@@ -52,9 +50,7 @@ async def test_writing_score_workflow():
             results_inputs = {"score_request_id": score_request_id}
 
             async with ExecutionContext(auth=auth) as context:
-                results = await grammarly.execute_action(
-                    "get_writing_score_results", results_inputs, context
-                )
+                results = await grammarly.execute_action("get_writing_score_results", results_inputs, context)
 
                 if results.get("result"):
                     status = results.get("status")
@@ -99,9 +95,7 @@ async def test_ai_detection_workflow():
         }
 
         async with ExecutionContext(auth=auth) as context:
-            analyze_result = await grammarly.execute_action(
-                "analyze_ai_detection", analyze_inputs, context
-            )
+            analyze_result = await grammarly.execute_action("analyze_ai_detection", analyze_inputs, context)
 
             if analyze_result.get("result"):
                 score_request_id = analyze_result.get("score_request_id")
@@ -120,9 +114,7 @@ async def test_ai_detection_workflow():
             results_inputs = {"score_request_id": score_request_id}
 
             async with ExecutionContext(auth=auth) as context:
-                results = await grammarly.execute_action(
-                    "get_ai_detection_results", results_inputs, context
-                )
+                results = await grammarly.execute_action("get_ai_detection_results", results_inputs, context)
 
                 if results.get("result"):
                     status = results.get("status")
@@ -130,12 +122,8 @@ async def test_ai_detection_workflow():
 
                     if status == "COMPLETED":
                         print("   ✓ AI Detection completed!")
-                        print(
-                            f"   Average Confidence: {results.get('average_confidence')}"
-                        )
-                        print(
-                            f"   AI Generated Percentage: {results.get('ai_generated_percentage')}%"
-                        )
+                        print(f"   Average Confidence: {results.get('average_confidence')}")
+                        print(f"   AI Generated Percentage: {results.get('ai_generated_percentage')}%")
                         break
                     elif status == "FAILED":
                         print("   ✗ AI Detection failed")
@@ -168,9 +156,7 @@ async def test_plagiarism_detection_workflow():
         }
 
         async with ExecutionContext(auth=auth) as context:
-            analyze_result = await grammarly.execute_action(
-                "analyze_plagiarism_detection", analyze_inputs, context
-            )
+            analyze_result = await grammarly.execute_action("analyze_plagiarism_detection", analyze_inputs, context)
 
             if analyze_result.get("result"):
                 score_request_id = analyze_result.get("score_request_id")
@@ -189,9 +175,7 @@ async def test_plagiarism_detection_workflow():
             results_inputs = {"score_request_id": score_request_id}
 
             async with ExecutionContext(auth=auth) as context:
-                results = await grammarly.execute_action(
-                    "get_plagiarism_detection_results", results_inputs, context
-                )
+                results = await grammarly.execute_action("get_plagiarism_detection_results", results_inputs, context)
 
                 if results.get("result"):
                     status = results.get("status")
@@ -199,12 +183,8 @@ async def test_plagiarism_detection_workflow():
 
                     if status == "COMPLETED":
                         print("   ✓ Plagiarism Detection completed!")
-                        print(
-                            f"   Originality Score: {results.get('originality_score')}"
-                        )
-                        print(
-                            f"   Plagiarism Percentage: {results.get('plagiarism_percentage')}%"
-                        )
+                        print(f"   Originality Score: {results.get('originality_score')}")
+                        print(f"   Plagiarism Percentage: {results.get('plagiarism_percentage')}%")
                         break
                     elif status == "FAILED":
                         print("   ✗ Plagiarism Detection failed")
@@ -240,9 +220,7 @@ async def test_analytics_api():
         inputs = {"date_from": date_from, "date_to": date_to, "limit": 10}
 
         async with ExecutionContext(auth=auth) as context:
-            result = await grammarly.execute_action(
-                "get_user_analytics", inputs, context
-            )
+            result = await grammarly.execute_action("get_user_analytics", inputs, context)
 
             if result.get("result"):
                 data = result.get("data", [])
@@ -259,9 +237,7 @@ async def test_analytics_api():
                     print(f"     Email: {user.get('email')}")
                     print(f"     Days Active: {user.get('days_active')}")
                     print(f"     Sessions: {user.get('sessions_count')}")
-                    print(
-                        f"     Sessions Improved: {user.get('sessions_improved_percent')}%"
-                    )
+                    print(f"     Sessions Improved: {user.get('sessions_improved_percent')}%")
                     print(f"     AI Prompts: {user.get('prompt_count')}")
             else:
                 print(f"   ✗ Failed to retrieve analytics: {result.get('error')}")

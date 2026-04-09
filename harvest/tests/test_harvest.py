@@ -65,9 +65,7 @@ async def test_stop_time_entry():
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create running timer
-            create_result = await harvest.execute_action(
-                "create_time_entry", create_inputs, context
-            )
+            create_result = await harvest.execute_action("create_time_entry", create_inputs, context)
             if not create_result.get("success"):
                 print(f"✗ Failed to create running timer: {create_result.get('error')}")
                 return
@@ -77,9 +75,7 @@ async def test_stop_time_entry():
 
             # Stop the timer
             stop_inputs = {"time_entry_id": time_entry_id}
-            result = await harvest.execute_action(
-                "stop_time_entry", stop_inputs, context
-            )
+            result = await harvest.execute_action("stop_time_entry", stop_inputs, context)
 
             if result.get("success"):
                 entry = result.get("time_entry", {})
@@ -109,13 +105,9 @@ async def test_list_time_entries():
                 entries = result.get("time_entries", [])
                 print(f"✓ Successfully retrieved {len(entries)} time entries")
                 print(f"  Total entries: {result.get('total_entries')}")
-                print(
-                    f"  Current page: {result.get('page')}/{result.get('total_pages')}"
-                )
+                print(f"  Current page: {result.get('page')}/{result.get('total_pages')}")
                 for entry in entries[:3]:  # Show first 3
-                    print(
-                        f"  - {entry.get('notes', 'No notes')} ({entry.get('hours')}h) - {entry.get('spent_date')}"
-                    )
+                    print(f"  - {entry.get('notes', 'No notes')} ({entry.get('hours')}h) - {entry.get('spent_date')}")
             else:
                 print(f"✗ Error: {result.get('error')}")
         except Exception as e:
@@ -143,9 +135,7 @@ async def test_update_time_entry():
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create entry
-            create_result = await harvest.execute_action(
-                "create_time_entry", create_inputs, context
-            )
+            create_result = await harvest.execute_action("create_time_entry", create_inputs, context)
             if not create_result.get("success"):
                 print(f"✗ Failed to create time entry: {create_result.get('error')}")
                 return
@@ -159,9 +149,7 @@ async def test_update_time_entry():
                 "hours": 2.5,
                 "notes": "Updated notes from test",
             }
-            result = await harvest.execute_action(
-                "update_time_entry", update_inputs, context
-            )
+            result = await harvest.execute_action("update_time_entry", update_inputs, context)
 
             if result.get("success"):
                 entry = result.get("time_entry", {})
@@ -195,9 +183,7 @@ async def test_delete_time_entry():
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create entry
-            create_result = await harvest.execute_action(
-                "create_time_entry", create_inputs, context
-            )
+            create_result = await harvest.execute_action("create_time_entry", create_inputs, context)
             if not create_result.get("success"):
                 print(f"✗ Failed to create time entry: {create_result.get('error')}")
                 return
@@ -207,9 +193,7 @@ async def test_delete_time_entry():
 
             # Delete the entry
             delete_inputs = {"time_entry_id": time_entry_id}
-            result = await harvest.execute_action(
-                "delete_time_entry", delete_inputs, context
-            )
+            result = await harvest.execute_action("delete_time_entry", delete_inputs, context)
 
             if result.get("success"):
                 print("✓ Successfully deleted time entry")
@@ -240,9 +224,7 @@ async def test_list_projects():
                 print(f"  Total projects: {result.get('total_entries')}")
                 for project in projects[:3]:  # Show first 3
                     client = project.get("client", {})
-                    print(
-                        f"  - {project.get('name')} (ID: {project.get('id')}) - Client: {client.get('name', 'N/A')}"
-                    )
+                    print(f"  - {project.get('name')} (ID: {project.get('id')}) - Client: {client.get('name', 'N/A')}")
             else:
                 print(f"✗ Error: {result.get('error')}")
         except Exception as e:
@@ -352,9 +334,7 @@ async def test_list_users():
                 print(f"✓ Successfully retrieved {len(users)} users")
                 print(f"  Total users: {result.get('total_entries')}")
                 for user in users[:3]:  # Show first 3
-                    print(
-                        f"  - {user.get('first_name')} {user.get('last_name')} ({user.get('email')})"
-                    )
+                    print(f"  - {user.get('first_name')} {user.get('last_name')} ({user.get('email')})")
             else:
                 print(f"✗ Error: {result.get('error')}")
         except Exception as e:

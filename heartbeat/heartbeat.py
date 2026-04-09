@@ -145,11 +145,7 @@ class GetChannels(ActionHandler):
 
             channels = []
             # Handle both array response and object with items property
-            items = (
-                response
-                if isinstance(response, list)
-                else response.get("items", response.get("channels", []))
-            )
+            items = response if isinstance(response, list) else response.get("items", response.get("channels", []))
             for raw_channel in items:
                 channels.append(HeartbeatDataParser.parse_channel(raw_channel))
 
@@ -194,11 +190,7 @@ class GetChannelThreads(ActionHandler):
 
             threads = []
             # Handle both array response and object with items property
-            items = (
-                response
-                if isinstance(response, list)
-                else response.get("items", response.get("threads", []))
-            )
+            items = response if isinstance(response, list) else response.get("items", response.get("threads", []))
             for raw_thread in items:
                 threads.append(HeartbeatDataParser.parse_thread(raw_thread))
 
@@ -241,11 +233,7 @@ class GetUsers(ActionHandler):
 
             users = []
             # Handle both array response and object with items property
-            items = (
-                response
-                if isinstance(response, list)
-                else response.get("items", response.get("users", []))
-            )
+            items = response if isinstance(response, list) else response.get("items", response.get("users", []))
             for raw_user in items:
                 users.append(HeartbeatDataParser.parse_user(raw_user))
 
@@ -285,11 +273,7 @@ class GetEvents(ActionHandler):
 
             events = []
             # Handle both array response and object with items property
-            items = (
-                response
-                if isinstance(response, list)
-                else response.get("items", response.get("events", []))
-            )
+            items = response if isinstance(response, list) else response.get("items", response.get("events", []))
             for raw_event in items:
                 events.append(HeartbeatDataParser.parse_event(raw_event))
 
