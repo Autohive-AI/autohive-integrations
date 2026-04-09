@@ -58,7 +58,7 @@ TEST_PRODUCT_HANDLE = os.getenv("TEST_PRODUCT_HANDLE", "")
 TEST_COLLECTION_HANDLE = os.getenv("TEST_COLLECTION_HANDLE", "")
 TEST_VARIANT_ID = ""  # Populated from product query
 TEST_CART_ID = ""     # Populated from cart creation
-TEST_CUSTOMER_ACCESS_TOKEN = ""  # Populated from customer login
+TEST_CUSTOMER_ACCESS_TOKEN = ""  # Populated from customer login  # nosec B105
 # =============================================================================
 
 
@@ -331,7 +331,7 @@ async def test_create_customer():
 
     inputs = {
         "email": email,
-        "password": "TestPassword123!",
+        "password": "TestPassword123!",  # nosec B105
         "first_name": "Test",
         "last_name": "Customer"
     }
