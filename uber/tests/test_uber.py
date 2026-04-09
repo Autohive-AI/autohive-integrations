@@ -1,6 +1,5 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from typing import Dict, Any
 
 from context import (
     GetProductsAction,
@@ -21,7 +20,7 @@ from context import (
     validate_offset,
     validate_required_string,
     validate_id,
-    classify_error
+    classify_error,
 )
 
 
@@ -34,6 +33,7 @@ def mock_context():
 
 
 # ---- Validation Helper Tests ----
+
 
 class TestValidationHelpers:
     """Tests for validation helper functions."""
@@ -241,6 +241,7 @@ class TestClassifyError:
 
 # ---- Product Tests ----
 
+
 class TestGetProducts:
     """Tests for get_products action."""
 
@@ -249,24 +250,13 @@ class TestGetProducts:
         """Test successful product retrieval."""
         mock_context.fetch.return_value = {
             "products": [
-                {
-                    "product_id": "a1111c8c-c720-46c3-8534-2fcdd730040d",
-                    "display_name": "uberX",
-                    "capacity": 4
-                },
-                {
-                    "product_id": "d4abaae7-f4d6-4152-91cc-77523e8165a4",
-                    "display_name": "BLACK",
-                    "capacity": 4
-                }
+                {"product_id": "a1111c8c-c720-46c3-8534-2fcdd730040d", "display_name": "uberX", "capacity": 4},
+                {"product_id": "d4abaae7-f4d6-4152-91cc-77523e8165a4", "display_name": "BLACK", "capacity": 4},
             ]
         }
 
         action = GetProductsAction()
-        result = await action.execute(
-            {"latitude": 37.7752315, "longitude": -122.418075},
-            mock_context
-        )
+        result = await action.execute({"latitude": 37.7752315, "longitude": -122.418075}, mock_context)
 
         assert result.data["result"] is True
         assert len(result.data["products"]) == 2
@@ -279,10 +269,7 @@ class TestGetProducts:
         mock_context.fetch.side_effect = Exception("API Error: 500")
 
         action = GetProductsAction()
-        result = await action.execute(
-            {"latitude": 37.7752315, "longitude": -122.418075},
-            mock_context
-        )
+        result = await action.execute({"latitude": 37.7752315, "longitude": -122.418075}, mock_context)
 
         assert result.data["result"] is False
         assert "error" in result.data
@@ -292,10 +279,7 @@ class TestGetProducts:
     async def test_invalid_latitude(self, mock_context):
         """Test with invalid latitude."""
         action = GetProductsAction()
-        result = await action.execute(
-            {"latitude": 999, "longitude": -122.418075},
-            mock_context
-        )
+        result = await action.execute({"latitude": 999, "longitude": -122.418075}, mock_context)
 
         assert result.data["result"] is False
         assert "latitude must be between" in result.data["error"]
@@ -318,10 +302,7 @@ class TestGetProducts:
         mock_context.fetch.side_effect = Exception("401 Unauthorized")
 
         action = GetProductsAction()
-        result = await action.execute(
-            {"latitude": 37.7752315, "longitude": -122.418075},
-            mock_context
-        )
+        result = await action.execute({"latitude": 37.7752315, "longitude": -122.418075}, mock_context)
 
         assert result.data["result"] is False
         assert result.data["error_type"] == "auth_error"
@@ -332,16 +313,14 @@ class TestGetProducts:
         mock_context.fetch.side_effect = Exception("429 Too Many Requests")
 
         action = GetProductsAction()
-        result = await action.execute(
-            {"latitude": 37.7752315, "longitude": -122.418075},
-            mock_context
-        )
+        result = await action.execute({"latitude": 37.7752315, "longitude": -122.418075}, mock_context)
 
         assert result.data["result"] is False
         assert result.data["error_type"] == "rate_limited"
 
 
 # ---- Price Estimate Tests ----
+
 
 class TestGetPriceEstimate:
     """Tests for get_price_estimate action."""
@@ -357,7 +336,7 @@ class TestGetPriceEstimate:
                     "estimate": "$13-17",
                     "low_estimate": 13,
                     "high_estimate": 17,
-                    "currency_code": "USD"
+                    "currency_code": "USD",
                 }
             ]
         }
@@ -368,9 +347,9 @@ class TestGetPriceEstimate:
                 "start_latitude": 37.7752315,
                 "start_longitude": -122.418075,
                 "end_latitude": 37.7752415,
-                "end_longitude": -122.518075
+                "end_longitude": -122.518075,
             },
-            mock_context
+            mock_context,
         )
 
         assert result.data["result"] is True
@@ -389,9 +368,9 @@ class TestGetPriceEstimate:
                 "start_longitude": -122.418075,
                 "end_latitude": 37.7752415,
                 "end_longitude": -122.518075,
-                "seat_count": 5
+                "seat_count": 5,
             },
-            mock_context
+            mock_context,
         )
 
         call_args = mock_context.fetch.call_args
@@ -406,9 +385,9 @@ class TestGetPriceEstimate:
                 "start_latitude": 999,
                 "start_longitude": -122.418075,
                 "end_latitude": 37.7752415,
-                "end_longitude": -122.518075
+                "end_longitude": -122.518075,
             },
-            mock_context
+            mock_context,
         )
 
         assert result.data["result"] is False
@@ -423,9 +402,9 @@ class TestGetPriceEstimate:
                 "start_latitude": 37.7752315,
                 "start_longitude": -122.418075,
                 "end_latitude": 37.7752415,
-                "end_longitude": 999
+                "end_longitude": 999,
             },
-            mock_context
+            mock_context,
         )
 
         assert result.data["result"] is False
@@ -434,6 +413,7 @@ class TestGetPriceEstimate:
 
 # ---- Time Estimate Tests ----
 
+
 class TestGetTimeEstimate:
     """Tests for get_time_estimate action."""
 
@@ -441,20 +421,11 @@ class TestGetTimeEstimate:
     async def test_success(self, mock_context):
         """Test successful time estimate."""
         mock_context.fetch.return_value = {
-            "times": [
-                {
-                    "product_id": "a1111c8c-c720-46c3-8534-2fcdd730040d",
-                    "display_name": "uberX",
-                    "estimate": 300
-                }
-            ]
+            "times": [{"product_id": "a1111c8c-c720-46c3-8534-2fcdd730040d", "display_name": "uberX", "estimate": 300}]
         }
 
         action = GetTimeEstimateAction()
-        result = await action.execute(
-            {"start_latitude": 37.7752315, "start_longitude": -122.418075},
-            mock_context
-        )
+        result = await action.execute({"start_latitude": 37.7752315, "start_longitude": -122.418075}, mock_context)
 
         assert result.data["result"] is True
         assert len(result.data["times"]) == 1
@@ -466,12 +437,7 @@ class TestGetTimeEstimate:
 
         action = GetTimeEstimateAction()
         await action.execute(
-            {
-                "start_latitude": 37.7752315,
-                "start_longitude": -122.418075,
-                "product_id": "product_123"
-            },
-            mock_context
+            {"start_latitude": 37.7752315, "start_longitude": -122.418075, "product_id": "product_123"}, mock_context
         )
 
         call_args = mock_context.fetch.call_args
@@ -484,12 +450,7 @@ class TestGetTimeEstimate:
 
         action = GetTimeEstimateAction()
         await action.execute(
-            {
-                "start_latitude": 37.7752315,
-                "start_longitude": -122.418075,
-                "product_id": "   "
-            },
-            mock_context
+            {"start_latitude": 37.7752315, "start_longitude": -122.418075, "product_id": "   "}, mock_context
         )
 
         call_args = mock_context.fetch.call_args
@@ -500,12 +461,7 @@ class TestGetTimeEstimate:
         """Test path traversal in product_id is blocked."""
         action = GetTimeEstimateAction()
         result = await action.execute(
-            {
-                "start_latitude": 37.7752315,
-                "start_longitude": -122.418075,
-                "product_id": "../products"
-            },
-            mock_context
+            {"start_latitude": 37.7752315, "start_longitude": -122.418075, "product_id": "../products"}, mock_context
         )
 
         assert result.data["result"] is False
@@ -516,15 +472,14 @@ class TestGetTimeEstimate:
 
 # ---- Ride Estimate Tests ----
 
+
 class TestGetRideEstimate:
     """Tests for get_ride_estimate action."""
 
     @pytest.mark.asyncio
     async def test_success(self, mock_context):
         """Test successful ride estimate."""
-        mock_context.fetch.return_value = {
-            "fare": {"fare_id": "fare_123", "value": 15.50}
-        }
+        mock_context.fetch.return_value = {"fare": {"fare_id": "fare_123", "value": 15.50}}
 
         action = GetRideEstimateAction()
         result = await action.execute(
@@ -533,9 +488,9 @@ class TestGetRideEstimate:
                 "start_latitude": 37.7752315,
                 "start_longitude": -122.418075,
                 "end_latitude": 37.7752415,
-                "end_longitude": -122.518075
+                "end_longitude": -122.518075,
             },
-            mock_context
+            mock_context,
         )
 
         assert result.data["result"] is True
@@ -550,9 +505,9 @@ class TestGetRideEstimate:
                 "start_latitude": 37.7752315,
                 "start_longitude": -122.418075,
                 "end_latitude": 37.7752415,
-                "end_longitude": -122.518075
+                "end_longitude": -122.518075,
             },
-            mock_context
+            mock_context,
         )
 
         assert result.data["result"] is False
@@ -570,9 +525,9 @@ class TestGetRideEstimate:
                 "start_latitude": 37.7752315,
                 "start_longitude": -122.418075,
                 "end_latitude": 37.7752415,
-                "end_longitude": -122.518075
+                "end_longitude": -122.518075,
             },
-            mock_context
+            mock_context,
         )
 
         call_args = mock_context.fetch.call_args
@@ -589,9 +544,9 @@ class TestGetRideEstimate:
                 "start_latitude": 37.7752315,
                 "start_longitude": -122.418075,
                 "end_latitude": 37.7752415,
-                "end_longitude": -122.518075
+                "end_longitude": -122.518075,
             },
-            mock_context
+            mock_context,
         )
 
         assert result.data["result"] is False
@@ -602,6 +557,7 @@ class TestGetRideEstimate:
 
 # ---- Request Ride Tests ----
 
+
 class TestRequestRide:
     """Tests for request_ride action."""
 
@@ -611,7 +567,7 @@ class TestRequestRide:
         mock_context.fetch.return_value = {
             "request_id": "b5512127-a134-4bf4-b1ba-fe9f48f56d9d",
             "status": "processing",
-            "eta": 5
+            "eta": 5,
         }
 
         action = RequestRideAction()
@@ -621,9 +577,9 @@ class TestRequestRide:
                 "start_latitude": 37.7752315,
                 "start_longitude": -122.418075,
                 "end_latitude": 37.7752415,
-                "end_longitude": -122.518075
+                "end_longitude": -122.518075,
             },
-            mock_context
+            mock_context,
         )
 
         assert result.data["result"] is True
@@ -645,9 +601,9 @@ class TestRequestRide:
                 "end_longitude": -122.518075,
                 "fare_id": "fare_123",
                 "start_address": "123 Main St",
-                "payment_method_id": "pm_123"
+                "payment_method_id": "pm_123",
             },
-            mock_context
+            mock_context,
         )
 
         call_args = mock_context.fetch.call_args
@@ -670,9 +626,9 @@ class TestRequestRide:
                 "end_latitude": 37.7752415,
                 "end_longitude": -122.518075,
                 "fare_id": "",
-                "start_address": "   "
+                "start_address": "   ",
             },
-            mock_context
+            mock_context,
         )
 
         call_args = mock_context.fetch.call_args
@@ -689,9 +645,9 @@ class TestRequestRide:
                 "start_latitude": 37.7752315,
                 "start_longitude": -122.418075,
                 "end_latitude": 37.7752415,
-                "end_longitude": -122.518075
+                "end_longitude": -122.518075,
             },
-            mock_context
+            mock_context,
         )
 
         assert result.data["result"] is False
@@ -708,9 +664,9 @@ class TestRequestRide:
                 "start_latitude": 37.7752315,
                 "start_longitude": -122.418075,
                 "end_latitude": 37.7752415,
-                "end_longitude": -122.518075
+                "end_longitude": -122.518075,
             },
-            mock_context
+            mock_context,
         )
 
         assert result.data["result"] is False
@@ -721,10 +677,7 @@ class TestRequestRide:
     @pytest.mark.asyncio
     async def test_partial_response_handling(self, mock_context):
         """Test handling of response without driver/vehicle (initial state)."""
-        mock_context.fetch.return_value = {
-            "request_id": "req_123",
-            "status": "processing"
-        }
+        mock_context.fetch.return_value = {"request_id": "req_123", "status": "processing"}
 
         action = RequestRideAction()
         result = await action.execute(
@@ -733,9 +686,9 @@ class TestRequestRide:
                 "start_latitude": 37.7752315,
                 "start_longitude": -122.418075,
                 "end_latitude": 37.7752415,
-                "end_longitude": -122.518075
+                "end_longitude": -122.518075,
             },
-            mock_context
+            mock_context,
         )
 
         assert result.data["result"] is True
@@ -744,6 +697,7 @@ class TestRequestRide:
 
 
 # ---- Ride Status Tests ----
+
 
 class TestGetRideStatus:
     """Tests for get_ride_status action."""
@@ -755,14 +709,11 @@ class TestGetRideStatus:
             "request_id": "req_123",
             "status": "accepted",
             "driver": {"name": "John"},
-            "vehicle": {"make": "Toyota"}
+            "vehicle": {"make": "Toyota"},
         }
 
         action = GetRideStatusAction()
-        result = await action.execute(
-            {"request_id": "req_123"},
-            mock_context
-        )
+        result = await action.execute({"request_id": "req_123"}, mock_context)
 
         assert result.data["result"] is True
         assert result.data["ride"]["status"] == "accepted"
@@ -810,15 +761,14 @@ class TestGetRideStatus:
 
 # ---- Ride Map Tests ----
 
+
 class TestGetRideMap:
     """Tests for get_ride_map action."""
 
     @pytest.mark.asyncio
     async def test_success(self, mock_context):
         """Test successful ride map retrieval."""
-        mock_context.fetch.return_value = {
-            "href": "https://trip.uber.com/abc123"
-        }
+        mock_context.fetch.return_value = {"href": "https://trip.uber.com/abc123"}
 
         action = GetRideMapAction()
         result = await action.execute({"request_id": "req_123"}, mock_context)
@@ -839,6 +789,7 @@ class TestGetRideMap:
 
 
 # ---- Cancel Ride Tests ----
+
 
 class TestCancelRide:
     """Tests for cancel_ride action."""
@@ -886,16 +837,14 @@ class TestCancelRide:
 
 # ---- Receipt Tests ----
 
+
 class TestGetRideReceipt:
     """Tests for get_ride_receipt action."""
 
     @pytest.mark.asyncio
     async def test_success(self, mock_context):
         """Test successful receipt retrieval."""
-        mock_context.fetch.return_value = {
-            "total_charged": 15.50,
-            "currency_code": "USD"
-        }
+        mock_context.fetch.return_value = {"total_charged": 15.50, "currency_code": "USD"}
 
         action = GetRideReceiptAction()
         result = await action.execute({"request_id": "req_123"}, mock_context)
@@ -917,16 +866,14 @@ class TestGetRideReceipt:
 
 # ---- User Profile Tests ----
 
+
 class TestGetUserProfile:
     """Tests for get_user_profile action."""
 
     @pytest.mark.asyncio
     async def test_success(self, mock_context):
         """Test successful user profile retrieval."""
-        mock_context.fetch.return_value = {
-            "first_name": "John",
-            "email": "john@example.com"
-        }
+        mock_context.fetch.return_value = {"first_name": "John", "email": "john@example.com"}
 
         action = GetUserProfileAction()
         result = await action.execute({}, mock_context)
@@ -937,16 +884,14 @@ class TestGetUserProfile:
 
 # ---- Ride History Tests ----
 
+
 class TestGetRideHistory:
     """Tests for get_ride_history action."""
 
     @pytest.mark.asyncio
     async def test_success(self, mock_context):
         """Test successful ride history retrieval."""
-        mock_context.fetch.return_value = {
-            "history": [{"request_id": "ride_1"}, {"request_id": "ride_2"}],
-            "count": 25
-        }
+        mock_context.fetch.return_value = {"history": [{"request_id": "ride_1"}, {"request_id": "ride_2"}], "count": 25}
 
         action = GetRideHistoryAction()
         result = await action.execute({}, mock_context)
@@ -991,16 +936,14 @@ class TestGetRideHistory:
 
 # ---- Payment Methods Tests ----
 
+
 class TestGetPaymentMethods:
     """Tests for get_payment_methods action."""
 
     @pytest.mark.asyncio
     async def test_success(self, mock_context):
         """Test successful payment methods retrieval."""
-        mock_context.fetch.return_value = {
-            "payment_methods": [{"payment_method_id": "pm_123"}],
-            "last_used": "pm_123"
-        }
+        mock_context.fetch.return_value = {"payment_methods": [{"payment_method_id": "pm_123"}], "last_used": "pm_123"}
 
         action = GetPaymentMethodsAction()
         result = await action.execute({}, mock_context)

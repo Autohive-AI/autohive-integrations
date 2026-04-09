@@ -16,10 +16,7 @@ MAX_RATE_LIMIT_RETRIES = 3
 
 
 def _create_rate_limit_response(
-    retry_after_seconds: int,
-    retry_attempt: int = 0,
-    action_name: str = "",
-    empty_data: Dict[str, Any] = None
+    retry_after_seconds: int, retry_attempt: int = 0, action_name: str = "", empty_data: Dict[str, Any] = None
 ) -> ActionResult:
     """Copy of rate limit response function for testing."""
     can_retry = retry_attempt < MAX_RATE_LIMIT_RETRIES
@@ -67,13 +64,13 @@ def _is_rate_limit_error(error: Exception) -> tuple:
     """Copy of rate limit error detection for testing."""
     # SDK RateLimitError has retry_after from Retry-After header
     if isinstance(error, RateLimitError):
-        return True, getattr(error, 'retry_after', 60)
+        return True, getattr(error, "retry_after", 60)
 
     # Generic exceptions - detect from message, default to 60s
     # (can't access Retry-After header from exception message)
     error_str = str(error)
     error_lower = error_str.lower()
-    if '429' in error_str or 'rate limit' in error_lower or 'too many requests' in error_lower:
+    if "429" in error_str or "rate limit" in error_lower or "too many requests" in error_lower:
         return True, 60
 
     return False, 0
@@ -82,37 +79,39 @@ def _is_rate_limit_error(error: Exception) -> tuple:
 def test_rate_limit_response_structure():
     """Test that rate limit response has all required fields."""
     result = _create_rate_limit_response(
-        retry_after_seconds=37,
-        retry_attempt=0,
-        action_name="list_forms",
-        empty_data={"forms": [], "total_items": 0}
+        retry_after_seconds=37, retry_attempt=0, action_name="list_forms", empty_data={"forms": [], "total_items": 0}
     )
     data = result.data
 
-    required_fields = ["result", "error", "error_type", "retry_after_seconds",
-                       "retry_attempt", "max_retries", "can_retry", "retry_instructions"]
+    required_fields = [
+        "result",
+        "error",
+        "error_type",
+        "retry_after_seconds",
+        "retry_attempt",
+        "max_retries",
+        "can_retry",
+        "retry_instructions",
+    ]
 
     for field in required_fields:
         assert field in data, f"Missing required field: {field}"
 
-    assert data["result"] == False
+    assert not data["result"]
     assert data["error_type"] == "rate_limit"
     assert data["retry_after_seconds"] == 37
-    assert data["can_retry"] == True
+    assert data["can_retry"]
     return True
 
 
 def test_rate_limit_max_retries():
     """Test that can_retry becomes False after max retries."""
     result = _create_rate_limit_response(
-        retry_after_seconds=60,
-        retry_attempt=MAX_RATE_LIMIT_RETRIES,
-        action_name="get_form",
-        empty_data={"form": {}}
+        retry_after_seconds=60, retry_attempt=MAX_RATE_LIMIT_RETRIES, action_name="get_form", empty_data={"form": {}}
     )
     data = result.data
 
-    assert data["can_retry"] == False
+    assert not data["can_retry"]
     assert "do not retry" in data["retry_instructions"].lower()
     return True
 
@@ -160,7 +159,7 @@ def run_rate_limit_tests():
     results = []
     for name, test_fn in tests:
         try:
-            passed = test_fn()
+            test_fn()
             results.append((name, True))
             print(f"  PASS: {name}")
         except AssertionError as e:
@@ -188,25 +187,27 @@ def _load_integration():
     if typeform is None:
         from context import typeform as tf
         from autohive_integrations_sdk import ExecutionContext as EC
+
         typeform = tf
         ExecutionContext = EC
 
 
 # ---- User Tests ----
 
+
 async def test_get_current_user():
     """Test getting current user info."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await typeform.execute_action("get_current_user", {}, context)
             print(f"Get Current User Result: {result}")
-            assert result.data.get('result') == True
-            assert 'user' in result.data
+            assert result.data.get("result")
+            assert "user" in result.data
             return result
         except Exception as e:
             print(f"Error testing get_current_user: {e}")
@@ -215,11 +216,12 @@ async def test_get_current_user():
 
 # ---- Form Tests ----
 
+
 async def test_list_forms():
     """Test listing forms."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"page_size": 10}
 
@@ -227,8 +229,8 @@ async def test_list_forms():
         try:
             result = await typeform.execute_action("list_forms", inputs, context)
             print(f"List Forms Result: {result}")
-            assert result.data.get('result') == True
-            assert 'forms' in result.data
+            assert result.data.get("result")
+            assert "forms" in result.data
             return result
         except Exception as e:
             print(f"Error testing list_forms: {e}")
@@ -239,7 +241,7 @@ async def test_get_form():
     """Test getting form details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"form_id": "your_form_id_here"}
 
@@ -247,8 +249,8 @@ async def test_get_form():
         try:
             result = await typeform.execute_action("get_form", inputs, context)
             print(f"Get Form Result: {result}")
-            assert result.data.get('result') == True
-            assert 'form' in result.data
+            assert result.data.get("result")
+            assert "form" in result.data
             return result
         except Exception as e:
             print(f"Error testing get_form: {e}")
@@ -259,24 +261,16 @@ async def test_create_form():
     """Test creating a form."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
-    inputs = {
-        "title": "Test Form",
-        "fields": [
-            {
-                "type": "short_text",
-                "title": "What is your name?"
-            }
-        ]
-    }
+    inputs = {"title": "Test Form", "fields": [{"type": "short_text", "title": "What is your name?"}]}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await typeform.execute_action("create_form", inputs, context)
             print(f"Create Form Result: {result}")
-            assert result.data.get('result') == True
-            assert 'form' in result.data
+            assert result.data.get("result")
+            assert "form" in result.data
             return result
         except Exception as e:
             print(f"Error testing create_form: {e}")
@@ -287,19 +281,16 @@ async def test_update_form():
     """Test updating a form."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
-    inputs = {
-        "form_id": "your_form_id_here",
-        "title": "Updated Test Form"
-    }
+    inputs = {"form_id": "your_form_id_here", "title": "Updated Test Form"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await typeform.execute_action("update_form", inputs, context)
             print(f"Update Form Result: {result}")
-            assert result.data.get('result') == True
-            assert 'form' in result.data
+            assert result.data.get("result")
+            assert "form" in result.data
             return result
         except Exception as e:
             print(f"Error testing update_form: {e}")
@@ -310,7 +301,7 @@ async def test_delete_form():
     """Test deleting a form."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"form_id": "your_form_id_to_delete"}
 
@@ -318,8 +309,8 @@ async def test_delete_form():
         try:
             result = await typeform.execute_action("delete_form", inputs, context)
             print(f"Delete Form Result: {result}")
-            assert result.data.get('result') == True
-            assert result.data.get('deleted') == True
+            assert result.data.get("result")
+            assert result.data.get("deleted")
             return result
         except Exception as e:
             print(f"Error testing delete_form: {e}")
@@ -328,11 +319,12 @@ async def test_delete_form():
 
 # ---- Response Tests ----
 
+
 async def test_list_responses():
     """Test listing form responses."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"form_id": "your_form_id_here", "page_size": 25}
 
@@ -340,8 +332,8 @@ async def test_list_responses():
         try:
             result = await typeform.execute_action("list_responses", inputs, context)
             print(f"List Responses Result: {result}")
-            assert result.data.get('result') == True
-            assert 'responses' in result.data
+            assert result.data.get("result")
+            assert "responses" in result.data
             return result
         except Exception as e:
             print(f"Error testing list_responses: {e}")
@@ -352,18 +344,15 @@ async def test_delete_responses():
     """Test deleting form responses."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
-    inputs = {
-        "form_id": "your_form_id_here",
-        "included_response_ids": "response_id_1,response_id_2"
-    }
+    inputs = {"form_id": "your_form_id_here", "included_response_ids": "response_id_1,response_id_2"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await typeform.execute_action("delete_responses", inputs, context)
             print(f"Delete Responses Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing delete_responses: {e}")
@@ -372,11 +361,12 @@ async def test_delete_responses():
 
 # ---- Workspace Tests ----
 
+
 async def test_list_workspaces():
     """Test listing workspaces."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {}
 
@@ -384,8 +374,8 @@ async def test_list_workspaces():
         try:
             result = await typeform.execute_action("list_workspaces", inputs, context)
             print(f"List Workspaces Result: {result}")
-            assert result.data.get('result') == True
-            assert 'workspaces' in result.data
+            assert result.data.get("result")
+            assert "workspaces" in result.data
             return result
         except Exception as e:
             print(f"Error testing list_workspaces: {e}")
@@ -396,7 +386,7 @@ async def test_get_workspace():
     """Test getting workspace details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"workspace_id": "your_workspace_id_here"}
 
@@ -404,8 +394,8 @@ async def test_get_workspace():
         try:
             result = await typeform.execute_action("get_workspace", inputs, context)
             print(f"Get Workspace Result: {result}")
-            assert result.data.get('result') == True
-            assert 'workspace' in result.data
+            assert result.data.get("result")
+            assert "workspace" in result.data
             return result
         except Exception as e:
             print(f"Error testing get_workspace: {e}")
@@ -416,7 +406,7 @@ async def test_create_workspace():
     """Test creating a workspace."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"name": "Test Workspace"}
 
@@ -424,8 +414,8 @@ async def test_create_workspace():
         try:
             result = await typeform.execute_action("create_workspace", inputs, context)
             print(f"Create Workspace Result: {result}")
-            assert result.data.get('result') == True
-            assert 'workspace' in result.data
+            assert result.data.get("result")
+            assert "workspace" in result.data
             return result
         except Exception as e:
             print(f"Error testing create_workspace: {e}")
@@ -436,7 +426,7 @@ async def test_update_workspace():
     """Test updating a workspace."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"workspace_id": "your_workspace_id_here", "name": "Updated Workspace Name"}
 
@@ -444,8 +434,8 @@ async def test_update_workspace():
         try:
             result = await typeform.execute_action("update_workspace", inputs, context)
             print(f"Update Workspace Result: {result}")
-            assert result.data.get('result') == True
-            assert 'workspace' in result.data
+            assert result.data.get("result")
+            assert "workspace" in result.data
             return result
         except Exception as e:
             print(f"Error testing update_workspace: {e}")
@@ -456,7 +446,7 @@ async def test_delete_workspace():
     """Test deleting a workspace."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"workspace_id": "your_workspace_id_to_delete"}
 
@@ -464,7 +454,7 @@ async def test_delete_workspace():
         try:
             result = await typeform.execute_action("delete_workspace", inputs, context)
             print(f"Delete Workspace Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing delete_workspace: {e}")
@@ -473,11 +463,12 @@ async def test_delete_workspace():
 
 # ---- Theme Tests ----
 
+
 async def test_list_themes():
     """Test listing themes."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {}
 
@@ -485,8 +476,8 @@ async def test_list_themes():
         try:
             result = await typeform.execute_action("list_themes", inputs, context)
             print(f"List Themes Result: {result}")
-            assert result.data.get('result') == True
-            assert 'themes' in result.data
+            assert result.data.get("result")
+            assert "themes" in result.data
             return result
         except Exception as e:
             print(f"Error testing list_themes: {e}")
@@ -497,7 +488,7 @@ async def test_get_theme():
     """Test getting theme details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"theme_id": "your_theme_id_here"}
 
@@ -505,8 +496,8 @@ async def test_get_theme():
         try:
             result = await typeform.execute_action("get_theme", inputs, context)
             print(f"Get Theme Result: {result}")
-            assert result.data.get('result') == True
-            assert 'theme' in result.data
+            assert result.data.get("result")
+            assert "theme" in result.data
             return result
         except Exception as e:
             print(f"Error testing get_theme: {e}")
@@ -517,24 +508,19 @@ async def test_create_theme():
     """Test creating a theme."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {
         "name": "Test Theme",
-        "colors": {
-            "question": "#3D3D3D",
-            "answer": "#4FB0AE",
-            "button": "#4FB0AE",
-            "background": "#FFFFFF"
-        }
+        "colors": {"question": "#3D3D3D", "answer": "#4FB0AE", "button": "#4FB0AE", "background": "#FFFFFF"},
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await typeform.execute_action("create_theme", inputs, context)
             print(f"Create Theme Result: {result}")
-            assert result.data.get('result') == True
-            assert 'theme' in result.data
+            assert result.data.get("result")
+            assert "theme" in result.data
             return result
         except Exception as e:
             print(f"Error testing create_theme: {e}")
@@ -545,7 +531,7 @@ async def test_delete_theme():
     """Test deleting a theme."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"theme_id": "your_theme_id_to_delete"}
 
@@ -553,7 +539,7 @@ async def test_delete_theme():
         try:
             result = await typeform.execute_action("delete_theme", inputs, context)
             print(f"Delete Theme Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing delete_theme: {e}")
@@ -562,11 +548,12 @@ async def test_delete_theme():
 
 # ---- Image Tests ----
 
+
 async def test_list_images():
     """Test listing images."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {}
 
@@ -574,8 +561,8 @@ async def test_list_images():
         try:
             result = await typeform.execute_action("list_images", inputs, context)
             print(f"List Images Result: {result}")
-            assert result.data.get('result') == True
-            assert 'images' in result.data
+            assert result.data.get("result")
+            assert "images" in result.data
             return result
         except Exception as e:
             print(f"Error testing list_images: {e}")
@@ -586,7 +573,7 @@ async def test_get_image():
     """Test getting image details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"image_id": "your_image_id_here"}
 
@@ -594,8 +581,8 @@ async def test_get_image():
         try:
             result = await typeform.execute_action("get_image", inputs, context)
             print(f"Get Image Result: {result}")
-            assert result.data.get('result') == True
-            assert 'image' in result.data
+            assert result.data.get("result")
+            assert "image" in result.data
             return result
         except Exception as e:
             print(f"Error testing get_image: {e}")
@@ -606,7 +593,7 @@ async def test_delete_image():
     """Test deleting an image."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"image_id": "your_image_id_to_delete"}
 
@@ -614,7 +601,7 @@ async def test_delete_image():
         try:
             result = await typeform.execute_action("delete_image", inputs, context)
             print(f"Delete Image Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing delete_image: {e}")
@@ -623,11 +610,12 @@ async def test_delete_image():
 
 # ---- Webhook Tests ----
 
+
 async def test_list_webhooks():
     """Test listing webhooks."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"form_id": "your_form_id_here"}
 
@@ -635,8 +623,8 @@ async def test_list_webhooks():
         try:
             result = await typeform.execute_action("list_webhooks", inputs, context)
             print(f"List Webhooks Result: {result}")
-            assert result.data.get('result') == True
-            assert 'webhooks' in result.data
+            assert result.data.get("result")
+            assert "webhooks" in result.data
             return result
         except Exception as e:
             print(f"Error testing list_webhooks: {e}")
@@ -647,7 +635,7 @@ async def test_get_webhook():
     """Test getting webhook details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"form_id": "your_form_id_here", "tag": "your_webhook_tag"}
 
@@ -655,8 +643,8 @@ async def test_get_webhook():
         try:
             result = await typeform.execute_action("get_webhook", inputs, context)
             print(f"Get Webhook Result: {result}")
-            assert result.data.get('result') == True
-            assert 'webhook' in result.data
+            assert result.data.get("result")
+            assert "webhook" in result.data
             return result
         except Exception as e:
             print(f"Error testing get_webhook: {e}")
@@ -667,21 +655,21 @@ async def test_create_webhook():
     """Test creating a webhook."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {
         "form_id": "your_form_id_here",
         "tag": "test_webhook",
         "url": "https://example.com/webhook",
-        "enabled": True
+        "enabled": True,
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await typeform.execute_action("create_webhook", inputs, context)
             print(f"Create Webhook Result: {result}")
-            assert result.data.get('result') == True
-            assert 'webhook' in result.data
+            assert result.data.get("result")
+            assert "webhook" in result.data
             return result
         except Exception as e:
             print(f"Error testing create_webhook: {e}")
@@ -692,7 +680,7 @@ async def test_delete_webhook():
     """Test deleting a webhook."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
     }
     inputs = {"form_id": "your_form_id_here", "tag": "webhook_tag_to_delete"}
 
@@ -700,7 +688,7 @@ async def test_delete_webhook():
         try:
             result = await typeform.execute_action("delete_webhook", inputs, context)
             print(f"Delete Webhook Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing delete_webhook: {e}")
