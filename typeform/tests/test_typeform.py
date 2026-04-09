@@ -197,7 +197,7 @@ def _load_integration():
 
 async def test_get_current_user():
     """Test getting current user info."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -216,7 +216,7 @@ async def test_get_current_user():
 
 async def test_list_forms():
     """Test listing forms."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"page_size": 10}
 
     async with ExecutionContext(auth=auth) as context:
@@ -233,7 +233,7 @@ async def test_list_forms():
 
 async def test_get_form():
     """Test getting form details."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"form_id": "your_form_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -250,7 +250,7 @@ async def test_get_form():
 
 async def test_create_form():
     """Test creating a form."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"title": "Test Form", "fields": [{"type": "short_text", "title": "What is your name?"}]}
 
     async with ExecutionContext(auth=auth) as context:
@@ -267,7 +267,7 @@ async def test_create_form():
 
 async def test_update_form():
     """Test updating a form."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"form_id": "your_form_id_here", "title": "Updated Test Form"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -284,7 +284,7 @@ async def test_update_form():
 
 async def test_delete_form():
     """Test deleting a form."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"form_id": "your_form_id_to_delete"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -304,7 +304,7 @@ async def test_delete_form():
 
 async def test_list_responses():
     """Test listing form responses."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"form_id": "your_form_id_here", "page_size": 25}
 
     async with ExecutionContext(auth=auth) as context:
@@ -321,7 +321,7 @@ async def test_list_responses():
 
 async def test_delete_responses():
     """Test deleting form responses."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"form_id": "your_form_id_here", "included_response_ids": "response_id_1,response_id_2"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -340,7 +340,7 @@ async def test_delete_responses():
 
 async def test_list_workspaces():
     """Test listing workspaces."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {}
 
     async with ExecutionContext(auth=auth) as context:
@@ -357,7 +357,7 @@ async def test_list_workspaces():
 
 async def test_get_workspace():
     """Test getting workspace details."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"workspace_id": "your_workspace_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -374,7 +374,7 @@ async def test_get_workspace():
 
 async def test_create_workspace():
     """Test creating a workspace."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"name": "Test Workspace"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -391,7 +391,7 @@ async def test_create_workspace():
 
 async def test_update_workspace():
     """Test updating a workspace."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"workspace_id": "your_workspace_id_here", "name": "Updated Workspace Name"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -408,7 +408,7 @@ async def test_update_workspace():
 
 async def test_delete_workspace():
     """Test deleting a workspace."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"workspace_id": "your_workspace_id_to_delete"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -427,7 +427,7 @@ async def test_delete_workspace():
 
 async def test_list_themes():
     """Test listing themes."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {}
 
     async with ExecutionContext(auth=auth) as context:
@@ -444,7 +444,7 @@ async def test_list_themes():
 
 async def test_get_theme():
     """Test getting theme details."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"theme_id": "your_theme_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -461,7 +461,7 @@ async def test_get_theme():
 
 async def test_create_theme():
     """Test creating a theme."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {
         "name": "Test Theme",
         "colors": {"question": "#3D3D3D", "answer": "#4FB0AE", "button": "#4FB0AE", "background": "#FFFFFF"},
@@ -481,7 +481,7 @@ async def test_create_theme():
 
 async def test_delete_theme():
     """Test deleting a theme."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"theme_id": "your_theme_id_to_delete"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -500,7 +500,7 @@ async def test_delete_theme():
 
 async def test_list_images():
     """Test listing images."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {}
 
     async with ExecutionContext(auth=auth) as context:
@@ -517,7 +517,7 @@ async def test_list_images():
 
 async def test_get_image():
     """Test getting image details."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"image_id": "your_image_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -534,7 +534,7 @@ async def test_get_image():
 
 async def test_delete_image():
     """Test deleting an image."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"image_id": "your_image_id_to_delete"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -553,7 +553,7 @@ async def test_delete_image():
 
 async def test_list_webhooks():
     """Test listing webhooks."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"form_id": "your_form_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -570,7 +570,7 @@ async def test_list_webhooks():
 
 async def test_get_webhook():
     """Test getting webhook details."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"form_id": "your_form_id_here", "tag": "your_webhook_tag"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -587,7 +587,7 @@ async def test_get_webhook():
 
 async def test_create_webhook():
     """Test creating a webhook."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {
         "form_id": "your_form_id_here",
         "tag": "test_webhook",
@@ -609,7 +609,7 @@ async def test_create_webhook():
 
 async def test_delete_webhook():
     """Test deleting a webhook."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"form_id": "your_form_id_here", "tag": "webhook_tag_to_delete"}
 
     async with ExecutionContext(auth=auth) as context:
