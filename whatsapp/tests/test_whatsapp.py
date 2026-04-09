@@ -6,18 +6,19 @@ from autohive_integrations_sdk import ExecutionContext
 
 # Constants for testing
 AUTH = {
-    "access_token": "ACCESS_TOKEN"
+    "access_token": "ACCESS_TOKEN"  # nosec B105
 }
 
 PHONE_NUMBER_ID = "PHONE_NUMBER_ID"  # Using the ID from the first test case
 TEST_RECIPIENT_PHONE = "TEST_RECIPIENT_PHONE"  # Using the phone number from the first test case
+
 
 async def test_send_message():
     """Test sending a simple text message."""
     inputs = {
         "to": TEST_RECIPIENT_PHONE,
         "message": "Hello from WhatsApp integration test!",
-        "phone_number_id": PHONE_NUMBER_ID
+        "phone_number_id": PHONE_NUMBER_ID,
     }
 
     async with ExecutionContext(auth=AUTH) as context:
@@ -36,7 +37,7 @@ async def test_send_template_message():
         "to": TEST_RECIPIENT_PHONE,
         "template_name": "hello_world",
         "language_code": "en_US",
-        "phone_number_id": PHONE_NUMBER_ID
+        "phone_number_id": PHONE_NUMBER_ID,
     }
 
     async with ExecutionContext(auth=AUTH) as context:
@@ -56,7 +57,7 @@ async def test_send_media_message():
         "media_type": "image",
         "media_url": "https://fastly.picsum.photos/id/184/640/320.jpg?hmac=Zu0guI3nKOcrdKw3FDso83cEaPL-6BltxGz8mrSEErg",
         "caption": "Test image from WhatsApp integration",
-        "phone_number_id": PHONE_NUMBER_ID
+        "phone_number_id": PHONE_NUMBER_ID,
     }
 
     async with ExecutionContext(auth=AUTH) as context:
@@ -71,9 +72,7 @@ async def test_send_media_message():
 
 async def test_get_phone_number_health():
     """Test retrieving phone number health status."""
-    inputs = {
-        "phone_number_id": PHONE_NUMBER_ID
-    }
+    inputs = {"phone_number_id": PHONE_NUMBER_ID}
 
     async with ExecutionContext(auth=AUTH) as context:
         try:
@@ -90,10 +89,10 @@ async def test_get_phone_number_health():
 async def test_phone_validation():
     """Test phone number validation logic with invalid inputs."""
     print("Testing phone number validation...")
-    
+
     # Test invalid phone numbers
     invalid_phones = ["123", "invalid", "+0123456789", "1234567890", "+"]
-    
+
     for phone in invalid_phones:
         inputs = {"to": phone, "message": "test", "phone_number_id": PHONE_NUMBER_ID}
         async with ExecutionContext(auth=AUTH) as context:
@@ -110,20 +109,21 @@ async def test_phone_validation():
 async def test_media_url_validation():
     """Test media URL validation logic with invalid inputs."""
     print("Testing media URL validation...")
-    
+
     # Test invalid media URLs
-    invalid_urls = ["http://example.com/image.png", "ftp://example.com/image.png", "/local/path/image.png", "C:\\image.png", "example.com/image.png"]
-    
+    invalid_urls = [
+        "http://example.com/image.png",
+        "ftp://example.com/image.png",
+        "/local/path/image.png",
+        "C:\\image.png",
+        "example.com/image.png",
+    ]
+
     # Use a valid phone number to bypass phone validation
     valid_phone = "+1234567890"
-    
+
     for url in invalid_urls:
-        inputs = {
-            "to": valid_phone,
-            "media_type": "image",
-            "media_url": url,
-            "phone_number_id": PHONE_NUMBER_ID
-        }
+        inputs = {"to": valid_phone, "media_type": "image", "media_url": url, "phone_number_id": PHONE_NUMBER_ID}
         async with ExecutionContext(auth=AUTH) as context:
             try:
                 result = await whatsapp.execute_action("send_media_message", inputs, context)
@@ -138,13 +138,13 @@ async def test_media_url_validation():
 async def test_phone_number_id_validation():
     """Test phone number ID validation logic with invalid inputs."""
     print("Testing phone number ID validation...")
-    
+
     # Test invalid phone number IDs
     invalid_ids = ["abc", "123a", "", " ", "-123"]
-    
+
     # Use a valid phone number to bypass phone validation
     valid_phone = "+1234567890"
-    
+
     for pid in invalid_ids:
         inputs = {"to": valid_phone, "message": "test", "phone_number_id": pid}
         async with ExecutionContext(auth=AUTH) as context:
@@ -170,7 +170,7 @@ async def main():
         "test_get_phone_number_health": test_get_phone_number_health,
         "test_phone_validation": test_phone_validation,
         "test_media_url_validation": test_media_url_validation,
-        "test_phone_number_id_validation": test_phone_number_id_validation
+        "test_phone_number_id_validation": test_phone_number_id_validation,
     }
 
     # Check for specific test to run from command line args
@@ -190,7 +190,7 @@ async def main():
             print(f"Running {name}...")
             await test_func()
             print()
-            
+
         print("All tests completed!")
 
 
