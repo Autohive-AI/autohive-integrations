@@ -28,7 +28,7 @@ async def execute_wrapper(action_name, inputs, context):
     """Helper to execute action and unwrap IntegrationResult if needed."""
     result = await shopify_storefront.execute_action(action_name, inputs, context)
     # Support SDK 1.0.2 IntegrationResult
-    if hasattr(result, 'result') and hasattr(result.result, 'data'):
+    if hasattr(result, "result") and hasattr(result.result, "data"):
         return result.result.data
     return result
 
@@ -40,8 +40,8 @@ AUTH = {
     "auth_type": "StorefrontPublic",
     "credentials": {
         "public_token": os.getenv("SHOPIFY_STOREFRONT_PUBLIC_TOKEN", "<your-storefront-access-token>"),
-        "shop_url": os.getenv("SHOPIFY_STORE_URL", "your-store.myshopify.com")
-    }
+        "shop_url": os.getenv("SHOPIFY_STORE_URL", "your-store.myshopify.com"),
+    },
 }
 
 # For private token access (server-side)
@@ -49,22 +49,23 @@ AUTH_PRIVATE = {
     "auth_type": "StorefrontPrivate",
     "credentials": {
         "private_token": os.getenv("SHOPIFY_STOREFRONT_PRIVATE_TOKEN", "<your-private-token>"),
-        "shop_url": os.getenv("SHOPIFY_STORE_URL", "your-store.myshopify.com")
-    }
+        "shop_url": os.getenv("SHOPIFY_STORE_URL", "your-store.myshopify.com"),
+    },
 }
 
 # Test data - will be populated during tests
 TEST_PRODUCT_HANDLE = os.getenv("TEST_PRODUCT_HANDLE", "")
 TEST_COLLECTION_HANDLE = os.getenv("TEST_COLLECTION_HANDLE", "")
 TEST_VARIANT_ID = ""  # Populated from product query
-TEST_CART_ID = ""     # Populated from cart creation
-TEST_CUSTOMER_ACCESS_TOKEN = ""  # Populated from customer login
+TEST_CART_ID = ""  # Populated from cart creation
+TEST_CUSTOMER_ACCESS_TOKEN = ""  # Populated from customer login  # nosec B105
 # =============================================================================
 
 
 # -----------------------------------------------------------------------------
 # Product Tests (Safe - Read Only)
 # -----------------------------------------------------------------------------
+
 
 async def test_list_products():
     """Test listing products."""
@@ -73,14 +74,14 @@ async def test_list_products():
         try:
             result = await execute_wrapper("storefront_list_products", inputs, context)
             print(f"List Products Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
-            assert 'products' in result
+            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert "products" in result
             print(f"  test_list_products passed - Found {result['count']} products")
 
             # Store first product handle for subsequent tests
-            if result['products']:
+            if result["products"]:
                 global TEST_PRODUCT_HANDLE
-                TEST_PRODUCT_HANDLE = result['products'][0].get('handle', '')
+                TEST_PRODUCT_HANDLE = result["products"][0].get("handle", "")
                 print(f"  Stored product handle: {TEST_PRODUCT_HANDLE}")
             return result
         except Exception as e:
@@ -101,16 +102,16 @@ async def test_get_product():
         try:
             result = await execute_wrapper("storefront_get_product", inputs, context)
             print(f"Get Product Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
-            assert result.get('product') is not None
+            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get("product") is not None
 
-            product = result['product']
+            product = result["product"]
             print(f"  test_get_product passed - {product.get('title', 'Unknown')}")
 
             # Extract variant ID for cart tests
-            variants = product.get('variants', {}).get('edges', [])
+            variants = product.get("variants", {}).get("edges", [])
             if variants:
-                TEST_VARIANT_ID = variants[0]['node']['id']
+                TEST_VARIANT_ID = variants[0]["node"]["id"]
                 print(f"  Stored variant ID: {TEST_VARIANT_ID}")
 
             return result
@@ -126,7 +127,7 @@ async def test_search_products():
         try:
             result = await execute_wrapper("storefront_search_products", inputs, context)
             print(f"Search Products Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            assert result.get("success"), f"Failed: {result.get('message')}"
             print(f"  test_search_products passed - Found {result['count']} products")
             return result
         except Exception as e:
@@ -143,12 +144,12 @@ async def test_list_collections():
         try:
             result = await execute_wrapper("storefront_list_collections", inputs, context)
             print(f"List Collections Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
-            assert 'collections' in result
+            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert "collections" in result
             print(f"  test_list_collections passed - Found {result['count']} collections")
 
-            if result['collections']:
-                TEST_COLLECTION_HANDLE = result['collections'][0].get('handle', '')
+            if result["collections"]:
+                TEST_COLLECTION_HANDLE = result["collections"][0].get("handle", "")
                 print(f"  Stored collection handle: {TEST_COLLECTION_HANDLE}")
             return result
         except Exception as e:
@@ -167,8 +168,8 @@ async def test_get_collection():
         try:
             result = await execute_wrapper("storefront_get_collection", inputs, context)
             print(f"Get Collection Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
-            assert result.get('collection') is not None
+            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get("collection") is not None
             print(f"  test_get_collection passed - {result['collection'].get('title', 'Unknown')}")
             return result
         except Exception as e:
@@ -180,6 +181,7 @@ async def test_get_collection():
 # Cart Tests (Low Risk - Creates temporary carts)
 # -----------------------------------------------------------------------------
 
+
 async def test_create_cart():
     """Test creating an empty cart."""
     global TEST_CART_ID
@@ -189,10 +191,10 @@ async def test_create_cart():
         try:
             result = await execute_wrapper("storefront_create_cart", inputs, context)
             print(f"Create Cart Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
-            assert result.get('cart') is not None
+            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get("cart") is not None
 
-            TEST_CART_ID = result['cart']['id']
+            TEST_CART_ID = result["cart"]["id"]
             print(f"  test_create_cart passed - Cart ID: {TEST_CART_ID[:50]}...")
             return result
         except Exception as e:
@@ -209,15 +211,12 @@ async def test_add_to_cart():
         print("  test_add_to_cart skipped - No variant ID available")
         return None
 
-    inputs = {
-        "cart_id": TEST_CART_ID,
-        "lines": [{"merchandiseId": TEST_VARIANT_ID, "quantity": 2}]
-    }
+    inputs = {"cart_id": TEST_CART_ID, "lines": [{"merchandiseId": TEST_VARIANT_ID, "quantity": 2}]}
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("storefront_add_to_cart", inputs, context)
             print(f"Add to Cart Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            assert result.get("success"), f"Failed: {result.get('message')}"
             print(f"  test_add_to_cart passed - Total quantity: {result['cart'].get('totalQuantity', 0)}")
             return result
         except Exception as e:
@@ -236,10 +235,12 @@ async def test_get_cart():
         try:
             result = await execute_wrapper("storefront_get_cart", inputs, context)
             print(f"Get Cart Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            assert result.get("success"), f"Failed: {result.get('message')}"
 
-            cart = result.get('cart', {})
-            print(f"  test_get_cart passed - Items: {cart.get('totalQuantity', 0)}, Checkout: {cart.get('checkoutUrl', 'N/A')[:50]}...")
+            cart = result.get("cart", {})
+            print(
+                f"  test_get_cart passed - Items: {cart.get('totalQuantity', 0)}, Checkout: {cart.get('checkoutUrl', 'N/A')[:50]}..."
+            )
             return result
         except Exception as e:
             print(f"  Error: {e}")
@@ -257,25 +258,22 @@ async def test_update_cart_line():
     async with ExecutionContext(auth=AUTH) as context:
         try:
             cart_result = await shopify_storefront.execute_action("storefront_get_cart", get_inputs, context)
-            if not cart_result.get('success') or not cart_result.get('cart'):
+            if not cart_result.get("success") or not cart_result.get("cart"):
                 print("  test_update_cart_line skipped - Could not get cart")
                 return None
 
-            lines = cart_result['cart'].get('lines', {}).get('edges', [])
+            lines = cart_result["cart"].get("lines", {}).get("edges", [])
             if not lines:
                 print("  test_update_cart_line skipped - Cart is empty")
                 return None
 
-            line_id = lines[0]['node']['id']
+            line_id = lines[0]["node"]["id"]
 
             # Update quantity
-            update_inputs = {
-                "cart_id": TEST_CART_ID,
-                "lines": [{"id": line_id, "quantity": 3}]
-            }
+            update_inputs = {"cart_id": TEST_CART_ID, "lines": [{"id": line_id, "quantity": 3}]}
             result = await execute_wrapper("storefront_update_cart_line", update_inputs, context)
             print(f"Update Cart Line Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            assert result.get("success"), f"Failed: {result.get('message')}"
             print(f"  test_update_cart_line passed - New total: {result['cart'].get('totalQuantity', 0)}")
             return result
         except Exception as e:
@@ -294,25 +292,22 @@ async def test_remove_from_cart():
     async with ExecutionContext(auth=AUTH) as context:
         try:
             cart_result = await shopify_storefront.execute_action("storefront_get_cart", get_inputs, context)
-            if not cart_result.get('success') or not cart_result.get('cart'):
+            if not cart_result.get("success") or not cart_result.get("cart"):
                 print("  test_remove_from_cart skipped - Could not get cart")
                 return None
 
-            lines = cart_result['cart'].get('lines', {}).get('edges', [])
+            lines = cart_result["cart"].get("lines", {}).get("edges", [])
             if not lines:
                 print("  test_remove_from_cart skipped - Cart is empty")
                 return None
 
-            line_ids = [line['node']['id'] for line in lines]
+            line_ids = [line["node"]["id"] for line in lines]
 
             # Remove all items
-            remove_inputs = {
-                "cart_id": TEST_CART_ID,
-                "line_ids": line_ids
-            }
+            remove_inputs = {"cart_id": TEST_CART_ID, "line_ids": line_ids}
             result = await execute_wrapper("storefront_remove_from_cart", remove_inputs, context)
             print(f"Remove from Cart Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            assert result.get("success"), f"Failed: {result.get('message')}"
             print(f"  test_remove_from_cart passed - Remaining: {result['cart'].get('totalQuantity', 0)}")
             return result
         except Exception as e:
@@ -324,6 +319,7 @@ async def test_remove_from_cart():
 # Customer Tests (Medium Risk - Creates customer accounts)
 # -----------------------------------------------------------------------------
 
+
 async def test_create_customer():
     """Test creating a new customer."""
     timestamp = int(time.time())
@@ -331,16 +327,16 @@ async def test_create_customer():
 
     inputs = {
         "email": email,
-        "password": "TestPassword123!",
+        "password": "TestPassword123!",  # nosec B105
         "first_name": "Test",
-        "last_name": "Customer"
+        "last_name": "Customer",
     }
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("storefront_create_customer", inputs, context)
             print(f"Create Customer Result: {result}")
             # Note: May fail if customer registration is disabled
-            if result.get('success'):
+            if result.get("success"):
                 print(f"  test_create_customer passed - Email: {email}")
             else:
                 print(f"  test_create_customer - Note: {result.get('message')}")
@@ -363,8 +359,8 @@ async def test_customer_login():
         try:
             result = await execute_wrapper("storefront_customer_login", inputs, context)
             print(f"Customer Login Result: {result}")
-            if result.get('success') and result.get('customer_access_token'):
-                TEST_CUSTOMER_ACCESS_TOKEN = result['customer_access_token']
+            if result.get("success") and result.get("customer_access_token"):
+                TEST_CUSTOMER_ACCESS_TOKEN = result["customer_access_token"]
                 print(f"  test_customer_login passed - Token expires: {result.get('expires_at')}")
             else:
                 print(f"  test_customer_login - Note: {result.get('message')}")
@@ -385,8 +381,8 @@ async def test_get_customer():
         try:
             result = await execute_wrapper("storefront_get_customer", inputs, context)
             print(f"Get Customer Result: {result}")
-            if result.get('success'):
-                customer = result.get('customer', {})
+            if result.get("success"):
+                customer = result.get("customer", {})
                 print(f"  test_get_customer passed - {customer.get('email')}")
             else:
                 print(f"  test_get_customer - Note: {result.get('message')}")
@@ -405,8 +401,8 @@ async def test_recover_customer():
         try:
             result = await execute_wrapper("storefront_recover_customer", inputs, context)
             print(f"Recover Customer Result: {result}")
-            if result.get('success'):
-                print(f"  test_recover_customer passed - Recovery email sent")
+            if result.get("success"):
+                print("  test_recover_customer passed - Recovery email sent")
             else:
                 print(f"  test_recover_customer - Note: {result.get('message')}")
             return result
@@ -418,6 +414,7 @@ async def test_recover_customer():
 # -----------------------------------------------------------------------------
 # Test Runners
 # -----------------------------------------------------------------------------
+
 
 async def run_safe_tests():
     """Run read-only tests (products, collections)."""
@@ -439,7 +436,7 @@ async def run_safe_tests():
     for name, test_func in tests:
         print(f"\n--- Testing: {name} ---")
         result = await test_func()
-        if result and result.get('success'):
+        if result and result.get("success"):
             passed += 1
         else:
             failed += 1
@@ -476,7 +473,7 @@ async def run_cart_tests():
     for name, test_func in tests:
         print(f"\n--- Testing: {name} ---")
         result = await test_func()
-        if result and result.get('success'):
+        if result and result.get("success"):
             passed += 1
         else:
             failed += 1
@@ -506,7 +503,7 @@ async def run_customer_tests():
     for name, test_func in tests:
         print(f"\n--- Testing: {name} ---")
         result = await test_func()
-        if result and result.get('success'):
+        if result and result.get("success"):
             passed += 1
         else:
             failed += 1
