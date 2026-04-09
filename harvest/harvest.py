@@ -1,7 +1,5 @@
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler
-)
-from typing import Dict, Any, List, Optional
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from typing import Dict, Any
 
 # Create the integration using the config.json
 harvest = Integration.load()
@@ -9,16 +7,18 @@ harvest = Integration.load()
 # Harvest API base URL
 HARVEST_API_BASE = "https://api.harvestapp.com/v2"
 
+
 @harvest.action("create_time_entry")
 class CreateTimeEntry(ActionHandler):
     """Create a new time entry"""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Build the time entry payload
             payload = {
                 "project_id": inputs["project_id"],
                 "task_id": inputs["task_id"],
-                "spent_date": inputs["spent_date"]
+                "spent_date": inputs["spent_date"],
             }
 
             # Add optional fields
@@ -41,49 +41,34 @@ class CreateTimeEntry(ActionHandler):
             if "external_reference" in inputs:
                 payload["external_reference"] = inputs["external_reference"]
 
-            response = await context.fetch(
-                f"{HARVEST_API_BASE}/time_entries",
-                method="POST",
-                json=payload
-            )
+            response = await context.fetch(f"{HARVEST_API_BASE}/time_entries", method="POST", json=payload)
 
-            return {
-                "success": True,
-                "time_entry": response
-            }
+            return {"success": True, "time_entry": response}
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
+
 
 @harvest.action("stop_time_entry")
 class StopTimeEntry(ActionHandler):
     """Stop a running time entry"""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             time_entry_id = inputs["time_entry_id"]
 
-            response = await context.fetch(
-                f"{HARVEST_API_BASE}/time_entries/{time_entry_id}/stop",
-                method="PATCH"
-            )
+            response = await context.fetch(f"{HARVEST_API_BASE}/time_entries/{time_entry_id}/stop", method="PATCH")
 
-            return {
-                "success": True,
-                "time_entry": response
-            }
+            return {"success": True, "time_entry": response}
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
+
 
 @harvest.action("list_time_entries")
 class ListTimeEntries(ActionHandler):
     """List time entries with optional filters"""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Build query parameters
@@ -122,11 +107,7 @@ class ListTimeEntries(ActionHandler):
             if "per_page" in inputs:
                 params["per_page"] = inputs["per_page"]
 
-            response = await context.fetch(
-                f"{HARVEST_API_BASE}/time_entries",
-                method="GET",
-                params=params
-            )
+            response = await context.fetch(f"{HARVEST_API_BASE}/time_entries", method="GET", params=params)
 
             return {
                 "success": True,
@@ -137,18 +118,17 @@ class ListTimeEntries(ActionHandler):
                 "next_page": response.get("next_page"),
                 "previous_page": response.get("previous_page"),
                 "page": response.get("page"),
-                "links": response.get("links")
+                "links": response.get("links"),
             }
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
+
 
 @harvest.action("update_time_entry")
 class UpdateTimeEntry(ActionHandler):
     """Update an existing time entry"""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             time_entry_id = inputs["time_entry_id"]
@@ -181,48 +161,35 @@ class UpdateTimeEntry(ActionHandler):
                 payload["external_reference"] = inputs["external_reference"]
 
             response = await context.fetch(
-                f"{HARVEST_API_BASE}/time_entries/{time_entry_id}",
-                method="PATCH",
-                json=payload
+                f"{HARVEST_API_BASE}/time_entries/{time_entry_id}", method="PATCH", json=payload
             )
 
-            return {
-                "success": True,
-                "time_entry": response
-            }
+            return {"success": True, "time_entry": response}
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
+
 
 @harvest.action("delete_time_entry")
 class DeleteTimeEntry(ActionHandler):
     """Delete a time entry"""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             time_entry_id = inputs["time_entry_id"]
 
-            await context.fetch(
-                f"{HARVEST_API_BASE}/time_entries/{time_entry_id}",
-                method="DELETE"
-            )
+            await context.fetch(f"{HARVEST_API_BASE}/time_entries/{time_entry_id}", method="DELETE")
 
-            return {
-                "success": True,
-                "message": f"Time entry {time_entry_id} deleted successfully"
-            }
+            return {"success": True, "message": f"Time entry {time_entry_id} deleted successfully"}
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
+
 
 @harvest.action("list_projects")
 class ListProjects(ActionHandler):
     """List all projects"""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Build query parameters
@@ -243,11 +210,7 @@ class ListProjects(ActionHandler):
             if "per_page" in inputs:
                 params["per_page"] = inputs["per_page"]
 
-            response = await context.fetch(
-                f"{HARVEST_API_BASE}/projects",
-                method="GET",
-                params=params
-            )
+            response = await context.fetch(f"{HARVEST_API_BASE}/projects", method="GET", params=params)
 
             return {
                 "success": True,
@@ -258,41 +221,33 @@ class ListProjects(ActionHandler):
                 "next_page": response.get("next_page"),
                 "previous_page": response.get("previous_page"),
                 "page": response.get("page"),
-                "links": response.get("links")
+                "links": response.get("links"),
             }
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
+
 
 @harvest.action("get_project")
 class GetProject(ActionHandler):
     """Get a specific project by ID"""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             project_id = inputs["project_id"]
 
-            response = await context.fetch(
-                f"{HARVEST_API_BASE}/projects/{project_id}",
-                method="GET"
-            )
+            response = await context.fetch(f"{HARVEST_API_BASE}/projects/{project_id}", method="GET")
 
-            return {
-                "success": True,
-                "project": response
-            }
+            return {"success": True, "project": response}
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
+
 
 @harvest.action("list_clients")
 class ListClients(ActionHandler):
     """List all clients"""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Build query parameters
@@ -310,11 +265,7 @@ class ListClients(ActionHandler):
             if "per_page" in inputs:
                 params["per_page"] = inputs["per_page"]
 
-            response = await context.fetch(
-                f"{HARVEST_API_BASE}/clients",
-                method="GET",
-                params=params
-            )
+            response = await context.fetch(f"{HARVEST_API_BASE}/clients", method="GET", params=params)
 
             return {
                 "success": True,
@@ -325,18 +276,17 @@ class ListClients(ActionHandler):
                 "next_page": response.get("next_page"),
                 "previous_page": response.get("previous_page"),
                 "page": response.get("page"),
-                "links": response.get("links")
+                "links": response.get("links"),
             }
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
+
 
 @harvest.action("list_tasks")
 class ListTasks(ActionHandler):
     """List all tasks"""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Build query parameters
@@ -354,11 +304,7 @@ class ListTasks(ActionHandler):
             if "per_page" in inputs:
                 params["per_page"] = inputs["per_page"]
 
-            response = await context.fetch(
-                f"{HARVEST_API_BASE}/tasks",
-                method="GET",
-                params=params
-            )
+            response = await context.fetch(f"{HARVEST_API_BASE}/tasks", method="GET", params=params)
 
             return {
                 "success": True,
@@ -369,18 +315,17 @@ class ListTasks(ActionHandler):
                 "next_page": response.get("next_page"),
                 "previous_page": response.get("previous_page"),
                 "page": response.get("page"),
-                "links": response.get("links")
+                "links": response.get("links"),
             }
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
+
 
 @harvest.action("list_users")
 class ListUsers(ActionHandler):
     """List all users (team members)"""
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Build query parameters
@@ -398,11 +343,7 @@ class ListUsers(ActionHandler):
             if "per_page" in inputs:
                 params["per_page"] = inputs["per_page"]
 
-            response = await context.fetch(
-                f"{HARVEST_API_BASE}/users",
-                method="GET",
-                params=params
-            )
+            response = await context.fetch(f"{HARVEST_API_BASE}/users", method="GET", params=params)
 
             return {
                 "success": True,
@@ -413,11 +354,8 @@ class ListUsers(ActionHandler):
                 "next_page": response.get("next_page"),
                 "previous_page": response.get("previous_page"),
                 "page": response.get("page"),
-                "links": response.get("links")
+                "links": response.get("links"),
             }
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
