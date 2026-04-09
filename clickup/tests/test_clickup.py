@@ -9,8 +9,8 @@ async def test_get_authorized_teams():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
     inputs = {}
@@ -19,8 +19,8 @@ async def test_get_authorized_teams():
         try:
             result = await clickup.execute_action("get_authorized_teams", inputs, context)
             print(f"Get Authorized Teams Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'teams' in result, "Response missing 'teams' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "teams" in result, "Response missing 'teams' field"
             return result
         except Exception as e:
             print(f"Error testing get_authorized_teams: {e}")
@@ -32,20 +32,18 @@ async def test_get_spaces():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "team_id": "your_team_id_here"
-    }
+    inputs = {"team_id": "your_team_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("get_spaces", inputs, context)
             print(f"Get Spaces Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'spaces' in result, "Response missing 'spaces' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "spaces" in result, "Response missing 'spaces' field"
             return result
         except Exception as e:
             print(f"Error testing get_spaces: {e}")
@@ -57,20 +55,18 @@ async def test_get_space():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "space_id": "your_space_id_here"
-    }
+    inputs = {"space_id": "your_space_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("get_space", inputs, context)
             print(f"Get Space Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'space' in result, "Response missing 'space' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "space" in result, "Response missing 'space' field"
             return result
         except Exception as e:
             print(f"Error testing get_space: {e}")
@@ -82,21 +78,18 @@ async def test_create_folder():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "space_id": "your_space_id_here",
-        "name": "Test Folder via API"
-    }
+    inputs = {"space_id": "your_space_id_here", "name": "Test Folder via API"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("create_folder", inputs, context)
             print(f"Create Folder Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'folder' in result, "Response missing 'folder' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "folder" in result, "Response missing 'folder' field"
             return result
         except Exception as e:
             print(f"Error testing create_folder: {e}")
@@ -108,20 +101,18 @@ async def test_get_folder():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "folder_id": "your_folder_id_here"
-    }
+    inputs = {"folder_id": "your_folder_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("get_folder", inputs, context)
             print(f"Get Folder Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'folder' in result, "Response missing 'folder' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "folder" in result, "Response missing 'folder' field"
             return result
         except Exception as e:
             print(f"Error testing get_folder: {e}")
@@ -133,21 +124,18 @@ async def test_update_folder():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "folder_id": "your_folder_id_here",
-        "name": "Updated Folder Name"
-    }
+    inputs = {"folder_id": "your_folder_id_here", "name": "Updated Folder Name"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("update_folder", inputs, context)
             print(f"Update Folder Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'folder' in result, "Response missing 'folder' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "folder" in result, "Response missing 'folder' field"
             return result
         except Exception as e:
             print(f"Error testing update_folder: {e}")
@@ -159,20 +147,18 @@ async def test_get_folders():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "space_id": "your_space_id_here"
-    }
+    inputs = {"space_id": "your_space_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("get_folders", inputs, context)
             print(f"Get Folders Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'folders' in result, "Response missing 'folders' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "folders" in result, "Response missing 'folders' field"
             return result
         except Exception as e:
             print(f"Error testing get_folders: {e}")
@@ -184,19 +170,17 @@ async def test_delete_folder():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "folder_id": "your_folder_id_here"
-    }
+    inputs = {"folder_id": "your_folder_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("delete_folder", inputs, context)
             print(f"Delete Folder Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
             return result
         except Exception as e:
             print(f"Error testing delete_folder: {e}")
@@ -208,21 +192,18 @@ async def test_create_list():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "folder_id": "your_folder_id_here",
-        "name": "Test List via API"
-    }
+    inputs = {"folder_id": "your_folder_id_here", "name": "Test List via API"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("create_list", inputs, context)
             print(f"Create List Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'list' in result, "Response missing 'list' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "list" in result, "Response missing 'list' field"
             return result
         except Exception as e:
             print(f"Error testing create_list: {e}")
@@ -234,20 +215,18 @@ async def test_get_list():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "list_id": "your_list_id_here"
-    }
+    inputs = {"list_id": "your_list_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("get_list", inputs, context)
             print(f"Get List Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'list' in result, "Response missing 'list' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "list" in result, "Response missing 'list' field"
             return result
         except Exception as e:
             print(f"Error testing get_list: {e}")
@@ -259,21 +238,18 @@ async def test_update_list():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "list_id": "your_list_id_here",
-        "name": "Updated List Name"
-    }
+    inputs = {"list_id": "your_list_id_here", "name": "Updated List Name"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("update_list", inputs, context)
             print(f"Update List Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'list' in result, "Response missing 'list' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "list" in result, "Response missing 'list' field"
             return result
         except Exception as e:
             print(f"Error testing update_list: {e}")
@@ -285,20 +261,18 @@ async def test_get_lists():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "folder_id": "your_folder_id_here"
-    }
+    inputs = {"folder_id": "your_folder_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("get_lists", inputs, context)
             print(f"Get Lists Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'lists' in result, "Response missing 'lists' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "lists" in result, "Response missing 'lists' field"
             return result
         except Exception as e:
             print(f"Error testing get_lists: {e}")
@@ -310,19 +284,17 @@ async def test_delete_list():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "list_id": "your_list_id_here"
-    }
+    inputs = {"list_id": "your_list_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("delete_list", inputs, context)
             print(f"Delete List Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
             return result
         except Exception as e:
             print(f"Error testing delete_list: {e}")
@@ -334,23 +306,23 @@ async def test_create_task():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
     inputs = {
         "list_id": "your_list_id_here",
         "name": "Test Task via API",
         "description": "This is a test task created via ClickUp API integration",
-        "priority": 3
+        "priority": 3,
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("create_task", inputs, context)
             print(f"Create Task Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'task' in result, "Response missing 'task' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "task" in result, "Response missing 'task' field"
             return result
         except Exception as e:
             print(f"Error testing create_task: {e}")
@@ -362,20 +334,18 @@ async def test_get_task():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "task_id": "your_task_id_here"
-    }
+    inputs = {"task_id": "your_task_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("get_task", inputs, context)
             print(f"Get Task Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'task' in result, "Response missing 'task' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "task" in result, "Response missing 'task' field"
             return result
         except Exception as e:
             print(f"Error testing get_task: {e}")
@@ -387,22 +357,18 @@ async def test_update_task():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "task_id": "your_task_id_here",
-        "name": "Updated Task Name",
-        "status": "Complete"
-    }
+    inputs = {"task_id": "your_task_id_here", "name": "Updated Task Name", "status": "Complete"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("update_task", inputs, context)
             print(f"Update Task Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'task' in result, "Response missing 'task' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "task" in result, "Response missing 'task' field"
             return result
         except Exception as e:
             print(f"Error testing update_task: {e}")
@@ -414,20 +380,18 @@ async def test_get_tasks():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "list_id": "your_list_id_here"
-    }
+    inputs = {"list_id": "your_list_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("get_tasks", inputs, context)
             print(f"Get Tasks Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'tasks' in result, "Response missing 'tasks' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "tasks" in result, "Response missing 'tasks' field"
             return result
         except Exception as e:
             print(f"Error testing get_tasks: {e}")
@@ -439,19 +403,17 @@ async def test_delete_task():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "task_id": "your_task_id_here"
-    }
+    inputs = {"task_id": "your_task_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("delete_task", inputs, context)
             print(f"Delete Task Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
             return result
         except Exception as e:
             print(f"Error testing delete_task: {e}")
@@ -463,21 +425,18 @@ async def test_create_task_comment():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "task_id": "your_task_id_here",
-        "comment_text": "This is a test comment via API"
-    }
+    inputs = {"task_id": "your_task_id_here", "comment_text": "This is a test comment via API"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("create_task_comment", inputs, context)
             print(f"Create Task Comment Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'comment' in result, "Response missing 'comment' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "comment" in result, "Response missing 'comment' field"
             return result
         except Exception as e:
             print(f"Error testing create_task_comment: {e}")
@@ -489,20 +448,18 @@ async def test_get_task_comments():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "task_id": "your_task_id_here"
-    }
+    inputs = {"task_id": "your_task_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("get_task_comments", inputs, context)
             print(f"Get Task Comments Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'comments' in result, "Response missing 'comments' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "comments" in result, "Response missing 'comments' field"
             return result
         except Exception as e:
             print(f"Error testing get_task_comments: {e}")
@@ -514,21 +471,18 @@ async def test_update_comment():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "comment_id": "your_comment_id_here",
-        "comment_text": "Updated comment text"
-    }
+    inputs = {"comment_id": "your_comment_id_here", "comment_text": "Updated comment text"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("update_comment", inputs, context)
             print(f"Update Comment Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'comment' in result, "Response missing 'comment' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "comment" in result, "Response missing 'comment' field"
             return result
         except Exception as e:
             print(f"Error testing update_comment: {e}")
@@ -540,19 +494,17 @@ async def test_delete_comment():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "comment_id": "your_comment_id_here"
-    }
+    inputs = {"comment_id": "your_comment_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("delete_comment", inputs, context)
             print(f"Delete Comment Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
             return result
         except Exception as e:
             print(f"Error testing delete_comment: {e}")
