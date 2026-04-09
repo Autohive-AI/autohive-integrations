@@ -6,11 +6,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_get_lists():
     """Test retrieving all mailing lists."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {"count": 10, "offset": 0}
 
@@ -26,11 +22,7 @@ async def test_get_lists():
 
 async def test_get_list():
     """Test getting a specific mailing list."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {"list_id": "your_list_id_here"}
 
@@ -46,11 +38,7 @@ async def test_get_list():
 
 async def test_create_list():
     """Test creating a new mailing list."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {
         "name": "Test List via Integration",
@@ -61,15 +49,15 @@ async def test_create_list():
             "city": "Test City",
             "state": "CA",
             "zip": "90210",
-            "country": "US"
+            "country": "US",
         },
         "campaign_defaults": {
             "from_name": "Test Sender",
             "from_email": "test@example.com",
             "subject": "Default Subject",
-            "language": "en"
+            "language": "en",
         },
-        "email_type_option": True
+        "email_type_option": True,
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -84,21 +72,14 @@ async def test_create_list():
 
 async def test_add_member():
     """Test adding a new member to a mailing list."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {
         "list_id": "your_list_id_here",
         "email_address": "test@example.com",
         "status": "subscribed",
-        "merge_fields": {
-            "FNAME": "John",
-            "LNAME": "Doe"
-        },
-        "tags": ["api-test"]
+        "merge_fields": {"FNAME": "John", "LNAME": "Doe"},
+        "tags": ["api-test"],
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -113,16 +94,9 @@ async def test_add_member():
 
 async def test_get_member():
     """Test getting a specific member from a mailing list."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
-        "list_id": "your_list_id_here",
-        "email_address": "test@example.com"
-    }
+    inputs = {"list_id": "your_list_id_here", "email_address": "test@example.com"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -136,19 +110,12 @@ async def test_get_member():
 
 async def test_update_member():
     """Test updating an existing member in a mailing list."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {
         "list_id": "your_list_id_here",
         "email_address": "test@example.com",
-        "merge_fields": {
-            "FNAME": "Jane",
-            "LNAME": "Smith"
-        }
+        "merge_fields": {"FNAME": "Jane", "LNAME": "Smith"},
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -163,18 +130,9 @@ async def test_update_member():
 
 async def test_get_list_members():
     """Test getting all members from a mailing list."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
-        "list_id": "your_list_id_here",
-        "count": 10,
-        "offset": 0,
-        "status": "subscribed"
-    }
+    inputs = {"list_id": "your_list_id_here", "count": 10, "offset": 0, "status": "subscribed"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -188,11 +146,7 @@ async def test_get_list_members():
 
 async def test_get_campaigns():
     """Test retrieving all campaigns."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {"count": 10, "offset": 0}
 
@@ -208,11 +162,7 @@ async def test_get_campaigns():
 
 async def test_create_campaign():
     """Test creating a new campaign."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {
         "type": "regular",
@@ -220,7 +170,7 @@ async def test_create_campaign():
         "subject_line": "Test Campaign Subject",
         "from_name": "Test Sender",
         "reply_to": "reply@example.com",
-        "title": "Test Campaign Title"
+        "title": "Test Campaign Title",
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -235,11 +185,7 @@ async def test_create_campaign():
 
 async def test_get_campaign():
     """Test getting a specific campaign."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {"campaign_id": "your_campaign_id_here"}
 
