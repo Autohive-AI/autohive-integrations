@@ -138,12 +138,18 @@ class GetChannels(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             response = await context.fetch(
-                service_endpoint + "channels", method="GET", headers=get_auth_headers(context)
+                service_endpoint + "channels",
+                method="GET",
+                headers=get_auth_headers(context),
             )
 
             channels = []
             # Handle both array response and object with items property
-            items = response if isinstance(response, list) else response.get("items", response.get("channels", []))
+            items = (
+                response
+                if isinstance(response, list)
+                else response.get("items", response.get("channels", []))
+            )
             for raw_channel in items:
                 channels.append(HeartbeatDataParser.parse_channel(raw_channel))
 
@@ -160,10 +166,15 @@ class GetChannel(ActionHandler):
             channel_id = inputs["channel_id"]
 
             response = await context.fetch(
-                service_endpoint + f"channels/{channel_id}", method="GET", headers=get_auth_headers(context)
+                service_endpoint + f"channels/{channel_id}",
+                method="GET",
+                headers=get_auth_headers(context),
             )
 
-            return {"channel": HeartbeatDataParser.parse_channel(response), "result": True}
+            return {
+                "channel": HeartbeatDataParser.parse_channel(response),
+                "result": True,
+            }
 
         except Exception as e:
             return {"channel": {}, "result": False, "error": str(e)}
@@ -176,12 +187,18 @@ class GetChannelThreads(ActionHandler):
             channel_id = inputs["channel_id"]
 
             response = await context.fetch(
-                service_endpoint + f"channels/{channel_id}/threads", method="GET", headers=get_auth_headers(context)
+                service_endpoint + f"channels/{channel_id}/threads",
+                method="GET",
+                headers=get_auth_headers(context),
             )
 
             threads = []
             # Handle both array response and object with items property
-            items = response if isinstance(response, list) else response.get("items", response.get("threads", []))
+            items = (
+                response
+                if isinstance(response, list)
+                else response.get("items", response.get("threads", []))
+            )
             for raw_thread in items:
                 threads.append(HeartbeatDataParser.parse_thread(raw_thread))
 
@@ -198,10 +215,15 @@ class GetThread(ActionHandler):
             thread_id = inputs["thread_id"]
 
             response = await context.fetch(
-                service_endpoint + f"threads/{thread_id}", method="GET", headers=get_auth_headers(context)
+                service_endpoint + f"threads/{thread_id}",
+                method="GET",
+                headers=get_auth_headers(context),
             )
 
-            return {"thread": HeartbeatDataParser.parse_thread(response), "result": True}
+            return {
+                "thread": HeartbeatDataParser.parse_thread(response),
+                "result": True,
+            }
 
         except Exception as e:
             return {"thread": {}, "result": False, "error": str(e)}
@@ -211,11 +233,19 @@ class GetThread(ActionHandler):
 class GetUsers(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            response = await context.fetch(service_endpoint + "users", method="GET", headers=get_auth_headers(context))
+            response = await context.fetch(
+                service_endpoint + "users",
+                method="GET",
+                headers=get_auth_headers(context),
+            )
 
             users = []
             # Handle both array response and object with items property
-            items = response if isinstance(response, list) else response.get("items", response.get("users", []))
+            items = (
+                response
+                if isinstance(response, list)
+                else response.get("items", response.get("users", []))
+            )
             for raw_user in items:
                 users.append(HeartbeatDataParser.parse_user(raw_user))
 
@@ -232,7 +262,9 @@ class GetUser(ActionHandler):
             user_id = inputs["user_id"]
 
             response = await context.fetch(
-                service_endpoint + f"users/{user_id}", method="GET", headers=get_auth_headers(context)
+                service_endpoint + f"users/{user_id}",
+                method="GET",
+                headers=get_auth_headers(context),
             )
 
             return {"user": HeartbeatDataParser.parse_user(response), "result": True}
@@ -245,11 +277,19 @@ class GetUser(ActionHandler):
 class GetEvents(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            response = await context.fetch(service_endpoint + "events", method="GET", headers=get_auth_headers(context))
+            response = await context.fetch(
+                service_endpoint + "events",
+                method="GET",
+                headers=get_auth_headers(context),
+            )
 
             events = []
             # Handle both array response and object with items property
-            items = response if isinstance(response, list) else response.get("items", response.get("events", []))
+            items = (
+                response
+                if isinstance(response, list)
+                else response.get("items", response.get("events", []))
+            )
             for raw_event in items:
                 events.append(HeartbeatDataParser.parse_event(raw_event))
 
@@ -266,7 +306,9 @@ class GetEvent(ActionHandler):
             event_id = inputs["event_id"]
 
             response = await context.fetch(
-                service_endpoint + f"events/{event_id}", method="GET", headers=get_auth_headers(context)
+                service_endpoint + f"events/{event_id}",
+                method="GET",
+                headers=get_auth_headers(context),
             )
 
             return {"event": HeartbeatDataParser.parse_event(response), "result": True}
@@ -299,10 +341,16 @@ class CreateComment(ActionHandler):
                 request_body["userID"] = inputs["user_id"]
 
             response = await context.fetch(
-                service_endpoint + "comments", method="PUT", headers=get_auth_headers(context), json=request_body
+                service_endpoint + "comments",
+                method="PUT",
+                headers=get_auth_headers(context),
+                json=request_body,
             )
 
-            return {"comment": HeartbeatDataParser.parse_comment(response), "result": True}
+            return {
+                "comment": HeartbeatDataParser.parse_comment(response),
+                "result": True,
+            }
 
         except Exception as e:
             return {"comment": {}, "result": False, "error": str(e)}
@@ -324,10 +372,16 @@ class CreateThread(ActionHandler):
                 request_body["userID"] = inputs["user_id"]
 
             response = await context.fetch(
-                service_endpoint + "threads", method="PUT", headers=get_auth_headers(context), json=request_body
+                service_endpoint + "threads",
+                method="PUT",
+                headers=get_auth_headers(context),
+                json=request_body,
             )
 
-            return {"thread": HeartbeatDataParser.parse_thread(response), "result": True}
+            return {
+                "thread": HeartbeatDataParser.parse_thread(response),
+                "result": True,
+            }
 
         except Exception as e:
             return {"thread": {}, "result": False, "error": str(e)}

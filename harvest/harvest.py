@@ -41,7 +41,9 @@ class CreateTimeEntry(ActionHandler):
             if "external_reference" in inputs:
                 payload["external_reference"] = inputs["external_reference"]
 
-            response = await context.fetch(f"{HARVEST_API_BASE}/time_entries", method="POST", json=payload)
+            response = await context.fetch(
+                f"{HARVEST_API_BASE}/time_entries", method="POST", json=payload
+            )
 
             return {"success": True, "time_entry": response}
 
@@ -57,7 +59,9 @@ class StopTimeEntry(ActionHandler):
         try:
             time_entry_id = inputs["time_entry_id"]
 
-            response = await context.fetch(f"{HARVEST_API_BASE}/time_entries/{time_entry_id}/stop", method="PATCH")
+            response = await context.fetch(
+                f"{HARVEST_API_BASE}/time_entries/{time_entry_id}/stop", method="PATCH"
+            )
 
             return {"success": True, "time_entry": response}
 
@@ -107,7 +111,9 @@ class ListTimeEntries(ActionHandler):
             if "per_page" in inputs:
                 params["per_page"] = inputs["per_page"]
 
-            response = await context.fetch(f"{HARVEST_API_BASE}/time_entries", method="GET", params=params)
+            response = await context.fetch(
+                f"{HARVEST_API_BASE}/time_entries", method="GET", params=params
+            )
 
             return {
                 "success": True,
@@ -161,7 +167,9 @@ class UpdateTimeEntry(ActionHandler):
                 payload["external_reference"] = inputs["external_reference"]
 
             response = await context.fetch(
-                f"{HARVEST_API_BASE}/time_entries/{time_entry_id}", method="PATCH", json=payload
+                f"{HARVEST_API_BASE}/time_entries/{time_entry_id}",
+                method="PATCH",
+                json=payload,
             )
 
             return {"success": True, "time_entry": response}
@@ -178,9 +186,14 @@ class DeleteTimeEntry(ActionHandler):
         try:
             time_entry_id = inputs["time_entry_id"]
 
-            await context.fetch(f"{HARVEST_API_BASE}/time_entries/{time_entry_id}", method="DELETE")
+            await context.fetch(
+                f"{HARVEST_API_BASE}/time_entries/{time_entry_id}", method="DELETE"
+            )
 
-            return {"success": True, "message": f"Time entry {time_entry_id} deleted successfully"}
+            return {
+                "success": True,
+                "message": f"Time entry {time_entry_id} deleted successfully",
+            }
 
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -210,7 +223,9 @@ class ListProjects(ActionHandler):
             if "per_page" in inputs:
                 params["per_page"] = inputs["per_page"]
 
-            response = await context.fetch(f"{HARVEST_API_BASE}/projects", method="GET", params=params)
+            response = await context.fetch(
+                f"{HARVEST_API_BASE}/projects", method="GET", params=params
+            )
 
             return {
                 "success": True,
@@ -236,7 +251,9 @@ class GetProject(ActionHandler):
         try:
             project_id = inputs["project_id"]
 
-            response = await context.fetch(f"{HARVEST_API_BASE}/projects/{project_id}", method="GET")
+            response = await context.fetch(
+                f"{HARVEST_API_BASE}/projects/{project_id}", method="GET"
+            )
 
             return {"success": True, "project": response}
 
@@ -265,7 +282,9 @@ class ListClients(ActionHandler):
             if "per_page" in inputs:
                 params["per_page"] = inputs["per_page"]
 
-            response = await context.fetch(f"{HARVEST_API_BASE}/clients", method="GET", params=params)
+            response = await context.fetch(
+                f"{HARVEST_API_BASE}/clients", method="GET", params=params
+            )
 
             return {
                 "success": True,
@@ -304,7 +323,9 @@ class ListTasks(ActionHandler):
             if "per_page" in inputs:
                 params["per_page"] = inputs["per_page"]
 
-            response = await context.fetch(f"{HARVEST_API_BASE}/tasks", method="GET", params=params)
+            response = await context.fetch(
+                f"{HARVEST_API_BASE}/tasks", method="GET", params=params
+            )
 
             return {
                 "success": True,
@@ -343,7 +364,9 @@ class ListUsers(ActionHandler):
             if "per_page" in inputs:
                 params["per_page"] = inputs["per_page"]
 
-            response = await context.fetch(f"{HARVEST_API_BASE}/users", method="GET", params=params)
+            response = await context.fetch(
+                f"{HARVEST_API_BASE}/users", method="GET", params=params
+            )
 
             return {
                 "success": True,

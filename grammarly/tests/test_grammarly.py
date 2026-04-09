@@ -5,7 +5,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 # Configuration - Replace these placeholder values with actual values for testing
 CLIENT_ID = "your_client_id_here"  # Replace with actual Grammarly Client ID
-CLIENT_SECRET = "your_client_secret_here"  # Replace with actual Grammarly Client Secret
+CLIENT_SECRET = "your_client_secret_here"  # Replace with actual Grammarly Client Secret  # nosec B105
 
 # Sample test content
 SAMPLE_TEXT = """
@@ -20,7 +20,10 @@ async def test_writing_score_workflow():
     """Test complete writing score workflow: submit document and get results."""
     print("=== TESTING WRITING SCORE API WORKFLOW ===")
 
-    auth = {"auth_type": "custom", "credentials": {"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET}}
+    auth = {
+        "auth_type": "custom",
+        "credentials": {"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET},
+    }
 
     try:
         # Step 1: Submit document for analysis
@@ -28,7 +31,9 @@ async def test_writing_score_workflow():
         analyze_inputs = {"filename": "test_document.txt", "file_content": SAMPLE_TEXT}
 
         async with ExecutionContext(auth=auth) as context:
-            analyze_result = await grammarly.execute_action("analyze_writing_score", analyze_inputs, context)
+            analyze_result = await grammarly.execute_action(
+                "analyze_writing_score", analyze_inputs, context
+            )
 
             if analyze_result.get("result"):
                 score_request_id = analyze_result.get("score_request_id")
@@ -47,7 +52,9 @@ async def test_writing_score_workflow():
             results_inputs = {"score_request_id": score_request_id}
 
             async with ExecutionContext(auth=auth) as context:
-                results = await grammarly.execute_action("get_writing_score_results", results_inputs, context)
+                results = await grammarly.execute_action(
+                    "get_writing_score_results", results_inputs, context
+                )
 
                 if results.get("result"):
                     status = results.get("status")
@@ -78,15 +85,23 @@ async def test_ai_detection_workflow():
     """Test complete AI detection workflow: submit document and get results."""
     print("=== TESTING AI DETECTION API WORKFLOW ===")
 
-    auth = {"auth_type": "custom", "credentials": {"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET}}
+    auth = {
+        "auth_type": "custom",
+        "credentials": {"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET},
+    }
 
     try:
         # Step 1: Submit document for AI detection
         print("1. Submitting document for AI detection analysis...")
-        analyze_inputs = {"filename": "ai_test_document.txt", "file_content": SAMPLE_TEXT}
+        analyze_inputs = {
+            "filename": "ai_test_document.txt",
+            "file_content": SAMPLE_TEXT,
+        }
 
         async with ExecutionContext(auth=auth) as context:
-            analyze_result = await grammarly.execute_action("analyze_ai_detection", analyze_inputs, context)
+            analyze_result = await grammarly.execute_action(
+                "analyze_ai_detection", analyze_inputs, context
+            )
 
             if analyze_result.get("result"):
                 score_request_id = analyze_result.get("score_request_id")
@@ -105,7 +120,9 @@ async def test_ai_detection_workflow():
             results_inputs = {"score_request_id": score_request_id}
 
             async with ExecutionContext(auth=auth) as context:
-                results = await grammarly.execute_action("get_ai_detection_results", results_inputs, context)
+                results = await grammarly.execute_action(
+                    "get_ai_detection_results", results_inputs, context
+                )
 
                 if results.get("result"):
                     status = results.get("status")
@@ -113,8 +130,12 @@ async def test_ai_detection_workflow():
 
                     if status == "COMPLETED":
                         print("   ✓ AI Detection completed!")
-                        print(f"   Average Confidence: {results.get('average_confidence')}")
-                        print(f"   AI Generated Percentage: {results.get('ai_generated_percentage')}%")
+                        print(
+                            f"   Average Confidence: {results.get('average_confidence')}"
+                        )
+                        print(
+                            f"   AI Generated Percentage: {results.get('ai_generated_percentage')}%"
+                        )
                         break
                     elif status == "FAILED":
                         print("   ✗ AI Detection failed")
@@ -133,15 +154,23 @@ async def test_plagiarism_detection_workflow():
     """Test complete plagiarism detection workflow: submit document and get results."""
     print("=== TESTING PLAGIARISM DETECTION API WORKFLOW ===")
 
-    auth = {"auth_type": "custom", "credentials": {"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET}}
+    auth = {
+        "auth_type": "custom",
+        "credentials": {"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET},
+    }
 
     try:
         # Step 1: Submit document for plagiarism detection
         print("1. Submitting document for plagiarism detection analysis...")
-        analyze_inputs = {"filename": "plagiarism_test_document.txt", "file_content": SAMPLE_TEXT}
+        analyze_inputs = {
+            "filename": "plagiarism_test_document.txt",
+            "file_content": SAMPLE_TEXT,
+        }
 
         async with ExecutionContext(auth=auth) as context:
-            analyze_result = await grammarly.execute_action("analyze_plagiarism_detection", analyze_inputs, context)
+            analyze_result = await grammarly.execute_action(
+                "analyze_plagiarism_detection", analyze_inputs, context
+            )
 
             if analyze_result.get("result"):
                 score_request_id = analyze_result.get("score_request_id")
@@ -160,7 +189,9 @@ async def test_plagiarism_detection_workflow():
             results_inputs = {"score_request_id": score_request_id}
 
             async with ExecutionContext(auth=auth) as context:
-                results = await grammarly.execute_action("get_plagiarism_detection_results", results_inputs, context)
+                results = await grammarly.execute_action(
+                    "get_plagiarism_detection_results", results_inputs, context
+                )
 
                 if results.get("result"):
                     status = results.get("status")
@@ -168,8 +199,12 @@ async def test_plagiarism_detection_workflow():
 
                     if status == "COMPLETED":
                         print("   ✓ Plagiarism Detection completed!")
-                        print(f"   Originality Score: {results.get('originality_score')}")
-                        print(f"   Plagiarism Percentage: {results.get('plagiarism_percentage')}%")
+                        print(
+                            f"   Originality Score: {results.get('originality_score')}"
+                        )
+                        print(
+                            f"   Plagiarism Percentage: {results.get('plagiarism_percentage')}%"
+                        )
                         break
                     elif status == "FAILED":
                         print("   ✗ Plagiarism Detection failed")
@@ -188,7 +223,10 @@ async def test_analytics_api():
     """Test Analytics API for user statistics."""
     print("=== TESTING ANALYTICS API ===")
 
-    auth = {"auth_type": "custom", "credentials": {"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET}}
+    auth = {
+        "auth_type": "custom",
+        "credentials": {"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET},
+    }
 
     try:
         # Get current date and calculate date range
@@ -202,7 +240,9 @@ async def test_analytics_api():
         inputs = {"date_from": date_from, "date_to": date_to, "limit": 10}
 
         async with ExecutionContext(auth=auth) as context:
-            result = await grammarly.execute_action("get_user_analytics", inputs, context)
+            result = await grammarly.execute_action(
+                "get_user_analytics", inputs, context
+            )
 
             if result.get("result"):
                 data = result.get("data", [])
@@ -219,7 +259,9 @@ async def test_analytics_api():
                     print(f"     Email: {user.get('email')}")
                     print(f"     Days Active: {user.get('days_active')}")
                     print(f"     Sessions: {user.get('sessions_count')}")
-                    print(f"     Sessions Improved: {user.get('sessions_improved_percent')}%")
+                    print(
+                        f"     Sessions Improved: {user.get('sessions_improved_percent')}%"
+                    )
                     print(f"     AI Prompts: {user.get('prompt_count')}")
             else:
                 print(f"   ✗ Failed to retrieve analytics: {result.get('error')}")
@@ -238,7 +280,7 @@ async def main():
     print()
 
     # Check if credentials are set
-    if CLIENT_ID == "your_client_id_here" or CLIENT_SECRET == "your_client_secret_here":
+    if CLIENT_ID == "your_client_id_here" or CLIENT_SECRET == "your_client_secret_here":  # nosec B105
         print("⚠ WARNING: Please set CLIENT_ID and CLIENT_SECRET before running tests!")
         print("Edit the test_grammarly.py file and replace the placeholder values.\n")
         return

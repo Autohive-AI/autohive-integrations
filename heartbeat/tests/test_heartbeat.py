@@ -20,10 +20,16 @@ async def test_get_channels():
 
     async with ExecutionContext(auth=CREDENTIALS) as context:
         try:
-            result = await heartbeat.heartbeat.execute_action("get_heartbeat_channels", inputs, context)
-            print(f"✅ Get Channels - Success: Found {len(result.get('channels', []))} channels")
+            result = await heartbeat.heartbeat.execute_action(
+                "get_heartbeat_channels", inputs, context
+            )
+            print(
+                f"✅ Get Channels - Success: Found {len(result.get('channels', []))} channels"
+            )
             for channel in result.get("channels", [])[:3]:  # Show first 3 channels
-                print(f"   - {channel.get('name', 'Unnamed')} (ID: {channel.get('id')})")
+                print(
+                    f"   - {channel.get('name', 'Unnamed')} (ID: {channel.get('id')})"
+                )
             return result
         except Exception as e:
             print(f"❌ Error testing get_heartbeat_channels: {str(e)}")
@@ -39,8 +45,12 @@ async def test_get_channel(channel_id: str = None):
 
     async with ExecutionContext(auth=CREDENTIALS) as context:
         try:
-            result = await heartbeat.heartbeat.execute_action("get_heartbeat_channel", inputs, context)
-            print(f"✅ Get Channel - Success: {result.get('channel', {}).get('name', 'Unnamed')}")
+            result = await heartbeat.heartbeat.execute_action(
+                "get_heartbeat_channel", inputs, context
+            )
+            print(
+                f"✅ Get Channel - Success: {result.get('channel', {}).get('name', 'Unnamed')}"
+            )
             return result
         except Exception as e:
             print(f"❌ Error testing get_heartbeat_channel: {str(e)}")
@@ -55,10 +65,16 @@ async def test_get_channel_threads(channel_id: str = None):
 
     async with ExecutionContext(auth=CREDENTIALS) as context:
         try:
-            result = await heartbeat.heartbeat.execute_action("get_heartbeat_channel_threads", inputs, context)
-            print(f"✅ Get Channel Threads - Success: Found {len(result.get('threads', []))} threads")
+            result = await heartbeat.heartbeat.execute_action(
+                "get_heartbeat_channel_threads", inputs, context
+            )
+            print(
+                f"✅ Get Channel Threads - Success: Found {len(result.get('threads', []))} threads"
+            )
             for thread in result.get("threads", [])[:3]:  # Show first 3 threads
-                print(f"   - {thread.get('title', 'Untitled')} (ID: {thread.get('id')})")
+                print(
+                    f"   - {thread.get('title', 'Untitled')} (ID: {thread.get('id')})"
+                )
             return result
         except Exception as e:
             print(f"❌ Error testing get_heartbeat_channel_threads: {str(e)}")
@@ -73,8 +89,12 @@ async def test_get_thread(thread_id: str = None):
 
     async with ExecutionContext(auth=CREDENTIALS) as context:
         try:
-            result = await heartbeat.heartbeat.execute_action("get_heartbeat_thread", inputs, context)
-            print(f"✅ Get Thread - Success: {result.get('thread', {}).get('title', 'Untitled')}")
+            result = await heartbeat.heartbeat.execute_action(
+                "get_heartbeat_thread", inputs, context
+            )
+            print(
+                f"✅ Get Thread - Success: {result.get('thread', {}).get('title', 'Untitled')}"
+            )
             return result
         except Exception as e:
             print(f"❌ Error testing get_heartbeat_thread: {str(e)}")
@@ -87,10 +107,14 @@ async def test_get_users():
 
     async with ExecutionContext(auth=CREDENTIALS) as context:
         try:
-            result = await heartbeat.heartbeat.execute_action("get_heartbeat_users", inputs, context)
+            result = await heartbeat.heartbeat.execute_action(
+                "get_heartbeat_users", inputs, context
+            )
             print(f"✅ Get Users - Success: Found {len(result.get('users', []))} users")
             for user in result.get("users", [])[:3]:  # Show first 3 users
-                print(f"   - {user.get('name', 'Unnamed')} ({user.get('email', 'No email')})")
+                print(
+                    f"   - {user.get('name', 'Unnamed')} ({user.get('email', 'No email')})"
+                )
             return result
         except Exception as e:
             print(f"❌ Error testing get_heartbeat_users: {str(e)}")
@@ -105,8 +129,12 @@ async def test_get_user(user_id: str = None):
 
     async with ExecutionContext(auth=CREDENTIALS) as context:
         try:
-            result = await heartbeat.heartbeat.execute_action("get_heartbeat_user", inputs, context)
-            print(f"✅ Get User - Success: {result.get('user', {}).get('name', 'Unnamed')}")
+            result = await heartbeat.heartbeat.execute_action(
+                "get_heartbeat_user", inputs, context
+            )
+            print(
+                f"✅ Get User - Success: {result.get('user', {}).get('name', 'Unnamed')}"
+            )
             return result
         except Exception as e:
             print(f"❌ Error testing get_heartbeat_user: {str(e)}")
@@ -119,10 +147,16 @@ async def test_get_events():
 
     async with ExecutionContext(auth=CREDENTIALS) as context:
         try:
-            result = await heartbeat.heartbeat.execute_action("get_heartbeat_events", inputs, context)
-            print(f"✅ Get Events - Success: Found {len(result.get('events', []))} events")
+            result = await heartbeat.heartbeat.execute_action(
+                "get_heartbeat_events", inputs, context
+            )
+            print(
+                f"✅ Get Events - Success: Found {len(result.get('events', []))} events"
+            )
             for event in result.get("events", [])[:3]:  # Show first 3 events
-                print(f"   - {event.get('title', 'Untitled')} (Start: {event.get('startTime', 'No time')})")
+                print(
+                    f"   - {event.get('title', 'Untitled')} (Start: {event.get('startTime', 'No time')})"
+                )
             return result
         except Exception as e:
             print(f"❌ Error testing get_heartbeat_events: {str(e)}")
@@ -137,8 +171,12 @@ async def test_get_event(event_id: str = None):
 
     async with ExecutionContext(auth=CREDENTIALS) as context:
         try:
-            result = await heartbeat.heartbeat.execute_action("get_heartbeat_event", inputs, context)
-            print(f"✅ Get Event - Success: {result.get('event', {}).get('title', 'Untitled')}")
+            result = await heartbeat.heartbeat.execute_action(
+                "get_heartbeat_event", inputs, context
+            )
+            print(
+                f"✅ Get Event - Success: {result.get('event', {}).get('title', 'Untitled')}"
+            )
             return result
         except Exception as e:
             print(f"❌ Error testing get_heartbeat_event: {str(e)}")
@@ -148,8 +186,12 @@ async def test_get_event(event_id: str = None):
 async def main():
     print("Testing Heartbeat Integration")
     print("============================")
-    print("📝 Make sure to replace 'YOUR_HEARTBEAT_API_KEY_HERE' with your actual API key!")
-    print("📝 Also replace the placeholder IDs with real IDs from your Heartbeat community.")
+    print(
+        "📝 Make sure to replace 'YOUR_HEARTBEAT_API_KEY_HERE' with your actual API key!"
+    )
+    print(
+        "📝 Also replace the placeholder IDs with real IDs from your Heartbeat community."
+    )
     print()
 
     # Test list endpoints first (these don't need specific IDs)
@@ -177,7 +219,9 @@ async def main():
     await test_get_event()
 
     print("\n🎉 Testing complete!")
-    print("💡 To test specific items, update the placeholder IDs in the test functions.")
+    print(
+        "💡 To test specific items, update the placeholder IDs in the test functions."
+    )
 
 
 if __name__ == "__main__":

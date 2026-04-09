@@ -14,7 +14,10 @@ async def test_create_time_entry():
     """Test creating a time entry in Harvest"""
     print("\n--- Testing create_time_entry ---")
 
-    auth = {"access_token": "your_harvest_access_token_here", "account_id": "your_harvest_account_id_here"}
+    auth = {
+        "access_token": "your_harvest_access_token_here",
+        "account_id": "your_harvest_account_id_here",
+    }  # nosec B105
 
     inputs = {
         "project_id": 12345,  # Replace with actual project ID
@@ -45,7 +48,10 @@ async def test_stop_time_entry():
     """Test stopping a running time entry"""
     print("\n--- Testing stop_time_entry ---")
 
-    auth = {"access_token": "your_harvest_access_token_here", "account_id": "your_harvest_account_id_here"}
+    auth = {
+        "access_token": "your_harvest_access_token_here",
+        "account_id": "your_harvest_account_id_here",
+    }  # nosec B105
 
     # First create a running timer
     create_inputs = {
@@ -59,7 +65,9 @@ async def test_stop_time_entry():
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create running timer
-            create_result = await harvest.execute_action("create_time_entry", create_inputs, context)
+            create_result = await harvest.execute_action(
+                "create_time_entry", create_inputs, context
+            )
             if not create_result.get("success"):
                 print(f"✗ Failed to create running timer: {create_result.get('error')}")
                 return
@@ -69,7 +77,9 @@ async def test_stop_time_entry():
 
             # Stop the timer
             stop_inputs = {"time_entry_id": time_entry_id}
-            result = await harvest.execute_action("stop_time_entry", stop_inputs, context)
+            result = await harvest.execute_action(
+                "stop_time_entry", stop_inputs, context
+            )
 
             if result.get("success"):
                 entry = result.get("time_entry", {})
@@ -85,7 +95,10 @@ async def test_list_time_entries():
     """Test listing time entries from Harvest"""
     print("\n--- Testing list_time_entries ---")
 
-    auth = {"access_token": "your_harvest_access_token_here", "account_id": "your_harvest_account_id_here"}
+    auth = {
+        "access_token": "your_harvest_access_token_here",
+        "account_id": "your_harvest_account_id_here",
+    }  # nosec B105
 
     inputs = {"per_page": 10, "is_running": False}
 
@@ -96,9 +109,13 @@ async def test_list_time_entries():
                 entries = result.get("time_entries", [])
                 print(f"✓ Successfully retrieved {len(entries)} time entries")
                 print(f"  Total entries: {result.get('total_entries')}")
-                print(f"  Current page: {result.get('page')}/{result.get('total_pages')}")
+                print(
+                    f"  Current page: {result.get('page')}/{result.get('total_pages')}"
+                )
                 for entry in entries[:3]:  # Show first 3
-                    print(f"  - {entry.get('notes', 'No notes')} ({entry.get('hours')}h) - {entry.get('spent_date')}")
+                    print(
+                        f"  - {entry.get('notes', 'No notes')} ({entry.get('hours')}h) - {entry.get('spent_date')}"
+                    )
             else:
                 print(f"✗ Error: {result.get('error')}")
         except Exception as e:
@@ -109,7 +126,10 @@ async def test_update_time_entry():
     """Test updating an existing time entry"""
     print("\n--- Testing update_time_entry ---")
 
-    auth = {"access_token": "your_harvest_access_token_here", "account_id": "your_harvest_account_id_here"}
+    auth = {
+        "access_token": "your_harvest_access_token_here",
+        "account_id": "your_harvest_account_id_here",
+    }  # nosec B105
 
     # First create a time entry
     create_inputs = {
@@ -123,7 +143,9 @@ async def test_update_time_entry():
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create entry
-            create_result = await harvest.execute_action("create_time_entry", create_inputs, context)
+            create_result = await harvest.execute_action(
+                "create_time_entry", create_inputs, context
+            )
             if not create_result.get("success"):
                 print(f"✗ Failed to create time entry: {create_result.get('error')}")
                 return
@@ -132,8 +154,14 @@ async def test_update_time_entry():
             print(f"  Created time entry (ID: {time_entry_id})")
 
             # Update the entry
-            update_inputs = {"time_entry_id": time_entry_id, "hours": 2.5, "notes": "Updated notes from test"}
-            result = await harvest.execute_action("update_time_entry", update_inputs, context)
+            update_inputs = {
+                "time_entry_id": time_entry_id,
+                "hours": 2.5,
+                "notes": "Updated notes from test",
+            }
+            result = await harvest.execute_action(
+                "update_time_entry", update_inputs, context
+            )
 
             if result.get("success"):
                 entry = result.get("time_entry", {})
@@ -150,7 +178,10 @@ async def test_delete_time_entry():
     """Test deleting a time entry"""
     print("\n--- Testing delete_time_entry ---")
 
-    auth = {"access_token": "your_harvest_access_token_here", "account_id": "your_harvest_account_id_here"}
+    auth = {
+        "access_token": "your_harvest_access_token_here",
+        "account_id": "your_harvest_account_id_here",
+    }  # nosec B105
 
     # First create a time entry to delete
     create_inputs = {
@@ -164,7 +195,9 @@ async def test_delete_time_entry():
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create entry
-            create_result = await harvest.execute_action("create_time_entry", create_inputs, context)
+            create_result = await harvest.execute_action(
+                "create_time_entry", create_inputs, context
+            )
             if not create_result.get("success"):
                 print(f"✗ Failed to create time entry: {create_result.get('error')}")
                 return
@@ -174,7 +207,9 @@ async def test_delete_time_entry():
 
             # Delete the entry
             delete_inputs = {"time_entry_id": time_entry_id}
-            result = await harvest.execute_action("delete_time_entry", delete_inputs, context)
+            result = await harvest.execute_action(
+                "delete_time_entry", delete_inputs, context
+            )
 
             if result.get("success"):
                 print("✓ Successfully deleted time entry")
@@ -189,7 +224,10 @@ async def test_list_projects():
     """Test listing projects from Harvest"""
     print("\n--- Testing list_projects ---")
 
-    auth = {"access_token": "your_harvest_access_token_here", "account_id": "your_harvest_account_id_here"}
+    auth = {
+        "access_token": "your_harvest_access_token_here",
+        "account_id": "your_harvest_account_id_here",
+    }  # nosec B105
 
     inputs = {"is_active": True, "per_page": 10}
 
@@ -202,7 +240,9 @@ async def test_list_projects():
                 print(f"  Total projects: {result.get('total_entries')}")
                 for project in projects[:3]:  # Show first 3
                     client = project.get("client", {})
-                    print(f"  - {project.get('name')} (ID: {project.get('id')}) - Client: {client.get('name', 'N/A')}")
+                    print(
+                        f"  - {project.get('name')} (ID: {project.get('id')}) - Client: {client.get('name', 'N/A')}"
+                    )
             else:
                 print(f"✗ Error: {result.get('error')}")
         except Exception as e:
@@ -213,7 +253,10 @@ async def test_get_project():
     """Test getting a specific project by ID"""
     print("\n--- Testing get_project ---")
 
-    auth = {"access_token": "your_harvest_access_token_here", "account_id": "your_harvest_account_id_here"}
+    auth = {
+        "access_token": "your_harvest_access_token_here",
+        "account_id": "your_harvest_account_id_here",
+    }  # nosec B105
 
     inputs = {
         "project_id": 12345  # Replace with actual project ID
@@ -240,7 +283,10 @@ async def test_list_clients():
     """Test listing clients from Harvest"""
     print("\n--- Testing list_clients ---")
 
-    auth = {"access_token": "your_harvest_access_token_here", "account_id": "your_harvest_account_id_here"}
+    auth = {
+        "access_token": "your_harvest_access_token_here",
+        "account_id": "your_harvest_account_id_here",
+    }  # nosec B105
 
     inputs = {"is_active": True, "per_page": 10}
 
@@ -263,7 +309,10 @@ async def test_list_tasks():
     """Test listing tasks from Harvest"""
     print("\n--- Testing list_tasks ---")
 
-    auth = {"access_token": "your_harvest_access_token_here", "account_id": "your_harvest_account_id_here"}
+    auth = {
+        "access_token": "your_harvest_access_token_here",
+        "account_id": "your_harvest_account_id_here",
+    }  # nosec B105
 
     inputs = {"is_active": True, "per_page": 10}
 
@@ -288,7 +337,10 @@ async def test_list_users():
     """Test listing users (team members) from Harvest"""
     print("\n--- Testing list_users ---")
 
-    auth = {"access_token": "your_harvest_access_token_here", "account_id": "your_harvest_account_id_here"}
+    auth = {
+        "access_token": "your_harvest_access_token_here",
+        "account_id": "your_harvest_account_id_here",
+    }  # nosec B105
 
     inputs = {"is_active": True, "per_page": 10}
 
@@ -300,7 +352,9 @@ async def test_list_users():
                 print(f"✓ Successfully retrieved {len(users)} users")
                 print(f"  Total users: {result.get('total_entries')}")
                 for user in users[:3]:  # Show first 3
-                    print(f"  - {user.get('first_name')} {user.get('last_name')} ({user.get('email')})")
+                    print(
+                        f"  - {user.get('first_name')} {user.get('last_name')} ({user.get('email')})"
+                    )
             else:
                 print(f"✗ Error: {result.get('error')}")
         except Exception as e:
