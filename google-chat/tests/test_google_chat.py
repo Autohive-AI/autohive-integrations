@@ -6,12 +6,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_list_spaces():
     """Test listing all spaces the user is a member of."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {"page_size": 10}
 
@@ -27,12 +22,7 @@ async def test_list_spaces():
 
 async def test_get_space():
     """Test getting details of a specific space."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {"space_name": "spaces/AAAAMpdlehY"}  # Replace with actual space name
 
@@ -48,19 +38,14 @@ async def test_get_space():
 
 async def test_create_space():
     """Test creating a new Google Chat space."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {
         "display_name": "Test Space via Integration",
         "space_details": {
             "description": "A test space created via API integration",
-            "guidelines": "Please be respectful and on-topic"
-        }
+            "guidelines": "Please be respectful and on-topic",
+        },
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -75,16 +60,11 @@ async def test_create_space():
 
 async def test_send_message():
     """Test sending a message to a space."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {
         "space_name": "spaces/AAAAMpdlehY",  # Replace with actual space name
-        "text": "Hello from Autohive integration! This is a test message."
+        "text": "Hello from Autohive integration! This is a test message.",
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -99,16 +79,11 @@ async def test_send_message():
 
 async def test_list_messages():
     """Test listing messages from a space."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {
         "space_name": "spaces/AAAAMpdlehY",  # Replace with actual space name
-        "page_size": 10
+        "page_size": 10,
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -123,12 +98,7 @@ async def test_list_messages():
 
 async def test_get_message():
     """Test getting details of a specific message."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {"message_name": "spaces/AAAAMpdlehY/messages/xyz"}  # Replace with actual message name
 
@@ -144,16 +114,11 @@ async def test_get_message():
 
 async def test_update_message():
     """Test updating a previously sent message."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {
         "message_name": "spaces/AAAAMpdlehY/messages/xyz",  # Replace with actual message name
-        "text": "Updated message content from Autohive integration"
+        "text": "Updated message content from Autohive integration",
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -168,16 +133,11 @@ async def test_update_message():
 
 async def test_delete_message():
     """Test deleting a message."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {
         "message_name": "spaces/AAAAMpdlehY/messages/xyz",  # Replace with actual message name
-        "force": False
+        "force": False,
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -192,16 +152,11 @@ async def test_delete_message():
 
 async def test_list_members():
     """Test listing members of a space."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {
         "space_name": "spaces/AAAAMpdlehY",  # Replace with actual space name
-        "page_size": 10
+        "page_size": 10,
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -216,18 +171,11 @@ async def test_list_members():
 
 async def test_add_reaction():
     """Test adding an emoji reaction to a message."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {
         "message_name": "spaces/AAAAMpdlehY/messages/xyz",  # Replace with actual message name
-        "emoji": {
-            "unicode": "👍"
-        }
+        "emoji": {"unicode": "👍"},
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -242,16 +190,11 @@ async def test_add_reaction():
 
 async def test_list_reactions():
     """Test listing reactions on a message."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {
         "message_name": "spaces/AAAAMpdlehY/messages/xyz",  # Replace with actual message name
-        "page_size": 10
+        "page_size": 10,
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -266,12 +209,7 @@ async def test_list_reactions():
 
 async def test_remove_reaction():
     """Test removing a reaction from a message."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {
         "reaction_name": "spaces/AAAAMpdlehY/messages/xyz/reactions/123"  # Replace with actual reaction name
@@ -289,12 +227,7 @@ async def test_remove_reaction():
 
 async def test_find_direct_message():
     """Test finding a direct message conversation with a user."""
-    auth = {
-        "credentials": {
-            "access_token": "your_access_token_here",
-            "refresh_token": "your_refresh_token_here"
-        }
-    }
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
 
     inputs = {
         "user_name": "users/example@gmail.com"  # Replace with actual user name
@@ -331,12 +264,12 @@ async def main():
     print()
 
     print("3. Testing create_space...")
-    created_space = await test_create_space()
+    await test_create_space()
     print()
 
     # Test message actions
     print("4. Testing send_message...")
-    sent_message = await test_send_message()
+    await test_send_message()
     print()
 
     print("5. Testing list_messages...")
