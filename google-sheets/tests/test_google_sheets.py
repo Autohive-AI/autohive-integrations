@@ -32,7 +32,7 @@ sys.modules["googleapiclient.errors"].HttpError = MockHttpError
 
 # Mock the autohive integration SDK
 class MockExecutionContext:
-    def __init__(self, access_token: str = "test_token"):
+    def __init__(self, access_token: str = "test_token"):  # nosec B107
         self.auth = {"credentials": {"access_token": access_token}}
 
 
@@ -288,7 +288,7 @@ class TestGoogleSheetsIntegration:
 
         # Verify Credentials was called with correct parameters
         mock_credentials.assert_called_once_with(
-            token="test_access_token", token_uri="https://oauth2.googleapis.com/token"
+            token="test_access_token", token_uri="https://oauth2.googleapis.com/token"  # nosec B106
         )
         assert result == mock_creds_instance
 

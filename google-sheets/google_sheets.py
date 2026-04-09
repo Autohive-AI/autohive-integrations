@@ -11,7 +11,7 @@ SPREADSHEET_MIMETYPE = "application/vnd.google-apps.spreadsheet"
 
 def build_credentials(context: ExecutionContext) -> Credentials:
     access_token = context.auth["credentials"]["access_token"]
-    return Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")
+    return Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")  # nosec B106
 
 
 def build_sheets_service(context: ExecutionContext):

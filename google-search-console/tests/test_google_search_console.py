@@ -13,7 +13,7 @@ SITE_URL = (
 auth = {
     "auth_type": "custom",
     "credentials": {
-        "access_token": "your_access_token_here"  # Replace with actual access token
+        "access_token": "your_access_token_here"  # Replace with actual access token  # nosec B105
     },
 }
 

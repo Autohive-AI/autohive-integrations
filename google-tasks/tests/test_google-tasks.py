@@ -5,7 +5,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 # Test configuration
 # Note: For real testing, replace with actual OAuth tokens or use mock responses
-TEST_AUTH = {"access_token": "test_token_here"}
+TEST_AUTH = {"access_token": "test_token_here"}  # nosec B105
 
 # Store created resource IDs for cleanup
 created_task_ids = []
