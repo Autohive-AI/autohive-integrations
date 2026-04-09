@@ -1,7 +1,5 @@
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler
-)
-from typing import Dict, Any, List, Optional
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from typing import Dict, Any
 
 # Create the integration using the config.json
 google_tasks = Integration.load()
@@ -20,6 +18,7 @@ GOOGLE_TASKS_API_BASE_URL = "https://tasks.googleapis.com/tasks/v1"
 
 # ---- Tasklist Handlers ----
 
+
 @google_tasks.action("list_tasklists")
 class ListTasklistsAction(ActionHandler):
     """List all task lists for the authenticated user."""
@@ -27,22 +26,20 @@ class ListTasklistsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            if 'maxResults' in inputs:
-                params['maxResults'] = inputs['maxResults']
-            if 'pageToken' in inputs:
-                params['pageToken'] = inputs['pageToken']
+            if "maxResults" in inputs:
+                params["maxResults"] = inputs["maxResults"]
+            if "pageToken" in inputs:
+                params["pageToken"] = inputs["pageToken"]
 
             response = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/users/@me/lists",
-                method="GET",
-                params=params if params else None
+                f"{GOOGLE_TASKS_API_BASE_URL}/users/@me/lists", method="GET", params=params if params else None
             )
 
-            tasklists = response.get('items', [])
+            tasklists = response.get("items", [])
             result = {"tasklists": tasklists, "result": True}
 
-            if 'nextPageToken' in response:
-                result['nextPageToken'] = response['nextPageToken']
+            if "nextPageToken" in response:
+                result["nextPageToken"] = response["nextPageToken"]
 
             return result
 
@@ -56,12 +53,9 @@ class GetTasklistAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            tasklist_id = inputs['tasklist']
+            tasklist_id = inputs["tasklist"]
 
-            response = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/users/@me/lists/{tasklist_id}",
-                method="GET"
-            )
+            response = await context.fetch(f"{GOOGLE_TASKS_API_BASE_URL}/users/@me/lists/{tasklist_id}", method="GET")
 
             return {"tasklist": response, "result": True}
 
@@ -71,36 +65,37 @@ class GetTasklistAction(ActionHandler):
 
 # ---- Task Handlers ----
 
+
 @google_tasks.action("create_task")
 class CreateTaskAction(ActionHandler):
     """Create a new task in a task list."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            tasklist_id = inputs['tasklist']
+            tasklist_id = inputs["tasklist"]
 
             # Build task body
-            body = {"title": inputs['title']}
+            body = {"title": inputs["title"]}
 
-            if 'notes' in inputs and inputs['notes']:
-                body['notes'] = inputs['notes']
-            if 'due' in inputs and inputs['due']:
-                body['due'] = inputs['due']
-            if 'status' in inputs and inputs['status']:
-                body['status'] = inputs['status']
+            if "notes" in inputs and inputs["notes"]:
+                body["notes"] = inputs["notes"]
+            if "due" in inputs and inputs["due"]:
+                body["due"] = inputs["due"]
+            if "status" in inputs and inputs["status"]:
+                body["status"] = inputs["status"]
 
             # Build query params for positioning
             params = {}
-            if 'parent' in inputs and inputs['parent']:
-                params['parent'] = inputs['parent']
-            if 'previous' in inputs and inputs['previous']:
-                params['previous'] = inputs['previous']
+            if "parent" in inputs and inputs["parent"]:
+                params["parent"] = inputs["parent"]
+            if "previous" in inputs and inputs["previous"]:
+                params["previous"] = inputs["previous"]
 
             response = await context.fetch(
                 f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks",
                 method="POST",
                 params=params if params else None,
-                json=body
+                json=body,
             )
 
             return {"task": response, "result": True}
@@ -115,33 +110,31 @@ class ListTasksAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            tasklist_id = inputs['tasklist']
+            tasklist_id = inputs["tasklist"]
 
             params = {}
-            if 'maxResults' in inputs:
-                params['maxResults'] = inputs['maxResults']
-            if 'pageToken' in inputs:
-                params['pageToken'] = inputs['pageToken']
-            if 'showCompleted' in inputs and inputs['showCompleted'] is not None:
-                params['showCompleted'] = str(inputs['showCompleted']).lower()
-            if 'showHidden' in inputs and inputs['showHidden'] is not None:
-                params['showHidden'] = str(inputs['showHidden']).lower()
-            if 'dueMin' in inputs:
-                params['dueMin'] = inputs['dueMin']
-            if 'dueMax' in inputs:
-                params['dueMax'] = inputs['dueMax']
+            if "maxResults" in inputs:
+                params["maxResults"] = inputs["maxResults"]
+            if "pageToken" in inputs:
+                params["pageToken"] = inputs["pageToken"]
+            if "showCompleted" in inputs and inputs["showCompleted"] is not None:
+                params["showCompleted"] = str(inputs["showCompleted"]).lower()
+            if "showHidden" in inputs and inputs["showHidden"] is not None:
+                params["showHidden"] = str(inputs["showHidden"]).lower()
+            if "dueMin" in inputs:
+                params["dueMin"] = inputs["dueMin"]
+            if "dueMax" in inputs:
+                params["dueMax"] = inputs["dueMax"]
 
             response = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks",
-                method="GET",
-                params=params
+                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks", method="GET", params=params
             )
 
-            tasks = response.get('items', [])
+            tasks = response.get("items", [])
             result = {"tasks": tasks, "result": True}
 
-            if 'nextPageToken' in response:
-                result['nextPageToken'] = response['nextPageToken']
+            if "nextPageToken" in response:
+                result["nextPageToken"] = response["nextPageToken"]
 
             return result
 
@@ -155,12 +148,11 @@ class GetTaskAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            tasklist_id = inputs['tasklist']
-            task_id = inputs['task']
+            tasklist_id = inputs["tasklist"]
+            task_id = inputs["task"]
 
             response = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}",
-                method="GET"
+                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="GET"
             )
 
             return {"task": response, "result": True}
@@ -175,42 +167,39 @@ class UpdateTaskAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            tasklist_id = inputs['tasklist']
-            task_id = inputs['task']
+            tasklist_id = inputs["tasklist"]
+            task_id = inputs["task"]
 
             # First, fetch the existing task to preserve unmodified fields
             existing_task = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}",
-                method="GET"
+                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="GET"
             )
 
             # Build update body starting with existing task data
             # NOTE: Google Tasks API requires 'id' in the body even though it's in the URL
             body = {
-                'id': task_id,
-                'title': existing_task.get('title', ''),
-                'notes': existing_task.get('notes', ''),
-                'status': existing_task.get('status', 'needsAction')
+                "id": task_id,
+                "title": existing_task.get("title", ""),
+                "notes": existing_task.get("notes", ""),
+                "status": existing_task.get("status", "needsAction"),
             }
 
             # Preserve 'due' field if it exists
-            if 'due' in existing_task:
-                body['due'] = existing_task['due']
+            if "due" in existing_task:
+                body["due"] = existing_task["due"]
 
             # Override with any provided fields
-            if 'title' in inputs and inputs['title']:
-                body['title'] = inputs['title']
-            if 'notes' in inputs and inputs['notes'] is not None:
-                body['notes'] = inputs['notes']
-            if 'due' in inputs:
-                body['due'] = inputs['due']
-            if 'status' in inputs and inputs['status']:
-                body['status'] = inputs['status']
+            if "title" in inputs and inputs["title"]:
+                body["title"] = inputs["title"]
+            if "notes" in inputs and inputs["notes"] is not None:
+                body["notes"] = inputs["notes"]
+            if "due" in inputs:
+                body["due"] = inputs["due"]
+            if "status" in inputs and inputs["status"]:
+                body["status"] = inputs["status"]
 
             response = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}",
-                method="PUT",
-                json=body
+                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="PUT", json=body
             )
 
             return {"task": response, "result": True}
@@ -225,13 +214,10 @@ class DeleteTaskAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            tasklist_id = inputs['tasklist']
-            task_id = inputs['task']
+            tasklist_id = inputs["tasklist"]
+            task_id = inputs["task"]
 
-            await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}",
-                method="DELETE"
-            )
+            await context.fetch(f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="DELETE")
 
             return {"result": True}
 
@@ -245,25 +231,23 @@ class MoveTaskAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            tasklist_id = inputs['tasklist']
-            task_id = inputs['task']
+            tasklist_id = inputs["tasklist"]
+            task_id = inputs["task"]
 
             # Build query params
             params = {}
-            if 'parent' in inputs and inputs['parent']:
-                params['parent'] = inputs['parent']
-            if 'previous' in inputs and inputs['previous']:
-                params['previous'] = inputs['previous']
+            if "parent" in inputs and inputs["parent"]:
+                params["parent"] = inputs["parent"]
+            if "previous" in inputs and inputs["previous"]:
+                params["previous"] = inputs["previous"]
 
             response = await context.fetch(
                 f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}/move",
                 method="POST",
-                params=params if params else None
+                params=params if params else None,
             )
 
             return {"task": response, "result": True}
 
         except Exception as e:
             return {"task": {}, "result": False, "error": str(e)}
-
-
