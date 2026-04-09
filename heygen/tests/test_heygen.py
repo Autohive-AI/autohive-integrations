@@ -5,7 +5,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 # Test configuration - OAuth 2.0 Authentication
 # Get your access_token via HeyGen OAuth flow: https://app.heygen.com/oauth/authorize
-TEST_AUTH = {"credentials": {"access_token": "your_oauth_access_token_here"}}
+TEST_AUTH = {"credentials": {"access_token": "your_oauth_access_token_here"}}  # nosec B105
 
 # Store IDs for dependent tests
 test_voice_id = None
