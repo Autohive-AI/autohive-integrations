@@ -67,11 +67,7 @@ class MockExecutionContext:
             )
 
         # Posts endpoint - CREATE
-        if (
-            "/rest/posts" in url
-            and method == "POST"
-            and "X-RestLi-Method" not in (headers or {})
-        ):
+        if "/rest/posts" in url and method == "POST" and "X-RestLi-Method" not in (headers or {}):
             return self._responses.get(
                 "POST /posts",
                 {
@@ -206,9 +202,7 @@ class MockExecutionContext:
         # Images endpoint - Initialize upload
         if "/rest/images?action=initializeUpload" in url and method == "POST":
             # Generate a unique image URN based on the number of image init calls
-            image_count = len(
-                [r for r in self._requests if "initializeUpload" in r["url"]]
-            )
+            image_count = len([r for r in self._requests if "initializeUpload" in r["url"]])
             return self._responses.get(
                 "POST /images/initializeUpload",
                 {
@@ -328,10 +322,7 @@ async def test_share_article_success(mock_post):
 
     assert data["result"] == "Article shared successfully."
     assert data["post_id"] == "urn:li:share:article123"
-    assert (
-        data["post_url"]
-        == "https://www.linkedin.com/feed/update/urn:li:share:article123"
-    )
+    assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:share:article123"
 
     # Verify article content in payload
     mock_post.assert_called_once()
@@ -388,10 +379,7 @@ async def test_reshare_post_success(mock_post):
 
     assert data["result"] == "Post reshared successfully."
     assert data["post_id"] == "urn:li:share:reshare123"
-    assert (
-        data["post_url"]
-        == "https://www.linkedin.com/feed/update/urn:li:share:reshare123"
-    )
+    assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:share:reshare123"
 
     mock_post.assert_called_once()
     payload = mock_post.call_args[0][1]
@@ -408,9 +396,7 @@ async def test_reshare_post_no_commentary(mock_post):
         "GET /userinfo": {"sub": "reshare_user2", "name": "Reshare User 2"},
     }
     context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "reshare_post", {"original_post_urn": "urn:li:share:original456"}, context
-    )
+    result = await linkedin.execute_action("reshare_post", {"original_post_urn": "urn:li:share:original456"}, context)
     data = result.result.data
 
     assert data["result"] == "Post reshared successfully."
@@ -438,9 +424,7 @@ async def test_get_post_success():
         }
     }
     context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "get_post", {"post_urn": "urn:li:share:get123"}, context
-    )
+    result = await linkedin.execute_action("get_post", {"post_urn": "urn:li:share:get123"}, context)
     data = result.result.data
 
     assert data["result"] == "Post retrieved successfully."
@@ -452,15 +436,9 @@ async def test_get_post_url_encoding():
     """Test that post URN is properly URL-encoded."""
     responses = {"GET /posts/{urn}": {"id": "urn:li:ugcPost:123"}}
     context = MockExecutionContext(responses)
-    await linkedin.execute_action(
-        "get_post", {"post_urn": "urn:li:ugcPost:123"}, context
-    )
+    await linkedin.execute_action("get_post", {"post_urn": "urn:li:ugcPost:123"}, context)
 
-    get_calls = [
-        r
-        for r in context._requests
-        if "/rest/posts/" in r["url"] and r["method"] == "GET"
-    ]
+    get_calls = [r for r in context._requests if "/rest/posts/" in r["url"] and r["method"] == "GET"]
     assert len(get_calls) == 1
     # URN should be encoded in the URL
     assert quote("urn:li:ugcPost:123", safe="") in get_calls[0]["url"]
@@ -503,9 +481,7 @@ async def test_get_posts_with_pagination():
         },
     }
     context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "get_posts", {"count": 5, "start": 10, "sort_by": "CREATED"}, context
-    )
+    result = await linkedin.execute_action("get_posts", {"count": 5, "start": 10, "sort_by": "CREATED"}, context)
     data = result.result.data
 
     assert data["result"] == "Posts retrieved successfully."
@@ -526,9 +502,7 @@ async def test_get_posts_with_author_id():
         }
     }
     context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "get_posts", {"author_id": "specific_author"}, context
-    )
+    result = await linkedin.execute_action("get_posts", {"author_id": "specific_author"}, context)
     data = result.result.data
 
     assert data["result"] == "Posts retrieved successfully."
@@ -562,11 +536,7 @@ async def test_update_post_success():
     assert data["post_urn"] == "urn:li:share:update123"
 
     # Verify PARTIAL_UPDATE header
-    post_calls = [
-        r
-        for r in context._requests
-        if "/rest/posts/" in r["url"] and r["method"] == "POST"
-    ]
+    post_calls = [r for r in context._requests if "/rest/posts/" in r["url"] and r["method"] == "POST"]
     assert post_calls[0]["headers"]["X-RestLi-Method"] == "PARTIAL_UPDATE"
 
     # Verify patch payload
@@ -583,9 +553,7 @@ async def test_delete_post_success():
     """Test deleting a post."""
     responses = {"DELETE /posts": {}}
     context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "delete_post", {"post_urn": "urn:li:share:delete123"}, context
-    )
+    result = await linkedin.execute_action("delete_post", {"post_urn": "urn:li:share:delete123"}, context)
     data = result.result.data
 
     assert data["result"] == "Post deleted successfully."
@@ -622,9 +590,7 @@ async def test_get_comments_success():
         }
     }
     context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "get_comments", {"post_urn": "urn:li:activity:123456"}, context
-    )
+    result = await linkedin.execute_action("get_comments", {"post_urn": "urn:li:activity:123456"}, context)
     data = result.result.data
 
     assert data["result"] == "Comments retrieved successfully."
@@ -636,9 +602,7 @@ async def test_get_comments_url_structure():
     """Test that comments URL is correctly formed."""
     responses = {"GET /comments": {"elements": [], "paging": {}}}
     context = MockExecutionContext(responses)
-    await linkedin.execute_action(
-        "get_comments", {"post_urn": "urn:li:activity:789"}, context
-    )
+    await linkedin.execute_action("get_comments", {"post_urn": "urn:li:activity:789"}, context)
 
     get_calls = [r for r in context._requests if "/socialActions/" in r["url"]]
     assert len(get_calls) == 1
@@ -702,11 +666,7 @@ async def test_create_comment_with_author_id():
     assert len(userinfo_calls) == 0
 
     # Verify actor in payload
-    post_calls = [
-        r
-        for r in context._requests
-        if "/comments" in r["url"] and r["method"] == "POST"
-    ]
+    post_calls = [r for r in context._requests if "/comments" in r["url"] and r["method"] == "POST"]
     assert post_calls[0]["json"]["actor"] == "urn:li:person:explicit_commenter"
 
 
@@ -723,11 +683,7 @@ async def test_create_comment_payload_structure():
         context,
     )
 
-    post_calls = [
-        r
-        for r in context._requests
-        if "/comments" in r["url"] and r["method"] == "POST"
-    ]
+    post_calls = [r for r in context._requests if "/comments" in r["url"] and r["method"] == "POST"]
     payload = post_calls[0]["json"]
 
     assert payload["actor"] == "urn:li:person:struct_commenter"
@@ -819,9 +775,7 @@ async def test_get_reactions_success():
         }
     }
     context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "get_reactions", {"post_urn": "urn:li:activity:react123"}, context
-    )
+    result = await linkedin.execute_action("get_reactions", {"post_urn": "urn:li:activity:react123"}, context)
     data = result.result.data
 
     assert data["result"] == "Reactions retrieved successfully."
@@ -848,9 +802,7 @@ async def test_get_reactions_default_sort():
     """Test that default sort is REVERSE_CHRONOLOGICAL."""
     responses = {"GET /reactions": {"elements": [], "paging": {}}}
     context = MockExecutionContext(responses)
-    await linkedin.execute_action(
-        "get_reactions", {"post_urn": "urn:li:activity:default_sort"}, context
-    )
+    await linkedin.execute_action("get_reactions", {"post_urn": "urn:li:activity:default_sort"}, context)
 
     get_calls = [r for r in context._requests if "/reactions" in r["url"]]
     assert "sort=(value:REVERSE_CHRONOLOGICAL)" in get_calls[0]["url"]
@@ -871,9 +823,7 @@ async def test_create_reaction_success():
         },
     }
     context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "create_reaction", {"target_urn": "urn:li:activity:target"}, context
-    )
+    result = await linkedin.execute_action("create_reaction", {"target_urn": "urn:li:activity:target"}, context)
     data = result.result.data
 
     assert data["result"] == "Reaction created successfully."
@@ -909,11 +859,7 @@ async def test_create_reaction_different_types():
 
         assert data["result"] == "Reaction created successfully."
 
-        post_calls = [
-            r
-            for r in context._requests
-            if "/reactions" in r["url"] and r["method"] == "POST"
-        ]
+        post_calls = [r for r in context._requests if "/reactions" in r["url"] and r["method"] == "POST"]
         assert post_calls[0]["json"]["reactionType"] == reaction_type
 
 
@@ -940,11 +886,7 @@ async def test_create_reaction_with_author_id():
     assert data["result"] == "Reaction created successfully."
 
     # Verify actor in URL query param
-    post_calls = [
-        r
-        for r in context._requests
-        if "/reactions" in r["url"] and r["method"] == "POST"
-    ]
+    post_calls = [r for r in context._requests if "/reactions" in r["url"] and r["method"] == "POST"]
     assert "actor=" in post_calls[0]["url"]
     assert "explicit_reactor" in post_calls[0]["url"]
 
@@ -962,11 +904,7 @@ async def test_create_reaction_payload_structure():
         context,
     )
 
-    post_calls = [
-        r
-        for r in context._requests
-        if "/reactions" in r["url"] and r["method"] == "POST"
-    ]
+    post_calls = [r for r in context._requests if "/reactions" in r["url"] and r["method"] == "POST"]
     payload = post_calls[0]["json"]
 
     assert payload["root"] == "urn:li:activity:struct_target"
@@ -985,9 +923,7 @@ async def test_delete_reaction_success():
         "DELETE /reactions": {},
     }
     context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "delete_reaction", {"target_urn": "urn:li:activity:unreact_target"}, context
-    )
+    result = await linkedin.execute_action("delete_reaction", {"target_urn": "urn:li:activity:unreact_target"}, context)
     data = result.result.data
 
     assert data["result"] == "Reaction removed successfully."
@@ -1001,9 +937,7 @@ async def test_delete_reaction_url_structure():
         "DELETE /reactions": {},
     }
     context = MockExecutionContext(responses)
-    await linkedin.execute_action(
-        "delete_reaction", {"target_urn": "urn:li:activity:url_unreact"}, context
-    )
+    await linkedin.execute_action("delete_reaction", {"target_urn": "urn:li:activity:url_unreact"}, context)
 
     delete_calls = [r for r in context._requests if r["method"] == "DELETE"]
     assert len(delete_calls) == 1
@@ -1058,16 +992,12 @@ async def test_create_post_text_only(mock_post):
         "GET /userinfo": {"sub": "text_user", "name": "Text User"},
     }
     context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "create_post", {"text": "Hello from create_post!"}, context
-    )
+    result = await linkedin.execute_action("create_post", {"text": "Hello from create_post!"}, context)
     data = result.result.data
 
     assert data["result"] == "Post created successfully."
     assert data["post_id"] == "urn:li:share:text123"
-    assert (
-        data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:share:text123"
-    )
+    assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:share:text123"
     assert data["images_uploaded"] == 0
 
     # Verify no image upload calls were made
@@ -1202,9 +1132,7 @@ async def test_create_post_too_many_images():
         for i in range(21)
     ]
 
-    result = await linkedin.execute_action(
-        "create_post", {"text": "Too many images", "files": files}, context
-    )
+    result = await linkedin.execute_action("create_post", {"text": "Too many images", "files": files}, context)
     data = result.result.data
 
     assert "Too many images" in data["result"]
@@ -1280,10 +1208,7 @@ async def test_create_post_image_with_alt_text(mock_post):
     # Verify alt text (derived from filename) is in the payload
     mock_post.assert_called_once()
     payload = mock_post.call_args[0][1]
-    assert (
-        payload["content"]["media"]["altText"]
-        == "A beautiful sunset over the mountains"
-    )
+    assert payload["content"]["media"]["altText"] == "A beautiful sunset over the mountains"
 
 
 @patch.object(linkedin_module, "post_to_linkedin")
@@ -1401,10 +1326,7 @@ async def test_create_post_with_author_id(mock_post):
 
     # Verify author in image init payload
     init_calls = [r for r in context._requests if "initializeUpload" in r["url"]]
-    assert (
-        init_calls[0]["json"]["initializeUploadRequest"]["owner"]
-        == "urn:li:person:explicit_author"
-    )
+    assert init_calls[0]["json"]["initializeUploadRequest"]["owner"] == "urn:li:person:explicit_author"
 
     # Verify author in post payload
     mock_post.assert_called_once()

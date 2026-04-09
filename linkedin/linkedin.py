@@ -51,14 +51,10 @@ async def get_current_user_urn(context: ExecutionContext) -> str:
 
     if isinstance(user_response, dict) and user_response.get("sub"):
         return f"urn:li:person:{user_response.get('sub')}"
-    raise ValueError(
-        "Could not determine current user. Please ensure proper authentication."
-    )
+    raise ValueError("Could not determine current user. Please ensure proper authentication.")
 
 
-async def post_to_linkedin(
-    url: str, payload: dict, access_token: str
-) -> Tuple[int, dict, Any]:
+async def post_to_linkedin(url: str, payload: dict, access_token: str) -> Tuple[int, dict, Any]:
     """
     Make a POST request to LinkedIn API and return status, headers, and body.
 
@@ -107,9 +103,7 @@ async def initialize_image_upload(context: ExecutionContext, owner_urn: str) -> 
 
     payload = {"initializeUploadRequest": {"owner": owner_urn}}
 
-    response = await context.fetch(
-        url, method="POST", json=payload, headers=get_linkedin_headers()
-    )
+    response = await context.fetch(url, method="POST", json=payload, headers=get_linkedin_headers())
 
     if isinstance(response, dict) and "value" in response:
         value = response["value"]
@@ -118,9 +112,7 @@ async def initialize_image_upload(context: ExecutionContext, owner_urn: str) -> 
     raise ValueError(f"Failed to initialize image upload: {response}")
 
 
-async def upload_image_binary(
-    context: ExecutionContext, upload_url: str, image_data: bytes, content_type: str
-) -> None:
+async def upload_image_binary(context: ExecutionContext, upload_url: str, image_data: bytes, content_type: str) -> None:
     """
     Upload binary image data to LinkedIn's upload URL.
 
@@ -199,9 +191,7 @@ def validate_file_input(file_obj: dict) -> Tuple[str, str, str]:
         raise ValueError("File 'name' is required")
 
     if content_type not in SUPPORTED_IMAGE_TYPES:
-        raise ValueError(
-            f"Unsupported image type: {content_type}. Supported types: {', '.join(SUPPORTED_IMAGE_TYPES)}"
-        )
+        raise ValueError(f"Unsupported image type: {content_type}. Supported types: {', '.join(SUPPORTED_IMAGE_TYPES)}")
 
     # Derive alt_text from filename (without extension)
     alt_text = name.rsplit(".", 1)[0] if "." in name else name
@@ -230,11 +220,7 @@ class UserInfoActionHandler(ActionHandler):
                 }
             )
         else:
-            error_details = (
-                response.get("error", "Unknown error")
-                if isinstance(response, dict)
-                else "Unknown error"
-            )
+            error_details = response.get("error", "Unknown error") if isinstance(response, dict) else "Unknown error"
             return ActionResult(
                 data={
                     "result": "Failed to retrieve user information.",
@@ -331,9 +317,7 @@ class CreatePostActionHandler(ActionHandler):
         uploaded_image_urns: List[Tuple[str, str]] = []
         for idx, (content, content_type, alt_text) in enumerate(validated_images):
             try:
-                image_urn = await upload_image_from_base64(
-                    context, author_urn, content, content_type
-                )
+                image_urn = await upload_image_from_base64(context, author_urn, content, content_type)
                 uploaded_image_urns.append((image_urn, alt_text))
             except Exception as e:
                 return ActionResult(
@@ -385,9 +369,7 @@ class CreatePostActionHandler(ActionHandler):
         try:
             # Use helper function to get response headers (LinkedIn returns post ID in header)
             access_token = context.auth.get("credentials", {}).get("access_token")
-            status, headers, body = await post_to_linkedin(
-                posts_url, payload, access_token
-            )
+            status, headers, body = await post_to_linkedin(posts_url, payload, access_token)
 
             if status >= 400:
                 return ActionResult(
@@ -401,9 +383,7 @@ class CreatePostActionHandler(ActionHandler):
                 )
 
             post_id = headers.get("x-restli-id") or headers.get("X-RestLi-Id")
-            post_url = (
-                f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
-            )
+            post_url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
 
             return ActionResult(
                 data={
@@ -478,9 +458,7 @@ class ShareArticleActionHandler(ActionHandler):
 
         try:
             access_token = context.auth.get("credentials", {}).get("access_token")
-            status, headers, body = await post_to_linkedin(
-                posts_url, payload, access_token
-            )
+            status, headers, body = await post_to_linkedin(posts_url, payload, access_token)
 
             if status >= 400:
                 return ActionResult(
@@ -493,9 +471,7 @@ class ShareArticleActionHandler(ActionHandler):
                 )
 
             post_id = headers.get("x-restli-id") or headers.get("X-RestLi-Id")
-            post_url = (
-                f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
-            )
+            post_url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
 
             return ActionResult(
                 data={
@@ -560,9 +536,7 @@ class ResharePostActionHandler(ActionHandler):
 
         try:
             access_token = context.auth.get("credentials", {}).get("access_token")
-            status, headers, body = await post_to_linkedin(
-                posts_url, payload, access_token
-            )
+            status, headers, body = await post_to_linkedin(posts_url, payload, access_token)
 
             if status >= 400:
                 return ActionResult(
@@ -575,9 +549,7 @@ class ResharePostActionHandler(ActionHandler):
                 )
 
             post_id = headers.get("x-restli-id") or headers.get("X-RestLi-Id")
-            post_url = (
-                f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
-            )
+            post_url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
 
             return ActionResult(
                 data={
@@ -609,13 +581,9 @@ class GetPostActionHandler(ActionHandler):
         url = f"https://api.linkedin.com/rest/posts/{encoded_urn}"
 
         try:
-            response = await context.fetch(
-                url, method="GET", headers=get_linkedin_headers()
-            )
+            response = await context.fetch(url, method="GET", headers=get_linkedin_headers())
 
-            return ActionResult(
-                data={"result": "Post retrieved successfully.", "post": response}
-            )
+            return ActionResult(data={"result": "Post retrieved successfully.", "post": response})
         except Exception as e:
             error_message = str(e)
             error_details = getattr(e, "response_data", str(e))
@@ -703,9 +671,7 @@ class UpdatePostActionHandler(ActionHandler):
         try:
             await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return ActionResult(
-                data={"result": "Post updated successfully.", "post_urn": post_urn}
-            )
+            return ActionResult(data={"result": "Post updated successfully.", "post_urn": post_urn})
         except Exception as e:
             error_message = str(e)
             error_details = getattr(e, "response_data", str(e))
@@ -733,9 +699,7 @@ class DeletePostActionHandler(ActionHandler):
         try:
             await context.fetch(url, method="DELETE", headers=headers)
 
-            return ActionResult(
-                data={"result": "Post deleted successfully.", "post_urn": post_urn}
-            )
+            return ActionResult(data={"result": "Post deleted successfully.", "post_urn": post_urn})
         except Exception as e:
             error_message = str(e)
             error_details = getattr(e, "response_data", str(e))
@@ -763,13 +727,9 @@ class GetCommentsActionHandler(ActionHandler):
         url = f"https://api.linkedin.com/rest/socialActions/{encoded_urn}/comments"
 
         try:
-            response = await context.fetch(
-                url, method="GET", headers=get_linkedin_headers()
-            )
+            response = await context.fetch(url, method="GET", headers=get_linkedin_headers())
 
-            comments = (
-                response.get("elements", []) if isinstance(response, dict) else []
-            )
+            comments = response.get("elements", []) if isinstance(response, dict) else []
             paging = response.get("paging") if isinstance(response, dict) else None
 
             return ActionResult(
@@ -822,9 +782,7 @@ class CreateCommentActionHandler(ActionHandler):
         payload = {"actor": actor_urn, "object": post_urn, "message": {"text": message}}
 
         try:
-            response = await context.fetch(
-                url, method="POST", json=payload, headers=get_linkedin_headers()
-            )
+            response = await context.fetch(url, method="POST", json=payload, headers=get_linkedin_headers())
 
             comment_id = response.get("id") if isinstance(response, dict) else None
 
@@ -912,13 +870,9 @@ class GetReactionsActionHandler(ActionHandler):
         url = f"https://api.linkedin.com/rest/reactions/(entity:{encoded_urn})?q=entity&sort=(value:{sort})"
 
         try:
-            response = await context.fetch(
-                url, method="GET", headers=get_linkedin_headers()
-            )
+            response = await context.fetch(url, method="GET", headers=get_linkedin_headers())
 
-            reactions = (
-                response.get("elements", []) if isinstance(response, dict) else []
-            )
+            reactions = response.get("elements", []) if isinstance(response, dict) else []
             paging = response.get("paging") if isinstance(response, dict) else None
 
             return ActionResult(
@@ -970,13 +924,9 @@ class CreateReactionActionHandler(ActionHandler):
         payload = {"root": target_urn, "reactionType": reaction_type}
 
         try:
-            response = await context.fetch(
-                url, method="POST", json=payload, headers=get_linkedin_headers()
-            )
+            response = await context.fetch(url, method="POST", json=payload, headers=get_linkedin_headers())
 
-            return ActionResult(
-                data={"result": "Reaction created successfully.", "reaction": response}
-            )
+            return ActionResult(data={"result": "Reaction created successfully.", "reaction": response})
         except Exception as e:
             error_message = str(e)
             error_details = getattr(e, "response_data", str(e))

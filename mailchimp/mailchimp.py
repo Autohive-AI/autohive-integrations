@@ -25,9 +25,7 @@ class MailchimpRateLimitException(Exception):
 
     def __init__(self, retry_after: int):
         self.retry_after = retry_after
-        super().__init__(
-            f"Mailchimp API rate limit exceeded. Retry after {retry_after} seconds."
-        )
+        super().__init__(f"Mailchimp API rate limit exceeded. Retry after {retry_after} seconds.")
 
 
 class MailchimpRateLimiter:
@@ -50,9 +48,7 @@ class MailchimpRateLimiter:
                     pass
         return self.default_retry_delay
 
-    async def make_request(
-        self, context: ExecutionContext, url: str, **kwargs
-    ) -> Dict[str, Any]:
+    async def make_request(self, context: ExecutionContext, url: str, **kwargs) -> Dict[str, Any]:
         """Make request to Mailchimp API with automatic retry on rate limit errors"""
         last_error = None
 
@@ -66,11 +62,7 @@ class MailchimpRateLimiter:
                 error_str = str(e).lower()
 
                 # Check if it's a rate limit error (HTTP 429)
-                if (
-                    "429" in error_str
-                    or "rate limit" in error_str
-                    or "too many requests" in error_str
-                ):
+                if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
                     # Don't retry on the last attempt
                     if attempt >= self.max_retries:
                         delay = self._extract_retry_delay(e)
@@ -154,9 +146,7 @@ class GetListsAction(ActionHandler):
             }
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(
-                context, url, method="GET", params=params
-            )
+            response = await rate_limiter.make_request(context, url, method="GET", params=params)
 
             return ActionResult(
                 data={
@@ -193,9 +183,7 @@ class FindListAction(ActionHandler):
         # Validate required inputs
         name = inputs.get("name")
         if not name:
-            return ActionResult(
-                data={"result": False, "error": "name is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "name is required"}, cost_usd=0.0)
 
         try:
             # Get data center from metadata
@@ -210,9 +198,7 @@ class FindListAction(ActionHandler):
             }
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(
-                context, url, method="GET", params=params
-            )
+            response = await rate_limiter.make_request(context, url, method="GET", params=params)
 
             # Search for matching list (case-insensitive)
             search_name = name.lower()
@@ -223,9 +209,7 @@ class FindListAction(ActionHandler):
                     break
 
             if matching_list:
-                return ActionResult(
-                    data={"result": True, "list": matching_list}, cost_usd=0.0
-                )
+                return ActionResult(data={"result": True, "list": matching_list}, cost_usd=0.0)
             else:
                 return ActionResult(
                     data={"result": False, "error": f"No list found matching '{name}'"},
@@ -253,9 +237,7 @@ class GetListAction(ActionHandler):
         # Validate required inputs
         list_id = inputs.get("list_id")
         if not list_id:
-            return ActionResult(
-                data={"result": False, "error": "list_id is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "list_id is required"}, cost_usd=0.0)
 
         try:
             # Get data center from metadata
@@ -295,18 +277,14 @@ class CreateListAction(ActionHandler):
         campaign_defaults = inputs.get("campaign_defaults")
 
         if not name:
-            return ActionResult(
-                data={"result": False, "error": "name is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "name is required"}, cost_usd=0.0)
         if not permission_reminder:
             return ActionResult(
                 data={"result": False, "error": "permission_reminder is required"},
                 cost_usd=0.0,
             )
         if not contact:
-            return ActionResult(
-                data={"result": False, "error": "contact is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "contact is required"}, cost_usd=0.0)
         if not campaign_defaults:
             return ActionResult(
                 data={"result": False, "error": "campaign_defaults is required"},
@@ -331,9 +309,7 @@ class CreateListAction(ActionHandler):
             url = f"{base_url}/lists"
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(
-                context, url, method="POST", json=list_data
-            )
+            response = await rate_limiter.make_request(context, url, method="POST", json=list_data)
 
             return ActionResult(
                 data={
@@ -367,18 +343,14 @@ class AddMemberAction(ActionHandler):
         status = inputs.get("status")
 
         if not list_id:
-            return ActionResult(
-                data={"result": False, "error": "list_id is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "list_id is required"}, cost_usd=0.0)
         if not email_address:
             return ActionResult(
                 data={"result": False, "error": "email_address is required"},
                 cost_usd=0.0,
             )
         if not status:
-            return ActionResult(
-                data={"result": False, "error": "status is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "status is required"}, cost_usd=0.0)
 
         try:
             # Get data center from metadata
@@ -399,9 +371,7 @@ class AddMemberAction(ActionHandler):
             url = f"{base_url}/lists/{list_id}/members"
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(
-                context, url, method="POST", json=member_data
-            )
+            response = await rate_limiter.make_request(context, url, method="POST", json=member_data)
 
             return ActionResult(
                 data={
@@ -436,9 +406,7 @@ class UpdateMemberAction(ActionHandler):
         # Validate required inputs
         list_id = inputs.get("list_id")
         if not list_id:
-            return ActionResult(
-                data={"result": False, "error": "list_id is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "list_id is required"}, cost_usd=0.0)
 
         # Get subscriber hash from either direct hash or email
         subscriber_hash = inputs.get("subscriber_hash")
@@ -478,9 +446,7 @@ class UpdateMemberAction(ActionHandler):
             url = f"{base_url}/lists/{list_id}/members/{subscriber_hash}"
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(
-                context, url, method="PATCH", json=member_data
-            )
+            response = await rate_limiter.make_request(context, url, method="PATCH", json=member_data)
 
             return ActionResult(
                 data={
@@ -515,9 +481,7 @@ class GetMemberAction(ActionHandler):
         # Validate required inputs
         list_id = inputs.get("list_id")
         if not list_id:
-            return ActionResult(
-                data={"result": False, "error": "list_id is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "list_id is required"}, cost_usd=0.0)
 
         # Get subscriber hash from either direct hash or email
         subscriber_hash = inputs.get("subscriber_hash")
@@ -607,9 +571,7 @@ class GetListMembersAction(ActionHandler):
                 params["status"] = inputs["status"]
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(
-                context, url, method="GET", params=params
-            )
+            response = await rate_limiter.make_request(context, url, method="GET", params=params)
 
             return ActionResult(
                 data={
@@ -651,9 +613,7 @@ class FindCampaignAction(ActionHandler):
         # Validate required inputs
         query = inputs.get("query")
         if not query:
-            return ActionResult(
-                data={"result": False, "error": "query is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "query is required"}, cost_usd=0.0)
 
         try:
             # Get data center from metadata
@@ -668,9 +628,7 @@ class FindCampaignAction(ActionHandler):
             }
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(
-                context, url, method="GET", params=params
-            )
+            response = await rate_limiter.make_request(context, url, method="GET", params=params)
 
             # Search for matching campaign (case-insensitive in title or subject_line)
             search_query = query.lower()
@@ -684,9 +642,7 @@ class FindCampaignAction(ActionHandler):
                     break
 
             if matching_campaign:
-                return ActionResult(
-                    data={"result": True, "campaign": matching_campaign}, cost_usd=0.0
-                )
+                return ActionResult(data={"result": True, "campaign": matching_campaign}, cost_usd=0.0)
             else:
                 return ActionResult(
                     data={
@@ -731,9 +687,7 @@ class GetCampaignsAction(ActionHandler):
                 params["status"] = inputs["status"]
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(
-                context, url, method="GET", params=params
-            )
+            response = await rate_limiter.make_request(context, url, method="GET", params=params)
 
             return ActionResult(
                 data={
@@ -780,26 +734,18 @@ class CreateCampaignAction(ActionHandler):
         reply_to = inputs.get("reply_to")
 
         if not campaign_type:
-            return ActionResult(
-                data={"result": False, "error": "type is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "type is required"}, cost_usd=0.0)
         if not list_id:
-            return ActionResult(
-                data={"result": False, "error": "list_id is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "list_id is required"}, cost_usd=0.0)
         if not subject_line:
             return ActionResult(
                 data={"result": False, "error": "subject_line is required"},
                 cost_usd=0.0,
             )
         if not from_name:
-            return ActionResult(
-                data={"result": False, "error": "from_name is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "from_name is required"}, cost_usd=0.0)
         if not reply_to:
-            return ActionResult(
-                data={"result": False, "error": "reply_to is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "reply_to is required"}, cost_usd=0.0)
 
         try:
             # Get data center from metadata
@@ -825,9 +771,7 @@ class CreateCampaignAction(ActionHandler):
             url = f"{base_url}/campaigns"
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(
-                context, url, method="POST", json=campaign_data
-            )
+            response = await rate_limiter.make_request(context, url, method="POST", json=campaign_data)
 
             return ActionResult(
                 data={
@@ -862,9 +806,7 @@ class GetCampaignAction(ActionHandler):
         # Validate required inputs
         campaign_id = inputs.get("campaign_id")
         if not campaign_id:
-            return ActionResult(
-                data={"result": False, "error": "campaign_id is required"}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "campaign_id is required"}, cost_usd=0.0)
 
         try:
             # Get data center from metadata
@@ -877,9 +819,7 @@ class GetCampaignAction(ActionHandler):
             # Make rate-limited request
             response = await rate_limiter.make_request(context, url, method="GET")
 
-            return ActionResult(
-                data={"result": True, "campaign": response}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "campaign": response}, cost_usd=0.0)
 
         except MailchimpRateLimitException as e:
             return ActionResult(
