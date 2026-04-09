@@ -57,13 +57,15 @@ class ListWorkbooks(ActionHandler):
                 if item.get("file", {}).get("mimeType") == EXCEL_MIMETYPE:
                     if name_contains and name_contains.lower() not in item.get("name", "").lower():
                         continue
-                    workbooks.append({
-                        "id": item.get("id"),
-                        "name": item.get("name"),
-                        "webUrl": item.get("webUrl"),
-                        "lastModifiedDateTime": item.get("lastModifiedDateTime"),
-                        "size": item.get("size"),
-                    })
+                    workbooks.append(
+                        {
+                            "id": item.get("id"),
+                            "name": item.get("name"),
+                            "webUrl": item.get("webUrl"),
+                            "lastModifiedDateTime": item.get("lastModifiedDateTime"),
+                            "size": item.get("size"),
+                        }
+                    )
 
             result_data = {"workbooks": workbooks, "result": True}
             next_link = response.get("@odata.nextLink")
@@ -73,11 +75,14 @@ class ListWorkbooks(ActionHandler):
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={
-                "workbooks": [],
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "workbooks": [],
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_get_workbook")
@@ -96,13 +101,15 @@ class GetWorkbook(ActionHandler):
             try:
                 ws_data = await context.fetch(worksheets_url, method="GET")
                 for ws in ws_data.get("value", []):
-                    worksheets.append({
-                        "id": ws.get("id"),
-                        "name": ws.get("name"),
-                        "position": ws.get("position"),
-                        "visibility": ws.get("visibility"),
-                    })
-            except Exception:
+                    worksheets.append(
+                        {
+                            "id": ws.get("id"),
+                            "name": ws.get("name"),
+                            "position": ws.get("position"),
+                            "visibility": ws.get("visibility"),
+                        }
+                    )
+            except Exception:  # nosec B110
                 # API error handled - return partial data without worksheets
                 pass
 
@@ -112,14 +119,16 @@ class GetWorkbook(ActionHandler):
             try:
                 tables_data = await context.fetch(tables_url, method="GET")
                 for table in tables_data.get("value", []):
-                    tables.append({
-                        "id": table.get("id"),
-                        "name": table.get("name"),
-                        "showHeaders": table.get("showHeaders"),
-                        "showTotals": table.get("showTotals"),
-                        "style": table.get("style"),
-                    })
-            except Exception:
+                    tables.append(
+                        {
+                            "id": table.get("id"),
+                            "name": table.get("name"),
+                            "showHeaders": table.get("showHeaders"),
+                            "showTotals": table.get("showTotals"),
+                            "style": table.get("style"),
+                        }
+                    )
+            except Exception:  # nosec B110
                 # API error handled - return partial data without tables
                 pass
 
@@ -129,33 +138,41 @@ class GetWorkbook(ActionHandler):
             try:
                 names_data = await context.fetch(names_url, method="GET")
                 for name in names_data.get("value", []):
-                    named_ranges.append({
-                        "name": name.get("name"),
-                        "value": name.get("value"),
-                        "type": name.get("type"),
-                    })
-            except Exception:
+                    named_ranges.append(
+                        {
+                            "name": name.get("name"),
+                            "value": name.get("value"),
+                            "type": name.get("type"),
+                        }
+                    )
+            except Exception:  # nosec B110
                 # API error handled - return partial data without named ranges
                 pass
 
-            return ActionResult(data={
-                "workbook": {
-                    "id": file_data.get("id"),
-                    "name": file_data.get("name"),
-                    "webUrl": file_data.get("webUrl"),
-                    "lastModifiedDateTime": file_data.get("lastModifiedDateTime"),
+            return ActionResult(
+                data={
+                    "workbook": {
+                        "id": file_data.get("id"),
+                        "name": file_data.get("name"),
+                        "webUrl": file_data.get("webUrl"),
+                        "lastModifiedDateTime": file_data.get("lastModifiedDateTime"),
+                    },
+                    "worksheets": worksheets,
+                    "tables": tables,
+                    "named_ranges": named_ranges,
+                    "result": True,
                 },
-                "worksheets": worksheets,
-                "tables": tables,
-                "named_ranges": named_ranges,
-                "result": True,
-            }, cost_usd=0.0)
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return ActionResult(data={
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_list_worksheets")
@@ -169,21 +186,26 @@ class ListWorksheets(ActionHandler):
 
             worksheets = []
             for ws in response.get("value", []):
-                worksheets.append({
-                    "id": ws.get("id"),
-                    "name": ws.get("name"),
-                    "position": ws.get("position"),
-                    "visibility": ws.get("visibility"),
-                })
+                worksheets.append(
+                    {
+                        "id": ws.get("id"),
+                        "name": ws.get("name"),
+                        "position": ws.get("position"),
+                        "visibility": ws.get("visibility"),
+                    }
+                )
 
             return ActionResult(data={"worksheets": worksheets, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={
-                "worksheets": [],
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "worksheets": [],
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_read_range")
@@ -207,21 +229,27 @@ class ReadRange(ActionHandler):
             row_count = len(values)
             column_count = len(values[0]) if values else 0
 
-            return ActionResult(data={
-                "range": response.get("address", range_address),
-                "values": values,
-                "formulas": formulas,
-                "number_format": number_format,
-                "row_count": row_count,
-                "column_count": column_count,
-                "result": True,
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "range": response.get("address", range_address),
+                    "values": values,
+                    "formulas": formulas,
+                    "number_format": number_format,
+                    "row_count": row_count,
+                    "column_count": column_count,
+                    "result": True,
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return ActionResult(data={
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_write_range")
@@ -243,19 +271,25 @@ class WriteRange(ActionHandler):
             row_count = len(values)
             column_count = len(values[0]) if values else 0
 
-            return ActionResult(data={
-                "updated_range": response.get("address", range_address),
-                "updated_rows": row_count,
-                "updated_columns": column_count,
-                "updated_cells": row_count * column_count,
-                "result": True,
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "updated_range": response.get("address", range_address),
+                    "updated_rows": row_count,
+                    "updated_columns": column_count,
+                    "updated_cells": row_count * column_count,
+                    "result": True,
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return ActionResult(data={
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_list_tables")
@@ -275,22 +309,27 @@ class ListTables(ActionHandler):
 
             tables = []
             for table in response.get("value", []):
-                tables.append({
-                    "id": table.get("id"),
-                    "name": table.get("name"),
-                    "showHeaders": table.get("showHeaders"),
-                    "showTotals": table.get("showTotals"),
-                    "style": table.get("style"),
-                })
+                tables.append(
+                    {
+                        "id": table.get("id"),
+                        "name": table.get("name"),
+                        "showHeaders": table.get("showHeaders"),
+                        "showTotals": table.get("showTotals"),
+                        "style": table.get("style"),
+                    }
+                )
 
             return ActionResult(data={"tables": tables, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={
-                "tables": [],
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "tables": [],
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_get_table_data")
@@ -315,10 +354,13 @@ class GetTableData(ActionHandler):
             if select_columns:
                 missing_cols = [c for c in select_columns if c not in all_headers]
                 if missing_cols:
-                    return ActionResult(data={
-                        "result": False,
-                        "error": f"Columns not found: {missing_cols}. Available columns: {all_headers}",
-                    }, cost_usd=0.0)
+                    return ActionResult(
+                        data={
+                            "result": False,
+                            "error": f"Columns not found: {missing_cols}. Available columns: {all_headers}",
+                        },
+                        cost_usd=0.0,
+                    )
 
             # Get rows
             rows_url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/tables/{encoded_table}/dataBodyRange"
@@ -327,10 +369,13 @@ class GetTableData(ActionHandler):
 
             # Check max_rows safety limit
             if max_rows and len(all_rows) > max_rows:
-                return ActionResult(data={
-                    "result": False,
-                    "error": f"Table has {len(all_rows)} rows, exceeding max_rows limit of {max_rows}. Use pagination (top/skip) or increase max_rows.",
-                }, cost_usd=0.0)
+                return ActionResult(
+                    data={
+                        "result": False,
+                        "error": f"Table has {len(all_rows)} rows, exceeding max_rows limit of {max_rows}. Use pagination (top/skip) or increase max_rows.",
+                    },
+                    cost_usd=0.0,
+                )
 
             # Filter columns if specified
             if select_columns:
@@ -355,18 +400,24 @@ class GetTableData(ActionHandler):
                     row_obj[header] = row[i] if i < len(row) else None
                 row_objects.append(row_obj)
 
-            return ActionResult(data={
-                "headers": headers_out,
-                "rows": row_objects,
-                "total_rows": len(all_rows),
-                "result": True,
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "headers": headers_out,
+                    "rows": row_objects,
+                    "total_rows": len(all_rows),
+                    "result": True,
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return ActionResult(data={
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_add_table_row")
@@ -393,21 +444,27 @@ class AddTableRow(ActionHandler):
             try:
                 range_data = await context.fetch(range_url, method="GET")
                 table_range = range_data.get("address", "")
-            except Exception:
+            except Exception:  # nosec B110
                 # API error handled - rows were added, range info is optional
                 pass
 
-            return ActionResult(data={
-                "added_rows": len(rows),
-                "table_range": table_range,
-                "result": True,
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "added_rows": len(rows),
+                    "table_range": table_range,
+                    "result": True,
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return ActionResult(data={
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_get_used_range")
@@ -433,24 +490,33 @@ class GetUsedRange(ActionHandler):
 
             # Check max_cells safety limit
             if max_cells and cell_count > max_cells:
-                return ActionResult(data={
-                    "result": False,
-                    "error": f"Used range has {cell_count} cells ({row_count} rows x {column_count} cols), exceeding max_cells limit of {max_cells}. Use excel_read_range with a specific range instead.",
-                }, cost_usd=0.0)
+                return ActionResult(
+                    data={
+                        "result": False,
+                        "error": f"Used range has {cell_count} cells ({row_count} rows x {column_count} cols), exceeding max_cells limit of {max_cells}. Use excel_read_range with a specific range instead.",
+                    },
+                    cost_usd=0.0,
+                )
 
-            return ActionResult(data={
-                "range": response.get("address", ""),
-                "row_count": row_count,
-                "column_count": column_count,
-                "values": values,
-                "result": True,
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "range": response.get("address", ""),
+                    "row_count": row_count,
+                    "column_count": column_count,
+                    "values": values,
+                    "result": True,
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return ActionResult(data={
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_create_worksheet")
@@ -465,21 +531,27 @@ class CreateWorksheet(ActionHandler):
             body = {"name": name}
             response = await context.fetch(url, method="POST", json=body)
 
-            return ActionResult(data={
-                "worksheet": {
-                    "id": response.get("id"),
-                    "name": response.get("name"),
-                    "position": response.get("position"),
-                    "visibility": response.get("visibility"),
+            return ActionResult(
+                data={
+                    "worksheet": {
+                        "id": response.get("id"),
+                        "name": response.get("name"),
+                        "position": response.get("position"),
+                        "visibility": response.get("visibility"),
+                    },
+                    "result": True,
                 },
-                "result": True,
-            }, cost_usd=0.0)
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return ActionResult(data={
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_delete_worksheet")
@@ -496,11 +568,14 @@ class DeleteWorksheet(ActionHandler):
             return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={
-                "deleted": False,
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "deleted": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_create_table")
@@ -518,20 +593,26 @@ class CreateTable(ActionHandler):
             body = {"address": range_address, "hasHeaders": has_headers}
             response = await context.fetch(url, method="POST", json=body)
 
-            return ActionResult(data={
-                "table": {
-                    "id": response.get("id"),
-                    "name": response.get("name"),
-                    "showHeaders": response.get("showHeaders"),
+            return ActionResult(
+                data={
+                    "table": {
+                        "id": response.get("id"),
+                        "name": response.get("name"),
+                        "showHeaders": response.get("showHeaders"),
+                    },
+                    "result": True,
                 },
-                "result": True,
-            }, cost_usd=0.0)
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return ActionResult(data={
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_update_table_row")
@@ -552,10 +633,13 @@ class UpdateTableRow(ActionHandler):
             return ActionResult(data={"updated_row": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_delete_table_row")
@@ -573,11 +657,14 @@ class DeleteTableRow(ActionHandler):
             return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={
-                "deleted": False,
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "deleted": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_sort_range")
@@ -596,10 +683,12 @@ class SortRange(ActionHandler):
 
             fields = []
             for sf in sort_fields:
-                fields.append({
-                    "key": sf.get("column_index", 0),
-                    "ascending": sf.get("ascending", True),
-                })
+                fields.append(
+                    {
+                        "key": sf.get("column_index", 0),
+                        "ascending": sf.get("ascending", True),
+                    }
+                )
 
             body = {"fields": fields, "hasHeaders": has_headers, "matchCase": False}
             await context.fetch(url, method="POST", json=body)
@@ -607,11 +696,14 @@ class SortRange(ActionHandler):
             return ActionResult(data={"sorted": True, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={
-                "sorted": False,
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "sorted": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_apply_filter")
@@ -631,19 +723,25 @@ class ApplyFilter(ActionHandler):
 
             columns = columns_data.get("value", [])
             if column_index < 0 or column_index >= len(columns):
-                return ActionResult(data={
-                    "filtered": False,
-                    "result": False,
-                    "error": f"Column index {column_index} out of range (must be 0-{len(columns) - 1})",
-                }, cost_usd=0.0)
+                return ActionResult(
+                    data={
+                        "filtered": False,
+                        "result": False,
+                        "error": f"Column index {column_index} out of range (must be 0-{len(columns) - 1})",
+                    },
+                    cost_usd=0.0,
+                )
 
             column_id = columns[column_index].get("id")
             if not column_id:
-                return ActionResult(data={
-                    "filtered": False,
-                    "result": False,
-                    "error": f"Column at index {column_index} has no ID",
-                }, cost_usd=0.0)
+                return ActionResult(
+                    data={
+                        "filtered": False,
+                        "result": False,
+                        "error": f"Column at index {column_index} has no ID",
+                    },
+                    cost_usd=0.0,
+                )
 
             url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/tables/{encoded_table}/columns/{column_id}/filter/apply"
 
@@ -653,11 +751,14 @@ class ApplyFilter(ActionHandler):
             return ActionResult(data={"filtered": True, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={
-                "filtered": False,
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "filtered": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_clear_filter")
@@ -674,11 +775,14 @@ class ClearFilter(ActionHandler):
             return ActionResult(data={"cleared": True, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={
-                "cleared": False,
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "cleared": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @microsoft_excel.action("excel_format_range")
@@ -734,17 +838,23 @@ class FormatRange(ActionHandler):
                     errors.append(f"NumberFormat: {str(e)}")
 
             if errors:
-                return ActionResult(data={
-                    "formatted": False,
-                    "result": False,
-                    "error": "; ".join(errors),
-                }, cost_usd=0.0)
+                return ActionResult(
+                    data={
+                        "formatted": False,
+                        "result": False,
+                        "error": "; ".join(errors),
+                    },
+                    cost_usd=0.0,
+                )
 
             return ActionResult(data={"formatted": True, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={
-                "formatted": False,
-                "result": False,
-                "error": str(e),
-            }, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "formatted": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
