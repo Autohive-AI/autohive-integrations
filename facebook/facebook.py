@@ -18,4 +18,3 @@ config_path = os.path.join(os.path.dirname(__file__), "config.json")
 facebook = Integration.load(config_path)
 
 # Import actions to register handlers
-import actions

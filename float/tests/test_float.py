@@ -11,7 +11,7 @@ TEST_AUTH = {
     "credentials": {
         "api_key": os.getenv("FLOAT_API_KEY", "your_api_key_here"),
         "contact_email": os.getenv("FLOAT_CONTACT_EMAIL", "your_email@example.com"),
-        "application_name": os.getenv("FLOAT_APPLICATION_NAME", "Your Application Name")
+        "application_name": os.getenv("FLOAT_APPLICATION_NAME", "Your Application Name"),
     }
 }
 
@@ -31,13 +31,12 @@ test_status_id = None
 
 # ==================== PEOPLE RESOURCE TESTS ====================
 
+
 async def test_list_people():
     """Test listing all people in the Float account"""
     print("\n[TEST] Listing people...")
 
-    inputs = {
-        "per_page": 10
-    }
+    inputs = {"per_page": 10}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -73,9 +72,7 @@ async def test_get_person():
 
     print(f"\n[TEST] Getting person details for {test_person_id}...")
 
-    inputs = {
-        "people_id": test_person_id
-    }
+    inputs = {"people_id": test_person_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -122,13 +119,12 @@ async def test_create_person():
 
 # ==================== PROJECT RESOURCE TESTS ====================
 
+
 async def test_list_projects():
     """Test listing all projects"""
     print("\n[TEST] Listing projects...")
 
-    inputs = {
-        "per_page": 10
-    }
+    inputs = {"per_page": 10}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -161,9 +157,7 @@ async def test_get_project():
 
     print(f"\n[TEST] Getting project details for {test_project_id}...")
 
-    inputs = {
-        "project_id": test_project_id
-    }
+    inputs = {"project_id": test_project_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -184,13 +178,12 @@ async def test_get_project():
 
 # ==================== TASK/ALLOCATION RESOURCE TESTS ====================
 
+
 async def test_list_tasks():
     """Test listing all tasks/allocations"""
     print("\n[TEST] Listing tasks/allocations...")
 
-    inputs = {
-        "per_page": 10
-    }
+    inputs = {"per_page": 10}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -206,7 +199,10 @@ async def test_list_tasks():
 
                 # Show first few tasks
                 for i, task in enumerate(result.data[:3]):
-                    print(f"  - Task {task.get('task_id')} (Person: {task.get('people_id')}, Project: {task.get('project_id')})")
+                    print(
+                        f"  - Task {task.get('task_id')} "
+                        f"(Person: {task.get('people_id')}, Project: {task.get('project_id')})"
+                    )
 
             return result.data
 
@@ -223,9 +219,7 @@ async def test_get_task():
 
     print(f"\n[TEST] Getting task details for {test_task_id}...")
 
-    inputs = {
-        "task_id": test_task_id
-    }
+    inputs = {"task_id": test_task_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -248,13 +242,12 @@ async def test_get_task():
 
 # ==================== CLIENT RESOURCE TESTS ====================
 
+
 async def test_list_clients():
     """Test listing all clients"""
     print("\n[TEST] Listing clients...")
 
-    inputs = {
-        "per_page": 10
-    }
+    inputs = {"per_page": 10}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -289,9 +282,7 @@ async def test_get_client():
 
     print(f"\n[TEST] Getting client details for {test_client_id}...")
 
-    inputs = {
-        "client_id": test_client_id
-    }
+    inputs = {"client_id": test_client_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -312,13 +303,12 @@ async def test_get_client():
 
 # ==================== TIME OFF RESOURCE TESTS ====================
 
+
 async def test_list_time_off():
     """Test listing all time off entries"""
     print("\n[TEST] Listing time off entries...")
 
-    inputs = {
-        "per_page": 10
-    }
+    inputs = {"per_page": 10}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -347,13 +337,12 @@ async def test_list_time_off():
 
 # ==================== LOGGED TIME RESOURCE TESTS ====================
 
+
 async def test_list_logged_time():
     """Test listing all logged time entries"""
     print("\n[TEST] Listing logged time entries...")
 
-    inputs = {
-        "per_page": 10
-    }
+    inputs = {"per_page": 10}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -381,6 +370,7 @@ async def test_list_logged_time():
 
 
 # ==================== DEPARTMENT RESOURCE TESTS ====================
+
 
 async def test_list_departments():
     """Test listing all departments"""
@@ -421,9 +411,7 @@ async def test_get_department():
 
     print(f"\n[TEST] Getting department details for {test_department_id}...")
 
-    inputs = {
-        "department_id": test_department_id
-    }
+    inputs = {"department_id": test_department_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -442,6 +430,7 @@ async def test_get_department():
 
 
 # ==================== ROLE RESOURCE TESTS ====================
+
 
 async def test_list_roles():
     """Test listing all roles"""
@@ -482,9 +471,7 @@ async def test_get_role():
 
     print(f"\n[TEST] Getting role details for {test_role_id}...")
 
-    inputs = {
-        "role_id": test_role_id
-    }
+    inputs = {"role_id": test_role_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -503,6 +490,7 @@ async def test_get_role():
 
 
 # ==================== TIME OFF TYPE RESOURCE TESTS ====================
+
 
 async def test_list_time_off_types():
     """Test listing all time off types"""
@@ -543,9 +531,7 @@ async def test_get_time_off_type():
 
     print(f"\n[TEST] Getting time off type details for {test_time_off_type_id}...")
 
-    inputs = {
-        "timeoff_type_id": test_time_off_type_id
-    }
+    inputs = {"timeoff_type_id": test_time_off_type_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -564,6 +550,7 @@ async def test_get_time_off_type():
 
 
 # ==================== ACCOUNT RESOURCE TESTS ====================
+
 
 async def test_list_accounts():
     """Test listing all accounts"""
@@ -604,9 +591,7 @@ async def test_get_account():
 
     print(f"\n[TEST] Getting account details for {test_account_id}...")
 
-    inputs = {
-        "account_id": test_account_id
-    }
+    inputs = {"account_id": test_account_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -625,6 +610,7 @@ async def test_get_account():
 
 
 # ==================== STATUS RESOURCE TESTS ====================
+
 
 async def test_list_statuses():
     """Test listing all statuses"""
@@ -665,9 +651,7 @@ async def test_get_status():
 
     print(f"\n[TEST] Getting status details for {test_status_id}...")
 
-    inputs = {
-        "status_id": test_status_id
-    }
+    inputs = {"status_id": test_status_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -687,13 +671,12 @@ async def test_get_status():
 
 # ==================== PUBLIC HOLIDAY RESOURCE TESTS ====================
 
+
 async def test_list_public_holidays():
     """Test listing public holidays"""
     print("\n[TEST] Listing public holidays...")
 
-    inputs = {
-        "per_page": 10
-    }
+    inputs = {"per_page": 10}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -717,13 +700,12 @@ async def test_list_public_holidays():
 
 # ==================== TEAM HOLIDAY RESOURCE TESTS ====================
 
+
 async def test_list_team_holidays():
     """Test listing team holidays"""
     print("\n[TEST] Listing team holidays...")
 
-    inputs = {
-        "per_page": 10
-    }
+    inputs = {"per_page": 10}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -747,13 +729,12 @@ async def test_list_team_holidays():
 
 # ==================== MILESTONE RESOURCE TESTS ====================
 
+
 async def test_list_milestones():
     """Test listing milestones"""
     print("\n[TEST] Listing milestones...")
 
-    inputs = {
-        "per_page": 10
-    }
+    inputs = {"per_page": 10}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -777,21 +758,19 @@ async def test_list_milestones():
 
 # ==================== REPORTS RESOURCE TESTS ====================
 
+
 async def test_get_people_report():
     """Test getting people utilization report"""
     print("\n[TEST] Getting people utilization report...")
 
-    inputs = {
-        "start_date": "2025-01-01",
-        "end_date": "2025-01-31"
-    }
+    inputs = {"start_date": "2025-01-01", "end_date": "2025-01-31"}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await float.execute_action("get_people_report", inputs, context)
 
             assert isinstance(result, ActionResult), "Should return ActionResult"
-            print(f"[OK] Retrieved people report")
+            print("[OK] Retrieved people report")
             print(f"  Date range: {inputs['start_date']} to {inputs['end_date']}")
 
             return result.data
@@ -805,17 +784,14 @@ async def test_get_projects_report():
     """Test getting projects report"""
     print("\n[TEST] Getting projects report...")
 
-    inputs = {
-        "start_date": "2025-01-01",
-        "end_date": "2025-01-31"
-    }
+    inputs = {"start_date": "2025-01-01", "end_date": "2025-01-31"}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await float.execute_action("get_projects_report", inputs, context)
 
             assert isinstance(result, ActionResult), "Should return ActionResult"
-            print(f"[OK] Retrieved projects report")
+            print("[OK] Retrieved projects report")
             print(f"  Date range: {inputs['start_date']} to {inputs['end_date']}")
 
             return result.data
@@ -826,6 +802,7 @@ async def test_get_projects_report():
 
 
 # ==================== MAIN TEST RUNNER ====================
+
 
 async def main():
     print("=" * 70)
