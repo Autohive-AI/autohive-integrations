@@ -4,9 +4,7 @@ from context import webcal
 from autohive_integrations_sdk import ExecutionContext
 
 # Test configuration - No authentication required for webcal
-TEST_AUTH = {
-    "credentials": {}
-}
+TEST_AUTH = {"credentials": {}}
 
 # Public test calendar URLs
 # Using public iCal feeds for testing
@@ -18,9 +16,7 @@ async def test_fetch_events_basic():
     """Test fetching events with default settings."""
     print("\n[TEST] Fetching events with default settings...")
 
-    inputs = {
-        "webcal_url": TEST_WEBCAL_URL
-    }
+    inputs = {"webcal_url": TEST_WEBCAL_URL}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -53,11 +49,7 @@ async def test_fetch_events_with_timezone():
     """Test fetching events with a specific timezone."""
     print("\n[TEST] Fetching events with Pacific/Auckland timezone...")
 
-    inputs = {
-        "webcal_url": TEST_WEBCAL_URL,
-        "timezone": "Pacific/Auckland",
-        "look_ahead_days": 30
-    }
+    inputs = {"webcal_url": TEST_WEBCAL_URL, "timezone": "Pacific/Auckland", "look_ahead_days": 30}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -86,10 +78,7 @@ async def test_fetch_events_webcal_protocol():
     """Test fetching events using webcal:// protocol URL."""
     print("\n[TEST] Fetching events with webcal:// protocol...")
 
-    inputs = {
-        "webcal_url": TEST_WEBCAL_URL_ALT,
-        "look_ahead_days": 60
-    }
+    inputs = {"webcal_url": TEST_WEBCAL_URL_ALT, "look_ahead_days": 60}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -113,11 +102,7 @@ async def test_fetch_events_extended_range():
     """Test fetching events with extended look-ahead range."""
     print("\n[TEST] Fetching events with 90-day look-ahead...")
 
-    inputs = {
-        "webcal_url": TEST_WEBCAL_URL,
-        "timezone": "America/New_York",
-        "look_ahead_days": 90
-    }
+    inputs = {"webcal_url": TEST_WEBCAL_URL, "timezone": "America/New_York", "look_ahead_days": 90}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -133,10 +118,10 @@ async def test_fetch_events_extended_range():
             # Check event structure
             if events:
                 event = events[0]
-                required_fields = ['summary', 'start_time', 'end_time', 'all_day']
+                required_fields = ["summary", "start_time", "end_time", "all_day"]
                 for field in required_fields:
                     assert field in event, f"Event should have {field} field"
-                print(f"  ✓ Event structure validated")
+                print("  ✓ Event structure validated")
 
             return result
 
@@ -149,11 +134,7 @@ async def test_search_events_basic():
     """Test searching events with a search term."""
     print("\n[TEST] Searching events for 'Day'...")
 
-    inputs = {
-        "webcal_url": TEST_WEBCAL_URL,
-        "search_term": "Day",
-        "look_ahead_days": 365
-    }
+    inputs = {"webcal_url": TEST_WEBCAL_URL, "search_term": "Day", "look_ahead_days": 365}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -187,7 +168,7 @@ async def test_search_events_case_insensitive():
         "webcal_url": TEST_WEBCAL_URL,
         "search_term": "day",  # lowercase
         "case_sensitive": False,
-        "look_ahead_days": 365
+        "look_ahead_days": 365,
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
@@ -216,7 +197,7 @@ async def test_search_events_case_sensitive():
         "webcal_url": TEST_WEBCAL_URL,
         "search_term": "day",  # lowercase - might not match "Day"
         "case_sensitive": True,
-        "look_ahead_days": 365
+        "look_ahead_days": 365,
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
@@ -229,7 +210,7 @@ async def test_search_events_case_sensitive():
 
             events = response_data["events"]
             print(f"✓ Found {len(events)} event(s) with case-sensitive search")
-            print(f"  (May differ from case-insensitive results)")
+            print("  (May differ from case-insensitive results)")
 
             return result
 
@@ -242,11 +223,7 @@ async def test_search_events_no_results():
     """Test search with term that shouldn't match anything."""
     print("\n[TEST] Searching for non-existent term...")
 
-    inputs = {
-        "webcal_url": TEST_WEBCAL_URL,
-        "search_term": "xyznonexistent123",
-        "look_ahead_days": 365
-    }
+    inputs = {"webcal_url": TEST_WEBCAL_URL, "search_term": "xyznonexistent123", "look_ahead_days": 365}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -271,12 +248,7 @@ async def test_search_events_with_timezone():
     """Test search with specific timezone."""
     print("\n[TEST] Searching events with Europe/London timezone...")
 
-    inputs = {
-        "webcal_url": TEST_WEBCAL_URL,
-        "search_term": "Day",
-        "timezone": "Europe/London",
-        "look_ahead_days": 180
-    }
+    inputs = {"webcal_url": TEST_WEBCAL_URL, "search_term": "Day", "timezone": "Europe/London", "look_ahead_days": 180}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:

@@ -11,10 +11,7 @@ API Version: v1.2
 Reference: https://developer.uber.com/docs/riders/introduction
 """
 
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler,
-    ActionResult
-)
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any, Optional, Callable, TypeVar
 from functools import wraps
 import os
@@ -29,15 +26,17 @@ uber = Integration.load()
 UBER_API_BASE_URL = os.getenv("UBER_API_BASE_URL", "https://api.uber.com")
 API_VERSION = "v1.2"
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 # =============================================================================
 # ERROR HANDLING
 # =============================================================================
 
+
 class UberAPIError(Exception):
     """Custom exception for Uber API errors."""
+
     def __init__(self, message: str, error_type: str = "api_error"):
         super().__init__(message)
         self.message = message
@@ -47,34 +46,37 @@ class UberAPIError(Exception):
 def handle_uber_errors(action_name: str):
     """
     Decorator that wraps action execute methods with error handling.
-    
+
     Catches exceptions and returns ActionResult with proper error messages
     and error type classification.
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
             try:
                 return await func(self, inputs, context)
-                
+
             except UberAPIError as e:
-                return ActionResult(data={
-                    "result": False,
-                    "error": e.message,
-                    "error_type": e.error_type
-                }, cost_usd=0.0)
+                return ActionResult(
+                    data={"result": False, "error": e.message, "error_type": e.error_type}, cost_usd=0.0
+                )
 
             except Exception as e:
                 error_str = str(e)
                 error_type = classify_error(error_str)
 
-                return ActionResult(data={
-                    "result": False,
-                    "error": f"Uber API error in {action_name}: {error_str}",
-                    "error_type": error_type
-                }, cost_usd=0.0)
-        
+                return ActionResult(
+                    data={
+                        "result": False,
+                        "error": f"Uber API error in {action_name}: {error_str}",
+                        "error_type": error_type,
+                    },
+                    cost_usd=0.0,
+                )
+
         return wrapper
+
     return decorator
 
 
@@ -83,7 +85,7 @@ def classify_error(error_str: str) -> str:
     error_lower = error_str.lower()
 
     # Extract HTTP status code if present (e.g., "401", "500 Server Error", "API Error: 429")
-    status_match = re.search(r'\b([45]\d{2})\b', error_str)
+    status_match = re.search(r"\b([45]\d{2})\b", error_str)
     status_code = status_match.group(1) if status_match else None
 
     if status_code == "401" or "unauthorized" in error_lower:
@@ -104,24 +106,21 @@ def classify_error(error_str: str) -> str:
 # VALIDATION HELPERS
 # =============================================================================
 
-def validate_coordinates(
-    lat: Optional[float],
-    lng: Optional[float],
-    field_prefix: str = ""
-) -> Optional[str]:
+
+def validate_coordinates(lat: Optional[float], lng: Optional[float], field_prefix: str = "") -> Optional[str]:
     """Validate latitude and longitude values. Returns error message if invalid."""
     if lat is None or lng is None:
         return f"{field_prefix}latitude and longitude are required"
-    
+
     if not isinstance(lat, (int, float)) or not isinstance(lng, (int, float)):
         return f"{field_prefix}latitude and longitude must be numbers"
-    
+
     if lat < -90 or lat > 90:
         return f"{field_prefix}latitude must be between -90 and 90"
-    
+
     if lng < -180 or lng > 180:
         return f"{field_prefix}longitude must be between -180 and 180"
-    
+
     return None
 
 
@@ -139,10 +138,7 @@ def validate_seat_count(seat_count: Any) -> int:
         return 2  # Default to 2 seats when not provided
 
     if not isinstance(seat_count, int):
-        raise UberAPIError(
-            "seat_count must be an integer (1 or 2)",
-            "validation_error"
-        )
+        raise UberAPIError("seat_count must be an integer (1 or 2)", "validation_error")
 
     return max(1, min(seat_count, 2))
 
@@ -184,7 +180,7 @@ def validate_id(value: Any, field_name: str) -> Optional[str]:
     # Block path traversal and URL metacharacters
     # This prevents injection while allowing most legitimate ID formats
     v = value.strip()
-    dangerous_chars = ['/', '\\', '..', '?', '&', '#', '%']
+    dangerous_chars = ["/", "\\", "..", "?", "&", "#", "%"]
     if any(char in v for char in dangerous_chars):
         return f"{field_name} contains invalid characters"
 
@@ -195,13 +191,10 @@ def validate_id(value: Any, field_name: str) -> Optional[str]:
 # API HELPERS
 # =============================================================================
 
+
 def get_common_headers() -> Dict[str, str]:
     """Return common headers for Uber API requests."""
-    return {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Accept-Language": "en_US"
-    }
+    return {"Accept": "application/json", "Content-Type": "application/json", "Accept-Language": "en_US"}
 
 
 async def uber_fetch(
@@ -218,17 +211,17 @@ async def uber_fetch(
     Use @handle_uber_errors decorator on actions for error classification.
     """
     url = f"{UBER_API_BASE_URL}/{API_VERSION}/{path.lstrip('/')}"
-    
+
     kwargs: Dict[str, Any] = {
         "method": method,
         "headers": get_common_headers(),
     }
-    
+
     if params:
         kwargs["params"] = params
     if json_body:
         kwargs["json"] = json_body
-    
+
     response = await context.fetch(url, **kwargs)
     return response
 
@@ -236,6 +229,7 @@ async def uber_fetch(
 # =============================================================================
 # PRODUCT ACTIONS
 # =============================================================================
+
 
 @uber.action("get_products")
 class GetProductsAction(ActionHandler):
@@ -250,22 +244,17 @@ class GetProductsAction(ActionHandler):
         if coord_error:
             raise UberAPIError(coord_error, "validation_error")
 
-        params = {
-            "latitude": lat,
-            "longitude": lng
-        }
+        params = {"latitude": lat, "longitude": lng}
 
         response = await uber_fetch(context, "products", params=params)
 
-        return ActionResult(data={
-            "products": response.get("products", []),
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(data={"products": response.get("products", []), "result": True}, cost_usd=0.0)
 
 
 # =============================================================================
 # ESTIMATE ACTIONS
 # =============================================================================
+
 
 @uber.action("get_price_estimate")
 class GetPriceEstimateAction(ActionHandler):
@@ -290,7 +279,7 @@ class GetPriceEstimateAction(ActionHandler):
             "start_latitude": start_lat,
             "start_longitude": start_lng,
             "end_latitude": end_lat,
-            "end_longitude": end_lng
+            "end_longitude": end_lng,
         }
 
         seat_count = inputs.get("seat_count")
@@ -299,10 +288,7 @@ class GetPriceEstimateAction(ActionHandler):
 
         response = await uber_fetch(context, "estimates/price", params=params)
 
-        return ActionResult(data={
-            "prices": response.get("prices", []),
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(data={"prices": response.get("prices", []), "result": True}, cost_usd=0.0)
 
 
 @uber.action("get_time_estimate")
@@ -318,10 +304,7 @@ class GetTimeEstimateAction(ActionHandler):
         if coord_error:
             raise UberAPIError(coord_error, "validation_error")
 
-        params = {
-            "start_latitude": start_lat,
-            "start_longitude": start_lng
-        }
+        params = {"start_latitude": start_lat, "start_longitude": start_lng}
 
         product_id = inputs.get("product_id")
         if product_id and isinstance(product_id, str) and product_id.strip():
@@ -333,10 +316,7 @@ class GetTimeEstimateAction(ActionHandler):
 
         response = await uber_fetch(context, "estimates/time", params=params)
 
-        return ActionResult(data={
-            "times": response.get("times", []),
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(data={"times": response.get("times", []), "result": True}, cost_usd=0.0)
 
 
 @uber.action("get_ride_estimate")
@@ -368,26 +348,22 @@ class GetRideEstimateAction(ActionHandler):
             "start_latitude": start_lat,
             "start_longitude": start_lng,
             "end_latitude": end_lat,
-            "end_longitude": end_lng
+            "end_longitude": end_lng,
         }
 
         seat_count = inputs.get("seat_count")
         if seat_count is not None:
             body["seat_count"] = validate_seat_count(seat_count)
 
-        response = await uber_fetch(
-            context, "requests/estimate", method="POST", json_body=body
-        )
+        response = await uber_fetch(context, "requests/estimate", method="POST", json_body=body)
 
-        return ActionResult(data={
-            "estimate": response,
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(data={"estimate": response, "result": True}, cost_usd=0.0)
 
 
 # =============================================================================
 # RIDE REQUEST ACTIONS
 # =============================================================================
+
 
 @uber.action("request_ride")
 class RequestRideAction(ActionHandler):
@@ -418,12 +394,17 @@ class RequestRideAction(ActionHandler):
             "start_latitude": start_lat,
             "start_longitude": start_lng,
             "end_latitude": end_lat,
-            "end_longitude": end_lng
+            "end_longitude": end_lng,
         }
 
         optional_string_fields = [
-            "start_address", "start_nickname", "end_address", "end_nickname",
-            "fare_id", "surge_confirmation_id", "payment_method_id"
+            "start_address",
+            "start_nickname",
+            "end_address",
+            "end_nickname",
+            "fare_id",
+            "surge_confirmation_id",
+            "payment_method_id",
         ]
         for field in optional_string_fields:
             value = inputs.get(field)
@@ -436,15 +417,18 @@ class RequestRideAction(ActionHandler):
 
         response = await uber_fetch(context, "requests", method="POST", json_body=body)
 
-        return ActionResult(data={
-            "request_id": response.get("request_id"),
-            "status": response.get("status"),
-            "eta": response.get("eta"),
-            "surge_multiplier": response.get("surge_multiplier"),
-            "driver": response.get("driver"),
-            "vehicle": response.get("vehicle"),
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(
+            data={
+                "request_id": response.get("request_id"),
+                "status": response.get("status"),
+                "eta": response.get("eta"),
+                "surge_multiplier": response.get("surge_multiplier"),
+                "driver": response.get("driver"),
+                "vehicle": response.get("vehicle"),
+                "result": True,
+            },
+            cost_usd=0.0,
+        )
 
 
 @uber.action("get_ride_status")
@@ -460,10 +444,7 @@ class GetRideStatusAction(ActionHandler):
         request_id = inputs["request_id"].strip()
         response = await uber_fetch(context, f"requests/{request_id}")
 
-        return ActionResult(data={
-            "ride": response,
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(data={"ride": response, "result": True}, cost_usd=0.0)
 
 
 @uber.action("get_ride_map")
@@ -479,10 +460,7 @@ class GetRideMapAction(ActionHandler):
         request_id = inputs["request_id"].strip()
         response = await uber_fetch(context, f"requests/{request_id}/map")
 
-        return ActionResult(data={
-            "href": response.get("href"),
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(data={"href": response.get("href"), "result": True}, cost_usd=0.0)
 
 
 @uber.action("cancel_ride")
@@ -514,15 +492,13 @@ class GetRideReceiptAction(ActionHandler):
         request_id = inputs["request_id"].strip()
         response = await uber_fetch(context, f"requests/{request_id}/receipt")
 
-        return ActionResult(data={
-            "receipt": response,
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(data={"receipt": response, "result": True}, cost_usd=0.0)
 
 
 # =============================================================================
 # USER ACTIONS
 # =============================================================================
+
 
 @uber.action("get_user_profile")
 class GetUserProfileAction(ActionHandler):
@@ -532,10 +508,7 @@ class GetUserProfileAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         response = await uber_fetch(context, "me")
 
-        return ActionResult(data={
-            "user": response,
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(data={"user": response, "result": True}, cost_usd=0.0)
 
 
 @uber.action("get_ride_history")
@@ -544,9 +517,7 @@ class GetRideHistoryAction(ActionHandler):
 
     @handle_uber_errors("get_ride_history")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        params: Dict[str, Any] = {
-            "limit": validate_limit(inputs.get("limit"), max_limit=50)
-        }
+        params: Dict[str, Any] = {"limit": validate_limit(inputs.get("limit"), max_limit=50)}
 
         offset = validate_offset(inputs.get("offset"))
         if offset > 0:
@@ -554,11 +525,10 @@ class GetRideHistoryAction(ActionHandler):
 
         response = await uber_fetch(context, "history", params=params)
 
-        return ActionResult(data={
-            "history": response.get("history", []),
-            "count": response.get("count", 0),
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(
+            data={"history": response.get("history", []), "count": response.get("count", 0), "result": True},
+            cost_usd=0.0,
+        )
 
 
 @uber.action("get_payment_methods")
@@ -569,16 +539,20 @@ class GetPaymentMethodsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         response = await uber_fetch(context, "payment-methods")
 
-        return ActionResult(data={
-            "payment_methods": response.get("payment_methods", []),
-            "last_used": response.get("last_used"),
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(
+            data={
+                "payment_methods": response.get("payment_methods", []),
+                "last_used": response.get("last_used"),
+                "result": True,
+            },
+            cost_usd=0.0,
+        )
 
 
 # =============================================================================
 # PARTNER LOYALTY ACTIONS (v1 API)
 # =============================================================================
+
 
 async def uber_fetch_v1(
     context: ExecutionContext,
@@ -623,10 +597,7 @@ class LinkLoyaltyAccountAction(ActionHandler):
         if member_error:
             raise UberAPIError(member_error, "validation_error")
 
-        body = {
-            "partner_id": partner_id.strip(),
-            "member_id": member_id.strip()
-        }
+        body = {"partner_id": partner_id.strip(), "member_id": member_id.strip()}
 
         # Add optional fields
         if inputs.get("first_name"):
@@ -636,15 +607,9 @@ class LinkLoyaltyAccountAction(ActionHandler):
         if inputs.get("email"):
             body["email"] = inputs["email"].strip()
 
-        response = await uber_fetch_v1(
-            context, "partner-loyalty/link-account", method="POST", json_body=body
-        )
+        response = await uber_fetch_v1(context, "partner-loyalty/link-account", method="POST", json_body=body)
 
-        return ActionResult(data={
-            "linked": True,
-            "response": response,
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(data={"linked": True, "response": response, "result": True}, cost_usd=0.0)
 
 
 @uber.action("unlink_loyalty_account")
@@ -659,19 +624,11 @@ class UnlinkLoyaltyAccountAction(ActionHandler):
         if partner_error:
             raise UberAPIError(partner_error, "validation_error")
 
-        body = {
-            "partner_id": partner_id.strip()
-        }
+        body = {"partner_id": partner_id.strip()}
 
-        response = await uber_fetch_v1(
-            context, "partner-loyalty/unlink-account", method="POST", json_body=body
-        )
+        response = await uber_fetch_v1(context, "partner-loyalty/unlink-account", method="POST", json_body=body)
 
-        return ActionResult(data={
-            "unlinked": True,
-            "response": response,
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(data={"unlinked": True, "response": response, "result": True}, cost_usd=0.0)
 
 
 @uber.action("submit_flight_booking_data")
@@ -691,27 +648,22 @@ class SubmitFlightBookingDataAction(ActionHandler):
         if booking_error:
             raise UberAPIError(booking_error, "validation_error")
 
-        body: Dict[str, Any] = {
-            "partner_id": partner_id.strip(),
-            "booking_id": booking_id.strip()
-        }
+        body: Dict[str, Any] = {"partner_id": partner_id.strip(), "booking_id": booking_id.strip()}
 
         # Add optional flight details
         optional_fields = [
-            "flight_number", "departure_airport", "arrival_airport",
-            "departure_time", "arrival_time", "passenger_name"
+            "flight_number",
+            "departure_airport",
+            "arrival_airport",
+            "departure_time",
+            "arrival_time",
+            "passenger_name",
         ]
         for field in optional_fields:
             value = inputs.get(field)
             if value and isinstance(value, str) and value.strip():
                 body[field] = value.strip()
 
-        response = await uber_fetch_v1(
-            context, "partner-loyalty/flight-booking-data", method="POST", json_body=body
-        )
+        response = await uber_fetch_v1(context, "partner-loyalty/flight-booking-data", method="POST", json_body=body)
 
-        return ActionResult(data={
-            "submitted": True,
-            "response": response,
-            "result": True
-        }, cost_usd=0.0)
+        return ActionResult(data={"submitted": True, "response": response, "result": True}, cost_usd=0.0)
