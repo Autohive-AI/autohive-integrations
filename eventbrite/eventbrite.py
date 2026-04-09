@@ -1,9 +1,7 @@
 # Eventbrite API Integration
 # Provides actions for managing events, venues, attendees, orders, and ticket classes
 
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler, ActionResult
-)
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -28,15 +26,9 @@ class GetCurrentUserAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(
-                data={"result": True, "user": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "user": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("list_organizations")
@@ -54,15 +46,12 @@ class ListOrganizationsAction(ActionHandler):
                 data={
                     "result": True,
                     "organizations": response.get("organizations", []),
-                    "pagination": response.get("pagination")
+                    "pagination": response.get("pagination"),
                 },
-                cost_usd=0.0
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ============================================================================
@@ -77,10 +66,7 @@ class GetEventAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         event_id = inputs.get("event_id")
         if not event_id:
-            return ActionResult(
-                data={"result": False, "error": "event_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "event_id is required"}, cost_usd=0.0)
 
         try:
             params = {}
@@ -94,15 +80,9 @@ class GetEventAction(ActionHandler):
 
             response = await context.fetch(url, method="GET")
 
-            return ActionResult(
-                data={"result": True, "event": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "event": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("list_events")
@@ -112,10 +92,7 @@ class ListEventsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         organization_id = inputs.get("organization_id")
         if not organization_id:
-            return ActionResult(
-                data={"result": False, "error": "organization_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "organization_id is required"}, cost_usd=0.0)
 
         try:
             params = {}
@@ -135,18 +112,11 @@ class ListEventsAction(ActionHandler):
             response = await context.fetch(url, method="GET")
 
             return ActionResult(
-                data={
-                    "result": True,
-                    "events": response.get("events", []),
-                    "pagination": response.get("pagination")
-                },
-                cost_usd=0.0
+                data={"result": True, "events": response.get("events", []), "pagination": response.get("pagination")},
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("create_event")
@@ -165,9 +135,9 @@ class CreateEventAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": False,
-                    "error": "organization_id, name, start_utc, end_utc, timezone, and currency are required"
+                    "error": "organization_id, name, start_utc, end_utc, timezone, and currency are required",
                 },
-                cost_usd=0.0
+                cost_usd=0.0,
             )
 
         try:
@@ -204,15 +174,9 @@ class CreateEventAction(ActionHandler):
                 json=event_data,
             )
 
-            return ActionResult(
-                data={"result": True, "event": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "event": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("update_event")
@@ -222,10 +186,7 @@ class UpdateEventAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         event_id = inputs.get("event_id")
         if not event_id:
-            return ActionResult(
-                data={"result": False, "error": "event_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "event_id is required"}, cost_usd=0.0)
 
         try:
             event_data = {"event": {}}
@@ -235,15 +196,9 @@ class UpdateEventAction(ActionHandler):
             if inputs.get("summary"):
                 event_data["event"]["summary"] = inputs["summary"]
             if inputs.get("start_utc") and inputs.get("timezone"):
-                event_data["event"]["start"] = {
-                    "timezone": inputs["timezone"],
-                    "utc": inputs["start_utc"]
-                }
+                event_data["event"]["start"] = {"timezone": inputs["timezone"], "utc": inputs["start_utc"]}
             if inputs.get("end_utc") and inputs.get("timezone"):
-                event_data["event"]["end"] = {
-                    "timezone": inputs["timezone"],
-                    "utc": inputs["end_utc"]
-                }
+                event_data["event"]["end"] = {"timezone": inputs["timezone"], "utc": inputs["end_utc"]}
             if inputs.get("currency"):
                 event_data["event"]["currency"] = inputs["currency"]
             if inputs.get("online_event") is not None:
@@ -256,10 +211,7 @@ class UpdateEventAction(ActionHandler):
                 event_data["event"]["capacity"] = inputs["capacity"]
 
             if not event_data["event"]:
-                return ActionResult(
-                    data={"result": False, "error": "No fields to update"},
-                    cost_usd=0.0
-                )
+                return ActionResult(data={"result": False, "error": "No fields to update"}, cost_usd=0.0)
 
             response = await context.fetch(
                 f"{BASE_URL}/events/{event_id}/",
@@ -267,15 +219,9 @@ class UpdateEventAction(ActionHandler):
                 json=event_data,
             )
 
-            return ActionResult(
-                data={"result": True, "event": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "event": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("delete_event")
@@ -285,10 +231,7 @@ class DeleteEventAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         event_id = inputs.get("event_id")
         if not event_id:
-            return ActionResult(
-                data={"result": False, "error": "event_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "event_id is required"}, cost_usd=0.0)
 
         try:
             await context.fetch(
@@ -296,15 +239,9 @@ class DeleteEventAction(ActionHandler):
                 method="DELETE",
             )
 
-            return ActionResult(
-                data={"result": True, "deleted": True},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "deleted": True}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("publish_event")
@@ -314,10 +251,7 @@ class PublishEventAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         event_id = inputs.get("event_id")
         if not event_id:
-            return ActionResult(
-                data={"result": False, "error": "event_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "event_id is required"}, cost_usd=0.0)
 
         try:
             response = await context.fetch(
@@ -325,15 +259,9 @@ class PublishEventAction(ActionHandler):
                 method="POST",
             )
 
-            return ActionResult(
-                data={"result": True, "published": response.get("published", True)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "published": response.get("published", True)}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("unpublish_event")
@@ -343,10 +271,7 @@ class UnpublishEventAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         event_id = inputs.get("event_id")
         if not event_id:
-            return ActionResult(
-                data={"result": False, "error": "event_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "event_id is required"}, cost_usd=0.0)
 
         try:
             response = await context.fetch(
@@ -354,15 +279,9 @@ class UnpublishEventAction(ActionHandler):
                 method="POST",
             )
 
-            return ActionResult(
-                data={"result": True, "unpublished": response.get("unpublished", True)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "unpublished": response.get("unpublished", True)}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("cancel_event")
@@ -372,10 +291,7 @@ class CancelEventAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         event_id = inputs.get("event_id")
         if not event_id:
-            return ActionResult(
-                data={"result": False, "error": "event_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "event_id is required"}, cost_usd=0.0)
 
         try:
             await context.fetch(
@@ -383,15 +299,9 @@ class CancelEventAction(ActionHandler):
                 method="POST",
             )
 
-            return ActionResult(
-                data={"result": True, "canceled": True},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "canceled": True}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("copy_event")
@@ -401,10 +311,7 @@ class CopyEventAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         event_id = inputs.get("event_id")
         if not event_id:
-            return ActionResult(
-                data={"result": False, "error": "event_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "event_id is required"}, cost_usd=0.0)
 
         try:
             copy_data = {}
@@ -424,15 +331,9 @@ class CopyEventAction(ActionHandler):
                 json=copy_data if copy_data else None,
             )
 
-            return ActionResult(
-                data={"result": True, "event": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "event": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("get_event_description")
@@ -442,10 +343,7 @@ class GetEventDescriptionAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         event_id = inputs.get("event_id")
         if not event_id:
-            return ActionResult(
-                data={"result": False, "error": "event_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "event_id is required"}, cost_usd=0.0)
 
         try:
             response = await context.fetch(
@@ -453,15 +351,9 @@ class GetEventDescriptionAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(
-                data={"result": True, "description": response.get("description", "")},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "description": response.get("description", "")}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ============================================================================
@@ -476,10 +368,7 @@ class GetVenueAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         venue_id = inputs.get("venue_id")
         if not venue_id:
-            return ActionResult(
-                data={"result": False, "error": "venue_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "venue_id is required"}, cost_usd=0.0)
 
         try:
             response = await context.fetch(
@@ -487,15 +376,9 @@ class GetVenueAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(
-                data={"result": True, "venue": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "venue": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("list_venues")
@@ -505,10 +388,7 @@ class ListVenuesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         organization_id = inputs.get("organization_id")
         if not organization_id:
-            return ActionResult(
-                data={"result": False, "error": "organization_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "organization_id is required"}, cost_usd=0.0)
 
         try:
             response = await context.fetch(
@@ -517,18 +397,11 @@ class ListVenuesAction(ActionHandler):
             )
 
             return ActionResult(
-                data={
-                    "result": True,
-                    "venues": response.get("venues", []),
-                    "pagination": response.get("pagination")
-                },
-                cost_usd=0.0
+                data={"result": True, "venues": response.get("venues", []), "pagination": response.get("pagination")},
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("create_venue")
@@ -540,22 +413,22 @@ class CreateVenueAction(ActionHandler):
         name = inputs.get("name")
 
         if not organization_id or not name:
-            return ActionResult(
-                data={"result": False, "error": "organization_id and name are required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "organization_id and name are required"}, cost_usd=0.0)
 
         try:
-            venue_data = {
-                "venue": {
-                    "name": name,
-                    "address": {}
-                }
-            }
+            venue_data = {"venue": {"name": name, "address": {}}}
 
             # Add address fields
-            address_fields = ["address_1", "address_2", "city", "region", "postal_code",
-                             "country", "latitude", "longitude"]
+            address_fields = [
+                "address_1",
+                "address_2",
+                "city",
+                "region",
+                "postal_code",
+                "country",
+                "latitude",
+                "longitude",
+            ]
             for field in address_fields:
                 if inputs.get(field):
                     venue_data["venue"]["address"][field] = inputs[field]
@@ -569,15 +442,9 @@ class CreateVenueAction(ActionHandler):
                 json=venue_data,
             )
 
-            return ActionResult(
-                data={"result": True, "venue": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "venue": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ============================================================================
@@ -592,10 +459,7 @@ class GetOrderAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         order_id = inputs.get("order_id")
         if not order_id:
-            return ActionResult(
-                data={"result": False, "error": "order_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "order_id is required"}, cost_usd=0.0)
 
         try:
             params = {}
@@ -609,15 +473,9 @@ class GetOrderAction(ActionHandler):
 
             response = await context.fetch(url, method="GET")
 
-            return ActionResult(
-                data={"result": True, "order": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "order": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("list_orders_by_event")
@@ -627,10 +485,7 @@ class ListOrdersByEventAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         event_id = inputs.get("event_id")
         if not event_id:
-            return ActionResult(
-                data={"result": False, "error": "event_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "event_id is required"}, cost_usd=0.0)
 
         try:
             params = {}
@@ -646,18 +501,11 @@ class ListOrdersByEventAction(ActionHandler):
             response = await context.fetch(url, method="GET")
 
             return ActionResult(
-                data={
-                    "result": True,
-                    "orders": response.get("orders", []),
-                    "pagination": response.get("pagination")
-                },
-                cost_usd=0.0
+                data={"result": True, "orders": response.get("orders", []), "pagination": response.get("pagination")},
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("list_orders_by_organization")
@@ -667,10 +515,7 @@ class ListOrdersByOrganizationAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         organization_id = inputs.get("organization_id")
         if not organization_id:
-            return ActionResult(
-                data={"result": False, "error": "organization_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "organization_id is required"}, cost_usd=0.0)
 
         try:
             params = {}
@@ -686,18 +531,11 @@ class ListOrdersByOrganizationAction(ActionHandler):
             response = await context.fetch(url, method="GET")
 
             return ActionResult(
-                data={
-                    "result": True,
-                    "orders": response.get("orders", []),
-                    "pagination": response.get("pagination")
-                },
-                cost_usd=0.0
+                data={"result": True, "orders": response.get("orders", []), "pagination": response.get("pagination")},
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ============================================================================
@@ -714,10 +552,7 @@ class GetAttendeeAction(ActionHandler):
         attendee_id = inputs.get("attendee_id")
 
         if not event_id or not attendee_id:
-            return ActionResult(
-                data={"result": False, "error": "event_id and attendee_id are required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "event_id and attendee_id are required"}, cost_usd=0.0)
 
         try:
             response = await context.fetch(
@@ -725,15 +560,9 @@ class GetAttendeeAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(
-                data={"result": True, "attendee": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "attendee": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("list_attendees")
@@ -743,10 +572,7 @@ class ListAttendeesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         event_id = inputs.get("event_id")
         if not event_id:
-            return ActionResult(
-                data={"result": False, "error": "event_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "event_id is required"}, cost_usd=0.0)
 
         try:
             params = {}
@@ -765,15 +591,12 @@ class ListAttendeesAction(ActionHandler):
                 data={
                     "result": True,
                     "attendees": response.get("attendees", []),
-                    "pagination": response.get("pagination")
+                    "pagination": response.get("pagination"),
                 },
-                cost_usd=0.0
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ============================================================================
@@ -791,8 +614,7 @@ class GetTicketClassAction(ActionHandler):
 
         if not event_id or not ticket_class_id:
             return ActionResult(
-                data={"result": False, "error": "event_id and ticket_class_id are required"},
-                cost_usd=0.0
+                data={"result": False, "error": "event_id and ticket_class_id are required"}, cost_usd=0.0
             )
 
         try:
@@ -801,15 +623,9 @@ class GetTicketClassAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(
-                data={"result": True, "ticket_class": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "ticket_class": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("list_ticket_classes")
@@ -819,10 +635,7 @@ class ListTicketClassesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         event_id = inputs.get("event_id")
         if not event_id:
-            return ActionResult(
-                data={"result": False, "error": "event_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "event_id is required"}, cost_usd=0.0)
 
         try:
             params = {}
@@ -839,15 +652,12 @@ class ListTicketClassesAction(ActionHandler):
                 data={
                     "result": True,
                     "ticket_classes": response.get("ticket_classes", []),
-                    "pagination": response.get("pagination")
+                    "pagination": response.get("pagination"),
                 },
-                cost_usd=0.0
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("create_ticket_class")
@@ -861,8 +671,7 @@ class CreateTicketClassAction(ActionHandler):
 
         if not event_id or not name or quantity_total is None:
             return ActionResult(
-                data={"result": False, "error": "event_id, name, and quantity_total are required"},
-                cost_usd=0.0
+                data={"result": False, "error": "event_id, name, and quantity_total are required"}, cost_usd=0.0
             )
 
         try:
@@ -904,15 +713,9 @@ class CreateTicketClassAction(ActionHandler):
                 json=ticket_class_data,
             )
 
-            return ActionResult(
-                data={"result": True, "ticket_class": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "ticket_class": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("update_ticket_class")
@@ -925,8 +728,7 @@ class UpdateTicketClassAction(ActionHandler):
 
         if not event_id or not ticket_class_id:
             return ActionResult(
-                data={"result": False, "error": "event_id and ticket_class_id are required"},
-                cost_usd=0.0
+                data={"result": False, "error": "event_id and ticket_class_id are required"}, cost_usd=0.0
             )
 
         try:
@@ -950,10 +752,7 @@ class UpdateTicketClassAction(ActionHandler):
                 ticket_class_data["ticket_class"]["hidden"] = inputs["hidden"]
 
             if not ticket_class_data["ticket_class"]:
-                return ActionResult(
-                    data={"result": False, "error": "No fields to update"},
-                    cost_usd=0.0
-                )
+                return ActionResult(data={"result": False, "error": "No fields to update"}, cost_usd=0.0)
 
             response = await context.fetch(
                 f"{BASE_URL}/events/{event_id}/ticket_classes/{ticket_class_id}/",
@@ -961,15 +760,9 @@ class UpdateTicketClassAction(ActionHandler):
                 json=ticket_class_data,
             )
 
-            return ActionResult(
-                data={"result": True, "ticket_class": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "ticket_class": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("delete_ticket_class")
@@ -982,8 +775,7 @@ class DeleteTicketClassAction(ActionHandler):
 
         if not event_id or not ticket_class_id:
             return ActionResult(
-                data={"result": False, "error": "event_id and ticket_class_id are required"},
-                cost_usd=0.0
+                data={"result": False, "error": "event_id and ticket_class_id are required"}, cost_usd=0.0
             )
 
         try:
@@ -992,15 +784,9 @@ class DeleteTicketClassAction(ActionHandler):
                 method="DELETE",
             )
 
-            return ActionResult(
-                data={"result": True, "deleted": True},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "deleted": True}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ============================================================================
@@ -1019,18 +805,9 @@ class ListCategoriesAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(
-                data={
-                    "result": True,
-                    "categories": response.get("categories", [])
-                },
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "categories": response.get("categories", [])}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @eventbrite.action("get_category")
@@ -1040,10 +817,7 @@ class GetCategoryAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         category_id = inputs.get("category_id")
         if not category_id:
-            return ActionResult(
-                data={"result": False, "error": "category_id is required"},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": "category_id is required"}, cost_usd=0.0)
 
         try:
             response = await context.fetch(
@@ -1051,12 +825,6 @@ class GetCategoryAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(
-                data={"result": True, "category": response},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "category": response}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)

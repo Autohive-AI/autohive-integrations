@@ -5,11 +5,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 # Test configuration
 # IMPORTANT: Replace with your actual ElevenLabs API key
-TEST_AUTH = {
-    "credentials": {
-        "api_key": "your_api_key_here"
-    }
-}
+TEST_AUTH = {"credentials": {"api_key": "your_api_key_here"}}
 
 # Store voice and history IDs for dependent tests
 test_voice_id = None
@@ -30,7 +26,7 @@ async def test_get_user_subscription():
             assert "subscription" in result, "Should return subscription object"
 
             sub = result["subscription"]
-            print(f"✓ Subscription retrieved")
+            print("✓ Subscription retrieved")
             print(f"  Tier: {sub.get('tier', 'N/A')}")
             print(f"  Character Count: {sub.get('character_count', 0)}/{sub.get('character_limit', 0)}")
             print(f"  Voice Limit: {sub.get('voice_limit', 0)}")
@@ -46,9 +42,7 @@ async def test_list_voices():
     """Test listing available voices. FREE - no credits used."""
     print("\n[TEST] Listing available voices...")
 
-    inputs = {
-        "page_size": 20
-    }
+    inputs = {"page_size": 20}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -84,10 +78,7 @@ async def test_get_voice():
 
     print(f"\n[TEST] Getting voice details for {test_voice_id}...")
 
-    inputs = {
-        "voice_id": test_voice_id,
-        "with_settings": True
-    }
+    inputs = {"voice_id": test_voice_id, "with_settings": True}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -103,7 +94,9 @@ async def test_get_voice():
 
             if "settings" in voice:
                 settings = voice["settings"]
-                print(f"  Settings: stability={settings.get('stability')}, similarity={settings.get('similarity_boost')}")
+                print(
+                    f"  Settings: stability={settings.get('stability')}, similarity={settings.get('similarity_boost')}"
+                )
 
             return result
 
@@ -130,7 +123,7 @@ async def test_get_voice_settings():
             assert "settings" in result, "Should return settings object"
 
             settings = result["settings"]
-            print(f"✓ Retrieved voice settings:")
+            print("✓ Retrieved voice settings:")
             print(f"  Stability: {settings.get('stability', 'N/A')}")
             print(f"  Similarity Boost: {settings.get('similarity_boost', 'N/A')}")
             print(f"  Style: {settings.get('style', 'N/A')}")
@@ -149,7 +142,7 @@ async def test_text_to_speech():
         print("\n[TEST] Skipping text_to_speech - no voice ID available")
         return None
 
-    print(f"\n[TEST] Generating speech from text...")
+    print("\n[TEST] Generating speech from text...")
     print("  ⚠ WARNING: This action costs credits!")
 
     text = "Hello from Autohive! This is a test of the ElevenLabs integration."
@@ -159,7 +152,7 @@ async def test_text_to_speech():
         "text": text,
         "voice_id": test_voice_id,
         "output_format": "mp3_44100_128",
-        "model_id": "eleven_turbo_v2_5"  # Use Turbo model for cheaper credits
+        "model_id": "eleven_turbo_v2_5",  # Use Turbo model for cheaper credits
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
@@ -175,7 +168,7 @@ async def test_text_to_speech():
             assert "contentType" in file_obj, "File should have contentType"
 
             content_length = len(file_obj["content"])
-            print(f"✓ Generated audio file")
+            print("✓ Generated audio file")
             print(f"  Name: {file_obj['name']}")
             print(f"  Type: {file_obj['contentType']}")
             print(f"  Size: {content_length} bytes (base64-encoded)")
@@ -210,7 +203,7 @@ async def test_list_history():
 
                 # Show first few items
                 for i, item in enumerate(history[:3]):
-                    print(f"  {i+1}. {item.get('text', '')[:50]}... (ID: {item.get('history_item_id', 'N/A')})")
+                    print(f"  {i + 1}. {item.get('text', '')[:50]}... (ID: {item.get('history_item_id', 'N/A')})")
                     print(f"     Voice: {item.get('voice_name', 'N/A')}, Created: {item.get('date_unix', 'N/A')}")
 
             return result
@@ -240,11 +233,11 @@ async def test_download_history_audio():
 
             file_obj = result["file"]
             content_length = len(file_obj["content"])
-            print(f"✓ Downloaded audio file")
+            print("✓ Downloaded audio file")
             print(f"  Name: {file_obj['name']}")
             print(f"  Type: {file_obj['contentType']}")
             print(f"  Size: {content_length} bytes (base64-encoded)")
-            print(f"  Cost: FREE (no new generation)")
+            print("  Cost: FREE (no new generation)")
 
             return result
 
