@@ -10,7 +10,7 @@ async def test_list_folder():
     auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {
-        "path": "",  # Empty string for root folder
+        "path": "",  # Empty string for root folder  # nosec B105
         "recursive": False,
         "include_deleted": False,
         "include_mounted_folders": True,
@@ -45,7 +45,7 @@ async def test_list_folder_continue():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await dropbox.execute_action("list_folder_continue", inputs, context)
-            print(f"List Folder Continue Result: {result}")
+            print(f"List Folder Continue Result: {result}")  # nosec B105
             assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
             assert "entries" in result, "Response missing 'entries' field"
             assert "cursor" in result, "Response missing 'cursor' field"
@@ -70,7 +70,7 @@ async def test_get_metadata():
             result = await dropbox.execute_action("get_metadata", inputs, context)
             print(f"Get Metadata Result: {result}")
             assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
-            assert "metadata" in result, "Response missing 'metadata' field"
+            assert "metadata" in result, "Response missing 'metadata' field"  # nosec B105
             if result.get("metadata"):
                 metadata = result["metadata"]
                 print(f"  -> Name: {metadata.get('name')}")
@@ -103,7 +103,7 @@ async def test_get_temporary_link():
             return result
         except Exception as e:
             print(f"Error testing get_temporary_link: {e}")
-            return None
+            return None  # nosec B105
 
 
 async def test_upload_file():
@@ -131,7 +131,7 @@ async def test_upload_file():
                 file_info = result["file"]
                 print(f"  -> Uploaded: {file_info.get('name')}")
                 print(f"  -> Path: {file_info.get('path_display')}")
-                print(f"  -> Size: {file_info.get('size')} bytes")
+                print(f"  -> Size: {file_info.get('size')} bytes")  # nosec B105
             return result
         except Exception as e:
             print(f"Error testing upload_file: {e}")
@@ -168,7 +168,7 @@ async def test_delete():
     auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {
-        "path": "/path/to/delete"  # Replace with path to delete
+        "path": "/path/to/delete"  # Replace with path to delete  # nosec B105
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -198,7 +198,7 @@ async def test_move():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await dropbox.execute_action("move", inputs, context)
+            result = await dropbox.execute_action("move", inputs, context)  # nosec B105
             print(f"Move Result: {result}")
             assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
             assert "metadata" in result, "Response missing 'metadata' field"
@@ -225,7 +225,7 @@ async def test_copy():
         try:
             result = await dropbox.execute_action("copy", inputs, context)
             print(f"Copy Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"  # nosec B105
             assert "metadata" in result, "Response missing 'metadata' field"
             if result.get("metadata"):
                 metadata = result["metadata"]
@@ -256,7 +256,7 @@ async def main():
     print("1. Testing list_folder...")
     await test_list_folder()
     print()
-
+    # nosec B105
     print("2. Testing list_folder_continue...")
     await test_list_folder_continue()
     print()

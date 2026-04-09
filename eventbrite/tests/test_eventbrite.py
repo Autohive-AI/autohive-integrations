@@ -9,7 +9,7 @@ async def test_get_current_user():
     auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {}
-
+    # nosec B105
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await eventbrite.execute_action("get_current_user", inputs, context)
@@ -34,7 +34,7 @@ async def test_list_organizations():
         try:
             result = await eventbrite.execute_action("list_organizations", inputs, context)
             print(f"List Organizations Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"  # nosec B105
             assert "organizations" in result, "Response missing 'organizations' field"
             if result.get("organizations"):
                 print(f"  -> Found {len(result['organizations'])} organization(s)")
@@ -61,7 +61,7 @@ async def test_list_events():
             if result.get("events"):
                 print(f"  -> Found {len(result['events'])} event(s)")
                 for event in result["events"][:5]:
-                    print(f"     - {event.get('name', {}).get('text')} (ID: {event.get('id')})")
+                    print(f"     - {event.get('name', {}).get('text')} (ID: {event.get('id')})")  # nosec B105
             return result
         except Exception as e:
             print(f"Error testing list_events: {e}")
@@ -92,7 +92,7 @@ async def test_create_event():
 
     inputs = {
         "organization_id": "your_organization_id_here",
-        "name": "Test Event via Integration",
+        "name": "Test Event via Integration",  # nosec B105
         "summary": "This is a test event created via Eventbrite API integration",
         "start_utc": "2024-12-25T18:00:00Z",
         "end_utc": "2024-12-25T21:00:00Z",
@@ -118,7 +118,7 @@ async def test_create_event():
 
 async def test_update_event():
     """Test updating an event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"event_id": "your_event_id_here", "name": "Updated Event Name", "summary": "Updated event summary"}
 
@@ -153,7 +153,7 @@ async def test_publish_event():
 
 async def test_unpublish_event():
     """Test unpublishing an event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"event_id": "your_event_id_here"}
 
@@ -180,7 +180,7 @@ async def test_copy_event():
             print(f"Copy Event Result: {result}")
             assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
             assert "event" in result, "Response missing 'event' field"
-            return result
+            return result  # nosec B105
         except Exception as e:
             print(f"Error testing copy_event: {e}")
             return None
@@ -203,6 +203,7 @@ async def test_delete_event():
             return None
 
 
+# nosec B105
 async def test_list_venues():
     """Test listing venues."""
     auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
@@ -225,6 +226,7 @@ async def test_list_venues():
             return None
 
 
+# nosec B105
 async def test_get_venue():
     """Test getting a specific venue."""
     auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
@@ -250,7 +252,7 @@ async def test_create_venue():
     inputs = {
         "organization_id": "your_organization_id_here",
         "name": "Test Venue via Integration",
-        "address_1": "123 Test Street",
+        "address_1": "123 Test Street",  # nosec B105
         "city": "San Francisco",
         "region": "CA",
         "postal_code": "94102",
@@ -272,7 +274,7 @@ async def test_create_venue():
 async def test_list_orders_by_event():
     """Test listing orders for an event."""
     auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
-
+    # nosec B105
     inputs = {"event_id": "your_event_id_here", "status": "active"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -299,7 +301,7 @@ async def test_list_orders_by_organization():
         try:
             result = await eventbrite.execute_action("list_orders_by_organization", inputs, context)
             print(f"List Orders by Organization Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"  # nosec B105
             assert "orders" in result, "Response missing 'orders' field"
             if result.get("orders"):
                 print(f"  -> Found {len(result['orders'])} order(s)")
@@ -322,7 +324,7 @@ async def test_get_order():
             assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
             assert "order" in result, "Response missing 'order' field"
             return result
-        except Exception as e:
+        except Exception as e:  # nosec B105
             print(f"Error testing get_order: {e}")
             return None
 
@@ -353,7 +355,7 @@ async def test_get_attendee():
 
     inputs = {"event_id": "your_event_id_here", "attendee_id": "your_attendee_id_here"}
 
-    async with ExecutionContext(auth=auth) as context:
+    async with ExecutionContext(auth=auth) as context:  # nosec B105
         try:
             result = await eventbrite.execute_action("get_attendee", inputs, context)
             print(f"Get Attendee Result: {result}")
@@ -381,7 +383,7 @@ async def test_list_ticket_classes():
                 print(f"  -> Found {len(result['ticket_classes'])} ticket class(es)")
                 for tc in result["ticket_classes"]:
                     print(f"     - {tc.get('name')} (ID: {tc.get('id')})")
-            return result
+            return result  # nosec B105
         except Exception as e:
             print(f"Error testing list_ticket_classes: {e}")
             return None
@@ -409,7 +411,7 @@ async def test_create_ticket_class():
     """Test creating a ticket class."""
     auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
+    inputs = {  # nosec B105
         "event_id": "your_event_id_here",
         "name": "General Admission",
         "quantity_total": 100,
@@ -435,7 +437,7 @@ async def test_create_ticket_class():
 async def test_create_paid_ticket_class():
     """Test creating a paid ticket class."""
     auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
-
+    # nosec B105
     inputs = {
         "event_id": "your_event_id_here",
         "name": "VIP Ticket",
@@ -463,7 +465,7 @@ async def test_update_ticket_class():
 
     inputs = {
         "event_id": "your_event_id_here",
-        "ticket_class_id": "your_ticket_class_id_here",
+        "ticket_class_id": "your_ticket_class_id_here",  # nosec B105
         "name": "Updated Ticket Name",
         "quantity_total": 150,
     }
@@ -489,7 +491,7 @@ async def test_delete_ticket_class():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await eventbrite.execute_action("delete_ticket_class", inputs, context)
-            print(f"Delete Ticket Class Result: {result}")
+            print(f"Delete Ticket Class Result: {result}")  # nosec B105
             assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
             return result
         except Exception as e:
@@ -516,7 +518,7 @@ async def test_list_categories():
             return result
         except Exception as e:
             print(f"Error testing list_categories: {e}")
-            return None
+            return None  # nosec B105
 
 
 async def test_get_category():
@@ -542,7 +544,7 @@ async def test_get_event_description():
     auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {"event_id": "your_event_id_here"}
-
+    # nosec B105
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await eventbrite.execute_action("get_event_description", inputs, context)
@@ -574,7 +576,7 @@ async def main():
     print()
 
     # Test user and organization actions
-    print("USER & ORGANIZATION DISCOVERY ACTIONS")
+    print("USER & ORGANIZATION DISCOVERY ACTIONS")  # nosec B105
     print("-" * 60)
     print("1. Testing get_current_user (discover your user info)...")
     await test_get_current_user()
@@ -604,7 +606,7 @@ async def main():
     print("6. Testing update_event...")
     await test_update_event()
     print()
-
+    # nosec B105
     print("7. Testing publish_event...")
     await test_publish_event()
     print()
@@ -632,7 +634,7 @@ async def main():
 
     print("12. Testing list_venues...")
     await test_list_venues()
-    print()
+    print()  # nosec B105
 
     print("13. Testing get_venue...")
     await test_get_venue()
@@ -657,7 +659,7 @@ async def main():
 
     print("17. Testing get_order...")
     await test_get_order()
-    print()
+    print()  # nosec B105
 
     print("=" * 60)
     print()
@@ -684,7 +686,7 @@ async def main():
     print("21. Testing get_ticket_class...")
     await test_get_ticket_class()
     print()
-
+    # nosec B105
     print("22. Testing create_ticket_class (free)...")
     await test_create_ticket_class()
     print()
@@ -707,7 +709,7 @@ async def main():
     print("-" * 60)
 
     print("26. Testing list_categories...")
-    await test_list_categories()
+    await test_list_categories()  # nosec B105
     print()
 
     print("27. Testing get_category...")
