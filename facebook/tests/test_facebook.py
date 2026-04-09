@@ -44,7 +44,7 @@ class MockExecutionContext:
 
         # Handle GET /{page_id}?fields=access_token for page token retrieval
         if method == "GET" and params and params.get("fields") == "access_token":
-            return self._responses.get("GET /page_token", {"access_token": "page_token_123"})
+            return self._responses.get("GET /page_token", {"access_token": "page_token_123"})  # nosec B105
 
         if "/feed" in url and method == "POST":
             return self._responses.get("POST /feed", {"id": ""})
@@ -132,7 +132,7 @@ async def test_list_pages_empty():
 async def test_get_posts_list():
     """Test listing multiple posts from a page."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "GET /posts": {
             "data": [
                 {
@@ -163,7 +163,7 @@ async def test_get_posts_list():
 async def test_get_posts_single():
     """Test fetching a single post by ID."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "GET /post": {
             "id": "123456789_111",
             "message": "Specific post",
@@ -188,7 +188,7 @@ async def test_get_posts_single():
 async def test_create_post_text():
     """Test creating a simple text post."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "POST /feed": {"id": "123456789_111222333"},
     }
     context = MockExecutionContext(responses)
@@ -205,7 +205,7 @@ async def test_create_post_text():
 async def test_create_post_with_link():
     """Test creating a post with a link."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "POST /feed": {"id": "123456789_444555666"},
     }
     context = MockExecutionContext(responses)
@@ -228,7 +228,7 @@ async def test_create_post_with_link():
 async def test_create_post_photo():
     """Test creating a photo post."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "POST /photos": {"id": "123456789_photo123"},
     }
     context = MockExecutionContext(responses)
@@ -250,7 +250,7 @@ async def test_create_post_photo():
 async def test_create_post_video():
     """Test creating a video post."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "POST /videos": {"id": "123456789_video123"},
     }
     context = MockExecutionContext(responses)
@@ -273,7 +273,7 @@ async def test_create_post_scheduled_unix_timestamp():
     """Test scheduling a post with Unix timestamp as string."""
     future_time = int(time.time()) + 3600  # 1 hour from now
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "POST /feed": {"id": "123456789_777888999"},
     }
     context = MockExecutionContext(responses)
@@ -297,7 +297,7 @@ async def test_create_post_scheduled_iso_format():
     future_iso = future_dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "POST /feed": {"id": "123456789_888999000"},
     }
     context = MockExecutionContext(responses)
@@ -315,7 +315,7 @@ async def test_create_post_scheduled_iso_format():
 async def test_create_post_scheduled_too_soon():
     """Test error when scheduling less than 10 minutes in future."""
     too_soon = int(time.time()) + 60  # 1 minute from now
-    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}
+    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}  # nosec B105
     context = MockExecutionContext(responses)
 
     try:
@@ -330,7 +330,7 @@ async def test_create_post_scheduled_too_soon():
 async def test_create_post_scheduled_too_far():
     """Test error when scheduling more than 75 days in future."""
     too_far = int(time.time()) + (76 * 24 * 60 * 60)  # 76 days from now
-    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}
+    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}  # nosec B105
     context = MockExecutionContext(responses)
 
     try:
@@ -346,7 +346,7 @@ async def test_create_post_scheduled_too_far():
 
 async def test_create_post_scheduled_invalid_format():
     """Test error when scheduled_time has invalid format."""
-    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}
+    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}  # nosec B105
     context = MockExecutionContext(responses)
 
     try:
@@ -378,7 +378,7 @@ async def test_create_post_page_not_found():
 
 async def test_create_post_photo_missing_url():
     """Test error when photo post missing media_url."""
-    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}
+    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}  # nosec B105
     context = MockExecutionContext(responses)
 
     try:
@@ -392,7 +392,7 @@ async def test_create_post_photo_missing_url():
 
 async def test_create_post_video_missing_url():
     """Test error when video post missing media_url."""
-    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}
+    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}  # nosec B105
     context = MockExecutionContext(responses)
 
     try:
@@ -406,7 +406,7 @@ async def test_create_post_video_missing_url():
 
 async def test_create_post_link_missing_url():
     """Test error when link post missing media_url."""
-    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}
+    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}  # nosec B105
     context = MockExecutionContext(responses)
 
     try:
@@ -426,7 +426,7 @@ async def test_create_post_link_missing_url():
 async def test_delete_post_success():
     """Test successfully deleting a post."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "DELETE": {"success": True},
     }
     context = MockExecutionContext(responses)
@@ -445,7 +445,7 @@ async def test_delete_post_success():
 async def test_get_comments_success():
     """Test fetching comments on a post."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "GET /comments": {
             "data": [
                 {
@@ -483,7 +483,7 @@ async def test_get_comments_success():
 async def test_get_comments_include_hidden():
     """Test fetching comments including hidden ones."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "GET /comments": {
             "data": [
                 {
@@ -524,7 +524,7 @@ async def test_get_comments_include_hidden():
 async def test_manage_comment_reply():
     """Test replying to a comment."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "POST /comments": {"id": "123456789_111_c1_reply1"},
     }
     context = MockExecutionContext(responses)
@@ -548,7 +548,7 @@ async def test_manage_comment_reply():
 async def test_manage_comment_hide():
     """Test hiding a comment."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "POST /hide": {"success": True},
     }
     context = MockExecutionContext(responses)
@@ -565,7 +565,7 @@ async def test_manage_comment_hide():
 async def test_manage_comment_unhide():
     """Test unhiding a comment."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "POST /hide": {"success": True},
     }
     context = MockExecutionContext(responses)
@@ -581,7 +581,7 @@ async def test_manage_comment_unhide():
 
 async def test_manage_comment_like():
     """Test liking a comment."""
-    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}
+    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}  # nosec B105
     context = MockExecutionContext(responses)
     result = await facebook.execute_action(
         "manage_comment", {"page_id": "123456789", "comment_id": "123456789_111_c1", "action": "like"}, context
@@ -594,7 +594,7 @@ async def test_manage_comment_like():
 
 async def test_manage_comment_unlike():
     """Test unliking a comment."""
-    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}
+    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}  # nosec B105
     context = MockExecutionContext(responses)
     result = await facebook.execute_action(
         "manage_comment", {"page_id": "123456789", "comment_id": "123456789_111_c1", "action": "unlike"}, context
@@ -607,7 +607,7 @@ async def test_manage_comment_unlike():
 
 async def test_manage_comment_reply_missing_message():
     """Test error when reply action missing message."""
-    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}
+    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}  # nosec B105
     context = MockExecutionContext(responses)
 
     try:
@@ -621,7 +621,7 @@ async def test_manage_comment_reply_missing_message():
 
 async def test_manage_comment_invalid_action():
     """Test error when using invalid action."""
-    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}
+    responses = {"GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]}}  # nosec B105
     context = MockExecutionContext(responses)
 
     try:
@@ -643,7 +643,7 @@ async def test_manage_comment_invalid_action():
 async def test_delete_comment_success():
     """Test successfully deleting a comment."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "DELETE": {"success": True},
     }
     context = MockExecutionContext(responses)
@@ -664,7 +664,7 @@ async def test_delete_comment_success():
 async def test_get_insights_page():
     """Test fetching page-level insights."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "GET /insights": {
             "data": [
                 {"name": "page_impressions", "values": [{"value": 15000}]},
@@ -687,7 +687,7 @@ async def test_get_insights_page():
 async def test_get_insights_post():
     """Test fetching post-level insights."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "GET /insights": {
             "data": [
                 {"name": "post_impressions", "values": [{"value": 5000}]},
@@ -710,7 +710,7 @@ async def test_get_insights_post():
 async def test_get_insights_custom_metrics():
     """Test fetching insights with custom metrics."""
     responses = {
-        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},
+        "GET /me/accounts": {"data": [{"id": "123456789", "access_token": "page_token_123"}]},  # nosec B105
         "GET /insights": {
             "data": [
                 {"name": "page_views_total", "values": [{"value": 25000}]},
