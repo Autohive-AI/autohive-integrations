@@ -288,7 +288,8 @@ class TestGoogleSheetsIntegration:
 
         # Verify Credentials was called with correct parameters
         mock_credentials.assert_called_once_with(
-            token="test_access_token", token_uri="https://oauth2.googleapis.com/token"  # nosec B106
+            token="test_access_token",
+            token_uri="https://oauth2.googleapis.com/token",  # nosec B106
         )
         assert result == mock_creds_instance
 
