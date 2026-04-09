@@ -3,14 +3,15 @@ import asyncio
 from context import google_calendar
 from autohive_integrations_sdk import ExecutionContext
 
+
 async def test_list_calendars():
     """Test listing calendars with OAuth2 authentication."""
     # Setup OAuth2 auth object
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
     inputs = {}  # No inputs required for listing calendars
@@ -24,19 +25,17 @@ async def test_list_calendars():
             print(f"Error testing list_calendars: {e}")
             return None
 
+
 async def test_list_events():
     """Test listing events from primary calendar."""
     auth = {
-        "auth_type": "PlatformOauth2", 
+        "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "calendar_id": "primary",
-        "max_results": 10
-    }
+    inputs = {"calendar_id": "primary", "max_results": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -47,19 +46,17 @@ async def test_list_events():
             print(f"Error testing list_events: {e}")
             return None
 
+
 async def test_get_event():
     """Test getting a specific event."""
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "calendar_id": "primary",
-        "event_id": "test_event_id_here"
-    }
+    inputs = {"calendar_id": "primary", "event_id": "test_event_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -70,13 +67,14 @@ async def test_get_event():
             print(f"Error testing get_event: {e}")
             return None
 
+
 async def test_create_event():
     """Test creating a new calendar event."""
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
     inputs = {
@@ -85,7 +83,7 @@ async def test_create_event():
         "description": "This is a test event created by the integration",
         "start_datetime": "2024-12-01T10:00:00-08:00",
         "end_datetime": "2024-12-01T11:00:00-08:00",
-        "location": "Test Location"
+        "location": "Test Location",
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -97,20 +95,21 @@ async def test_create_event():
             print(f"Error testing create_event: {e}")
             return None
 
+
 async def test_update_event():
     """Test updating an existing event."""
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
     inputs = {
         "calendar_id": "primary",
         "event_id": "test_event_id_here",
         "summary": "Updated Test Event",
-        "description": "This event has been updated"
+        "description": "This event has been updated",
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -122,19 +121,17 @@ async def test_update_event():
             print(f"Error testing update_event: {e}")
             return None
 
+
 async def test_delete_event():
     """Test deleting an event."""
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
-        }
+            "access_token": "your_access_token_here"  # nosec B105
+        },
     }
 
-    inputs = {
-        "calendar_id": "primary",
-        "event_id": "test_event_id_here"
-    }
+    inputs = {"calendar_id": "primary", "event_id": "test_event_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -144,6 +141,7 @@ async def test_delete_event():
         except Exception as e:
             print(f"Error testing delete_event: {e}")
             return None
+
 
 async def main():
     print("Testing Google Calendar Integration")
@@ -156,7 +154,7 @@ async def main():
     print()
 
     print("2. Testing list_events...")
-    await test_list_events() 
+    await test_list_events()
     print()
 
     print("3. Testing get_event...")
@@ -168,8 +166,8 @@ async def main():
     print()
 
     # If create succeeded, try to update and delete the created event
-    if created_event and created_event.get('result'):
-        event_id = created_event.get('event', {}).get('id')
+    if created_event and created_event.get("result"):
+        event_id = created_event.get("event", {}).get("id")
         if event_id:
             print("5. Testing update_event on created event...")
             # Update the test to use actual event_id
@@ -182,6 +180,7 @@ async def main():
             print()
 
     print("Testing completed!")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
