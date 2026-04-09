@@ -28,7 +28,7 @@ from autohive_integrations_sdk import ExecutionContext, IntegrationResult
 # Auth / config
 # ---------------------------------------------------------------------------
 TOKEN = sys.argv[1] if len(sys.argv) > 1 else os.getenv("BOX_TOKEN", "")
-TEST_FOLDER_ID = os.getenv("BOX_TEST_FOLDER_ID", "0")   # "0" = root folder
+TEST_FOLDER_ID = os.getenv("BOX_TEST_FOLDER_ID", "0")  # "0" = root folder
 TEST_FILE_ID = os.getenv("BOX_TEST_FILE_ID", "")
 
 TEST_AUTH = {"credentials": {"access_token": TOKEN}}
@@ -45,9 +45,7 @@ def ok(label: str, data: dict) -> None:
 
 
 def assert_result(data: dict, label: str) -> None:
-    assert data.get("result") is True, (
-        f"{label} failed: result=False, error={data.get('error')}"
-    )
+    assert data.get("result") is True, f"{label} failed: result=False, error={data.get('error')}"
 
 
 # ---------------------------------------------------------------------------
@@ -130,9 +128,7 @@ async def test_list_files_with_query():
 async def test_list_files_with_extension_filter():
     """List files filtered by extension."""
     async with ExecutionContext(auth=TEST_AUTH) as ctx:
-        result = await box.execute_action(
-            "list_files", {"file_extensions": ["pdf", "txt"]}, ctx
-        )
+        result = await box.execute_action("list_files", {"file_extensions": ["pdf", "txt"]}, ctx)
         assert isinstance(result, IntegrationResult)
         data = result.result.data
         assert_result(data, "list_files with extension filter")
@@ -144,9 +140,7 @@ async def test_list_files_with_extension_filter():
 async def test_list_files_with_folder_id():
     """List files scoped to a specific folder."""
     async with ExecutionContext(auth=TEST_AUTH) as ctx:
-        result = await box.execute_action(
-            "list_files", {"folder_id": TEST_FOLDER_ID}, ctx
-        )
+        result = await box.execute_action("list_files", {"folder_id": TEST_FOLDER_ID}, ctx)
         assert isinstance(result, IntegrationResult)
         data = result.result.data
         assert_result(data, f"list_files folder_id={TEST_FOLDER_ID}")
@@ -173,9 +167,7 @@ async def test_list_files_pagination():
 async def test_list_folder_contents_root():
     """List contents of the root folder (id '0')."""
     async with ExecutionContext(auth=TEST_AUTH) as ctx:
-        result = await box.execute_action(
-            "list_folder_contents", {"folder_id": "0"}, ctx
-        )
+        result = await box.execute_action("list_folder_contents", {"folder_id": "0"}, ctx)
         assert isinstance(result, IntegrationResult)
         data = result.result.data
         assert_result(data, "list_folder_contents root")
@@ -193,9 +185,7 @@ async def test_list_folder_contents_root():
 async def test_list_folder_contents_specific():
     """List contents of TEST_FOLDER_ID."""
     async with ExecutionContext(auth=TEST_AUTH) as ctx:
-        result = await box.execute_action(
-            "list_folder_contents", {"folder_id": TEST_FOLDER_ID}, ctx
-        )
+        result = await box.execute_action("list_folder_contents", {"folder_id": TEST_FOLDER_ID}, ctx)
         assert isinstance(result, IntegrationResult)
         data = result.result.data
         assert_result(data, f"list_folder_contents folder={TEST_FOLDER_ID}")
@@ -261,10 +251,7 @@ async def test_upload_file_text():
         data = result.result.data
         assert_result(data, "upload_file text")
         assert data.get("file_name") == "autohive_test_upload.txt" or data.get("file_id")
-        print(
-            f"  uploaded: file_id={data.get('file_id')} "
-            f"name={data.get('file_name')} size={data.get('file_size')}"
-        )
+        print(f"  uploaded: file_id={data.get('file_id')} name={data.get('file_name')} size={data.get('file_size')}")
         if data.get("file_id"):
             _uploaded_file_id = data["file_id"]
     ok("upload_file_text", data)
@@ -335,11 +322,7 @@ async def test_get_file():
 
         # Verify content is valid base64 and decodes without error
         decoded = base64.b64decode(file_out["content"])
-        print(
-            f"  name={file_out['name']} "
-            f"contentType={file_out['contentType']} "
-            f"decoded_size={len(decoded)} bytes"
-        )
+        print(f"  name={file_out['name']} contentType={file_out['contentType']} decoded_size={len(decoded)} bytes")
 
         metadata = data.get("metadata", {})
         assert metadata.get("id") == file_id
@@ -378,7 +361,7 @@ ALL_TESTS = [
     test_list_folder_contents_specific,
     test_list_folder_contents_recursive,
     test_list_folder_contents_pagination,
-    test_upload_file_text,          # must run before test_get_file
+    test_upload_file_text,  # must run before test_get_file
     test_upload_file_to_root,
     test_upload_file_default_folder,
     test_get_file,
