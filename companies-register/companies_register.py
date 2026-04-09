@@ -1,6 +1,4 @@
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler, ActionResult
-)
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 import aiohttp
 import json
@@ -19,7 +17,7 @@ companies_register = Integration.load()
 
 BASE_URL_V2 = os.environ.get(
     "COMPANIES_REGISTER_BASE_URL",
-    "https://api.business.govt.nz/gateway/companies-office/companies-register/companies/v2"
+    "https://api.business.govt.nz/gateway/companies-office/companies-register/companies/v2",
 )
 # Sandbox: https://api.business.govt.nz/sandbox/companies-office/companies-register/companies/v2
 
@@ -29,16 +27,16 @@ SUBSCRIPTION_KEY = os.environ.get("COMPANIES_REGISTER_SUBSCRIPTION_KEY", "")
 
 # ---- Helper Functions ----
 
+
 def safe_path(value: str) -> str:
     """URL-encode a path parameter to prevent path traversal."""
-    return urllib.parse.quote(str(value), safe='')
+    return urllib.parse.quote(str(value), safe="")
 
 
 def validate_request_id(request_id: str):
     """Validate requestId contains only safe characters."""
-    if request_id and not re.match(r'^[a-zA-Z0-9\-]+$', request_id):
+    if request_id and not re.match(r"^[a-zA-Z0-9\-]+$", request_id):
         raise ValueError("requestId must contain only alphanumeric characters and hyphens")
-
 
 
 def get_api_headers(context: ExecutionContext, additional_headers: Dict[str, str] = None) -> Dict[str, str]:
@@ -46,13 +44,15 @@ def get_api_headers(context: ExecutionContext, additional_headers: Dict[str, str
     headers = {}
 
     if not SUBSCRIPTION_KEY:
-        raise ValueError("COMPANIES_REGISTER_SUBSCRIPTION_KEY is not set. Set this environment variable before making API calls.")
+        raise ValueError(
+            "COMPANIES_REGISTER_SUBSCRIPTION_KEY is not set. Set this environment variable before making API calls."
+        )
     headers["Ocp-Apim-Subscription-Key"] = SUBSCRIPTION_KEY
 
-    if hasattr(context, 'auth') and isinstance(context.auth, dict):
-        credentials = context.auth.get('credentials', {})
+    if hasattr(context, "auth") and isinstance(context.auth, dict):
+        credentials = context.auth.get("credentials", {})
         if isinstance(credentials, dict):
-            access_token = credentials.get('access_token')
+            access_token = credentials.get("access_token")
             if access_token:
                 headers["Authorization"] = f"Bearer {access_token}"
 
@@ -62,8 +62,13 @@ def get_api_headers(context: ExecutionContext, additional_headers: Dict[str, str
     return headers
 
 
-async def fetch_with_headers(url: str, method: str = "GET", headers: Dict[str, str] = None,
-                             params: Dict[str, Any] = None, payload: Dict[str, Any] = None) -> tuple:
+async def fetch_with_headers(
+    url: str,
+    method: str = "GET",
+    headers: Dict[str, str] = None,
+    params: Dict[str, Any] = None,
+    payload: Dict[str, Any] = None,
+) -> tuple:
     """
     Make an HTTP request using aiohttp and return both the response body and headers.
     Needed because context.fetch() doesn't expose response headers (required for ETag).
@@ -71,12 +76,7 @@ async def fetch_with_headers(url: str, method: str = "GET", headers: Dict[str, s
     async with aiohttp.ClientSession() as session:
         request_headers = dict(headers) if headers else {}
 
-        kwargs = {
-            "method": method,
-            "url": url,
-            "headers": request_headers,
-            "ssl": True
-        }
+        kwargs = {"method": method, "url": url, "headers": request_headers, "ssl": True}
 
         if params:
             kwargs["params"] = params
@@ -87,13 +87,13 @@ async def fetch_with_headers(url: str, method: str = "GET", headers: Dict[str, s
                 request_headers["Content-Type"] = "application/json"
 
         async with session.request(**kwargs) as response:
-            etag = response.headers.get('ETag')
+            etag = response.headers.get("ETag")
 
             response_headers = {}
             for key, value in response.headers.items():
                 response_headers[key] = value
             if etag:
-                response_headers['ETag'] = etag
+                response_headers["ETag"] = etag
 
             if response.status == 304:
                 return None, response_headers
@@ -111,6 +111,7 @@ async def fetch_with_headers(url: str, method: str = "GET", headers: Dict[str, s
 
 
 # ---- Action Handlers ----
+
 
 @companies_register.action("get_company_details")
 class GetCompanyDetailsAction(ActionHandler):
@@ -137,11 +138,7 @@ class GetCompanyDetailsAction(ActionHandler):
 
             headers = get_api_headers(context, optional_headers)
 
-            response, response_headers = await fetch_with_headers(
-                url=url,
-                method="GET",
-                headers=headers
-            )
+            response, response_headers = await fetch_with_headers(url=url, method="GET", headers=headers)
 
             etag = response_headers.get("ETag")
 
@@ -150,9 +147,9 @@ class GetCompanyDetailsAction(ActionHandler):
                     data={
                         "result": True,
                         "notModified": True,
-                        "message": "Company data not modified since last request"
+                        "message": "Company data not modified since last request",
                     },
-                    cost_usd=None
+                    cost_usd=None,
                 )
 
             return ActionResult(
@@ -173,9 +170,9 @@ class GetCompanyDetailsAction(ActionHandler):
                     "contacts": response.get("contacts"),
                     "link": response.get("link"),
                     "etag": etag,
-                    "result": True
+                    "result": True,
                 },
-                cost_usd=None
+                cost_usd=None,
             )
 
         except Exception as e:
@@ -186,18 +183,14 @@ class GetCompanyDetailsAction(ActionHandler):
                     data={
                         "result": True,
                         "notModified": True,
-                        "message": "Company data not modified since last request"
+                        "message": "Company data not modified since last request",
                     },
-                    cost_usd=None
+                    cost_usd=None,
                 )
 
             return ActionResult(
-                data={
-                    "result": False,
-                    "message": f"Error retrieving company details: {error_str}",
-                    "error": error_str
-                },
-                cost_usd=None
+                data={"result": False, "message": f"Error retrieving company details: {error_str}", "error": error_str},
+                cost_usd=None,
             )
 
 
@@ -224,11 +217,7 @@ class GetCompanyContactsAction(ActionHandler):
 
             headers = get_api_headers(context, optional_headers)
 
-            response, response_headers = await fetch_with_headers(
-                url=url,
-                method="GET",
-                headers=headers
-            )
+            response, response_headers = await fetch_with_headers(url=url, method="GET", headers=headers)
 
             etag = response_headers.get("ETag")
             raw_contacts = response.get("contacts") if isinstance(response, dict) else None
@@ -241,19 +230,15 @@ class GetCompanyContactsAction(ActionHandler):
                     "phoneContacts": contacts.get("phoneContacts", []),
                     "emailAddresses": contacts.get("emailAddresses", []),
                     "etag": etag,
-                    "result": True
+                    "result": True,
                 },
-                cost_usd=None
+                cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={
-                    "result": False,
-                    "message": f"Error retrieving company contacts: {str(e)}",
-                    "error": str(e)
-                },
-                cost_usd=None
+                data={"result": False, "message": f"Error retrieving company contacts: {str(e)}", "error": str(e)},
+                cost_usd=None,
             )
 
 
@@ -308,9 +293,20 @@ class UpdateCompanyContactAction(ActionHandler):
 
                 # Build payload with address lines only — exclude dpid
                 addr_payload = {}
-                for field in ["addressId", "addressType", "addressPurpose", "careOf",
-                              "address1", "address2", "address3", "address4",
-                              "postCode", "countryCode", "description", "effectiveDate"]:
+                for field in [
+                    "addressId",
+                    "addressType",
+                    "addressPurpose",
+                    "careOf",
+                    "address1",
+                    "address2",
+                    "address3",
+                    "address4",
+                    "postCode",
+                    "countryCode",
+                    "description",
+                    "effectiveDate",
+                ]:
                     if address.get(field) is not None:
                         addr_payload[field] = address[field]
 
@@ -339,19 +335,14 @@ class UpdateCompanyContactAction(ActionHandler):
             else:
                 raise ValueError(f"Invalid contactType '{contact_type}'. Use: address, phone, or email")
 
-            optional_headers = {
-                "If-Match": etag
-            }
+            optional_headers = {"If-Match": etag}
             if request_id:
                 optional_headers["api-business-govt-nz-Request-Id"] = request_id
 
             headers = get_api_headers(context, optional_headers)
 
             response, response_headers = await fetch_with_headers(
-                url=url,
-                method="PUT",
-                headers=headers,
-                payload=payload
+                url=url, method="PUT", headers=headers, payload=payload
             )
 
             new_etag = response_headers.get("ETag")
@@ -360,23 +351,14 @@ class UpdateCompanyContactAction(ActionHandler):
             contact = response if isinstance(response, dict) else None
 
             return ActionResult(
-                data={
-                    "contact": contact,
-                    "etag": new_etag,
-                    "result": True,
-                    "message": "Contact updated successfully"
-                },
-                cost_usd=None
+                data={"contact": contact, "etag": new_etag, "result": True, "message": "Contact updated successfully"},
+                cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={
-                    "result": False,
-                    "message": f"Error updating company contact: {str(e)}",
-                    "error": str(e)
-                },
-                cost_usd=None
+                data={"result": False, "message": f"Error updating company contact: {str(e)}", "error": str(e)},
+                cost_usd=None,
             )
 
 
@@ -419,9 +401,20 @@ class AddCompanyContactAction(ActionHandler):
                     )
 
                 addr_payload = {}
-                for field in ["addressType", "addressPurpose", "dpid", "careOf",
-                              "address1", "address2", "address3", "address4",
-                              "postCode", "countryCode", "description", "effectiveDate"]:
+                for field in [
+                    "addressType",
+                    "addressPurpose",
+                    "dpid",
+                    "careOf",
+                    "address1",
+                    "address2",
+                    "address3",
+                    "address4",
+                    "postCode",
+                    "countryCode",
+                    "description",
+                    "effectiveDate",
+                ]:
                     if address.get(field) is not None:
                         addr_payload[field] = address[field]
 
@@ -443,7 +436,7 @@ class AddCompanyContactAction(ActionHandler):
                     raise ValueError("emailAddress is required for email contacts")
                 payload["emailAddress"] = {
                     "emailAddress": email.get("emailAddress"),
-                    "emailPurpose": email.get("emailPurpose", "Email")
+                    "emailPurpose": email.get("emailPurpose", "Email"),
                 }
 
             else:
@@ -455,20 +448,10 @@ class AddCompanyContactAction(ActionHandler):
 
             headers = get_api_headers(context, optional_headers)
 
-            response = await context.fetch(
-                url,
-                method="POST",
-                json=payload,
-                headers=headers
-            )
+            response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
             return ActionResult(
-                data={
-                    "contact": response,
-                    "result": True,
-                    "message": "Contact added successfully"
-                },
-                cost_usd=None
+                data={"contact": response, "result": True, "message": "Contact added successfully"}, cost_usd=None
             )
 
         except Exception as e:
@@ -484,17 +467,13 @@ class AddCompanyContactAction(ActionHandler):
                             "Call get_company_contacts first to get the addressId and etag, "
                             "then call update_company_contact with that contactId and etag."
                         ),
-                        "error": error_str
+                        "error": error_str,
                     },
-                    cost_usd=None
+                    cost_usd=None,
                 )
             return ActionResult(
-                data={
-                    "result": False,
-                    "message": f"Error adding company contact: {error_str}",
-                    "error": error_str
-                },
-                cost_usd=None
+                data={"result": False, "message": f"Error adding company contact: {error_str}", "error": error_str},
+                cost_usd=None,
             )
 
 
@@ -536,12 +515,7 @@ class SearchNZAddressAction(ActionHandler):
 
             headers = get_api_headers(context, optional_headers)
 
-            response = await context.fetch(
-                url,
-                method="GET",
-                params=params,
-                headers=headers
-            )
+            response = await context.fetch(url, method="GET", params=params, headers=headers)
 
             addresses = response.get("items", []) if isinstance(response, dict) else response
 
@@ -550,19 +524,15 @@ class SearchNZAddressAction(ActionHandler):
                     "addresses": addresses,
                     "count": len(addresses) if isinstance(addresses, list) else 0,
                     "searchType": "dpid" if dpid else "query",
-                    "result": True
+                    "result": True,
                 },
-                cost_usd=None
+                cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={
-                    "result": False,
-                    "message": f"Error searching NZ addresses: {str(e)}",
-                    "error": str(e)
-                },
-                cost_usd=None
+                data={"result": False, "message": f"Error searching NZ addresses: {str(e)}", "error": str(e)},
+                cost_usd=None,
             )
 
 
@@ -594,7 +564,7 @@ class FileAnnualReturnAction(ActionHandler):
                 "name": name,
                 "emailAddress": email_address,
                 "designation": designation,
-                "companyDetailsConfirmedCorrectAsOfETag": etag
+                "companyDetailsConfirmedCorrectAsOfETag": etag,
             }
 
             # Optional: mobile phone for next year's SMS reminders
@@ -628,7 +598,7 @@ class FileAnnualReturnAction(ActionHandler):
             if inputs.get("organisationId"):
                 payload["fileAnnualReturnForOrganisation"] = {
                     "organisationId": inputs["organisationId"],
-                    "name": inputs.get("organisationName", "")
+                    "name": inputs.get("organisationName", ""),
                 }
 
             optional_headers = {}
@@ -637,12 +607,7 @@ class FileAnnualReturnAction(ActionHandler):
 
             headers = get_api_headers(context, optional_headers)
 
-            response = await context.fetch(
-                url,
-                method="POST",
-                json=payload,
-                headers=headers
-            )
+            response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
             is_credit_card = payment_method == "creditCard"
             payment_info_resp = response.get("paymentInfo", {}) if isinstance(response, dict) else {}
@@ -661,17 +626,13 @@ class FileAnnualReturnAction(ActionHandler):
                         "Annual return filed. Complete payment at the paymentUrl to finalise."
                         if is_credit_card
                         else "Annual return filed successfully via direct debit."
-                    )
+                    ),
                 },
-                cost_usd=None
+                cost_usd=None,
             )
 
         except Exception as e:
             return ActionResult(
-                data={
-                    "result": False,
-                    "message": f"Error filing annual return: {str(e)}",
-                    "error": str(e)
-                },
-                cost_usd=None
+                data={"result": False, "message": f"Error filing annual return: {str(e)}", "error": str(e)},
+                cost_usd=None,
             )

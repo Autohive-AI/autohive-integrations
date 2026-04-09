@@ -29,28 +29,21 @@ TEST_ETAG = "your_etag_here"
 # Auth helper
 # ---------------------------------------------------------------------------
 
+
 def make_auth():
-    return {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": ACCESS_TOKEN
-        }
-    }
+    return {"auth_type": "PlatformOauth2", "credentials": {"access_token": ACCESS_TOKEN}}
 
 
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
+
 async def test_get_company_details():
     """Get company by NZBN (registered company, status 50)."""
     async with ExecutionContext(auth=make_auth()) as context:
         try:
-            result = await companies_register.execute_action(
-                "get_company_details",
-                {"companyUuid": TEST_NZBN},
-                context
-            )
+            result = await companies_register.execute_action("get_company_details", {"companyUuid": TEST_NZBN}, context)
             print(f"\n[get_company_details] {result.data}")
             assert result.data.get("result") is True
             assert result.data.get("etag") is not None, "ETag missing — required for annual return"
@@ -69,12 +62,11 @@ async def test_get_company_details_by_uuid():
     """Get company by UUID (pre-incorporated company)."""
     async with ExecutionContext(auth=make_auth()) as context:
         try:
-            result = await companies_register.execute_action(
-                "get_company_details",
-                {"companyUuid": TEST_UUID},
-                context
+            result = await companies_register.execute_action("get_company_details", {"companyUuid": TEST_UUID}, context)
+            print(
+                f"\n[get_company_details by UUID] {result.data.get('companyName')} "
+                f"— status {result.data.get('companyStatusCode')}"
             )
-            print(f"\n[get_company_details by UUID] {result.data.get('companyName')} — status {result.data.get('companyStatusCode')}")
             return result
         except Exception as e:
             print(f"  ERROR: {e}")
@@ -86,11 +78,9 @@ async def test_get_company_contacts():
     async with ExecutionContext(auth=make_auth()) as context:
         try:
             result = await companies_register.execute_action(
-                "get_company_contacts",
-                {"companyUuid": TEST_NZBN},
-                context
+                "get_company_contacts", {"companyUuid": TEST_NZBN}, context
             )
-            print(f"\n[get_company_contacts]")
+            print("\n[get_company_contacts]")
             assert result.data.get("result") is True
             addresses = result.data.get("physicalOrPostalAddresses", [])
             phones = result.data.get("phoneContacts", [])
@@ -100,7 +90,10 @@ async def test_get_company_contacts():
             print(f"  emails          : {len(emails)}")
             print(f"  etag            : {result.data.get('etag')}")
             for addr in addresses:
-                print(f"    [{addr.get('addressPurpose')}] {addr.get('address1')}, {addr.get('address3')} — id: {addr.get('addressId')}")
+                print(
+                    f"    [{addr.get('addressPurpose')}] {addr.get('address1')}, "
+                    f"{addr.get('address3')} — id: {addr.get('addressId')}"
+                )
             return result
         except Exception as e:
             print(f"  ERROR: {e}")
@@ -112,16 +105,17 @@ async def test_search_nz_address():
     async with ExecutionContext(auth=make_auth()) as context:
         try:
             result = await companies_register.execute_action(
-                "search_nz_address",
-                {"find": "Level 1 15 Stout Street Wellington", "limit": 5},
-                context
+                "search_nz_address", {"find": "Level 1 15 Stout Street Wellington", "limit": 5}, context
             )
-            print(f"\n[search_nz_address]")
+            print("\n[search_nz_address]")
             assert result.data.get("result") is True
             addresses = result.data.get("addresses", [])
             print(f"  found           : {result.data.get('count')} addresses")
             for addr in addresses[:3]:
-                print(f"    dpid={addr.get('dpid')} — {addr.get('address1')}, {addr.get('address3')} {addr.get('postCode')}")
+                print(
+                    f"    dpid={addr.get('dpid')} — {addr.get('address1')}, "
+                    f"{addr.get('address3')} {addr.get('postCode')}"
+                )
             return result
         except Exception as e:
             print(f"  ERROR: {e}")
@@ -132,12 +126,8 @@ async def test_search_nz_address_by_dpid():
     """Look up a specific NZ Post address by DPID."""
     async with ExecutionContext(auth=make_auth()) as context:
         try:
-            result = await companies_register.execute_action(
-                "search_nz_address",
-                {"dpid": "1889019"},
-                context
-            )
-            print(f"\n[search_nz_address by DPID]")
+            result = await companies_register.execute_action("search_nz_address", {"dpid": "1889019"}, context)
+            print("\n[search_nz_address by DPID]")
             addresses = result.data.get("addresses", [])
             if addresses:
                 a = addresses[0]
@@ -163,12 +153,12 @@ async def test_add_company_contact_address():
                         "address1": "Level 1, 15 Stout Street",
                         "address3": "Wellington",
                         "postCode": "6011",
-                        "countryCode": "NZ"
-                    }
+                        "countryCode": "NZ",
+                    },
                 },
-                context
+                context,
             )
-            print(f"\n[add_company_contact — address]")
+            print("\n[add_company_contact — address]")
             print(f"  result          : {result.data.get('result')}")
             print(f"  contact         : {result.data.get('contact')}")
             return result
@@ -189,12 +179,12 @@ async def test_add_company_contact_address_with_dpid():
                     "physicalOrPostalAddress": {
                         "addressType": "Physical",
                         "addressPurpose": "Registered Office Address",
-                        "dpid": "1889019"
-                    }
+                        "dpid": "1889019",
+                    },
                 },
-                context
+                context,
             )
-            print(f"\n[add_company_contact — address with dpid]")
+            print("\n[add_company_contact — address with dpid]")
             print(f"  result          : {result.data.get('result')}")
             return result
         except Exception as e:
@@ -211,14 +201,11 @@ async def test_add_company_contact_email():
                 {
                     "companyUuid": TEST_NZBN,
                     "contactType": "email",
-                    "emailAddress": {
-                        "emailAddress": "admin@testcompany.co.nz",
-                        "emailPurpose": "Email"
-                    }
+                    "emailAddress": {"emailAddress": "admin@testcompany.co.nz", "emailPurpose": "Email"},
                 },
-                context
+                context,
             )
-            print(f"\n[add_company_contact — email]")
+            print("\n[add_company_contact — email]")
             print(f"  result          : {result.data.get('result')}")
             return result
         except Exception as e:
@@ -249,12 +236,12 @@ async def test_update_company_contact():
                         "addressId": TEST_CONTACT_ID,
                         "addressType": "Physical",
                         "addressPurpose": "Registered Office Address",
-                        "dpid": "1889019"
-                    }
+                        "dpid": "1889019",
+                    },
                 },
-                context
+                context,
             )
-            print(f"\n[update_company_contact]")
+            print("\n[update_company_contact]")
             print(f"  result          : {result.data.get('result')}")
             print(f"  message         : {result.data.get('message')}")
             print(f"  new etag        : {result.data.get('etag')}")
@@ -280,11 +267,11 @@ async def test_file_annual_return_direct_debit():
                     "emailAddress": {"emailAddress": "jane.smith@testcompany.co.nz"},
                     "designation": "Director",
                     "companyDetailsConfirmedCorrectAsOfETag": TEST_ETAG,
-                    "paymentMethod": "directDebit"
+                    "paymentMethod": "directDebit",
                 },
-                context
+                context,
             )
-            print(f"\n[file_annual_return — directDebit]")
+            print("\n[file_annual_return — directDebit]")
             print(f"  result          : {result.data.get('result')}")
             print(f"  message         : {result.data.get('message')}")
             print(f"  documentId      : {result.data.get('documentId')}")
@@ -314,15 +301,11 @@ async def test_file_annual_return_credit_card():
                     "companyDetailsConfirmedCorrectAsOfETag": TEST_ETAG,
                     "paymentMethod": "creditCard",
                     "redirectUrl": "https://portal.api.business.govt.nz/",
-                    "phoneContact": {
-                        "phoneNumber": "211234567",
-                        "countryCode": "64",
-                        "phonePurpose": "Mobile"
-                    }
+                    "phoneContact": {"phoneNumber": "211234567", "countryCode": "64", "phonePurpose": "Mobile"},
                 },
-                context
+                context,
             )
-            print(f"\n[file_annual_return — creditCard]")
+            print("\n[file_annual_return — creditCard]")
             print(f"  result          : {result.data.get('result')}")
             print(f"  message         : {result.data.get('message')}")
             print(f"  paymentUrl      : {result.data.get('paymentUrl')}")
@@ -336,6 +319,7 @@ async def test_file_annual_return_credit_card():
 # Full workflow test — get company → get contacts → update address
 # ---------------------------------------------------------------------------
 
+
 async def test_address_update_workflow():
     """
     End-to-end workflow:
@@ -344,18 +328,16 @@ async def test_address_update_workflow():
     3. Get company contacts (get addressId + contacts etag)
     4. Update the registered office address
     """
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("WORKFLOW: Update Registered Office Address")
-    print('='*60)
+    print("=" * 60)
 
     async with ExecutionContext(auth=make_auth()) as context:
         try:
             # Step 1: Get company details
             print("\nStep 1: Get company details...")
             details = await companies_register.execute_action(
-                "get_company_details",
-                {"companyUuid": TEST_NZBN},
-                context
+                "get_company_details", {"companyUuid": TEST_NZBN}, context
             )
             company_name = details.data.get("companyName")
             print(f"  Company: {company_name}")
@@ -363,9 +345,7 @@ async def test_address_update_workflow():
             # Step 2: Search for new address
             print("\nStep 2: Search NZ Post for new address...")
             addr_search = await companies_register.execute_action(
-                "search_nz_address",
-                {"find": "15 Stout Street Wellington", "limit": 3},
-                context
+                "search_nz_address", {"find": "15 Stout Street Wellington", "limit": 3}, context
             )
             addresses = addr_search.data.get("addresses", [])
             if not addresses:
@@ -378,15 +358,12 @@ async def test_address_update_workflow():
             # Step 3: Get contacts to find addressId
             print("\nStep 3: Get company contacts...")
             contacts_result = await companies_register.execute_action(
-                "get_company_contacts",
-                {"companyUuid": TEST_NZBN},
-                context
+                "get_company_contacts", {"companyUuid": TEST_NZBN}, context
             )
             contacts_etag = contacts_result.data.get("etag")
             physical_addresses = contacts_result.data.get("physicalOrPostalAddresses", [])
             registered_office = next(
-                (a for a in physical_addresses if a.get("addressPurpose") == "Registered Office Address"),
-                None
+                (a for a in physical_addresses if a.get("addressPurpose") == "Registered Office Address"), None
             )
             if not registered_office:
                 print("  No Registered Office Address found — skipping update")
@@ -412,10 +389,10 @@ async def test_address_update_workflow():
                         "address3": addr.get("address3"),
                         "postCode": addr.get("postCode"),
                         "countryCode": "NZ",
-                        "effectiveDate": "2026-03-10T00:00:00Z"
-                    }
+                        "effectiveDate": "2026-03-10T00:00:00Z",
+                    },
                 },
-                context
+                context,
             )
             print(f"  result  : {update_result.data.get('result')}")
             print(f"  message : {update_result.data.get('message')}")
@@ -430,6 +407,7 @@ async def test_address_update_workflow():
 # Test runner
 # ---------------------------------------------------------------------------
 
+
 async def run_all_tests():
     print("=" * 60)
     print("Companies Register Integration Tests")
@@ -440,18 +418,18 @@ async def run_all_tests():
     failed = 0
 
     tests = [
-        ("Get Company Details (NZBN)",         test_get_company_details),
-        ("Get Company Details (UUID)",          test_get_company_details_by_uuid),
-        ("Get Company Contacts",                test_get_company_contacts),
-        ("Search NZ Address (query)",           test_search_nz_address),
-        ("Search NZ Address (DPID)",            test_search_nz_address_by_dpid),
-        ("Add Contact — address (lines)",       test_add_company_contact_address),
-        ("Add Contact — address (dpid)",        test_add_company_contact_address_with_dpid),
-        ("Add Contact — email",                 test_add_company_contact_email),
-        ("Update Contact",                      test_update_company_contact),
-        ("File Annual Return (directDebit)",    test_file_annual_return_direct_debit),
-        ("File Annual Return (creditCard)",     test_file_annual_return_credit_card),
-        ("Workflow: Address Update",            test_address_update_workflow),
+        ("Get Company Details (NZBN)", test_get_company_details),
+        ("Get Company Details (UUID)", test_get_company_details_by_uuid),
+        ("Get Company Contacts", test_get_company_contacts),
+        ("Search NZ Address (query)", test_search_nz_address),
+        ("Search NZ Address (DPID)", test_search_nz_address_by_dpid),
+        ("Add Contact — address (lines)", test_add_company_contact_address),
+        ("Add Contact — address (dpid)", test_add_company_contact_address_with_dpid),
+        ("Add Contact — email", test_add_company_contact_email),
+        ("Update Contact", test_update_company_contact),
+        ("File Annual Return (directDebit)", test_file_annual_return_direct_debit),
+        ("File Annual Return (creditCard)", test_file_annual_return_credit_card),
+        ("Workflow: Address Update", test_address_update_workflow),
     ]
 
     for name, fn in tests:
@@ -467,7 +445,7 @@ async def run_all_tests():
             print(f"  FAIL  {name}  — {e}")
             failed += 1
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Results: {passed} passed, {failed} failed")
     print("=" * 60)
 
