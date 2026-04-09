@@ -1,4 +1,9 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+)
 from typing import Dict, Any
 from urllib.parse import quote
 
@@ -39,7 +44,9 @@ class GetCurrentUserAction(ActionHandler):
             return ActionResult(data={"user": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Project Handlers ----
@@ -67,15 +74,21 @@ class ListProjectsAction(ActionHandler):
                     params[key] = inputs[key]
 
             response = await context.fetch(
-                f"{GITLAB_API_BASE_URL}/projects", method="GET", params=params if params else None
+                f"{GITLAB_API_BASE_URL}/projects",
+                method="GET",
+                params=params if params else None,
             )
 
             projects = response if isinstance(response, list) else []
 
-            return ActionResult(data={"projects": projects, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"projects": projects, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"projects": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"projects": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("get_project")
@@ -91,13 +104,19 @@ class GetProjectAction(ActionHandler):
                 params["statistics"] = "true"
 
             response = await context.fetch(
-                f"{GITLAB_API_BASE_URL}/projects/{project_id}", method="GET", params=params if params else None
+                f"{GITLAB_API_BASE_URL}/projects/{project_id}",
+                method="GET",
+                params=params if params else None,
             )
 
-            return ActionResult(data={"project": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"project": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"project": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"project": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Issue Handlers ----
@@ -136,14 +155,18 @@ class ListIssuesAction(ActionHandler):
             else:
                 url = f"{GITLAB_API_BASE_URL}/issues"
 
-            response = await context.fetch(url, method="GET", params=params if params else None)
+            response = await context.fetch(
+                url, method="GET", params=params if params else None
+            )
 
             issues = response if isinstance(response, list) else []
 
             return ActionResult(data={"issues": issues, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"issues": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"issues": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("get_issue")
@@ -156,13 +179,16 @@ class GetIssueAction(ActionHandler):
             issue_iid = inputs["issue_iid"]
 
             response = await context.fetch(
-                f"{GITLAB_API_BASE_URL}/projects/{project_id}/issues/{issue_iid}", method="GET"
+                f"{GITLAB_API_BASE_URL}/projects/{project_id}/issues/{issue_iid}",
+                method="GET",
             )
 
             return ActionResult(data={"issue": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"issue": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"issue": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Merge Request Handlers ----
@@ -204,14 +230,21 @@ class ListMergeRequestsAction(ActionHandler):
             else:
                 url = f"{GITLAB_API_BASE_URL}/merge_requests"
 
-            response = await context.fetch(url, method="GET", params=params if params else None)
+            response = await context.fetch(
+                url, method="GET", params=params if params else None
+            )
 
             merge_requests = response if isinstance(response, list) else []
 
-            return ActionResult(data={"merge_requests": merge_requests, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"merge_requests": merge_requests, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"merge_requests": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"merge_requests": [], "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @gitlab.action("get_merge_request")
@@ -235,10 +268,15 @@ class GetMergeRequestAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return ActionResult(data={"merge_request": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"merge_request": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"merge_request": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"merge_request": {}, "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @gitlab.action("get_merge_request_changes")
@@ -251,7 +289,8 @@ class GetMergeRequestChangesAction(ActionHandler):
             mr_iid = inputs["merge_request_iid"]
 
             response = await context.fetch(
-                f"{GITLAB_API_BASE_URL}/projects/{project_id}/merge_requests/{mr_iid}/changes", method="GET"
+                f"{GITLAB_API_BASE_URL}/projects/{project_id}/merge_requests/{mr_iid}/changes",
+                method="GET",
             )
 
             changes = response.get("changes", []) if isinstance(response, dict) else []
@@ -259,7 +298,9 @@ class GetMergeRequestChangesAction(ActionHandler):
             return ActionResult(data={"changes": changes, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"changes": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"changes": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("list_merge_request_commits")
@@ -287,7 +328,9 @@ class ListMergeRequestCommitsAction(ActionHandler):
             return ActionResult(data={"commits": commits, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"commits": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"commits": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Branch Handlers ----
@@ -314,10 +357,14 @@ class ListBranchesAction(ActionHandler):
 
             branches = response if isinstance(response, list) else []
 
-            return ActionResult(data={"branches": branches, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"branches": branches, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"branches": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"branches": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("get_branch")
@@ -330,13 +377,16 @@ class GetBranchAction(ActionHandler):
             branch = quote(inputs["branch"], safe="")
 
             response = await context.fetch(
-                f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/branches/{branch}", method="GET"
+                f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/branches/{branch}",
+                method="GET",
             )
 
             return ActionResult(data={"branch": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"branch": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"branch": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Commit Handlers ----
@@ -377,7 +427,9 @@ class ListCommitsAction(ActionHandler):
             return ActionResult(data={"commits": commits, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"commits": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"commits": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("get_commit")
@@ -402,7 +454,9 @@ class GetCommitAction(ActionHandler):
             return ActionResult(data={"commit": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"commit": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"commit": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("get_commit_diff")
@@ -430,7 +484,9 @@ class GetCommitDiffAction(ActionHandler):
             return ActionResult(data={"diffs": diffs, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"diffs": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"diffs": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Pipeline Handlers ----
@@ -469,10 +525,14 @@ class ListPipelinesAction(ActionHandler):
 
             pipelines = response if isinstance(response, list) else []
 
-            return ActionResult(data={"pipelines": pipelines, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"pipelines": pipelines, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"pipelines": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"pipelines": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("get_pipeline")
@@ -485,13 +545,18 @@ class GetPipelineAction(ActionHandler):
             pipeline_id = inputs["pipeline_id"]
 
             response = await context.fetch(
-                f"{GITLAB_API_BASE_URL}/projects/{project_id}/pipelines/{pipeline_id}", method="GET"
+                f"{GITLAB_API_BASE_URL}/projects/{project_id}/pipelines/{pipeline_id}",
+                method="GET",
             )
 
-            return ActionResult(data={"pipeline": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"pipeline": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"pipeline": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"pipeline": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("list_pipeline_jobs")
@@ -519,7 +584,9 @@ class ListPipelineJobsAction(ActionHandler):
             return ActionResult(data={"jobs": jobs, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"jobs": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"jobs": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Repository Handlers ----
@@ -549,7 +616,9 @@ class ListRepositoryTreeAction(ActionHandler):
             return ActionResult(data={"tree": tree, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"tree": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"tree": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("get_file")
@@ -571,7 +640,9 @@ class GetFileAction(ActionHandler):
             return ActionResult(data={"file": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"file": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"file": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("get_file_raw")
@@ -601,7 +672,9 @@ class GetFileRawAction(ActionHandler):
             return ActionResult(data={"content": content, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"content": "", "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"content": "", "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("compare_branches")
@@ -617,13 +690,19 @@ class CompareBranchesAction(ActionHandler):
                 params["straight"] = "true" if inputs["straight"] else "false"
 
             response = await context.fetch(
-                f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/compare", method="GET", params=params
+                f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/compare",
+                method="GET",
+                params=params,
             )
 
-            return ActionResult(data={"comparison": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"comparison": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"comparison": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"comparison": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Container Registry Handlers ----
@@ -650,10 +729,15 @@ class ListContainerRegistryRepositoriesAction(ActionHandler):
 
             repositories = response if isinstance(response, list) else []
 
-            return ActionResult(data={"repositories": repositories, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"repositories": repositories, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"repositories": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"repositories": [], "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @gitlab.action("get_container_registry_repository")
@@ -676,10 +760,14 @@ class GetContainerRegistryRepositoryAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return ActionResult(data={"repository": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"repository": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"repository": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"repository": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("list_container_registry_tags")
@@ -707,7 +795,9 @@ class ListContainerRegistryTagsAction(ActionHandler):
             return ActionResult(data={"tags": tags, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"tags": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"tags": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @gitlab.action("get_container_registry_tag")
@@ -728,4 +818,6 @@ class GetContainerRegistryTagAction(ActionHandler):
             return ActionResult(data={"tag": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"tag": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"tag": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )

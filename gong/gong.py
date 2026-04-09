@@ -1,4 +1,9 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+)
 from typing import Dict, Any, Optional
 
 
@@ -18,7 +23,11 @@ class GongAPIClient:
             )
 
     async def _make_request(
-        self, endpoint: str, method: str = "GET", params: Optional[Dict] = None, data: Optional[Dict] = None
+        self,
+        endpoint: str,
+        method: str = "GET",
+        params: Optional[Dict] = None,
+        data: Optional[Dict] = None,
     ):
         """Make an authenticated request to the Gong API"""
         url = f"{self.base_url}/v2/{endpoint}"
@@ -29,9 +38,13 @@ class GongAPIClient:
         if method == "GET":
             return await self.context.fetch(url, params=params, headers=headers)
         elif method == "POST":
-            return await self.context.fetch(url, method="POST", json=data, headers=headers)
+            return await self.context.fetch(
+                url, method="POST", json=data, headers=headers
+            )
         elif method == "PUT":
-            return await self.context.fetch(url, method="PUT", json=data, headers=headers)
+            return await self.context.fetch(
+                url, method="PUT", json=data, headers=headers
+            )
         elif method == "DELETE":
             return await self.context.fetch(url, method="DELETE", headers=headers)
         else:
@@ -106,7 +119,14 @@ class ListCallsAction(ActionHandler):
                 }
             )
         except Exception as e:
-            return ActionResult(data={"calls": [], "has_more": False, "next_cursor": None, "error": str(e)})
+            return ActionResult(
+                data={
+                    "calls": [],
+                    "has_more": False,
+                    "next_cursor": None,
+                    "error": str(e),
+                }
+            )
 
 
 @gong.action("get_call_transcript")
@@ -120,17 +140,28 @@ class GetCallTranscriptAction(ActionHandler):
             call_data = response.get("call", response)
 
             if bool(call_data.get("isPrivate", False)):
-                return ActionResult(data={"call_id": call_id, "transcript": [], "error": "private_call_filtered"})
+                return ActionResult(
+                    data={
+                        "call_id": call_id,
+                        "transcript": [],
+                        "error": "private_call_filtered",
+                    }
+                )
 
             speaker_map = {}
 
             ext_data = {
-                "filter": {"callIds": [call_id], "fromDateTime": "2015-01-01T00:00:00Z"},
+                "filter": {
+                    "callIds": [call_id],
+                    "fromDateTime": "2015-01-01T00:00:00Z",
+                },
                 "contentSelector": {"exposedFields": {"parties": True}},
             }
 
             try:
-                ext_response = await client._make_request("calls/extensive", method="POST", data=ext_data)
+                ext_response = await client._make_request(
+                    "calls/extensive", method="POST", data=ext_data
+                )
                 ext_calls = ext_response.get("calls", [])
 
                 if ext_calls:
@@ -139,7 +170,10 @@ class GetCallTranscriptAction(ActionHandler):
 
                     for participant in participants:
                         speaker_id = str(
-                            participant.get("speakerId") or participant.get("userId") or participant.get("id") or ""
+                            participant.get("speakerId")
+                            or participant.get("userId")
+                            or participant.get("id")
+                            or ""
                         )
 
                         name = (
@@ -156,19 +190,29 @@ class GetCallTranscriptAction(ActionHandler):
             except Exception as e:
                 print(f"Warning: Failed to fetch speaker details: {e}")
 
-            transcript_data = {"filter": {"callIds": [call_id], "fromDateTime": "2015-01-01T00:00:00.000Z"}}
-            response = await client._make_request("calls/transcript", method="POST", data=transcript_data)
+            transcript_data = {
+                "filter": {
+                    "callIds": [call_id],
+                    "fromDateTime": "2015-01-01T00:00:00.000Z",
+                }
+            }
+            response = await client._make_request(
+                "calls/transcript", method="POST", data=transcript_data
+            )
 
             transcript = []
             call_transcripts = response.get("callTranscripts", [])
             if call_transcripts:
                 for segment in call_transcripts[0].get("transcript", []):
                     raw_speaker_id = segment.get("speakerId", "")
-                    speaker_id = str(raw_speaker_id) if raw_speaker_id is not None else ""
+                    speaker_id = (
+                        str(raw_speaker_id) if raw_speaker_id is not None else ""
+                    )
                     segment.get("topic", "")
 
                     speaker_name = speaker_map.get(
-                        speaker_id, f"Speaker {speaker_id}" if speaker_id else "Unknown Speaker"
+                        speaker_id,
+                        f"Speaker {speaker_id}" if speaker_id else "Unknown Speaker",
                     )
 
                     for sentence in segment.get("sentences", []):
@@ -184,7 +228,9 @@ class GetCallTranscriptAction(ActionHandler):
 
             return ActionResult(data={"call_id": call_id, "transcript": transcript})
         except Exception as e:
-            return ActionResult(data={"call_id": call_id, "transcript": [], "error": str(e)})
+            return ActionResult(
+                data={"call_id": call_id, "transcript": [], "error": str(e)}
+            )
 
 
 @gong.action("get_call_details")
@@ -218,17 +264,27 @@ class GetCallDetailsAction(ActionHandler):
             if started_str:
                 try:
                     extensive_data = {
-                        "filter": {"callIds": [call_id], "fromDateTime": "2015-01-01T00:00:00Z"},
+                        "filter": {
+                            "callIds": [call_id],
+                            "fromDateTime": "2015-01-01T00:00:00Z",
+                        },
                         "contentSelector": {
                             "context": "Extended",
-                            "exposedFields": {"parties": True, "content": {"callOutcome": True}},
+                            "exposedFields": {
+                                "parties": True,
+                                "content": {"callOutcome": True},
+                            },
                         },
                     }
 
                     if started_str:
-                        extensive_data["filter"]["fromDateTime"] = "2015-01-01T00:00:00Z"
+                        extensive_data["filter"]["fromDateTime"] = (
+                            "2015-01-01T00:00:00Z"
+                        )
 
-                    ext_response = await client._make_request("calls/extensive", method="POST", data=extensive_data)
+                    ext_response = await client._make_request(
+                        "calls/extensive", method="POST", data=extensive_data
+                    )
                     ext_calls = ext_response.get("calls", [])
                     if ext_calls:
                         ext_call = ext_calls[0]
@@ -275,7 +331,9 @@ class SearchCallsAction(ActionHandler):
             "filter": {"fromDateTime": None, "toDateTime": None},
             "contentSelector": {
                 "context": "Extended",
-                "exposedFields": {"content": {"topics": True, "pointsOfInterest": True}},
+                "exposedFields": {
+                    "content": {"topics": True, "pointsOfInterest": True}
+                },
             },
         }
 
@@ -289,7 +347,9 @@ class SearchCallsAction(ActionHandler):
             from datetime import datetime, timedelta
 
             start_date = datetime.now() - timedelta(days=30)
-            data["filter"]["fromDateTime"] = start_date.strftime("%Y-%m-%dT00:00:00.000Z")
+            data["filter"]["fromDateTime"] = start_date.strftime(
+                "%Y-%m-%dT00:00:00.000Z"
+            )
 
         if inputs.get("to_date"):
             from datetime import datetime
@@ -300,10 +360,14 @@ class SearchCallsAction(ActionHandler):
             # Default to now if no end date provided
             from datetime import datetime
 
-            data["filter"]["toDateTime"] = datetime.now().strftime("%Y-%m-%dT23:59:59.999Z")
+            data["filter"]["toDateTime"] = datetime.now().strftime(
+                "%Y-%m-%dT23:59:59.999Z"
+            )
 
         try:
-            response = await client._make_request("calls/extensive", method="POST", data=data)
+            response = await client._make_request(
+                "calls/extensive", method="POST", data=data
+            )
 
             # Filter calls based on search query in content
             query = inputs["query"].lower()
@@ -328,7 +392,10 @@ class SearchCallsAction(ActionHandler):
 
                 # Search in points_of_interest (assuming it has text field)
                 for poi in points_of_interest:
-                    if query in poi.get("action", "").lower() or query in poi.get("concept", "").lower():
+                    if (
+                        query in poi.get("action", "").lower()
+                        or query in poi.get("concept", "").lower()
+                    ):
                         content_match = True
                         matched_segments.append(
                             {
@@ -396,4 +463,11 @@ class ListUsersAction(ActionHandler):
                 }
             )
         except Exception as e:
-            return ActionResult(data={"users": [], "has_more": False, "next_cursor": None, "error": str(e)})
+            return ActionResult(
+                data={
+                    "users": [],
+                    "has_more": False,
+                    "next_cursor": None,
+                    "error": str(e),
+                }
+            )

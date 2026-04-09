@@ -32,7 +32,9 @@ class MockExecutionContext:
         if url.endswith("/calls/extensive") and method == "POST":
             return self._responses.get("POST /calls/extensive", {"calls": []})
         if url.endswith("/calls/transcript") and method == "POST":
-            return self._responses.get("POST /calls/transcript", {"callTranscripts": []})
+            return self._responses.get(
+                "POST /calls/transcript", {"callTranscripts": []}
+            )
         if url.endswith("/users") and method == "GET":
             return self._responses.get("GET /users", {"users": [], "hasMore": False})
         return {}
@@ -83,7 +85,12 @@ async def test_get_call_details_shim():
         },
         "POST /calls/extensive": {
             "calls": [
-                {"id": "abc", "parties": [{"userId": "u1", "name": "Jane"}], "crmData": {"opp": 123}, "outcome": "Won"}
+                {
+                    "id": "abc",
+                    "parties": [{"userId": "u1", "name": "Jane"}],
+                    "crmData": {"opp": 123},
+                    "outcome": "Won",
+                }
             ]
         },
     }
@@ -100,21 +107,38 @@ async def test_get_call_transcript_mapping():
     responses = {
         "GET /calls/{id}": {"call": {"id": "xyz", "started": "2025-01-01T00:00:00Z"}},
         "POST /calls/extensive": {
-            "calls": [{"parties": [{"speakerId": 1, "name": "Alice"}, {"speakerId": 2, "name": "Bob"}]}]
+            "calls": [
+                {
+                    "parties": [
+                        {"speakerId": 1, "name": "Alice"},
+                        {"speakerId": 2, "name": "Bob"},
+                    ]
+                }
+            ]
         },
         "POST /calls/transcript": {
             "callTranscripts": [
                 {
                     "transcript": [
-                        {"speakerId": 1, "sentences": [{"start": 0, "end": 1000, "text": "Hi"}]},
-                        {"speakerId": 2, "sentences": [{"start": 1000, "end": 2000, "text": "Hello"}]},
+                        {
+                            "speakerId": 1,
+                            "sentences": [{"start": 0, "end": 1000, "text": "Hi"}],
+                        },
+                        {
+                            "speakerId": 2,
+                            "sentences": [
+                                {"start": 1000, "end": 2000, "text": "Hello"}
+                            ],
+                        },
                     ]
                 }
             ]
         },
     }
     context = MockExecutionContext(responses)
-    result = await gong.execute_action("get_call_transcript", {"call_id": "xyz"}, context)
+    result = await gong.execute_action(
+        "get_call_transcript", {"call_id": "xyz"}, context
+    )
     data = result.result.data
     assert len(data["transcript"]) == 2
     assert data["transcript"][0]["speaker_name"] == "Alice"
@@ -123,7 +147,15 @@ async def test_get_call_transcript_mapping():
 async def test_list_users():
     responses = {
         "GET /users": {
-            "users": [{"id": "u1", "name": "Alice", "email": "a@example.com", "role": "admin", "active": True}],
+            "users": [
+                {
+                    "id": "u1",
+                    "name": "Alice",
+                    "email": "a@example.com",
+                    "role": "admin",
+                    "active": True,
+                }
+            ],
             "hasMore": False,
             "nextCursor": None,
         }
@@ -138,8 +170,20 @@ async def test_list_calls_filters_private():
     responses = {
         "GET /calls": {
             "calls": [
-                {"id": "p1", "title": "Private", "started": "2025-01-03T00:00:00Z", "duration": 1, "isPrivate": True},
-                {"id": "pub", "title": "Public", "started": "2025-01-02T00:00:00Z", "duration": 2, "isPrivate": False},
+                {
+                    "id": "p1",
+                    "title": "Private",
+                    "started": "2025-01-03T00:00:00Z",
+                    "duration": 1,
+                    "isPrivate": True,
+                },
+                {
+                    "id": "pub",
+                    "title": "Public",
+                    "started": "2025-01-02T00:00:00Z",
+                    "duration": 2,
+                    "isPrivate": False,
+                },
             ],
             "hasMore": False,
             "nextCursor": None,
@@ -178,14 +222,20 @@ async def test_search_calls_skips_private():
                 {
                     "id": "priv",
                     "isPrivate": True,
-                    "content": {"pointsOfInterest": [{"action": "demo pricing", "startTime": 0}]},
+                    "content": {
+                        "pointsOfInterest": [{"action": "demo pricing", "startTime": 0}]
+                    },
                 },
                 {
                     "id": "pub",
                     "isPrivate": False,
                     "title": "Public",
                     "started": "2025-01-01T00:00:00Z",
-                    "content": {"pointsOfInterest": [{"action": "product demo pricing", "startTime": 10}]},
+                    "content": {
+                        "pointsOfInterest": [
+                            {"action": "product demo pricing", "startTime": 10}
+                        ]
+                    },
                 },
             ]
         }

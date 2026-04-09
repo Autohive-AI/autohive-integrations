@@ -7,8 +7,8 @@ from autohive_integrations_sdk import ExecutionContext
 TEST_AUTH = {
     "auth_type": "PlatformOAuth2",
     "credentials": {
-        "access_token": "ACCESS_TOKEN",
-        "refresh_token": "REFRESH_TOKEN",
+        "access_token": "ACCESS_TOKEN",  # nosec B105
+        "refresh_token": "REFRESH_TOKEN",  # nosec B105
     },
 }
 
@@ -24,7 +24,9 @@ async def test_get_accessible_accounts():
     inputs = {}
 
     try:
-        result = await google_ads.execute_action("get_accessible_accounts", inputs, context)
+        result = await google_ads.execute_action(
+            "get_accessible_accounts", inputs, context
+        )
         print("\n=== Get Accessible Accounts Test ===")
         pprint(result)
     except Exception as e:
@@ -40,7 +42,9 @@ async def test_retrieve_campaign_metrics():
     inputs = {**TEST_INPUTS, "date_ranges": ["2025-05-14_2025-05-20"]}
 
     try:
-        result = await google_ads.execute_action("retrieve_campaign_metrics", inputs, context)
+        result = await google_ads.execute_action(
+            "retrieve_campaign_metrics", inputs, context
+        )
         print("\n=== Campaign Metrics Test ===")
         pprint(result)
     except Exception as e:
@@ -61,7 +65,9 @@ async def test_retrieve_keyword_metrics():
     }
 
     try:
-        result = await google_ads.execute_action("retrieve_keyword_metrics", inputs, context)
+        result = await google_ads.execute_action(
+            "retrieve_keyword_metrics", inputs, context
+        )
         print("\n=== Keyword Metrics Test ===")
         pprint(result)
     except Exception as e:
@@ -97,7 +103,12 @@ async def test_create_campaign():
 async def test_update_campaign(campaign_id: str):
     """Test updating an existing campaign."""
     context = ExecutionContext(auth=TEST_AUTH)
-    inputs = {**TEST_INPUTS, "campaign_id": campaign_id, "status": "PAUSED", "name": "Updated Campaign Name"}
+    inputs = {
+        **TEST_INPUTS,
+        "campaign_id": campaign_id,
+        "status": "PAUSED",
+        "name": "Updated Campaign Name",
+    }
 
     try:
         result = await google_ads.execute_action("update_campaign", inputs, context)
@@ -140,7 +151,10 @@ async def test_create_responsive_search_ad(ad_group_id: str):
         **TEST_INPUTS,
         "ad_group_id": ad_group_id,
         "headlines": ["Best Product Ever", "Amazing Quality", "Free Shipping Today"],
-        "descriptions": ["Shop now and save big on our amazing products.", "Limited time offer. Don't miss out!"],
+        "descriptions": [
+            "Shop now and save big on our amazing products.",
+            "Limited time offer. Don't miss out!",
+        ],
         "final_url": "https://www.example.com",
         "path1": "products",
         "path2": "deals",
@@ -148,7 +162,9 @@ async def test_create_responsive_search_ad(ad_group_id: str):
     }
 
     try:
-        result = await google_ads.execute_action("create_responsive_search_ad", inputs, context)
+        result = await google_ads.execute_action(
+            "create_responsive_search_ad", inputs, context
+        )
         print("\n=== Create RSA Test ===")
         pprint(result)
     except Exception as e:
@@ -194,7 +210,9 @@ async def test_generate_keyword_ideas():
     }
 
     try:
-        result = await google_ads.execute_action("generate_keyword_ideas", inputs, context)
+        result = await google_ads.execute_action(
+            "generate_keyword_ideas", inputs, context
+        )
         print("\n=== Keyword Ideas Test ===")
         pprint(result)
     except Exception as e:
@@ -215,7 +233,9 @@ async def test_generate_keyword_historical_metrics():
     }
 
     try:
-        result = await google_ads.execute_action("generate_keyword_historical_metrics", inputs, context)
+        result = await google_ads.execute_action(
+            "generate_keyword_historical_metrics", inputs, context
+        )
         print("\n=== Keyword Historical Metrics Test ===")
         pprint(result)
     except Exception as e:
