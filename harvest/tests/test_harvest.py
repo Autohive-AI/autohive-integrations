@@ -15,7 +15,7 @@ async def test_create_time_entry():
     print("\n--- Testing create_time_entry ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
+        "access_token": "your_harvest_access_token_here",  # nosec B105
         "account_id": "your_harvest_account_id_here"
     }
 
@@ -49,7 +49,7 @@ async def test_stop_time_entry():
     print("\n--- Testing stop_time_entry ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
+        "access_token": "your_harvest_access_token_here",  # nosec B105
         "account_id": "your_harvest_account_id_here"
     }
 
@@ -92,7 +92,7 @@ async def test_list_time_entries():
     print("\n--- Testing list_time_entries ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
+        "access_token": "your_harvest_access_token_here",  # nosec B105
         "account_id": "your_harvest_account_id_here"
     }
 
@@ -122,7 +122,7 @@ async def test_update_time_entry():
     print("\n--- Testing update_time_entry ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
+        "access_token": "your_harvest_access_token_here",  # nosec B105
         "account_id": "your_harvest_account_id_here"
     }
 
@@ -170,7 +170,7 @@ async def test_delete_time_entry():
     print("\n--- Testing delete_time_entry ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
+        "access_token": "your_harvest_access_token_here",  # nosec B105
         "account_id": "your_harvest_account_id_here"
     }
 
@@ -212,7 +212,7 @@ async def test_list_projects():
     print("\n--- Testing list_projects ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
+        "access_token": "your_harvest_access_token_here",  # nosec B105
         "account_id": "your_harvest_account_id_here"
     }
 
@@ -242,7 +242,7 @@ async def test_get_project():
     print("\n--- Testing get_project ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
+        "access_token": "your_harvest_access_token_here",  # nosec B105
         "account_id": "your_harvest_account_id_here"
     }
 
@@ -272,7 +272,7 @@ async def test_list_clients():
     print("\n--- Testing list_clients ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
+        "access_token": "your_harvest_access_token_here",  # nosec B105
         "account_id": "your_harvest_account_id_here"
     }
 
@@ -301,7 +301,7 @@ async def test_list_tasks():
     print("\n--- Testing list_tasks ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
+        "access_token": "your_harvest_access_token_here",  # nosec B105
         "account_id": "your_harvest_account_id_here"
     }
 
@@ -330,7 +330,7 @@ async def test_list_users():
     print("\n--- Testing list_users ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
+        "access_token": "your_harvest_access_token_here",  # nosec B105
         "account_id": "your_harvest_account_id_here"
     }
 

@@ -11,7 +11,7 @@ config_path = os.path.join(config_dir, 'config.json')
 grammarly = Integration.load(config_path)
 
 # Base URLs for Grammarly API
-GRAMMARLY_TOKEN_URL = "https://auth.grammarly.com/v4/api/oauth2/token"
+GRAMMARLY_TOKEN_URL = "https://auth.grammarly.com/v4/api/oauth2/token"  # nosec B105
 GRAMMARLY_WRITING_SCORE_URL = "https://api.grammarly.com/ecosystem/api/v2/scores"
 GRAMMARLY_ANALYTICS_URL = "https://api.grammarly.com/ecosystem/api/v2/analytics/users"
 GRAMMARLY_AI_DETECTION_URL = "https://api.grammarly.com/ecosystem/api/v1/ai-detection"
