@@ -1,4 +1,6 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration, ExecutionContext, ActionHandler, ActionResult
+)
 from typing import Dict, Any, List
 
 # Create the integration using the config.json
@@ -32,13 +34,12 @@ def parse_rows(schema: Dict[str, Any], rows: List[Dict[str, Any]]) -> List[Dict[
                     nested_schema = {"fields": field.get("fields", [])}
                     if field.get("mode") == "REPEATED":
                         parsed_row[field_name] = [
-                            parse_rows(nested_schema, [{"f": v.get("v", {}).get("f", [])}])[0] if v.get("v") else None
+                            parse_rows(nested_schema, [{"f": v.get("v", {}).get("f", [])}])[0]
+                            if v.get("v") else None
                             for v in value
                         ]
                     else:
-                        parsed_row[field_name] = (
-                            parse_rows(nested_schema, [{"f": value.get("f", [])}])[0] if value else None
-                        )
+                        parsed_row[field_name] = parse_rows(nested_schema, [{"f": value.get("f", [])}])[0] if value else None
                 elif field.get("mode") == "REPEATED" and value:
                     parsed_row[field_name] = [v.get("v") for v in value]
                 else:
@@ -58,7 +59,11 @@ def format_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
     fields = schema.get("fields", [])
     formatted_fields = []
     for field in fields:
-        formatted_field = {"name": field.get("name"), "type": field.get("type"), "mode": field.get("mode", "NULLABLE")}
+        formatted_field = {
+            "name": field.get("name"),
+            "type": field.get("type"),
+            "mode": field.get("mode", "NULLABLE")
+        }
         if field.get("description"):
             formatted_field["description"] = field["description"]
         if field.get("fields"):
@@ -69,7 +74,6 @@ def format_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ---- Query Actions ----
-
 
 @bigquery.action("run_query")
 class RunQueryAction(ActionHandler):
@@ -95,13 +99,17 @@ class RunQueryAction(ActionHandler):
                 "useLegacySql": use_legacy_sql,
                 "maxResults": max_results,
                 "timeoutMs": timeout_ms,
-                "dryRun": dry_run,
+                "dryRun": dry_run
             }
 
             if location:
                 payload["location"] = location
 
-            response = await context.fetch(url, method="POST", json=payload)
+            response = await context.fetch(
+                url,
+                method="POST",
+                json=payload
+            )
 
             # Handle dry run response
             if dry_run:
@@ -112,9 +120,9 @@ class RunQueryAction(ActionHandler):
                         "total_bytes_processed": int(response.get("totalBytesProcessed", 0)),
                         "job_complete": True,
                         "dry_run": True,
-                        "result": True,
+                        "result": True
                     },
-                    cost_usd=0.0,
+                    cost_usd=0.0
                 )
 
             # Parse the response
@@ -129,11 +137,9 @@ class RunQueryAction(ActionHandler):
                 "schema": format_schema(schema),
                 "job_id": job_reference.get("jobId"),
                 "job_complete": job_complete,
-                "total_bytes_processed": (
-                    int(response.get("totalBytesProcessed", 0)) if response.get("totalBytesProcessed") else None
-                ),
+                "total_bytes_processed": int(response.get("totalBytesProcessed", 0)) if response.get("totalBytesProcessed") else None,
                 "cache_hit": response.get("cacheHit"),
-                "result": True,
+                "result": True
             }
 
             # Add page token if more results available
@@ -143,7 +149,10 @@ class RunQueryAction(ActionHandler):
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"rows": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"rows": [], "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @bigquery.action("get_query_results")
@@ -168,7 +177,11 @@ class GetQueryResultsAction(ActionHandler):
             if start_index is not None:
                 params["startIndex"] = start_index
 
-            response = await context.fetch(url, method="GET", params=params if params else None)
+            response = await context.fetch(
+                url,
+                method="GET",
+                params=params if params else None
+            )
 
             schema = response.get("schema", {})
             rows = parse_rows(schema, response.get("rows", []))
@@ -178,7 +191,7 @@ class GetQueryResultsAction(ActionHandler):
                 "total_rows": int(response.get("totalRows", 0)) if response.get("totalRows") else len(rows),
                 "schema": format_schema(schema),
                 "job_complete": response.get("jobComplete", False),
-                "result": True,
+                "result": True
             }
 
             if response.get("pageToken"):
@@ -187,11 +200,13 @@ class GetQueryResultsAction(ActionHandler):
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"rows": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"rows": [], "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 # ---- Dataset Actions ----
-
 
 @bigquery.action("list_datasets")
 class ListDatasetsAction(ActionHandler):
@@ -217,23 +232,28 @@ class ListDatasetsAction(ActionHandler):
             if all_datasets:
                 params["all"] = "true"
 
-            response = await context.fetch(url, method="GET", params=params if params else None)
+            response = await context.fetch(
+                url,
+                method="GET",
+                params=params if params else None
+            )
 
             datasets = []
             for ds in response.get("datasets", []):
                 dataset_ref = ds.get("datasetReference", {})
-                datasets.append(
-                    {
-                        "id": ds.get("id"),
-                        "dataset_id": dataset_ref.get("datasetId"),
-                        "project_id": dataset_ref.get("projectId"),
-                        "friendly_name": ds.get("friendlyName"),
-                        "location": ds.get("location"),
-                        "labels": ds.get("labels", {}),
-                    }
-                )
+                datasets.append({
+                    "id": ds.get("id"),
+                    "dataset_id": dataset_ref.get("datasetId"),
+                    "project_id": dataset_ref.get("projectId"),
+                    "friendly_name": ds.get("friendlyName"),
+                    "location": ds.get("location"),
+                    "labels": ds.get("labels", {})
+                })
 
-            result_data = {"datasets": datasets, "result": True}
+            result_data = {
+                "datasets": datasets,
+                "result": True
+            }
 
             if response.get("nextPageToken"):
                 result_data["next_page_token"] = response["nextPageToken"]
@@ -241,7 +261,10 @@ class ListDatasetsAction(ActionHandler):
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"datasets": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"datasets": [], "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @bigquery.action("get_dataset")
@@ -270,13 +293,19 @@ class GetDatasetAction(ActionHandler):
                 "default_table_expiration_ms": response.get("defaultTableExpirationMs"),
                 "default_partition_expiration_ms": response.get("defaultPartitionExpirationMs"),
                 "labels": response.get("labels", {}),
-                "access": response.get("access", []),
+                "access": response.get("access", [])
             }
 
-            return ActionResult(data={"dataset": dataset, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"dataset": dataset, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"dataset": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"dataset": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @bigquery.action("create_dataset")
@@ -294,7 +323,13 @@ class CreateDatasetAction(ActionHandler):
 
             url = f"{BIGQUERY_API_BASE}/projects/{project_id}/datasets"
 
-            payload = {"datasetReference": {"projectId": project_id, "datasetId": dataset_id}, "location": location}
+            payload = {
+                "datasetReference": {
+                    "projectId": project_id,
+                    "datasetId": dataset_id
+                },
+                "location": location
+            }
 
             if description:
                 payload["description"] = description
@@ -303,7 +338,11 @@ class CreateDatasetAction(ActionHandler):
             if labels:
                 payload["labels"] = labels
 
-            response = await context.fetch(url, method="POST", json=payload)
+            response = await context.fetch(
+                url,
+                method="POST",
+                json=payload
+            )
 
             dataset_ref = response.get("datasetReference", {})
             dataset = {
@@ -311,13 +350,19 @@ class CreateDatasetAction(ActionHandler):
                 "dataset_id": dataset_ref.get("datasetId"),
                 "project_id": dataset_ref.get("projectId"),
                 "location": response.get("location"),
-                "creation_time": response.get("creationTime"),
+                "creation_time": response.get("creationTime")
             }
 
-            return ActionResult(data={"dataset": dataset, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"dataset": dataset, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"dataset": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"dataset": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @bigquery.action("delete_dataset")
@@ -336,16 +381,25 @@ class DeleteDatasetAction(ActionHandler):
             if delete_contents:
                 params["deleteContents"] = "true"
 
-            await context.fetch(url, method="DELETE", params=params if params else None)
+            await context.fetch(
+                url,
+                method="DELETE",
+                params=params if params else None
+            )
 
-            return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": True, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": False, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 # ---- Table Actions ----
-
 
 @bigquery.action("list_tables")
 class ListTablesAction(ActionHandler):
@@ -366,26 +420,32 @@ class ListTablesAction(ActionHandler):
             if page_token:
                 params["pageToken"] = page_token
 
-            response = await context.fetch(url, method="GET", params=params if params else None)
+            response = await context.fetch(
+                url,
+                method="GET",
+                params=params if params else None
+            )
 
             tables = []
             for tbl in response.get("tables", []):
                 table_ref = tbl.get("tableReference", {})
-                tables.append(
-                    {
-                        "id": tbl.get("id"),
-                        "table_id": table_ref.get("tableId"),
-                        "dataset_id": table_ref.get("datasetId"),
-                        "project_id": table_ref.get("projectId"),
-                        "type": tbl.get("type"),
-                        "friendly_name": tbl.get("friendlyName"),
-                        "creation_time": tbl.get("creationTime"),
-                        "expiration_time": tbl.get("expirationTime"),
-                        "labels": tbl.get("labels", {}),
-                    }
-                )
+                tables.append({
+                    "id": tbl.get("id"),
+                    "table_id": table_ref.get("tableId"),
+                    "dataset_id": table_ref.get("datasetId"),
+                    "project_id": table_ref.get("projectId"),
+                    "type": tbl.get("type"),
+                    "friendly_name": tbl.get("friendlyName"),
+                    "creation_time": tbl.get("creationTime"),
+                    "expiration_time": tbl.get("expirationTime"),
+                    "labels": tbl.get("labels", {})
+                })
 
-            result_data = {"tables": tables, "total_items": response.get("totalItems"), "result": True}
+            result_data = {
+                "tables": tables,
+                "total_items": response.get("totalItems"),
+                "result": True
+            }
 
             if response.get("nextPageToken"):
                 result_data["next_page_token"] = response["nextPageToken"]
@@ -393,7 +453,10 @@ class ListTablesAction(ActionHandler):
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"tables": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"tables": [], "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @bigquery.action("get_table")
@@ -429,13 +492,19 @@ class GetTableAction(ActionHandler):
                 "streaming_buffer": response.get("streamingBuffer"),
                 "time_partitioning": response.get("timePartitioning"),
                 "clustering": response.get("clustering"),
-                "labels": response.get("labels", {}),
+                "labels": response.get("labels", {})
             }
 
-            return ActionResult(data={"table": table, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"table": table, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"table": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"table": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @bigquery.action("create_table")
@@ -457,8 +526,12 @@ class CreateTableAction(ActionHandler):
             url = f"{BIGQUERY_API_BASE}/projects/{project_id}/datasets/{dataset_id}/tables"
 
             payload = {
-                "tableReference": {"projectId": project_id, "datasetId": dataset_id, "tableId": table_id},
-                "schema": schema,
+                "tableReference": {
+                    "projectId": project_id,
+                    "datasetId": dataset_id,
+                    "tableId": table_id
+                },
+                "schema": schema
             }
 
             if description:
@@ -480,7 +553,11 @@ class CreateTableAction(ActionHandler):
             if labels:
                 payload["labels"] = labels
 
-            response = await context.fetch(url, method="POST", json=payload)
+            response = await context.fetch(
+                url,
+                method="POST",
+                json=payload
+            )
 
             table_ref = response.get("tableReference", {})
             table = {
@@ -489,13 +566,19 @@ class CreateTableAction(ActionHandler):
                 "dataset_id": table_ref.get("datasetId"),
                 "project_id": table_ref.get("projectId"),
                 "schema": format_schema(response.get("schema", {})),
-                "creation_time": response.get("creationTime"),
+                "creation_time": response.get("creationTime")
             }
 
-            return ActionResult(data={"table": table, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"table": table, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"table": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"table": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @bigquery.action("delete_table")
@@ -512,10 +595,16 @@ class DeleteTableAction(ActionHandler):
 
             await context.fetch(url, method="DELETE")
 
-            return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": True, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": False, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @bigquery.action("insert_rows")
@@ -539,10 +628,14 @@ class InsertRowsAction(ActionHandler):
             payload = {
                 "rows": formatted_rows,
                 "skipInvalidRows": skip_invalid_rows,
-                "ignoreUnknownValues": ignore_unknown_values,
+                "ignoreUnknownValues": ignore_unknown_values
             }
 
-            response = await context.fetch(url, method="POST", json=payload)
+            response = await context.fetch(
+                url,
+                method="POST",
+                json=payload
+            )
 
             insert_errors = response.get("insertErrors", [])
 
@@ -554,25 +647,28 @@ class InsertRowsAction(ActionHandler):
             # Format errors for output
             formatted_errors = []
             for error in insert_errors:
-                formatted_errors.append({"index": error.get("index"), "errors": error.get("errors", [])})
+                formatted_errors.append({
+                    "index": error.get("index"),
+                    "errors": error.get("errors", [])
+                })
 
             return ActionResult(
                 data={
                     "inserted_count": inserted_count,
                     "insert_errors": formatted_errors,
-                    "result": len(insert_errors) == 0,
+                    "result": len(insert_errors) == 0
                 },
-                cost_usd=0.0,
+                cost_usd=0.0
             )
 
         except Exception as e:
             return ActionResult(
-                data={"inserted_count": 0, "insert_errors": [], "result": False, "error": str(e)}, cost_usd=0.0
+                data={"inserted_count": 0, "insert_errors": [], "result": False, "error": str(e)},
+                cost_usd=0.0
             )
 
 
 # ---- Job Actions ----
-
 
 @bigquery.action("list_jobs")
 class ListJobsAction(ActionHandler):
@@ -604,7 +700,11 @@ class ListJobsAction(ActionHandler):
             if max_creation_time:
                 params["maxCreationTime"] = str(max_creation_time)
 
-            response = await context.fetch(url, method="GET", params=params if params else None)
+            response = await context.fetch(
+                url,
+                method="GET",
+                params=params if params else None
+            )
 
             jobs = []
             for job in response.get("jobs", []):
@@ -612,24 +712,25 @@ class ListJobsAction(ActionHandler):
                 status = job.get("status", {})
                 statistics = job.get("statistics", {})
 
-                jobs.append(
-                    {
-                        "id": job.get("id"),
-                        "job_id": job_ref.get("jobId"),
-                        "project_id": job_ref.get("projectId"),
-                        "location": job_ref.get("location"),
-                        "state": status.get("state"),
-                        "error_result": status.get("errorResult"),
-                        "creation_time": statistics.get("creationTime"),
-                        "start_time": statistics.get("startTime"),
-                        "end_time": statistics.get("endTime"),
-                        "total_bytes_processed": statistics.get("totalBytesProcessed"),
-                        # Note: user_email is snake_case in BigQuery API (exception to camelCase convention)
-                        "user_email": job.get("user_email"),
-                    }
-                )
+                jobs.append({
+                    "id": job.get("id"),
+                    "job_id": job_ref.get("jobId"),
+                    "project_id": job_ref.get("projectId"),
+                    "location": job_ref.get("location"),
+                    "state": status.get("state"),
+                    "error_result": status.get("errorResult"),
+                    "creation_time": statistics.get("creationTime"),
+                    "start_time": statistics.get("startTime"),
+                    "end_time": statistics.get("endTime"),
+                    "total_bytes_processed": statistics.get("totalBytesProcessed"),
+                    # Note: user_email is snake_case in BigQuery API (exception to camelCase convention)
+                    "user_email": job.get("user_email")
+                })
 
-            result_data = {"jobs": jobs, "result": True}
+            result_data = {
+                "jobs": jobs,
+                "result": True
+            }
 
             if response.get("nextPageToken"):
                 result_data["next_page_token"] = response["nextPageToken"]
@@ -637,7 +738,10 @@ class ListJobsAction(ActionHandler):
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"jobs": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"jobs": [], "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @bigquery.action("get_job")
@@ -656,7 +760,11 @@ class GetJobAction(ActionHandler):
             if location:
                 params["location"] = location
 
-            response = await context.fetch(url, method="GET", params=params if params else None)
+            response = await context.fetch(
+                url,
+                method="GET",
+                params=params if params else None
+            )
 
             job_ref = response.get("jobReference", {})
             status = response.get("status", {})
@@ -679,17 +787,22 @@ class GetJobAction(ActionHandler):
                 "cache_hit": statistics.get("query", {}).get("cacheHit"),
                 "configuration": configuration,
                 # Note: user_email is snake_case in BigQuery API (exception to camelCase convention)
-                "user_email": response.get("user_email"),
+                "user_email": response.get("user_email")
             }
 
-            return ActionResult(data={"job": job, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"job": job, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"job": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"job": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 # ---- Project Actions ----
-
 
 @bigquery.action("list_projects")
 class ListProjectsAction(ActionHandler):
@@ -708,21 +821,26 @@ class ListProjectsAction(ActionHandler):
             if page_token:
                 params["pageToken"] = page_token
 
-            response = await context.fetch(url, method="GET", params=params if params else None)
+            response = await context.fetch(
+                url,
+                method="GET",
+                params=params if params else None
+            )
 
             projects = []
             for proj in response.get("projects", []):
                 project_ref = proj.get("projectReference", {})
-                projects.append(
-                    {
-                        "id": proj.get("id"),
-                        "project_id": project_ref.get("projectId"),
-                        "numeric_id": proj.get("numericId"),
-                        "friendly_name": proj.get("friendlyName"),
-                    }
-                )
+                projects.append({
+                    "id": proj.get("id"),
+                    "project_id": project_ref.get("projectId"),
+                    "numeric_id": proj.get("numericId"),
+                    "friendly_name": proj.get("friendlyName")
+                })
 
-            result_data = {"projects": projects, "result": True}
+            result_data = {
+                "projects": projects,
+                "result": True
+            }
 
             if response.get("nextPageToken"):
                 result_data["next_page_token"] = response["nextPageToken"]
@@ -730,4 +848,7 @@ class ListProjectsAction(ActionHandler):
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"projects": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"projects": [], "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
