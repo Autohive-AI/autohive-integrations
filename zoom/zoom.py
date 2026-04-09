@@ -921,8 +921,8 @@ class ListCalendarSettingsAction(ActionHandler):
             )
         except Exception as e:
             return ActionResult(
-                data={"settings": [], "next_page_token": None, "result": False, "error": str(e)},
-                cost_usd=0.0,  # nosec B105
+                data={"settings": [], "next_page_token": None, "result": False, "error": str(e)},  # nosec B105
+                cost_usd=0.0,
             )
 
 
