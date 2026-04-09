@@ -29,7 +29,10 @@ class TestHelperFunctions:
     def test_extract_id_from_urn_with_valid_urns(self):
         assert extract_id_from_urn("urn:li:sponsoredAccount:123456789") == "123456789"
         assert extract_id_from_urn("urn:li:sponsoredCampaign:987654321") == "987654321"
-        assert extract_id_from_urn("urn:li:sponsoredCampaignGroup:555666777") == "555666777"
+        assert (
+            extract_id_from_urn("urn:li:sponsoredCampaignGroup:555666777")
+            == "555666777"
+        )
         assert extract_id_from_urn("urn:li:sponsoredCreative:111222333") == "111222333"
 
     def test_extract_id_from_urn_with_plain_id(self):
@@ -58,13 +61,20 @@ class TestHelperFunctions:
         assert build_urn("account", "123456789") == "urn:li:sponsoredAccount:123456789"
 
     def test_build_urn_for_campaign(self):
-        assert build_urn("campaign", "987654321") == "urn:li:sponsoredCampaign:987654321"
+        assert (
+            build_urn("campaign", "987654321") == "urn:li:sponsoredCampaign:987654321"
+        )
 
     def test_build_urn_for_campaign_group(self):
-        assert build_urn("campaign_group", "111222333") == "urn:li:sponsoredCampaignGroup:111222333"
+        assert (
+            build_urn("campaign_group", "111222333")
+            == "urn:li:sponsoredCampaignGroup:111222333"
+        )
 
     def test_build_urn_for_creative(self):
-        assert build_urn("creative", "444555666") == "urn:li:sponsoredCreative:444555666"
+        assert (
+            build_urn("creative", "444555666") == "urn:li:sponsoredCreative:444555666"
+        )
 
     def test_build_urn_with_unknown_entity_type(self):
         assert build_urn("unknown", "123") == "urn:li:unknown:123"
@@ -72,7 +82,10 @@ class TestHelperFunctions:
     def test_build_urn_preserves_existing_urn(self):
         existing_urn = "urn:li:sponsoredAccount:123456789"
         assert build_urn("account", existing_urn) == existing_urn
-        assert build_urn("campaign", "urn:li:sponsoredCampaign:987654321") == "urn:li:sponsoredCampaign:987654321"
+        assert (
+            build_urn("campaign", "urn:li:sponsoredCampaign:987654321")
+            == "urn:li:sponsoredCampaign:987654321"
+        )
 
     def test_get_headers_contains_required_fields(self):
         headers = get_headers()
@@ -114,7 +127,9 @@ class TestMakeRequest:
     async def test_make_request_post_success(self, mock_context):
         mock_context.fetch.return_value = {"id": "new-campaign-123"}
 
-        result = await make_request(mock_context, "POST", "/adCampaigns", json_body={"name": "Test Campaign"})
+        result = await make_request(
+            mock_context, "POST", "/adCampaigns", json_body={"name": "Test Campaign"}
+        )
 
         assert result["success"] is True
         assert result["data"]["id"] == "new-campaign-123"
@@ -123,7 +138,9 @@ class TestMakeRequest:
     async def test_make_request_with_params(self, mock_context):
         mock_context.fetch.return_value = {"elements": []}
 
-        await make_request(mock_context, "GET", "/adCampaigns", params={"q": "search", "count": 25})
+        await make_request(
+            mock_context, "GET", "/adCampaigns", params={"q": "search", "count": 25}
+        )
 
         call_kwargs = mock_context.fetch.call_args
         assert "params" in call_kwargs.kwargs
@@ -134,7 +151,10 @@ class TestMakeRequest:
         mock_context.fetch.return_value = {}
 
         await make_request(
-            mock_context, "POST", "/adCampaigns/123", extra_headers={"X-RestLi-Method": "PARTIAL_UPDATE"}
+            mock_context,
+            "POST",
+            "/adCampaigns/123",
+            extra_headers={"X-RestLi-Method": "PARTIAL_UPDATE"},
         )
 
         call_kwargs = mock_context.fetch.call_args
@@ -291,7 +311,9 @@ class TestGetCampaignAction:
         mock_context.fetch.return_value = {"id": "123", "name": "Test"}
 
         action = GetCampaignAction()
-        await action.execute({"campaign_id": "urn:li:sponsoredCampaign:123"}, mock_context)
+        await action.execute(
+            {"campaign_id": "urn:li:sponsoredCampaign:123"}, mock_context
+        )
 
         call_args = mock_context.fetch.call_args
         assert "/adCampaigns/123" in call_args.args[0]
@@ -432,7 +454,12 @@ class TestGetAdAnalyticsAction:
     async def test_get_analytics_validates_date_format(self, mock_context):
         action = GetAdAnalyticsAction()
         result = await action.execute(
-            {"account_id": "123", "start_date": "invalid-date", "end_date": "2025-01-20"}, mock_context
+            {
+                "account_id": "123",
+                "start_date": "invalid-date",
+                "end_date": "2025-01-20",
+            },
+            mock_context,
         )
 
         assert result.data["result"] is False
@@ -441,12 +468,19 @@ class TestGetAdAnalyticsAction:
     @pytest.mark.asyncio
     async def test_get_analytics_success(self, mock_context):
         mock_context.fetch.return_value = {
-            "elements": [{"impressions": 1000, "clicks": 50, "costInLocalCurrency": "100.00"}]
+            "elements": [
+                {"impressions": 1000, "clicks": 50, "costInLocalCurrency": "100.00"}
+            ]
         }
 
         action = GetAdAnalyticsAction()
         result = await action.execute(
-            {"account_id": "123456789", "start_date": "2025-01-01", "end_date": "2025-01-20"}, mock_context
+            {
+                "account_id": "123456789",
+                "start_date": "2025-01-01",
+                "end_date": "2025-01-20",
+            },
+            mock_context,
         )
 
         assert result.data["result"] is True
@@ -472,7 +506,9 @@ class TestGetAdAccountUsersAction:
 
     @pytest.mark.asyncio
     async def test_get_users_success(self, mock_context):
-        mock_context.fetch.return_value = {"elements": [{"user": "urn:li:person:abc123", "role": "ACCOUNT_MANAGER"}]}
+        mock_context.fetch.return_value = {
+            "elements": [{"user": "urn:li:person:abc123", "role": "ACCOUNT_MANAGER"}]
+        }
 
         action = GetAdAccountUsersAction()
         result = await action.execute({"account_id": "123"}, mock_context)

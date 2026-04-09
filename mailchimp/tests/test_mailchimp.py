@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_get_lists():
     """Test retrieving all mailing lists."""
-    auth = {"credentials": {"access_token": "your_access_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"count": 10, "offset": 0}
 
@@ -22,7 +22,7 @@ async def test_get_lists():
 
 async def test_get_list():
     """Test getting a specific mailing list."""
-    auth = {"credentials": {"access_token": "your_access_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"list_id": "your_list_id_here"}
 
@@ -38,7 +38,7 @@ async def test_get_list():
 
 async def test_create_list():
     """Test creating a new mailing list."""
-    auth = {"credentials": {"access_token": "your_access_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "name": "Test List via Integration",
@@ -72,7 +72,7 @@ async def test_create_list():
 
 async def test_add_member():
     """Test adding a new member to a mailing list."""
-    auth = {"credentials": {"access_token": "your_access_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "list_id": "your_list_id_here",
@@ -94,7 +94,7 @@ async def test_add_member():
 
 async def test_get_member():
     """Test getting a specific member from a mailing list."""
-    auth = {"credentials": {"access_token": "your_access_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"list_id": "your_list_id_here", "email_address": "test@example.com"}
 
@@ -110,7 +110,7 @@ async def test_get_member():
 
 async def test_update_member():
     """Test updating an existing member in a mailing list."""
-    auth = {"credentials": {"access_token": "your_access_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "list_id": "your_list_id_here",
@@ -130,9 +130,14 @@ async def test_update_member():
 
 async def test_get_list_members():
     """Test getting all members from a mailing list."""
-    auth = {"credentials": {"access_token": "your_access_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
-    inputs = {"list_id": "your_list_id_here", "count": 10, "offset": 0, "status": "subscribed"}
+    inputs = {
+        "list_id": "your_list_id_here",
+        "count": 10,
+        "offset": 0,
+        "status": "subscribed",
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -146,7 +151,7 @@ async def test_get_list_members():
 
 async def test_get_campaigns():
     """Test retrieving all campaigns."""
-    auth = {"credentials": {"access_token": "your_access_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"count": 10, "offset": 0}
 
@@ -162,7 +167,7 @@ async def test_get_campaigns():
 
 async def test_create_campaign():
     """Test creating a new campaign."""
-    auth = {"credentials": {"access_token": "your_access_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "type": "regular",
@@ -185,7 +190,7 @@ async def test_create_campaign():
 
 async def test_get_campaign():
     """Test getting a specific campaign."""
-    auth = {"credentials": {"access_token": "your_access_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"campaign_id": "your_campaign_id_here"}
 

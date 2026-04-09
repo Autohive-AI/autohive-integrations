@@ -25,7 +25,9 @@ class MailchimpRateLimitException(Exception):
 
     def __init__(self, retry_after: int):
         self.retry_after = retry_after
-        super().__init__(f"Mailchimp API rate limit exceeded. Retry after {retry_after} seconds.")
+        super().__init__(
+            f"Mailchimp API rate limit exceeded. Retry after {retry_after} seconds."
+        )
 
 
 class MailchimpRateLimiter:
@@ -48,7 +50,9 @@ class MailchimpRateLimiter:
                     pass
         return self.default_retry_delay
 
-    async def make_request(self, context: ExecutionContext, url: str, **kwargs) -> Dict[str, Any]:
+    async def make_request(
+        self, context: ExecutionContext, url: str, **kwargs
+    ) -> Dict[str, Any]:
         """Make request to Mailchimp API with automatic retry on rate limit errors"""
         last_error = None
 
@@ -62,7 +66,11 @@ class MailchimpRateLimiter:
                 error_str = str(e).lower()
 
                 # Check if it's a rate limit error (HTTP 429)
-                if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
+                if (
+                    "429" in error_str
+                    or "rate limit" in error_str
+                    or "too many requests" in error_str
+                ):
                     # Don't retry on the last attempt
                     if attempt >= self.max_retries:
                         delay = self._extract_retry_delay(e)
@@ -121,7 +129,7 @@ def get_subscriber_hash(email: str) -> str:
     Generate MD5 hash of lowercase email address.
     Required for Mailchimp member operations.
     """
-    return hashlib.md5(email.lower().encode()).hexdigest()
+    return hashlib.md5(email.lower().encode(), usedforsecurity=False).hexdigest()  # nosec B324
 
 
 # ---- Action Handlers ----
@@ -140,10 +148,15 @@ class GetListsAction(ActionHandler):
 
             # Build URL with pagination parameters
             url = f"{base_url}/lists"
-            params = {"count": inputs.get("count", 10), "offset": inputs.get("offset", 0)}
+            params = {
+                "count": inputs.get("count", 10),
+                "offset": inputs.get("offset", 0),
+            }
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(context, url, method="GET", params=params)
+            response = await rate_limiter.make_request(
+                context, url, method="GET", params=params
+            )
 
             return ActionResult(
                 data={
@@ -165,7 +178,10 @@ class GetListsAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e), "lists": [], "total_items": 0}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": str(e), "lists": [], "total_items": 0},
+                cost_usd=0.0,
+            )
 
 
 @mailchimp.action("find_list")
@@ -177,7 +193,9 @@ class FindListAction(ActionHandler):
         # Validate required inputs
         name = inputs.get("name")
         if not name:
-            return ActionResult(data={"result": False, "error": "name is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "name is required"}, cost_usd=0.0
+            )
 
         try:
             # Get data center from metadata
@@ -192,7 +210,9 @@ class FindListAction(ActionHandler):
             }
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(context, url, method="GET", params=params)
+            response = await rate_limiter.make_request(
+                context, url, method="GET", params=params
+            )
 
             # Search for matching list (case-insensitive)
             search_name = name.lower()
@@ -203,13 +223,21 @@ class FindListAction(ActionHandler):
                     break
 
             if matching_list:
-                return ActionResult(data={"result": True, "list": matching_list}, cost_usd=0.0)
+                return ActionResult(
+                    data={"result": True, "list": matching_list}, cost_usd=0.0
+                )
             else:
-                return ActionResult(data={"result": False, "error": f"No list found matching '{name}'"}, cost_usd=0.0)
+                return ActionResult(
+                    data={"result": False, "error": f"No list found matching '{name}'"},
+                    cost_usd=0.0,
+                )
 
         except MailchimpRateLimitException as e:
             return ActionResult(
-                data={"result": False, "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds."},
+                data={
+                    "result": False,
+                    "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds.",
+                },
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -225,7 +253,9 @@ class GetListAction(ActionHandler):
         # Validate required inputs
         list_id = inputs.get("list_id")
         if not list_id:
-            return ActionResult(data={"result": False, "error": "list_id is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "list_id is required"}, cost_usd=0.0
+            )
 
         try:
             # Get data center from metadata
@@ -242,7 +272,10 @@ class GetListAction(ActionHandler):
 
         except MailchimpRateLimitException as e:
             return ActionResult(
-                data={"result": False, "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds."},
+                data={
+                    "result": False,
+                    "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds.",
+                },
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -262,13 +295,23 @@ class CreateListAction(ActionHandler):
         campaign_defaults = inputs.get("campaign_defaults")
 
         if not name:
-            return ActionResult(data={"result": False, "error": "name is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "name is required"}, cost_usd=0.0
+            )
         if not permission_reminder:
-            return ActionResult(data={"result": False, "error": "permission_reminder is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "permission_reminder is required"},
+                cost_usd=0.0,
+            )
         if not contact:
-            return ActionResult(data={"result": False, "error": "contact is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "contact is required"}, cost_usd=0.0
+            )
         if not campaign_defaults:
-            return ActionResult(data={"result": False, "error": "campaign_defaults is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "campaign_defaults is required"},
+                cost_usd=0.0,
+            )
 
         try:
             # Get data center from metadata
@@ -288,15 +331,24 @@ class CreateListAction(ActionHandler):
             url = f"{base_url}/lists"
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(context, url, method="POST", json=list_data)
+            response = await rate_limiter.make_request(
+                context, url, method="POST", json=list_data
+            )
 
             return ActionResult(
-                data={"result": True, "list": {"id": response.get("id"), "name": response.get("name")}}, cost_usd=0.0
+                data={
+                    "result": True,
+                    "list": {"id": response.get("id"), "name": response.get("name")},
+                },
+                cost_usd=0.0,
             )
 
         except MailchimpRateLimitException as e:
             return ActionResult(
-                data={"result": False, "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds."},
+                data={
+                    "result": False,
+                    "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds.",
+                },
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -315,11 +367,18 @@ class AddMemberAction(ActionHandler):
         status = inputs.get("status")
 
         if not list_id:
-            return ActionResult(data={"result": False, "error": "list_id is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "list_id is required"}, cost_usd=0.0
+            )
         if not email_address:
-            return ActionResult(data={"result": False, "error": "email_address is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "email_address is required"},
+                cost_usd=0.0,
+            )
         if not status:
-            return ActionResult(data={"result": False, "error": "status is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "status is required"}, cost_usd=0.0
+            )
 
         try:
             # Get data center from metadata
@@ -340,7 +399,9 @@ class AddMemberAction(ActionHandler):
             url = f"{base_url}/lists/{list_id}/members"
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(context, url, method="POST", json=member_data)
+            response = await rate_limiter.make_request(
+                context, url, method="POST", json=member_data
+            )
 
             return ActionResult(
                 data={
@@ -356,7 +417,10 @@ class AddMemberAction(ActionHandler):
 
         except MailchimpRateLimitException as e:
             return ActionResult(
-                data={"result": False, "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds."},
+                data={
+                    "result": False,
+                    "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds.",
+                },
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -372,7 +436,9 @@ class UpdateMemberAction(ActionHandler):
         # Validate required inputs
         list_id = inputs.get("list_id")
         if not list_id:
-            return ActionResult(data={"result": False, "error": "list_id is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "list_id is required"}, cost_usd=0.0
+            )
 
         # Get subscriber hash from either direct hash or email
         subscriber_hash = inputs.get("subscriber_hash")
@@ -380,7 +446,11 @@ class UpdateMemberAction(ActionHandler):
 
         if not subscriber_hash and not email_address:
             return ActionResult(
-                data={"result": False, "error": "Either subscriber_hash or email_address is required"}, cost_usd=0.0
+                data={
+                    "result": False,
+                    "error": "Either subscriber_hash or email_address is required",
+                },
+                cost_usd=0.0,
             )
 
         if not subscriber_hash and email_address:
@@ -408,7 +478,9 @@ class UpdateMemberAction(ActionHandler):
             url = f"{base_url}/lists/{list_id}/members/{subscriber_hash}"
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(context, url, method="PATCH", json=member_data)
+            response = await rate_limiter.make_request(
+                context, url, method="PATCH", json=member_data
+            )
 
             return ActionResult(
                 data={
@@ -424,7 +496,10 @@ class UpdateMemberAction(ActionHandler):
 
         except MailchimpRateLimitException as e:
             return ActionResult(
-                data={"result": False, "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds."},
+                data={
+                    "result": False,
+                    "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds.",
+                },
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -440,7 +515,9 @@ class GetMemberAction(ActionHandler):
         # Validate required inputs
         list_id = inputs.get("list_id")
         if not list_id:
-            return ActionResult(data={"result": False, "error": "list_id is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "list_id is required"}, cost_usd=0.0
+            )
 
         # Get subscriber hash from either direct hash or email
         subscriber_hash = inputs.get("subscriber_hash")
@@ -448,7 +525,11 @@ class GetMemberAction(ActionHandler):
 
         if not subscriber_hash and not email_address:
             return ActionResult(
-                data={"result": False, "error": "Either subscriber_hash or email_address is required"}, cost_usd=0.0
+                data={
+                    "result": False,
+                    "error": "Either subscriber_hash or email_address is required",
+                },
+                cost_usd=0.0,
             )
 
         if not subscriber_hash and email_address:
@@ -480,7 +561,10 @@ class GetMemberAction(ActionHandler):
 
         except MailchimpRateLimitException as e:
             return ActionResult(
-                data={"result": False, "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds."},
+                data={
+                    "result": False,
+                    "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds.",
+                },
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -497,7 +581,13 @@ class GetListMembersAction(ActionHandler):
         list_id = inputs.get("list_id")
         if not list_id:
             return ActionResult(
-                data={"result": False, "error": "list_id is required", "members": [], "total_items": 0}, cost_usd=0.0
+                data={
+                    "result": False,
+                    "error": "list_id is required",
+                    "members": [],
+                    "total_items": 0,
+                },
+                cost_usd=0.0,
             )
 
         try:
@@ -507,14 +597,19 @@ class GetListMembersAction(ActionHandler):
 
             # Build URL with pagination and filter parameters
             url = f"{base_url}/lists/{list_id}/members"
-            params = {"count": inputs.get("count", 10), "offset": inputs.get("offset", 0)}
+            params = {
+                "count": inputs.get("count", 10),
+                "offset": inputs.get("offset", 0),
+            }
 
             # Add optional status filter
             if inputs.get("status"):
                 params["status"] = inputs["status"]
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(context, url, method="GET", params=params)
+            response = await rate_limiter.make_request(
+                context, url, method="GET", params=params
+            )
 
             return ActionResult(
                 data={
@@ -536,7 +631,15 @@ class GetListMembersAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e), "members": [], "total_items": 0}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "result": False,
+                    "error": str(e),
+                    "members": [],
+                    "total_items": 0,
+                },
+                cost_usd=0.0,
+            )
 
 
 @mailchimp.action("find_campaign")
@@ -548,7 +651,9 @@ class FindCampaignAction(ActionHandler):
         # Validate required inputs
         query = inputs.get("query")
         if not query:
-            return ActionResult(data={"result": False, "error": "query is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "query is required"}, cost_usd=0.0
+            )
 
         try:
             # Get data center from metadata
@@ -563,7 +668,9 @@ class FindCampaignAction(ActionHandler):
             }
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(context, url, method="GET", params=params)
+            response = await rate_limiter.make_request(
+                context, url, method="GET", params=params
+            )
 
             # Search for matching campaign (case-insensitive in title or subject_line)
             search_query = query.lower()
@@ -577,15 +684,24 @@ class FindCampaignAction(ActionHandler):
                     break
 
             if matching_campaign:
-                return ActionResult(data={"result": True, "campaign": matching_campaign}, cost_usd=0.0)
+                return ActionResult(
+                    data={"result": True, "campaign": matching_campaign}, cost_usd=0.0
+                )
             else:
                 return ActionResult(
-                    data={"result": False, "error": f"No campaign found matching '{query}'"}, cost_usd=0.0
+                    data={
+                        "result": False,
+                        "error": f"No campaign found matching '{query}'",
+                    },
+                    cost_usd=0.0,
                 )
 
         except MailchimpRateLimitException as e:
             return ActionResult(
-                data={"result": False, "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds."},
+                data={
+                    "result": False,
+                    "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds.",
+                },
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -605,14 +721,19 @@ class GetCampaignsAction(ActionHandler):
 
             # Build URL with pagination and filter parameters
             url = f"{base_url}/campaigns"
-            params = {"count": inputs.get("count", 10), "offset": inputs.get("offset", 0)}
+            params = {
+                "count": inputs.get("count", 10),
+                "offset": inputs.get("offset", 0),
+            }
 
             # Add optional status filter
             if inputs.get("status"):
                 params["status"] = inputs["status"]
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(context, url, method="GET", params=params)
+            response = await rate_limiter.make_request(
+                context, url, method="GET", params=params
+            )
 
             return ActionResult(
                 data={
@@ -635,7 +756,13 @@ class GetCampaignsAction(ActionHandler):
             )
         except Exception as e:
             return ActionResult(
-                data={"result": False, "error": str(e), "campaigns": [], "total_items": 0}, cost_usd=0.0
+                data={
+                    "result": False,
+                    "error": str(e),
+                    "campaigns": [],
+                    "total_items": 0,
+                },
+                cost_usd=0.0,
             )
 
 
@@ -653,15 +780,26 @@ class CreateCampaignAction(ActionHandler):
         reply_to = inputs.get("reply_to")
 
         if not campaign_type:
-            return ActionResult(data={"result": False, "error": "type is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "type is required"}, cost_usd=0.0
+            )
         if not list_id:
-            return ActionResult(data={"result": False, "error": "list_id is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "list_id is required"}, cost_usd=0.0
+            )
         if not subject_line:
-            return ActionResult(data={"result": False, "error": "subject_line is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "subject_line is required"},
+                cost_usd=0.0,
+            )
         if not from_name:
-            return ActionResult(data={"result": False, "error": "from_name is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "from_name is required"}, cost_usd=0.0
+            )
         if not reply_to:
-            return ActionResult(data={"result": False, "error": "reply_to is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "reply_to is required"}, cost_usd=0.0
+            )
 
         try:
             # Get data center from metadata
@@ -672,7 +810,11 @@ class CreateCampaignAction(ActionHandler):
             campaign_data = {
                 "type": campaign_type,
                 "recipients": {"list_id": list_id},
-                "settings": {"subject_line": subject_line, "from_name": from_name, "reply_to": reply_to},
+                "settings": {
+                    "subject_line": subject_line,
+                    "from_name": from_name,
+                    "reply_to": reply_to,
+                },
             }
 
             # Add optional title
@@ -683,7 +825,9 @@ class CreateCampaignAction(ActionHandler):
             url = f"{base_url}/campaigns"
 
             # Make rate-limited request
-            response = await rate_limiter.make_request(context, url, method="POST", json=campaign_data)
+            response = await rate_limiter.make_request(
+                context, url, method="POST", json=campaign_data
+            )
 
             return ActionResult(
                 data={
@@ -699,7 +843,10 @@ class CreateCampaignAction(ActionHandler):
 
         except MailchimpRateLimitException as e:
             return ActionResult(
-                data={"result": False, "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds."},
+                data={
+                    "result": False,
+                    "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds.",
+                },
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -715,7 +862,9 @@ class GetCampaignAction(ActionHandler):
         # Validate required inputs
         campaign_id = inputs.get("campaign_id")
         if not campaign_id:
-            return ActionResult(data={"result": False, "error": "campaign_id is required"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": "campaign_id is required"}, cost_usd=0.0
+            )
 
         try:
             # Get data center from metadata
@@ -728,11 +877,16 @@ class GetCampaignAction(ActionHandler):
             # Make rate-limited request
             response = await rate_limiter.make_request(context, url, method="GET")
 
-            return ActionResult(data={"result": True, "campaign": response}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": True, "campaign": response}, cost_usd=0.0
+            )
 
         except MailchimpRateLimitException as e:
             return ActionResult(
-                data={"result": False, "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds."},
+                data={
+                    "result": False,
+                    "error": f"Rate limit exceeded. Retry after {e.retry_after} seconds.",
+                },
                 cost_usd=0.0,
             )
         except Exception as e:
