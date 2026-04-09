@@ -8,7 +8,7 @@ async def test_search():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -33,7 +33,7 @@ async def test_get_video():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -56,7 +56,7 @@ async def test_update_video():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -82,7 +82,7 @@ async def test_get_channel():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -105,7 +105,7 @@ async def test_list_playlists():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -129,7 +129,7 @@ async def test_create_playlist():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -154,7 +154,7 @@ async def test_list_playlist_items():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -178,7 +178,7 @@ async def test_add_video_to_playlist():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -202,7 +202,7 @@ async def test_list_comments():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -227,7 +227,7 @@ async def test_post_comment():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -251,7 +251,7 @@ async def test_update_comment():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -275,7 +275,7 @@ async def test_delete_comment():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 

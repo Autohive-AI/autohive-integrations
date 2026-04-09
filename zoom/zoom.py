@@ -159,7 +159,7 @@ class ListMeetingsAction(ActionHandler):
             return ActionResult(
                 data={
                     "meetings": [],
-                    "next_page_token": None,
+                    "next_page_token": None,  # nosec B105
                     "page_count": 0,
                     "page_size": 0,
                     "total_records": 0,
@@ -218,7 +218,7 @@ class GetMeetingAction(ActionHandler):
                     "created_at": "",
                     "start_url": "",
                     "join_url": "",
-                    "password": "",
+                    "password": "",  # nosec B105
                     "host_id": "",
                     "host_email": "",
                     "settings": {},
@@ -302,7 +302,7 @@ class CreateMeetingAction(ActionHandler):
                     "duration": 0,
                     "start_url": "",
                     "join_url": "",
-                    "password": "",
+                    "password": "",  # nosec B105
                     "result": False,
                     "error": str(e)
                 },
@@ -516,7 +516,7 @@ class GetMeetingParticipantsAction(ActionHandler):
             return ActionResult(
                 data={
                     "participants": [],
-                    "next_page_token": None,
+                    "next_page_token": None,  # nosec B105
                     "page_count": 0,
                     "page_size": 0,
                     "total_records": 0,
@@ -974,7 +974,7 @@ class ListCalendarEventsAction(ActionHandler):
             return ActionResult(
                 data={
                     "events": [],
-                    "next_page_token": None,
+                    "next_page_token": None,  # nosec B105
                     "time_zone": "",
                     "result": False,
                     "error": str(e)
@@ -1022,7 +1022,7 @@ class ListCalendarSettingsAction(ActionHandler):
             return ActionResult(
                 data={
                     "settings": [],
-                    "next_page_token": None,
+                    "next_page_token": None,  # nosec B105
                     "result": False,
                     "error": str(e)
                 },
@@ -1081,7 +1081,7 @@ class ListContactsAction(ActionHandler):
             return ActionResult(
                 data={
                     "contacts": [],
-                    "next_page_token": None,
+                    "next_page_token": None,  # nosec B105
                     "total_records": 0,
                     "result": False,
                     "error": str(e)

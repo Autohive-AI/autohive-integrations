@@ -8,7 +8,7 @@ async def test_connected_account():
     """Test the connected account handler."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -39,7 +39,7 @@ async def test_list_meetings():
     """Test listing meetings for a user."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -72,7 +72,7 @@ async def test_get_meeting():
     """Test getting meeting details."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -101,7 +101,7 @@ async def test_create_meeting():
     """Test creating a new meeting."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -140,7 +140,7 @@ async def test_update_meeting():
     """Test updating a meeting."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -170,7 +170,7 @@ async def test_delete_meeting():
     """Test deleting a meeting."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -198,7 +198,7 @@ async def test_get_user():
     """Test getting user details."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -228,7 +228,7 @@ async def test_get_meeting_participants():
     """Test getting meeting participants."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -259,7 +259,7 @@ async def test_add_meeting_registrant():
     """Test adding a meeting registrant."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -291,7 +291,7 @@ async def test_list_contacts():
     """Test listing contacts."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -321,7 +321,7 @@ async def test_create_calendar_event():
     """Test creating a calendar event."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -361,7 +361,7 @@ async def test_list_calendar_events():
     """Test listing calendar events."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -392,7 +392,7 @@ async def test_get_calendar_event():
     """Test getting a calendar event."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -422,7 +422,7 @@ async def test_delete_calendar_event():
     """Test deleting a calendar event."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -450,7 +450,7 @@ async def test_quick_create_calendar_event():
     """Test quick creating a calendar event."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -479,7 +479,7 @@ async def test_get_calendar_metadata():
     """Test getting calendar metadata."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -509,7 +509,7 @@ async def test_list_calendar_settings():
     """Test listing calendar settings."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -536,7 +536,7 @@ async def test_create_meeting_template():
     """Test creating a meeting template from an existing meeting."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -566,7 +566,7 @@ async def test_get_meeting_template_detail():
     """Test getting meeting template detail."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -597,7 +597,7 @@ async def test_create_meeting_invite_links():
     """Test creating meeting invite links."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -631,7 +631,7 @@ async def test_get_meeting_participant():
     """Test getting a meeting participant."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -662,7 +662,7 @@ async def test_get_past_meeting():
     """Test getting past meeting details."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -693,7 +693,7 @@ async def test_get_user_permissions():
     """Test getting user permissions."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
