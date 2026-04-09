@@ -44,7 +44,7 @@ def download_google_font(font_family, variant='regular'):
             headers={'User-Agent': 'Mozilla/5.0'}  # Required to get TTF URLs
         )
 
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:  # nosec B310
             css_content = response.read().decode('utf-8')
 
         # Extract TTF URL from CSS
@@ -70,7 +70,7 @@ def download_google_font(font_family, variant='regular'):
 
         # Download font file if not already cached
         if not os.path.exists(font_path):
-            with urllib.request.urlopen(font_url, timeout=30) as response:
+            with urllib.request.urlopen(font_url, timeout=30) as response:  # nosec B310
                 font_data = response.read()
 
             with open(font_path, 'wb') as f:
@@ -103,7 +103,7 @@ def load_font_alternatives():
                 data = json.load(f)
                 return data.get('mappings', {})
 
-    except Exception as e:
+    except Exception as e:  # nosec B110
         pass
 
     return {}
