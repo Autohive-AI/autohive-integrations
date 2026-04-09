@@ -41,9 +41,7 @@ async def execute_wrapper(action_name, inputs, context):
 AUTH = {
     "auth_type": "PlatformOauth2",
     "credentials": {
-        "access_token": os.getenv(
-            "SHOPIFY_ADMIN_TOKEN", "<your-admin-api-access-token>"
-        ),
+        "access_token": os.getenv("SHOPIFY_ADMIN_TOKEN", "<your-admin-api-access-token>"),
         "shop_url": os.getenv("SHOPIFY_STORE_URL", "your-store.myshopify.com"),
     },
 }
@@ -241,9 +239,7 @@ async def test_list_products_with_filter():
             result = await execute_wrapper("list_products", inputs, context)
             print(f"List Products (filtered) Result: {result}")
             assert result.get("success"), f"Failed: {result.get('message')}"
-            print(
-                f"✓ test_list_products_with_filter passed - Found {result['count']} active products"
-            )
+            print(f"✓ test_list_products_with_filter passed - Found {result['count']} active products")
             return result
         except Exception as e:
             print(f"✗ Error: {e}")
@@ -344,9 +340,7 @@ async def test_get_inventory_levels():
             result = await execute_wrapper("get_inventory_levels", inputs, context)
             print(f"Get Inventory Levels Result: {result}")
             assert result.get("success"), f"Failed: {result.get('message')}"
-            print(
-                f"✓ test_get_inventory_levels passed - Found {result['count']} levels"
-            )
+            print(f"✓ test_get_inventory_levels passed - Found {result['count']} levels")
             return result
         except Exception as e:
             print(f"✗ Error: {e}")
@@ -404,9 +398,7 @@ async def test_list_draft_orders():
             result = await execute_wrapper("list_draft_orders", inputs, context)
             print(f"List Draft Orders Result: {result}")
             assert result.get("success"), f"Failed: {result.get('message')}"
-            print(
-                f"✓ test_list_draft_orders passed - Found {result['count']} draft orders"
-            )
+            print(f"✓ test_list_draft_orders passed - Found {result['count']} draft orders")
             return result
         except Exception as e:
             print(f"✗ Error: {e}")
@@ -426,9 +418,7 @@ async def test_create_draft_order():
             print(f"Create Draft Order Result: {result}")
             assert result.get("success"), f"Failed: {result.get('message')}"
             assert result["draft_order"].get("id")
-            print(
-                f"✓ test_create_draft_order passed - ID: {result['draft_order']['id']}"
-            )
+            print(f"✓ test_create_draft_order passed - ID: {result['draft_order']['id']}")
             return result
         except Exception as e:
             print(f"✗ Error: {e}")

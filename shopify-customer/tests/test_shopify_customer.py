@@ -41,9 +41,7 @@ async def execute_wrapper(action_name, inputs, context):
 AUTH = {
     "auth_type": "CustomerAccountOAuth",
     "credentials": {
-        "access_token": os.getenv(
-            "SHOPIFY_CUSTOMER_ACCESS_TOKEN", "<your-customer-access-token>"
-        ),
+        "access_token": os.getenv("SHOPIFY_CUSTOMER_ACCESS_TOKEN", "<your-customer-access-token>"),
         "refresh_token": os.getenv("SHOPIFY_CUSTOMER_REFRESH_TOKEN", ""),
         "shop_url": os.getenv("SHOPIFY_STORE_URL", "your-store.myshopify.com"),
         "client_id": os.getenv("SHOPIFY_CLIENT_ID", "<your-client-id>"),
@@ -162,9 +160,7 @@ async def test_update_profile():
     async with ExecutionContext(auth=AUTH) as context:
         try:
             # Get current profile
-            current = await shopify_customer.execute_action(
-                "customer_get_profile", {}, context
-            )
+            current = await shopify_customer.execute_action("customer_get_profile", {}, context)
             if not current.get("success"):
                 print("  test_update_profile skipped - Could not get profile")
                 return None
@@ -173,9 +169,7 @@ async def test_update_profile():
 
             # Update phone
             update_inputs = {"phone": "+1234567890"}
-            result = await execute_wrapper(
-                "customer_update_profile", update_inputs, context
-            )
+            result = await execute_wrapper("customer_update_profile", update_inputs, context)
             print(f"Update Profile Result: {result}")
 
             if result.get("success"):
@@ -184,9 +178,7 @@ async def test_update_profile():
                 # Restore original phone
                 if original_phone:
                     restore_inputs = {"phone": original_phone}
-                    await shopify_customer.execute_action(
-                        "customer_update_profile", restore_inputs, context
-                    )
+                    await shopify_customer.execute_action("customer_update_profile", restore_inputs, context)
                     print("  Restored original phone")
             else:
                 print(f"  test_update_profile - Note: {result.get('message')}")
@@ -266,9 +258,7 @@ async def test_set_default_address():
     inputs = {"address_id": TEST_ADDRESS_ID}
     async with ExecutionContext(auth=AUTH) as context:
         try:
-            result = await execute_wrapper(
-                "customer_set_default_address", inputs, context
-            )
+            result = await execute_wrapper("customer_set_default_address", inputs, context)
             print(f"Set Default Address Result: {result}")
 
             if result.get("success"):
@@ -319,16 +309,12 @@ async def test_generate_oauth_url():
     }
     async with ExecutionContext(auth=AUTH) as context:
         try:
-            result = await execute_wrapper(
-                "customer_generate_oauth_url", inputs, context
-            )
+            result = await execute_wrapper("customer_generate_oauth_url", inputs, context)
             print(f"Generate OAuth URL Result: {result}")
 
             if result.get("success"):
                 print("  test_generate_oauth_url passed")
-                print(
-                    f"  Authorization URL: {result.get('authorization_url', '')[:80]}..."
-                )
+                print(f"  Authorization URL: {result.get('authorization_url', '')[:80]}...")
                 print(f"  State: {result.get('state')}")
                 # Note: code_verifier should be stored securely for token exchange
             else:
@@ -356,9 +342,7 @@ async def test_refresh_token():
             print(f"Refresh Token Result: {result}")
 
             if result.get("success"):
-                print(
-                    f"  test_refresh_token passed - New token expires in {result.get('expires_in')} seconds"
-                )
+                print(f"  test_refresh_token passed - New token expires in {result.get('expires_in')} seconds")
             else:
                 print(f"  test_refresh_token - Note: {result.get('message')}")
 
