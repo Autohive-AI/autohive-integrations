@@ -30,7 +30,7 @@ async def execute_wrapper(action_name, inputs, context):
     """Helper to execute action and unwrap IntegrationResult if needed."""
     result = await shopify_customer.execute_action(action_name, inputs, context)
     # Support SDK 1.0.2 IntegrationResult
-    if hasattr(result, 'result') and hasattr(result.result, 'data'):
+    if hasattr(result, "result") and hasattr(result.result, "data"):
         return result.result.data
     return result
 
@@ -44,8 +44,8 @@ AUTH = {
         "access_token": os.getenv("SHOPIFY_CUSTOMER_ACCESS_TOKEN", "<your-customer-access-token>"),
         "refresh_token": os.getenv("SHOPIFY_CUSTOMER_REFRESH_TOKEN", ""),
         "shop_url": os.getenv("SHOPIFY_STORE_URL", "your-store.myshopify.com"),
-        "client_id": os.getenv("SHOPIFY_CLIENT_ID", "<your-client-id>")
-    }
+        "client_id": os.getenv("SHOPIFY_CLIENT_ID", "<your-client-id>"),
+    },
 }
 
 # Test data - will be populated during tests
@@ -58,6 +58,7 @@ TEST_ORDER_ID = os.getenv("TEST_ORDER_ID", "")  # Existing order ID
 # Profile Tests (Safe - Read Only)
 # -----------------------------------------------------------------------------
 
+
 async def test_get_profile():
     """Test getting customer profile."""
     inputs = {}
@@ -65,10 +66,10 @@ async def test_get_profile():
         try:
             result = await execute_wrapper("customer_get_profile", inputs, context)
             print(f"Get Profile Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
-            assert result.get('customer') is not None
+            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get("customer") is not None
 
-            customer = result['customer']
+            customer = result["customer"]
             print(f"  test_get_profile passed - {customer.get('email', 'No email')}")
             return result
         except Exception as e:
@@ -85,16 +86,16 @@ async def test_list_addresses():
         try:
             result = await execute_wrapper("customer_list_addresses", inputs, context)
             print(f"List Addresses Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
-            assert 'addresses' in result
+            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert "addresses" in result
 
             print(f"  test_list_addresses passed - Found {result['count']} addresses")
-            if result.get('default_address_id'):
+            if result.get("default_address_id"):
                 print(f"  Default address: {result['default_address_id'][:50]}...")
 
             # Store first address ID for later tests
-            if result['addresses']:
-                TEST_ADDRESS_ID = result['addresses'][0].get('id', '')
+            if result["addresses"]:
+                TEST_ADDRESS_ID = result["addresses"][0].get("id", "")
 
             return result
         except Exception as e:
@@ -111,14 +112,14 @@ async def test_list_orders():
         try:
             result = await execute_wrapper("customer_list_orders", inputs, context)
             print(f"List Orders Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
-            assert 'orders' in result
+            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert "orders" in result
 
             print(f"  test_list_orders passed - Found {result['count']} orders")
 
             # Store first order ID for later tests
-            if result['orders'] and not TEST_ORDER_ID:
-                TEST_ORDER_ID = result['orders'][0].get('id', '')
+            if result["orders"] and not TEST_ORDER_ID:
+                TEST_ORDER_ID = result["orders"][0].get("id", "")
                 print(f"  Stored order ID: {TEST_ORDER_ID[:50]}...")
 
             return result
@@ -138,9 +139,9 @@ async def test_get_order():
         try:
             result = await execute_wrapper("customer_get_order", inputs, context)
             print(f"Get Order Result: {result}")
-            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            assert result.get("success"), f"Failed: {result.get('message')}"
 
-            order = result.get('order', {})
+            order = result.get("order", {})
             print(f"  test_get_order passed - Order #{order.get('orderNumber', 'N/A')}")
             return result
         except Exception as e:
@@ -152,6 +153,7 @@ async def test_get_order():
 # Profile Modification Tests
 # -----------------------------------------------------------------------------
 
+
 async def test_update_profile():
     """Test updating customer profile."""
     # First get current profile to save original values
@@ -159,25 +161,25 @@ async def test_update_profile():
         try:
             # Get current profile
             current = await shopify_customer.execute_action("customer_get_profile", {}, context)
-            if not current.get('success'):
-                print(f"  test_update_profile skipped - Could not get profile")
+            if not current.get("success"):
+                print("  test_update_profile skipped - Could not get profile")
                 return None
 
-            original_phone = current['customer'].get('phone')
+            original_phone = current["customer"].get("phone")
 
             # Update phone
             update_inputs = {"phone": "+1234567890"}
             result = await execute_wrapper("customer_update_profile", update_inputs, context)
             print(f"Update Profile Result: {result}")
 
-            if result.get('success'):
-                print(f"  test_update_profile passed - Phone updated")
+            if result.get("success"):
+                print("  test_update_profile passed - Phone updated")
 
                 # Restore original phone
                 if original_phone:
                     restore_inputs = {"phone": original_phone}
                     await shopify_customer.execute_action("customer_update_profile", restore_inputs, context)
-                    print(f"  Restored original phone")
+                    print("  Restored original phone")
             else:
                 print(f"  test_update_profile - Note: {result.get('message')}")
 
@@ -191,6 +193,7 @@ async def test_update_profile():
 # Address Tests
 # -----------------------------------------------------------------------------
 
+
 async def test_create_address():
     """Test creating a new address."""
     global TEST_ADDRESS_ID
@@ -203,16 +206,16 @@ async def test_create_address():
         "zip": "90210",
         "phone": "+1555123456",
         "first_name": "Test",
-        "last_name": "Address"
+        "last_name": "Address",
     }
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("customer_create_address", inputs, context)
             print(f"Create Address Result: {result}")
 
-            if result.get('success'):
-                address = result.get('address', {})
-                TEST_ADDRESS_ID = address.get('id', '')
+            if result.get("success"):
+                address = result.get("address", {})
+                TEST_ADDRESS_ID = address.get("id", "")
                 print(f"  test_create_address passed - ID: {TEST_ADDRESS_ID[:50]}...")
             else:
                 print(f"  test_create_address - Note: {result.get('message')}")
@@ -229,17 +232,14 @@ async def test_update_address():
         print("  test_update_address skipped - No address ID available")
         return None
 
-    inputs = {
-        "address_id": TEST_ADDRESS_ID,
-        "city": "Updated City"
-    }
+    inputs = {"address_id": TEST_ADDRESS_ID, "city": "Updated City"}
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("customer_update_address", inputs, context)
             print(f"Update Address Result: {result}")
 
-            if result.get('success'):
-                print(f"  test_update_address passed - City updated")
+            if result.get("success"):
+                print("  test_update_address passed - City updated")
             else:
                 print(f"  test_update_address - Note: {result.get('message')}")
 
@@ -261,8 +261,8 @@ async def test_set_default_address():
             result = await execute_wrapper("customer_set_default_address", inputs, context)
             print(f"Set Default Address Result: {result}")
 
-            if result.get('success'):
-                print(f"  test_set_default_address passed")
+            if result.get("success"):
+                print("  test_set_default_address passed")
             else:
                 print(f"  test_set_default_address - Note: {result.get('message')}")
 
@@ -284,8 +284,8 @@ async def test_delete_address():
             result = await execute_wrapper("customer_delete_address", inputs, context)
             print(f"Delete Address Result: {result}")
 
-            if result.get('success'):
-                print(f"  test_delete_address passed - Address deleted")
+            if result.get("success"):
+                print("  test_delete_address passed - Address deleted")
             else:
                 print(f"  test_delete_address - Note: {result.get('message')}")
 
@@ -299,20 +299,21 @@ async def test_delete_address():
 # OAuth Helper Tests
 # -----------------------------------------------------------------------------
 
+
 async def test_generate_oauth_url():
     """Test generating OAuth authorization URL."""
     inputs = {
-        "client_id": AUTH['credentials'].get('client_id', 'test-client-id'),
+        "client_id": AUTH["credentials"].get("client_id", "test-client-id"),
         "redirect_uri": "https://localhost:3000/callback",
-        "scopes": ["customer_read_customers", "customer_read_orders"]
+        "scopes": ["customer_read_customers", "customer_read_orders"],
     }
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("customer_generate_oauth_url", inputs, context)
             print(f"Generate OAuth URL Result: {result}")
 
-            if result.get('success'):
-                print(f"  test_generate_oauth_url passed")
+            if result.get("success"):
+                print("  test_generate_oauth_url passed")
                 print(f"  Authorization URL: {result.get('authorization_url', '')[:80]}...")
                 print(f"  State: {result.get('state')}")
                 # Note: code_verifier should be stored securely for token exchange
@@ -327,23 +328,20 @@ async def test_generate_oauth_url():
 
 async def test_refresh_token():
     """Test refreshing access token."""
-    refresh_token = AUTH['credentials'].get('refresh_token')
-    client_id = AUTH['credentials'].get('client_id')
+    refresh_token = AUTH["credentials"].get("refresh_token")
+    client_id = AUTH["credentials"].get("client_id")
 
     if not refresh_token or refresh_token == "":
         print("  test_refresh_token skipped - No refresh token available")
         return None
 
-    inputs = {
-        "refresh_token": refresh_token,
-        "client_id": client_id
-    }
+    inputs = {"refresh_token": refresh_token, "client_id": client_id}
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("customer_refresh_token", inputs, context)
             print(f"Refresh Token Result: {result}")
 
-            if result.get('success'):
+            if result.get("success"):
                 print(f"  test_refresh_token passed - New token expires in {result.get('expires_in')} seconds")
             else:
                 print(f"  test_refresh_token - Note: {result.get('message')}")
@@ -357,6 +355,7 @@ async def test_refresh_token():
 # -----------------------------------------------------------------------------
 # Test Runners
 # -----------------------------------------------------------------------------
+
 
 async def run_safe_tests():
     """Run read-only tests."""
@@ -377,7 +376,7 @@ async def run_safe_tests():
     for name, test_func in tests:
         print(f"\n--- Testing: {name} ---")
         result = await test_func()
-        if result and result.get('success'):
+        if result and result.get("success"):
             passed += 1
         else:
             failed += 1
@@ -408,7 +407,7 @@ async def run_profile_tests():
     for name, test_func in tests:
         print(f"\n--- Testing: {name} ---")
         result = await test_func()
-        if result and result.get('success'):
+        if result and result.get("success"):
             passed += 1
         else:
             failed += 1
@@ -436,7 +435,7 @@ async def run_orders_tests():
     for name, test_func in tests:
         print(f"\n--- Testing: {name} ---")
         result = await test_func()
-        if result and result.get('success'):
+        if result and result.get("success"):
             passed += 1
         else:
             failed += 1
@@ -464,7 +463,7 @@ async def run_oauth_tests():
     for name, test_func in tests:
         print(f"\n--- Testing: {name} ---")
         result = await test_func()
-        if result and result.get('success'):
+        if result and result.get("success"):
             passed += 1
         else:
             failed += 1
