@@ -9,11 +9,12 @@ TEST_AUTH = {
     "auth_type": "PlatformOauth2",
     "credentials": {
         "access_token": "your_access_token_here"  # nosec B105
-    }
+    },
 }
 
 
 # ---- User Tests ----
+
 
 async def test_get_user():
     """Test getting current user information."""
@@ -21,8 +22,8 @@ async def test_get_user():
         try:
             result = await bitly.execute_action("get_user", {}, context)
             print(f"Get User Result: {result}")
-            assert result.data.get('result') == True
-            assert 'user' in result.data
+            assert result.data.get("result")
+            assert "user" in result.data
             return result
         except Exception as e:
             print(f"Error testing get_user: {e}")
@@ -30,6 +31,7 @@ async def test_get_user():
 
 
 # ---- Link Management Tests ----
+
 
 async def test_shorten_url():
     """Test shortening a URL."""
@@ -39,8 +41,8 @@ async def test_shorten_url():
         try:
             result = await bitly.execute_action("shorten_url", inputs, context)
             print(f"Shorten URL Result: {result}")
-            assert result.data.get('result') == True
-            assert 'bitlink' in result.data
+            assert result.data.get("result")
+            assert "bitlink" in result.data
             return result
         except Exception as e:
             print(f"Error testing shorten_url: {e}")
@@ -49,17 +51,13 @@ async def test_shorten_url():
 
 async def test_create_bitlink():
     """Test creating a bitlink with options."""
-    inputs = {
-        "long_url": "https://www.example.com/another/url",
-        "title": "Test Link",
-        "tags": ["test", "autohive"]
-    }
+    inputs = {"long_url": "https://www.example.com/another/url", "title": "Test Link", "tags": ["test", "autohive"]}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await bitly.execute_action("create_bitlink", inputs, context)
             print(f"Create Bitlink Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing create_bitlink: {e}")
@@ -74,7 +72,7 @@ async def test_get_bitlink():
         try:
             result = await bitly.execute_action("get_bitlink", inputs, context)
             print(f"Get Bitlink Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing get_bitlink: {e}")
@@ -85,14 +83,14 @@ async def test_update_bitlink():
     """Test updating a bitlink."""
     inputs = {
         "bitlink": "bit.ly/example",  # Replace with actual bitlink
-        "title": "Updated Title"
+        "title": "Updated Title",
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await bitly.execute_action("update_bitlink", inputs, context)
             print(f"Update Bitlink Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing update_bitlink: {e}")
@@ -107,8 +105,8 @@ async def test_expand_bitlink():
         try:
             result = await bitly.execute_action("expand_bitlink", inputs, context)
             print(f"Expand Bitlink Result: {result}")
-            assert result.data.get('result') == True
-            assert 'long_url' in result.data
+            assert result.data.get("result")
+            assert "long_url" in result.data
             return result
         except Exception as e:
             print(f"Error testing expand_bitlink: {e}")
@@ -123,8 +121,8 @@ async def test_list_bitlinks():
         try:
             result = await bitly.execute_action("list_bitlinks", inputs, context)
             print(f"List Bitlinks Result: {result}")
-            assert result.data.get('result') == True
-            assert 'bitlinks' in result.data
+            assert result.data.get("result")
+            assert "bitlinks" in result.data
             return result
         except Exception as e:
             print(f"Error testing list_bitlinks: {e}")
@@ -133,20 +131,21 @@ async def test_list_bitlinks():
 
 # ---- Click Analytics Tests ----
 
+
 async def test_get_clicks():
     """Test getting click counts."""
     inputs = {
         "bitlink": "bit.ly/example",  # Replace with actual bitlink
         "unit": "day",
-        "units": 7
+        "units": 7,
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await bitly.execute_action("get_clicks", inputs, context)
             print(f"Get Clicks Result: {result}")
-            assert result.data.get('result') == True
-            assert 'clicks' in result.data
+            assert result.data.get("result")
+            assert "clicks" in result.data
             return result
         except Exception as e:
             print(f"Error testing get_clicks: {e}")
@@ -158,15 +157,15 @@ async def test_get_clicks_summary():
     inputs = {
         "bitlink": "bit.ly/example",  # Replace with actual bitlink
         "unit": "day",
-        "units": 30
+        "units": 30,
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await bitly.execute_action("get_clicks_summary", inputs, context)
             print(f"Get Clicks Summary Result: {result}")
-            assert result.data.get('result') == True
-            assert 'total_clicks' in result.data
+            assert result.data.get("result")
+            assert "total_clicks" in result.data
             return result
         except Exception as e:
             print(f"Error testing get_clicks_summary: {e}")
@@ -175,14 +174,15 @@ async def test_get_clicks_summary():
 
 # ---- Group & Organization Tests ----
 
+
 async def test_list_groups():
     """Test listing groups."""
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await bitly.execute_action("list_groups", {}, context)
             print(f"List Groups Result: {result}")
-            assert result.data.get('result') == True
-            assert 'groups' in result.data
+            assert result.data.get("result")
+            assert "groups" in result.data
             return result
         except Exception as e:
             print(f"Error testing list_groups: {e}")
@@ -197,7 +197,7 @@ async def test_get_group():
         try:
             result = await bitly.execute_action("get_group", inputs, context)
             print(f"Get Group Result: {result}")
-            assert result.data.get('result') == True
+            assert result.data.get("result")
             return result
         except Exception as e:
             print(f"Error testing get_group: {e}")
@@ -210,8 +210,8 @@ async def test_list_organizations():
         try:
             result = await bitly.execute_action("list_organizations", {}, context)
             print(f"List Organizations Result: {result}")
-            assert result.data.get('result') == True
-            assert 'organizations' in result.data
+            assert result.data.get("result")
+            assert "organizations" in result.data
             return result
         except Exception as e:
             print(f"Error testing list_organizations: {e}")
