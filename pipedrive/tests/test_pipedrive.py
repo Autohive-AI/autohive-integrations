@@ -12,7 +12,7 @@ import sys
 import os
 
 # Add parent directory to path to import the integration
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from pipedrive import pipedrive
 from autohive_integrations_sdk import ExecutionContext
@@ -45,7 +45,7 @@ def create_mock_context():
             # Add API token to params
             if params is None:
                 params = {}
-            params['api_token'] = self.token
+            params["api_token"] = self.token
 
             async with aiohttp.ClientSession() as session:
                 if method == "GET":
@@ -62,14 +62,9 @@ def create_mock_context():
                         return await response.json()
                 else:
                     raise ValueError(f"Unsupported HTTP method: {method}")
+
     context = ExecutionContext(
-        auth={
-            "type": "api_token",
-            "credentials": {
-                "api_token": TEST_API_TOKEN
-            }
-        },
-        fetch=MockFetch(TEST_API_TOKEN)
+        auth={"type": "api_token", "credentials": {"api_token": TEST_API_TOKEN}}, fetch=MockFetch(TEST_API_TOKEN)
     )
 
     return context
@@ -77,9 +72,9 @@ def create_mock_context():
 
 async def test_deal_lifecycle():
     """Test creating, retrieving, updating, and deleting a deal."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing Deal Lifecycle")
-    print("="*60)
+    print("=" * 60)
 
     context = create_mock_context()
     deal_id = None
@@ -88,15 +83,12 @@ async def test_deal_lifecycle():
         # 1. Create a deal
         print("\n1. Creating deal...")
         create_action = pipedrive.get_action("create_deal")
-        result = await create_action.execute({
-            "title": TEST_DEAL_TITLE,
-            "value": 10000,
-            "currency": "USD",
-            "status": "open"
-        }, context)
+        result = await create_action.execute(
+            {"title": TEST_DEAL_TITLE, "value": 10000, "currency": "USD", "status": "open"}, context
+        )
 
-        assert result.data['result'], f"Failed to create deal: {result.data.get('error')}"
-        deal_id = result.data['deal']['id']
+        assert result.data["result"], f"Failed to create deal: {result.data.get('error')}"
+        deal_id = result.data["deal"]["id"]
         print(f"✓ Deal created with ID: {deal_id}")
         print(f"  Title: {result.data['deal']['title']}")
 
@@ -105,21 +97,19 @@ async def test_deal_lifecycle():
         get_action = pipedrive.get_action("get_deal")
         result = await get_action.execute({"deal_id": deal_id}, context)
 
-        assert result.data['result'], f"Failed to get deal: {result.data.get('error')}"
-        print(f"✓ Deal retrieved successfully")
+        assert result.data["result"], f"Failed to get deal: {result.data.get('error')}"
+        print("✓ Deal retrieved successfully")
         print(f"  Value: {result.data['deal']['value']} {result.data['deal']['currency']}")
 
         # 3. Update the deal
         print("\n3. Updating deal...")
         update_action = pipedrive.get_action("update_deal")
-        result = await update_action.execute({
-            "deal_id": deal_id,
-            "value": 15000,
-            "title": TEST_DEAL_TITLE + " (Updated)"
-        }, context)
+        result = await update_action.execute(
+            {"deal_id": deal_id, "value": 15000, "title": TEST_DEAL_TITLE + " (Updated)"}, context
+        )
 
-        assert result.data['result'], f"Failed to update deal: {result.data.get('error')}"
-        print(f"✓ Deal updated successfully")
+        assert result.data["result"], f"Failed to update deal: {result.data.get('error')}"
+        print("✓ Deal updated successfully")
         print(f"  New value: {result.data['deal']['value']}")
 
         # 4. List deals
@@ -127,7 +117,7 @@ async def test_deal_lifecycle():
         list_action = pipedrive.get_action("list_deals")
         result = await list_action.execute({"limit": 5}, context)
 
-        assert result.data['result'], f"Failed to list deals: {result.data.get('error')}"
+        assert result.data["result"], f"Failed to list deals: {result.data.get('error')}"
         print(f"✓ Listed {len(result.data['deals'])} deals")
 
         # 5. Delete the deal
@@ -135,8 +125,8 @@ async def test_deal_lifecycle():
         delete_action = pipedrive.get_action("delete_deal")
         result = await delete_action.execute({"deal_id": deal_id}, context)
 
-        assert result.data['result'], f"Failed to delete deal: {result.data.get('error')}"
-        print(f"✓ Deal deleted successfully")
+        assert result.data["result"], f"Failed to delete deal: {result.data.get('error')}"
+        print("✓ Deal deleted successfully")
 
         print("\n✓ Deal lifecycle test completed successfully!")
 
@@ -155,9 +145,9 @@ async def test_deal_lifecycle():
 
 async def test_person_operations():
     """Test person (contact) operations."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing Person Operations")
-    print("="*60)
+    print("=" * 60)
 
     context = create_mock_context()
     person_id = None
@@ -166,14 +156,12 @@ async def test_person_operations():
         # Create a person
         print("\n1. Creating person...")
         create_action = pipedrive.get_action("create_person")
-        result = await create_action.execute({
-            "name": TEST_PERSON_NAME,
-            "email": "test@example.com",
-            "phone": "+1234567890"
-        }, context)
+        result = await create_action.execute(
+            {"name": TEST_PERSON_NAME, "email": "test@example.com", "phone": "+1234567890"}, context
+        )
 
-        assert result.data['result'], f"Failed to create person: {result.data.get('error')}"
-        person_id = result.data['person']['id']
+        assert result.data["result"], f"Failed to create person: {result.data.get('error')}"
+        person_id = result.data["person"]["id"]
         print(f"✓ Person created with ID: {person_id}")
 
         # Get the person
@@ -181,7 +169,7 @@ async def test_person_operations():
         get_action = pipedrive.get_action("get_person")
         result = await get_action.execute({"person_id": person_id}, context)
 
-        assert result.data['result'], f"Failed to get person: {result.data.get('error')}"
+        assert result.data["result"], f"Failed to get person: {result.data.get('error')}"
         print(f"✓ Person retrieved: {result.data['person']['name']}")
 
         # Delete the person
@@ -189,8 +177,8 @@ async def test_person_operations():
         delete_action = pipedrive.get_action("delete_person")
         result = await delete_action.execute({"person_id": person_id}, context)
 
-        assert result.data['result'], f"Failed to delete person: {result.data.get('error')}"
-        print(f"✓ Person deleted successfully")
+        assert result.data["result"], f"Failed to delete person: {result.data.get('error')}"
+        print("✓ Person deleted successfully")
 
         print("\n✓ Person operations test completed successfully!")
 
@@ -209,9 +197,9 @@ async def test_person_operations():
 
 async def test_activity_operations():
     """Test activity operations."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing Activity Operations")
-    print("="*60)
+    print("=" * 60)
 
     context = create_mock_context()
     activity_id = None
@@ -220,34 +208,29 @@ async def test_activity_operations():
         # Create an activity
         print("\n1. Creating activity...")
         create_action = pipedrive.get_action("create_activity")
-        result = await create_action.execute({
-            "subject": TEST_ACTIVITY_SUBJECT,
-            "type": "task",
-            "due_date": "2025-12-31"
-        }, context)
+        result = await create_action.execute(
+            {"subject": TEST_ACTIVITY_SUBJECT, "type": "task", "due_date": "2025-12-31"}, context
+        )
 
-        assert result.data['result'], f"Failed to create activity: {result.data.get('error')}"
-        activity_id = result.data['activity']['id']
+        assert result.data["result"], f"Failed to create activity: {result.data.get('error')}"
+        activity_id = result.data["activity"]["id"]
         print(f"✓ Activity created with ID: {activity_id}")
 
         # Update activity to mark as done
         print("\n2. Marking activity as done...")
         update_action = pipedrive.get_action("update_activity")
-        result = await update_action.execute({
-            "activity_id": activity_id,
-            "done": 1
-        }, context)
+        result = await update_action.execute({"activity_id": activity_id, "done": 1}, context)
 
-        assert result.data['result'], f"Failed to update activity: {result.data.get('error')}"
-        print(f"✓ Activity marked as done")
+        assert result.data["result"], f"Failed to update activity: {result.data.get('error')}"
+        print("✓ Activity marked as done")
 
         # Delete the activity
         print("\n3. Deleting activity...")
         delete_action = pipedrive.get_action("delete_activity")
         result = await delete_action.execute({"activity_id": activity_id}, context)
 
-        assert result.data['result'], f"Failed to delete activity: {result.data.get('error')}"
-        print(f"✓ Activity deleted successfully")
+        assert result.data["result"], f"Failed to delete activity: {result.data.get('error')}"
+        print("✓ Activity deleted successfully")
 
         print("\n✓ Activity operations test completed successfully!")
 
@@ -266,9 +249,9 @@ async def test_activity_operations():
 
 async def test_pipeline_operations():
     """Test pipeline and stage operations."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing Pipeline Operations")
-    print("="*60)
+    print("=" * 60)
 
     context = create_mock_context()
 
@@ -278,11 +261,11 @@ async def test_pipeline_operations():
         list_action = pipedrive.get_action("list_pipelines")
         result = await list_action.execute({}, context)
 
-        assert result.data['result'], f"Failed to list pipelines: {result.data.get('error')}"
+        assert result.data["result"], f"Failed to list pipelines: {result.data.get('error')}"
         print(f"✓ Found {len(result.data['pipelines'])} pipelines")
 
-        if result.data['pipelines']:
-            pipeline_id = result.data['pipelines'][0]['id']
+        if result.data["pipelines"]:
+            pipeline_id = result.data["pipelines"][0]["id"]
             print(f"  First pipeline: {result.data['pipelines'][0]['name']} (ID: {pipeline_id})")
 
             # Get pipeline details
@@ -290,15 +273,15 @@ async def test_pipeline_operations():
             get_action = pipedrive.get_action("get_pipeline")
             result = await get_action.execute({"pipeline_id": pipeline_id}, context)
 
-            assert result.data['result'], f"Failed to get pipeline: {result.data.get('error')}"
-            print(f"✓ Pipeline details retrieved")
+            assert result.data["result"], f"Failed to get pipeline: {result.data.get('error')}"
+            print("✓ Pipeline details retrieved")
 
             # List stages for this pipeline
             print("\n3. Listing stages...")
             stages_action = pipedrive.get_action("list_stages")
             result = await stages_action.execute({"pipeline_id": pipeline_id}, context)
 
-            assert result.data['result'], f"Failed to list stages: {result.data.get('error')}"
+            assert result.data["result"], f"Failed to list stages: {result.data.get('error')}"
             print(f"✓ Found {len(result.data['stages'])} stages")
 
         print("\n✓ Pipeline operations test completed successfully!")
@@ -310,21 +293,18 @@ async def test_pipeline_operations():
 
 async def test_search():
     """Test search functionality."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing Search")
-    print("="*60)
+    print("=" * 60)
 
     context = create_mock_context()
 
     try:
         print("\n1. Searching for items...")
         search_action = pipedrive.get_action("search")
-        result = await search_action.execute({
-            "term": "test",
-            "limit": 5
-        }, context)
+        result = await search_action.execute({"term": "test", "limit": 5}, context)
 
-        assert result.data['result'], f"Failed to search: {result.data.get('error')}"
+        assert result.data["result"], f"Failed to search: {result.data.get('error')}"
         print(f"✓ Search completed, found {len(result.data['items'])} items")
 
         print("\n✓ Search test completed successfully!")
@@ -336,9 +316,9 @@ async def test_search():
 
 async def run_all_tests():
     """Run all integration tests."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("PIPEDRIVE INTEGRATION TEST SUITE")
-    print("="*60)
+    print("=" * 60)
 
     if TEST_API_TOKEN == "YOUR_PIPEDRIVE_API_TOKEN":
         print("\n✗ ERROR: Please update TEST_API_TOKEN with your actual Pipedrive API token")
@@ -351,14 +331,14 @@ async def run_all_tests():
         await test_pipeline_operations()
         await test_search()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("✓ ALL TESTS PASSED!")
-        print("="*60)
+        print("=" * 60)
 
     except Exception as e:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print(f"✗ TEST SUITE FAILED: {str(e)}")
-        print("="*60)
+        print("=" * 60)
         raise
 
 
