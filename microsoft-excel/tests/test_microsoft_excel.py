@@ -8,8 +8,8 @@ async def test_list_workbooks():
     """Test listing Excel workbooks in OneDrive/SharePoint."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {"page_size": 10}
 
@@ -37,8 +37,8 @@ async def test_list_workbooks_with_filter():
     """Test listing workbooks with name filter."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {"name_contains": "your_filter_here", "page_size": 10}
 
@@ -61,8 +61,8 @@ async def test_get_workbook():
     """Test getting workbook metadata including worksheets, tables, and named ranges."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {"workbook_id": "your_workbook_id_here"}
 
@@ -91,8 +91,8 @@ async def test_list_worksheets():
     """Test listing worksheets in a workbook."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {"workbook_id": "your_workbook_id_here"}
 
@@ -120,8 +120,8 @@ async def test_read_range():
     """Test reading cell values from a range."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
@@ -155,8 +155,8 @@ async def test_write_range():
     """Test writing values to a cell range."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
@@ -188,8 +188,8 @@ async def test_list_tables():
     """Test listing tables in a workbook."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {"workbook_id": "your_workbook_id_here"}
 
@@ -217,8 +217,8 @@ async def test_get_table_data():
     """Test getting data from a table."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
@@ -251,8 +251,8 @@ async def test_add_table_row():
     """Test adding rows to a table."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
@@ -280,8 +280,8 @@ async def test_create_worksheet():
     """Test creating a new worksheet."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {"workbook_id": "your_workbook_id_here", "name": "NewSheet"}
 
@@ -306,8 +306,8 @@ async def test_delete_worksheet():
     """Test deleting a worksheet."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {"workbook_id": "your_workbook_id_here", "worksheet_name": "SheetToDelete"}
 
@@ -331,8 +331,8 @@ async def test_create_table():
     """Test creating a table from a range."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
@@ -362,8 +362,8 @@ async def test_update_table_row():
     """Test updating a table row."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
@@ -391,8 +391,8 @@ async def test_delete_table_row():
     """Test deleting a table row."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
@@ -420,8 +420,8 @@ async def test_get_used_range():
     """Test getting the used range of a worksheet."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {"workbook_id": "your_workbook_id_here", "worksheet_name": "Sheet1"}
 
@@ -448,8 +448,8 @@ async def test_sort_range():
     """Test sorting a range."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
@@ -479,8 +479,8 @@ async def test_apply_filter():
     """Test applying a filter to a table column."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
@@ -509,8 +509,8 @@ async def test_clear_filter():
     """Test clearing filters from a table."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
@@ -537,8 +537,8 @@ async def test_format_range():
     """Test formatting a cell range."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
