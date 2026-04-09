@@ -32,9 +32,7 @@ class MockExecutionContext:
         if url.endswith("/calls/extensive") and method == "POST":
             return self._responses.get("POST /calls/extensive", {"calls": []})
         if url.endswith("/calls/transcript") and method == "POST":
-            return self._responses.get(
-                "POST /calls/transcript", {"callTranscripts": []}
-            )
+            return self._responses.get("POST /calls/transcript", {"callTranscripts": []})
         if url.endswith("/users") and method == "GET":
             return self._responses.get("GET /users", {"users": [], "hasMore": False})
         return {}
@@ -126,9 +124,7 @@ async def test_get_call_transcript_mapping():
                         },
                         {
                             "speakerId": 2,
-                            "sentences": [
-                                {"start": 1000, "end": 2000, "text": "Hello"}
-                            ],
+                            "sentences": [{"start": 1000, "end": 2000, "text": "Hello"}],
                         },
                     ]
                 }
@@ -136,9 +132,7 @@ async def test_get_call_transcript_mapping():
         },
     }
     context = MockExecutionContext(responses)
-    result = await gong.execute_action(
-        "get_call_transcript", {"call_id": "xyz"}, context
-    )
+    result = await gong.execute_action("get_call_transcript", {"call_id": "xyz"}, context)
     data = result.result.data
     assert len(data["transcript"]) == 2
     assert data["transcript"][0]["speaker_name"] == "Alice"
@@ -222,20 +216,14 @@ async def test_search_calls_skips_private():
                 {
                     "id": "priv",
                     "isPrivate": True,
-                    "content": {
-                        "pointsOfInterest": [{"action": "demo pricing", "startTime": 0}]
-                    },
+                    "content": {"pointsOfInterest": [{"action": "demo pricing", "startTime": 0}]},
                 },
                 {
                     "id": "pub",
                     "isPrivate": False,
                     "title": "Public",
                     "started": "2025-01-01T00:00:00Z",
-                    "content": {
-                        "pointsOfInterest": [
-                            {"action": "product demo pricing", "startTime": 10}
-                        ]
-                    },
+                    "content": {"pointsOfInterest": [{"action": "product demo pricing", "startTime": 10}]},
                 },
             ]
         }

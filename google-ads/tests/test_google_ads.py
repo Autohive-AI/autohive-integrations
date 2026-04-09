@@ -24,9 +24,7 @@ async def test_get_accessible_accounts():
     inputs = {}
 
     try:
-        result = await google_ads.execute_action(
-            "get_accessible_accounts", inputs, context
-        )
+        result = await google_ads.execute_action("get_accessible_accounts", inputs, context)
         print("\n=== Get Accessible Accounts Test ===")
         pprint(result)
     except Exception as e:
@@ -42,9 +40,7 @@ async def test_retrieve_campaign_metrics():
     inputs = {**TEST_INPUTS, "date_ranges": ["2025-05-14_2025-05-20"]}
 
     try:
-        result = await google_ads.execute_action(
-            "retrieve_campaign_metrics", inputs, context
-        )
+        result = await google_ads.execute_action("retrieve_campaign_metrics", inputs, context)
         print("\n=== Campaign Metrics Test ===")
         pprint(result)
     except Exception as e:
@@ -65,9 +61,7 @@ async def test_retrieve_keyword_metrics():
     }
 
     try:
-        result = await google_ads.execute_action(
-            "retrieve_keyword_metrics", inputs, context
-        )
+        result = await google_ads.execute_action("retrieve_keyword_metrics", inputs, context)
         print("\n=== Keyword Metrics Test ===")
         pprint(result)
     except Exception as e:
@@ -162,9 +156,7 @@ async def test_create_responsive_search_ad(ad_group_id: str):
     }
 
     try:
-        result = await google_ads.execute_action(
-            "create_responsive_search_ad", inputs, context
-        )
+        result = await google_ads.execute_action("create_responsive_search_ad", inputs, context)
         print("\n=== Create RSA Test ===")
         pprint(result)
     except Exception as e:
@@ -210,9 +202,7 @@ async def test_generate_keyword_ideas():
     }
 
     try:
-        result = await google_ads.execute_action(
-            "generate_keyword_ideas", inputs, context
-        )
+        result = await google_ads.execute_action("generate_keyword_ideas", inputs, context)
         print("\n=== Keyword Ideas Test ===")
         pprint(result)
     except Exception as e:
@@ -233,9 +223,7 @@ async def test_generate_keyword_historical_metrics():
     }
 
     try:
-        result = await google_ads.execute_action(
-            "generate_keyword_historical_metrics", inputs, context
-        )
+        result = await google_ads.execute_action("generate_keyword_historical_metrics", inputs, context)
         print("\n=== Keyword Historical Metrics Test ===")
         pprint(result)
     except Exception as e:

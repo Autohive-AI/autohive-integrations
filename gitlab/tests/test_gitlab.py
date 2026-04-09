@@ -165,9 +165,7 @@ async def test_get_merge_request_changes():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await gitlab.execute_action(
-                "get_merge_request_changes", inputs, context
-            )
+            result = await gitlab.execute_action("get_merge_request_changes", inputs, context)
             print(f"Get Merge Request Changes Result: {result}")
             assert result.data.get("result")
             assert "changes" in result.data
@@ -187,9 +185,7 @@ async def test_list_merge_request_commits():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await gitlab.execute_action(
-                "list_merge_request_commits", inputs, context
-            )
+            result = await gitlab.execute_action("list_merge_request_commits", inputs, context)
             print(f"List Merge Request Commits Result: {result}")
             assert result.data.get("result")
             assert "commits" in result.data
@@ -381,9 +377,7 @@ async def test_list_repository_tree():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await gitlab.execute_action(
-                "list_repository_tree", inputs, context
-            )
+            result = await gitlab.execute_action("list_repository_tree", inputs, context)
             print(f"List Repository Tree Result: {result}")
             assert result.data.get("result")
             assert "tree" in result.data
@@ -466,9 +460,7 @@ async def test_list_container_registry_repositories():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await gitlab.execute_action(
-                "list_container_registry_repositories", inputs, context
-            )
+            result = await gitlab.execute_action("list_container_registry_repositories", inputs, context)
             print(f"List Container Registry Repositories Result: {result}")
             assert result.data.get("result")
             assert "repositories" in result.data
@@ -488,9 +480,7 @@ async def test_get_container_registry_repository():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await gitlab.execute_action(
-                "get_container_registry_repository", inputs, context
-            )
+            result = await gitlab.execute_action("get_container_registry_repository", inputs, context)
             print(f"Get Container Registry Repository Result: {result}")
             assert result.data.get("result")
             assert "repository" in result.data
@@ -510,9 +500,7 @@ async def test_list_container_registry_tags():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await gitlab.execute_action(
-                "list_container_registry_tags", inputs, context
-            )
+            result = await gitlab.execute_action("list_container_registry_tags", inputs, context)
             print(f"List Container Registry Tags Result: {result}")
             assert result.data.get("result")
             assert "tags" in result.data
@@ -536,9 +524,7 @@ async def test_get_container_registry_tag():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await gitlab.execute_action(
-                "get_container_registry_tag", inputs, context
-            )
+            result = await gitlab.execute_action("get_container_registry_tag", inputs, context)
             print(f"Get Container Registry Tag Result: {result}")
             assert result.data.get("result")
             assert "tag" in result.data
