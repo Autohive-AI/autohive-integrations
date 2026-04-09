@@ -11,8 +11,8 @@ async def test_get_current_user():
     """Test getting current user info."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -33,8 +33,8 @@ async def test_list_projects():
     """Test listing projects."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"owned": True, "per_page": 10}
 
     async with ExecutionContext(auth=auth) as context:
@@ -53,8 +53,8 @@ async def test_get_project():
     """Test getting project details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id_or_path", "statistics": True}
 
     async with ExecutionContext(auth=auth) as context:
@@ -76,8 +76,8 @@ async def test_list_issues():
     """Test listing issues."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "state": "opened", "per_page": 10}
 
     async with ExecutionContext(auth=auth) as context:
@@ -96,8 +96,8 @@ async def test_get_issue():
     """Test getting issue details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "issue_iid": 1}
 
     async with ExecutionContext(auth=auth) as context:
@@ -119,8 +119,8 @@ async def test_list_merge_requests():
     """Test listing merge requests."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "state": "opened", "per_page": 10}
 
     async with ExecutionContext(auth=auth) as context:
@@ -139,8 +139,8 @@ async def test_get_merge_request():
     """Test getting merge request details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "merge_request_iid": 1}
 
     async with ExecutionContext(auth=auth) as context:
@@ -159,8 +159,8 @@ async def test_get_merge_request_changes():
     """Test getting merge request changes/diff."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "merge_request_iid": 1}
 
     async with ExecutionContext(auth=auth) as context:
@@ -181,8 +181,8 @@ async def test_list_merge_request_commits():
     """Test listing merge request commits."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "merge_request_iid": 1, "per_page": 10}
 
     async with ExecutionContext(auth=auth) as context:
@@ -206,8 +206,8 @@ async def test_list_branches():
     """Test listing branches."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "per_page": 20}
 
     async with ExecutionContext(auth=auth) as context:
@@ -226,8 +226,8 @@ async def test_get_branch():
     """Test getting branch details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "branch": "main"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -249,8 +249,8 @@ async def test_list_commits():
     """Test listing commits."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "ref_name": "main", "per_page": 10}
 
     async with ExecutionContext(auth=auth) as context:
@@ -269,8 +269,8 @@ async def test_get_commit():
     """Test getting commit details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "sha": "your_commit_sha", "stats": True}
 
     async with ExecutionContext(auth=auth) as context:
@@ -289,8 +289,8 @@ async def test_get_commit_diff():
     """Test getting commit diff."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "sha": "your_commit_sha"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -312,8 +312,8 @@ async def test_list_pipelines():
     """Test listing pipelines."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "per_page": 10}
 
     async with ExecutionContext(auth=auth) as context:
@@ -332,8 +332,8 @@ async def test_get_pipeline():
     """Test getting pipeline details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "pipeline_id": 12345}
 
     async with ExecutionContext(auth=auth) as context:
@@ -352,8 +352,8 @@ async def test_list_pipeline_jobs():
     """Test listing pipeline jobs."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "pipeline_id": 12345, "per_page": 20}
 
     async with ExecutionContext(auth=auth) as context:
@@ -375,8 +375,8 @@ async def test_list_repository_tree():
     """Test listing repository tree."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "ref": "main", "recursive": False}
 
     async with ExecutionContext(auth=auth) as context:
@@ -397,8 +397,8 @@ async def test_get_file():
     """Test getting file content (base64)."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "file_path": "README.md", "ref": "main"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -417,8 +417,8 @@ async def test_get_file_raw():
     """Test getting raw file content."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "file_path": "README.md", "ref": "main"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -437,8 +437,8 @@ async def test_compare_branches():
     """Test comparing branches."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "from": "main", "to": "feature-branch"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -460,8 +460,8 @@ async def test_list_container_registry_repositories():
     """Test listing container registry repositories."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "tags_count": True}
 
     async with ExecutionContext(auth=auth) as context:
@@ -482,8 +482,8 @@ async def test_get_container_registry_repository():
     """Test getting container registry repository details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "repository_id": 12345, "tags": True}
 
     async with ExecutionContext(auth=auth) as context:
@@ -504,8 +504,8 @@ async def test_list_container_registry_tags():
     """Test listing container registry tags."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {"project_id": "your_project_id", "repository_id": 12345, "per_page": 20}
 
     async with ExecutionContext(auth=auth) as context:
@@ -526,8 +526,8 @@ async def test_get_container_registry_tag():
     """Test getting container registry tag details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},
-    }  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+    }
     inputs = {
         "project_id": "your_project_id",
         "repository_id": 12345,

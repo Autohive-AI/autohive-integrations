@@ -24,12 +24,12 @@ except KeyError as e:
 
 from enum import Enum  # noqa: E402
 import proto  # noqa: E402
-from autohive_integrations_sdk import (
+from autohive_integrations_sdk import (  # noqa: E402
     ActionHandler,
     ExecutionContext,
     Integration,
     ActionResult,
-)  # noqa: E402
+)
 from google.ads.googleads.client import GoogleAdsClient  # noqa: E402
 from google.api_core import protobuf_helpers  # noqa: E402
 
@@ -57,7 +57,7 @@ def _get_google_ads_client(
     """Initialize and return a Google Ads API client."""
     credentials = {
         "developer_token": DEVELOPER_TOKEN,
-        "token_uri": "https://oauth2.googleapis.com/token",
+        "token_uri": "https://oauth2.googleapis.com/token",  # nosec B105
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
         "refresh_token": refresh_token,
@@ -213,7 +213,7 @@ def fetch_campaign_data(client, customer_id, date_ranges_input, campaign_type=No
     WHERE segments.date BETWEEN '{{start_date}}' AND '{{end_date}}'
         AND campaign.status = 'ENABLED'
         AND campaign.bidding_strategy_system_status != 'PAUSED'
-    """
+    """  # nosec B608
 
     # Add campaign type filter if specified (and not 'ALL')
     if campaign_type and campaign_type.upper() not in ["ALL", "VIDEO"]:
@@ -647,10 +647,15 @@ class CreateCampaignAction(ActionHandler):
             # EU Political Advertising compliance (required field as of API v19.2+)
             # Convert boolean input to Google Ads API enum value
             is_political = inputs.get("contains_eu_political_advertising", False)
+            eu_enum = client.enums.EuPoliticalAdvertisingStatusEnum
             if is_political:
-                campaign.contains_eu_political_advertising = client.enums.EuPoliticalAdvertisingStatusEnum.CONTAINS_EU_POLITICAL_ADVERTISING
+                campaign.contains_eu_political_advertising = (
+                    eu_enum.CONTAINS_EU_POLITICAL_ADVERTISING
+                )
             else:
-                campaign.contains_eu_political_advertising = client.enums.EuPoliticalAdvertisingStatusEnum.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING
+                campaign.contains_eu_political_advertising = (
+                    eu_enum.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING
+                )
 
             campaign_response = campaign_service.mutate_campaigns(
                 customer_id=customer_id, operations=[campaign_operation]
