@@ -35,7 +35,7 @@ from autohive_integrations_sdk import ExecutionContext
 AUTH = {
     "auth_type": "PlatformOauth2",
     "credentials": {
-        "access_token": "<placeholder>",  # nosec B105
+        "access_token": "<placeholder>",
         "api_domain": "www.zohoapis.com.au"  # Options: www.zohoapis.com (US), www.zohoapis.eu (EU), www.zohoapis.com.au (AU)
     }
 }

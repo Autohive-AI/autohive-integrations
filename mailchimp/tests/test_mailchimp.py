@@ -8,7 +8,7 @@ async def test_get_lists():
     """Test retrieving all mailing lists."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -28,7 +28,7 @@ async def test_get_list():
     """Test getting a specific mailing list."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -48,7 +48,7 @@ async def test_create_list():
     """Test creating a new mailing list."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -86,7 +86,7 @@ async def test_add_member():
     """Test adding a new member to a mailing list."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -115,7 +115,7 @@ async def test_get_member():
     """Test getting a specific member from a mailing list."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -138,7 +138,7 @@ async def test_update_member():
     """Test updating an existing member in a mailing list."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -165,7 +165,7 @@ async def test_get_list_members():
     """Test getting all members from a mailing list."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -190,7 +190,7 @@ async def test_get_campaigns():
     """Test retrieving all campaigns."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -210,7 +210,7 @@ async def test_create_campaign():
     """Test creating a new campaign."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -237,7 +237,7 @@ async def test_get_campaign():
     """Test getting a specific campaign."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 

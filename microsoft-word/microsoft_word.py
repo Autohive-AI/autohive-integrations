@@ -227,7 +227,7 @@ def modify_docx_content(docx_bytes: bytes, modifications: Dict[str, Any]) -> Tup
     """
     import zipfile
     from defusedxml import ElementTree as DefusedET
-    from xml.etree import ElementTree as ET  # nosec B405
+    from xml.etree import ElementTree as ET
 
     WORD_NS = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 

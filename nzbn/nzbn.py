@@ -37,7 +37,7 @@ nzbn = Integration.load()
 # =============================================================================
 
 PRODUCTION_BASE_URL = "https://api.business.govt.nz/gateway/nzbn/v5"
-TOKEN_URL = "https://login.microsoftonline.com/b2cessmapprd.onmicrosoft.com/oauth2/v2.0/token"  # nosec B105
+TOKEN_URL = "https://login.microsoftonline.com/b2cessmapprd.onmicrosoft.com/oauth2/v2.0/token"
 PRODUCTION_SCOPE = "https://api.business.govt.nz/gateway/.default"
 
 # =============================================================================

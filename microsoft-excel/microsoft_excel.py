@@ -102,7 +102,7 @@ class GetWorkbook(ActionHandler):
                         "position": ws.get("position"),
                         "visibility": ws.get("visibility"),
                     })
-            except Exception:  # nosec B110
+            except Exception:
                 # API error handled - return partial data without worksheets
                 pass
 
@@ -119,7 +119,7 @@ class GetWorkbook(ActionHandler):
                         "showTotals": table.get("showTotals"),
                         "style": table.get("style"),
                     })
-            except Exception:  # nosec B110
+            except Exception:
                 # API error handled - return partial data without tables
                 pass
 
@@ -134,7 +134,7 @@ class GetWorkbook(ActionHandler):
                         "value": name.get("value"),
                         "type": name.get("type"),
                     })
-            except Exception:  # nosec B110
+            except Exception:
                 # API error handled - return partial data without named ranges
                 pass
 
@@ -393,7 +393,7 @@ class AddTableRow(ActionHandler):
             try:
                 range_data = await context.fetch(range_url, method="GET")
                 table_range = range_data.get("address", "")
-            except Exception:  # nosec B110
+            except Exception:
                 # API error handled - rows were added, range info is optional
                 pass
 

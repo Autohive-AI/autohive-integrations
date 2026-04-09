@@ -7,7 +7,7 @@ from autohive_integrations_sdk import ExecutionContext
 # Get your access_token via HeyGen OAuth flow: https://app.heygen.com/oauth/authorize
 TEST_AUTH = {
     "credentials": {
-        "access_token": "your_oauth_access_token_here"  # nosec B105
+        "access_token": "your_oauth_access_token_here"
     }
 }
 

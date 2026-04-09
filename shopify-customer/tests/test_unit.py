@@ -23,7 +23,7 @@ def mock_context():
     context = MagicMock()
     context.auth = {
         'credentials': {
-            'access_token': 'test_token_123',  # nosec B105
+            'access_token': 'test_token_123',
             'shop_url': 'test-store.myshopify.com',
             'client_id': 'test_client_id'
         }
@@ -53,7 +53,7 @@ class TestHelperFunctions:
     def test_build_headers(self):
         from shopify_customer import build_headers
         context = MagicMock()
-        context.auth = {'credentials': {'access_token': 'test_token'}}  # nosec B105
+        context.auth = {'credentials': {'access_token': 'test_token'}}
         result = build_headers(context)
         assert result['Authorization'] == 'Bearer test_token'
         assert result['Content-Type'] == 'application/json'

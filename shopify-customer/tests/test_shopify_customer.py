@@ -330,7 +330,7 @@ async def test_refresh_token():
     refresh_token = AUTH['credentials'].get('refresh_token')
     client_id = AUTH['credentials'].get('client_id')
 
-    if not refresh_token or refresh_token == "":  # nosec B105
+    if not refresh_token or refresh_token == "":
         print("  test_refresh_token skipped - No refresh token available")
         return None
 

@@ -22,7 +22,7 @@ from autohive_integrations_sdk import ExecutionContext
 # TEST CONFIGURATION
 # ==========================================
 # Replace these with your actual test credentials
-TEST_API_TOKEN = "YOUR_PIPEDRIVE_API_TOKEN"  # nosec B105
+TEST_API_TOKEN = "YOUR_PIPEDRIVE_API_TOKEN"
 
 # Test data - will be created and cleaned up during tests
 TEST_DEAL_TITLE = "Test Deal - Integration Test"
@@ -149,7 +149,7 @@ async def test_deal_lifecycle():
             try:
                 delete_action = pipedrive.get_action("delete_deal")
                 await delete_action.execute({"deal_id": deal_id}, context)
-            except Exception:  # nosec B110
+            except Exception:
                 pass  # Cleanup errors can be ignored
 
 
@@ -203,7 +203,7 @@ async def test_person_operations():
             try:
                 delete_action = pipedrive.get_action("delete_person")
                 await delete_action.execute({"person_id": person_id}, context)
-            except Exception:  # nosec B110
+            except Exception:
                 pass  # Cleanup errors can be ignored
 
 
@@ -260,7 +260,7 @@ async def test_activity_operations():
             try:
                 delete_action = pipedrive.get_action("delete_activity")
                 await delete_action.execute({"activity_id": activity_id}, context)
-            except Exception:  # nosec B110
+            except Exception:
                 pass  # Cleanup errors can be ignored
 
 
@@ -340,7 +340,7 @@ async def run_all_tests():
     print("PIPEDRIVE INTEGRATION TEST SUITE")
     print("="*60)
 
-    if TEST_API_TOKEN == "YOUR_PIPEDRIVE_API_TOKEN":  # nosec B105
+    if TEST_API_TOKEN == "YOUR_PIPEDRIVE_API_TOKEN":
         print("\n✗ ERROR: Please update TEST_API_TOKEN with your actual Pipedrive API token")
         return
 

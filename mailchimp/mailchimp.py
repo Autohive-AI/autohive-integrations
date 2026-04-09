@@ -116,7 +116,7 @@ def get_subscriber_hash(email: str) -> str:
     Generate MD5 hash of lowercase email address.
     Required for Mailchimp member operations.
     """
-    return hashlib.md5(email.lower().encode()).hexdigest()  # nosec B324
+    return hashlib.md5(email.lower().encode()).hexdigest()
 
 
 # ---- Action Handlers ----

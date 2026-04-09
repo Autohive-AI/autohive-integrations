@@ -842,7 +842,7 @@ async def test_get_invoice_pdf_success():
 
     auth = {
         "credentials": {
-            "access_token": "test-access-token-123"  # nosec B105
+            "access_token": "test-access-token-123"
         }
     }
     inputs = {
@@ -880,7 +880,7 @@ async def test_get_invoice_pdf_not_found():
 
     auth = {
         "credentials": {
-            "access_token": "test-access-token-123"  # nosec B105
+            "access_token": "test-access-token-123"
         }
     }
     inputs = {

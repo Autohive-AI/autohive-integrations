@@ -3022,7 +3022,7 @@ class GetDealRelationships(ActionHandler):
                         )
                         relationships["account"] = account_response.get("data", [{}])[0]
                         relationships["relationship_summary"]["has_account"] = True
-                    except Exception:  # nosec B110
+                    except Exception:
                         pass
             
             # Get related contact if available
@@ -3039,7 +3039,7 @@ class GetDealRelationships(ActionHandler):
                         )
                         relationships["contact"] = contact_response.get("data", [{}])[0]
                         relationships["relationship_summary"]["has_contact"] = True
-                    except Exception:  # nosec B110
+                    except Exception:
                         pass
             
             # Get activities if requested

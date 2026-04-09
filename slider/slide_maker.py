@@ -70,7 +70,7 @@ def load_presentation_from_files(presentation_id: str, files: List[Dict[str, Any
                     prs = Presentation(file_stream)
                     presentations[presentation_id] = prs
                     return
-                except Exception as e:  # nosec B112
+                except Exception as e:
                     continue
         
         # If no valid PowerPoint file found, provide better error message
@@ -979,7 +979,7 @@ def get_font_path(font_face):
             if downloaded_path:
                 return downloaded_path
 
-    except Exception as e:  # nosec B110
+    except Exception as e:
         # Google Fonts download failed - continue to fallback
         pass
 
@@ -1747,7 +1747,7 @@ def parse_markdown_to_slide(slide, markdown_text, prs):
                     "shape_id": str(shape.shape_id)
                 })
 
-        except Exception as e:  # nosec B112
+        except Exception as e:
             # Skip elements that fail to process, continue with others
             continue
 
@@ -2416,7 +2416,7 @@ class ResetSlideBackgroundAction(ActionHandler):
                     bg_element = slide._element.cSld.bg
                     if bg_element is not None:
                         slide._element.cSld.remove(bg_element)
-            except:  # nosec B110
+            except:
                 pass  # If reset fails, continue
         
         result = {
@@ -2981,7 +2981,7 @@ class GetElementStylingAction(ActionHandler):
                                 else:
                                     hex_color = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
                                     font_parts.append(hex_color)
-                    except:  # nosec B110
+                    except:
                         pass
 
             # Check runs if paragraph font didn't work OR if we're missing font name
@@ -3024,7 +3024,7 @@ class GetElementStylingAction(ActionHandler):
                                             else:
                                                 hex_color = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
                                                 font_parts.append(hex_color)
-                                except:  # nosec B110
+                                except:
                                     pass
 
                             if font_parts:  # Found something, we can stop
@@ -3109,7 +3109,7 @@ class GetElementStylingAction(ActionHandler):
                 if hasattr(font, 'size') and font.size is not None:
                     try:
                         font_parts.append(f"{font.size.pt:.0f}pt")
-                    except:  # nosec B110
+                    except:
                         pass
 
                 # Font weight and style
@@ -3129,7 +3129,7 @@ class GetElementStylingAction(ActionHandler):
                                 else:
                                     hex_color = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
                                     font_parts.append(hex_color)
-                    except:  # nosec B110
+                    except:
                         pass
 
             # If no paragraph font info, check runs
@@ -3146,7 +3146,7 @@ class GetElementStylingAction(ActionHandler):
                         if hasattr(run_font, 'size') and run_font.size is not None:
                             try:
                                 font_parts.append(f"{run_font.size.pt:.0f}pt")
-                            except:  # nosec B110
+                            except:
                                 pass
 
                         # Bold/italic from run
@@ -3266,7 +3266,7 @@ class FindAndReplaceAction(ActionHandler):
                                             "content": cell.text[:80] + "..." if len(cell.text) > 80 else cell.text,
                                             "location": f"Slide {slide_idx}, Table {shape_idx}, Cell ({row_idx},{col_idx})"
                                         })
-                        except:  # nosec B110
+                        except:
                             # Skip shapes that can't be accessed as tables
                             pass
 
@@ -3554,7 +3554,7 @@ class FindAndReplaceAction(ActionHandler):
                         change_record["font_size_applied"] = best_fit_size
 
                         replacement_count += 1
-                    except:  # nosec B110
+                    except:
                         # Skip if table access fails
                         pass
 

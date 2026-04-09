@@ -5,7 +5,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 # Configuration - Replace these placeholder values with actual values for testing
 CLIENT_ID = "your_client_id_here"  # Replace with actual Grammarly Client ID
-CLIENT_SECRET = "your_client_secret_here"  # Replace with actual Grammarly Client Secret  # nosec B105
+CLIENT_SECRET = "your_client_secret_here"  # Replace with actual Grammarly Client Secret
 
 # Sample test content
 SAMPLE_TEXT = """
@@ -279,7 +279,7 @@ async def main():
     print()
 
     # Check if credentials are set
-    if CLIENT_ID == "your_client_id_here" or CLIENT_SECRET == "your_client_secret_here":  # nosec B105
+    if CLIENT_ID == "your_client_id_here" or CLIENT_SECRET == "your_client_secret_here":
         print("⚠ WARNING: Please set CLIENT_ID and CLIENT_SECRET before running tests!")
         print("Edit the test_grammarly.py file and replace the placeholder values.\n")
         return

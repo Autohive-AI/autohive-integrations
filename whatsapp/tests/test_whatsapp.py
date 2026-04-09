@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 # Constants for testing
 AUTH = {
-    "access_token": "ACCESS_TOKEN"  # nosec B105
+    "access_token": "ACCESS_TOKEN"
 }
 
 PHONE_NUMBER_ID = "PHONE_NUMBER_ID"  # Using the ID from the first test case

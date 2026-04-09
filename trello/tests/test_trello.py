@@ -10,7 +10,7 @@ async def test_get_current_member():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -34,7 +34,7 @@ async def test_list_boards():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -60,7 +60,7 @@ async def test_create_board():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -89,7 +89,7 @@ async def test_get_board():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -116,7 +116,7 @@ async def test_update_board():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -144,7 +144,7 @@ async def test_create_list():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -172,7 +172,7 @@ async def test_get_list():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -198,7 +198,7 @@ async def test_update_list():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -225,7 +225,7 @@ async def test_list_lists():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -252,7 +252,7 @@ async def test_create_card():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -281,7 +281,7 @@ async def test_get_card():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -308,7 +308,7 @@ async def test_update_card():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -336,7 +336,7 @@ async def test_delete_card():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -361,7 +361,7 @@ async def test_list_cards():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -388,7 +388,7 @@ async def test_create_checklist():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -415,7 +415,7 @@ async def test_add_checklist_item():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 
@@ -443,7 +443,7 @@ async def test_add_comment():
         "auth_type": "custom",
         "credentials": {
             "api_key": "your_api_key_here",
-            "token": "your_token_here"  # nosec B105
+            "token": "your_token_here"
         }
     }
 

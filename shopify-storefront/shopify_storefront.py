@@ -1003,7 +1003,7 @@ class UpdateCustomerHandler(ActionHandler):
                 'last_name': 'lastName',
                 'phone': 'phone',
                 'email': 'email',
-                'password': 'password',  # nosec B105
+                'password': 'password',
                 'accepts_marketing': 'acceptsMarketing'
             }
 
