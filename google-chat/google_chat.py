@@ -19,7 +19,7 @@ def build_credentials(context: ExecutionContext) -> Credentials:
         print(f"Debug - context.auth content: {context.auth}")
         raise ValueError(f"No access token found in authentication context: {e}")
 
-    creds = Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")
+    creds = Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")  # nosec B106
     return creds
 
 

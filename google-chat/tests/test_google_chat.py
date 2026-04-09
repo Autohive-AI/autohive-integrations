@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_list_spaces():
     """Test listing all spaces the user is a member of."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {"page_size": 10}
 
@@ -22,7 +22,7 @@ async def test_list_spaces():
 
 async def test_get_space():
     """Test getting details of a specific space."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {"space_name": "spaces/AAAAMpdlehY"}  # Replace with actual space name
 
@@ -38,7 +38,7 @@ async def test_get_space():
 
 async def test_create_space():
     """Test creating a new Google Chat space."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {
         "display_name": "Test Space via Integration",
@@ -60,7 +60,7 @@ async def test_create_space():
 
 async def test_send_message():
     """Test sending a message to a space."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {
         "space_name": "spaces/AAAAMpdlehY",  # Replace with actual space name
@@ -79,7 +79,7 @@ async def test_send_message():
 
 async def test_list_messages():
     """Test listing messages from a space."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {
         "space_name": "spaces/AAAAMpdlehY",  # Replace with actual space name
@@ -98,7 +98,7 @@ async def test_list_messages():
 
 async def test_get_message():
     """Test getting details of a specific message."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {"message_name": "spaces/AAAAMpdlehY/messages/xyz"}  # Replace with actual message name
 
@@ -114,7 +114,7 @@ async def test_get_message():
 
 async def test_update_message():
     """Test updating a previously sent message."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {
         "message_name": "spaces/AAAAMpdlehY/messages/xyz",  # Replace with actual message name
@@ -133,7 +133,7 @@ async def test_update_message():
 
 async def test_delete_message():
     """Test deleting a message."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {
         "message_name": "spaces/AAAAMpdlehY/messages/xyz",  # Replace with actual message name
@@ -152,7 +152,7 @@ async def test_delete_message():
 
 async def test_list_members():
     """Test listing members of a space."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {
         "space_name": "spaces/AAAAMpdlehY",  # Replace with actual space name
@@ -171,7 +171,7 @@ async def test_list_members():
 
 async def test_add_reaction():
     """Test adding an emoji reaction to a message."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {
         "message_name": "spaces/AAAAMpdlehY/messages/xyz",  # Replace with actual message name
@@ -190,7 +190,7 @@ async def test_add_reaction():
 
 async def test_list_reactions():
     """Test listing reactions on a message."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {
         "message_name": "spaces/AAAAMpdlehY/messages/xyz",  # Replace with actual message name
@@ -209,7 +209,7 @@ async def test_list_reactions():
 
 async def test_remove_reaction():
     """Test removing a reaction from a message."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {
         "reaction_name": "spaces/AAAAMpdlehY/messages/xyz/reactions/123"  # Replace with actual reaction name
@@ -227,7 +227,7 @@ async def test_remove_reaction():
 
 async def test_find_direct_message():
     """Test finding a direct message conversation with a user."""
-    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}
+    auth = {"credentials": {"access_token": "your_access_token_here", "refresh_token": "your_refresh_token_here"}}  # nosec B105
 
     inputs = {
         "user_name": "users/example@gmail.com"  # Replace with actual user name

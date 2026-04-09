@@ -12,7 +12,7 @@ class MockExecutionContext:
             "credentials": {
                 "base_url": "https://test-looker.looker.com",
                 "client_id": "test_client_id",
-                "client_secret": "test_client_secret",
+                "client_secret": "test_client_secret",  # nosec B105
             }
         }
         self._responses = responses
@@ -29,7 +29,7 @@ class MockExecutionContext:
     ):
         # Route by endpoint suffix for simplicity
         if "/api/4.0/login" in url and method == "POST":
-            return self._responses.get("POST /login", {"access_token": "mock_token_123", "expires_in": 3600})
+            return self._responses.get("POST /login", {"access_token": "mock_token_123", "expires_in": 3600})  # nosec B105
         if "/api/4.0/dashboards/" in url and method == "GET":
             return self._responses.get("GET /dashboard", {"dashboard": {}})
         if "/api/4.0/dashboards" in url and method == "GET":

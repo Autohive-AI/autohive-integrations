@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_create_document():
     """Test creating a new document."""
-    auth = {"credentials": {"access_token": "test_access_token"}}
+    auth = {"credentials": {"access_token": "test_access_token"}}  # nosec B105
 
     inputs = {"title": "Test Document"}
 
@@ -20,7 +20,7 @@ async def test_create_document():
 
 async def test_get_document():
     """Test retrieving a document."""
-    auth = {"credentials": {"access_token": "test_access_token"}}
+    auth = {"credentials": {"access_token": "test_access_token"}}  # nosec B105
 
     inputs = {"document_id": "test_document_id", "include_tabs_content": True}
 
@@ -34,7 +34,7 @@ async def test_get_document():
 
 async def test_insert_paragraphs():
     """Test inserting plain paragraphs."""
-    auth = {"credentials": {"access_token": "test_access_token"}}
+    auth = {"credentials": {"access_token": "test_access_token"}}  # nosec B105
 
     inputs = {
         "document_id": "test_document_id",
@@ -52,7 +52,7 @@ async def test_insert_paragraphs():
 
 async def test_insert_markdown_content():
     """Test inserting markdown content with automatic styling (all heading levels and inline formatting)."""
-    auth = {"credentials": {"access_token": "test_access_token"}}
+    auth = {"credentials": {"access_token": "test_access_token"}}  # nosec B105
 
     # Test content with multiple heading levels and inline formatting
     markdown_content = """# Main Heading
@@ -87,7 +87,7 @@ Final paragraph with mixed **bold** and *italic* styles."""
 
 async def test_batch_update():
     """Test batch update for text formatting."""
-    auth = {"credentials": {"access_token": "test_access_token"}}
+    auth = {"credentials": {"access_token": "test_access_token"}}  # nosec B105
 
     inputs = {
         "document_id": "test_document_id",
@@ -119,7 +119,7 @@ async def test_batch_update():
 
 async def test_parse_structure():
     """Test parsing document structure."""
-    auth = {"credentials": {"access_token": "test_access_token"}}
+    auth = {"credentials": {"access_token": "test_access_token"}}  # nosec B105
 
     inputs = {"document_id": "test_document_id"}
 
