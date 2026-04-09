@@ -7,7 +7,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_list_folder():
     """Test listing contents of a folder."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "path": "",  # Empty string for root folder  # nosec B105
@@ -37,7 +37,7 @@ async def test_list_folder():
 
 async def test_list_folder_continue():
     """Test continuing to list folder contents using a cursor."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     # First get a cursor from list_folder
     inputs = {"cursor": "your_cursor_here"}  # Replace with actual cursor from list_folder
@@ -57,7 +57,7 @@ async def test_list_folder_continue():
 
 async def test_get_metadata():
     """Test getting metadata for a file or folder."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "path": "/path/to/your/file_or_folder",  # Replace with actual path
@@ -85,7 +85,7 @@ async def test_get_metadata():
 
 async def test_get_temporary_link():
     """Test getting a temporary link to stream file content."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "path": "/path/to/your/file"  # Replace with actual file path (not folder)
@@ -108,7 +108,7 @@ async def test_get_temporary_link():
 
 async def test_upload_file():
     """Test uploading a file to Dropbox."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     # Sample file content (base64 encoded)
     sample_content = base64.b64encode(b"Hello, this is a test file from Dropbox integration!").decode("utf-8")
@@ -140,7 +140,7 @@ async def test_upload_file():
 
 async def test_create_folder():
     """Test creating a new folder."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "path": "/test_folder",  # Folder path to create
@@ -165,7 +165,7 @@ async def test_create_folder():
 
 async def test_delete():
     """Test deleting a file or folder."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "path": "/path/to/delete"  # Replace with path to delete  # nosec B105
@@ -187,7 +187,7 @@ async def test_delete():
 
 async def test_move():
     """Test moving a file or folder to a different location."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "from_path": "/source/path",  # Replace with source path
@@ -213,7 +213,7 @@ async def test_move():
 
 async def test_copy():
     """Test copying a file or folder to a different location."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "from_path": "/source/path",  # Replace with source path

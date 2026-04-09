@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_get_current_user():
     """Test getting current user information."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {}
     # nosec B105
@@ -26,7 +26,7 @@ async def test_get_current_user():
 
 async def test_list_organizations():
     """Test listing organizations."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {}
 
@@ -48,7 +48,7 @@ async def test_list_organizations():
 
 async def test_list_events():
     """Test listing events for an organization."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"organization_id": "your_organization_id_here", "status": "live", "page_size": 10}
 
@@ -70,7 +70,7 @@ async def test_list_events():
 
 async def test_get_event():
     """Test getting a specific event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"event_id": "your_event_id_here", "expand": ["venue", "organizer"]}
 
@@ -88,7 +88,7 @@ async def test_get_event():
 
 async def test_create_event():
     """Test creating a new event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "organization_id": "your_organization_id_here",
@@ -136,7 +136,7 @@ async def test_update_event():
 
 async def test_publish_event():
     """Test publishing an event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"event_id": "your_event_id_here"}
 
@@ -170,7 +170,7 @@ async def test_unpublish_event():
 
 async def test_copy_event():
     """Test copying an event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"event_id": "your_event_id_here", "name": "Copied Event"}
 
@@ -188,7 +188,7 @@ async def test_copy_event():
 
 async def test_delete_event():
     """Test deleting an event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"event_id": "your_event_id_here"}
 
@@ -206,7 +206,7 @@ async def test_delete_event():
 # nosec B105
 async def test_list_venues():
     """Test listing venues."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"organization_id": "your_organization_id_here"}
 
@@ -229,7 +229,7 @@ async def test_list_venues():
 # nosec B105
 async def test_get_venue():
     """Test getting a specific venue."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"venue_id": "your_venue_id_here"}
 
@@ -247,7 +247,7 @@ async def test_get_venue():
 
 async def test_create_venue():
     """Test creating a venue."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "organization_id": "your_organization_id_here",
@@ -273,7 +273,7 @@ async def test_create_venue():
 
 async def test_list_orders_by_event():
     """Test listing orders for an event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     # nosec B105
     inputs = {"event_id": "your_event_id_here", "status": "active"}
 
@@ -293,7 +293,7 @@ async def test_list_orders_by_event():
 
 async def test_list_orders_by_organization():
     """Test listing orders for an organization."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"organization_id": "your_organization_id_here", "status": "active"}
 
@@ -313,7 +313,7 @@ async def test_list_orders_by_organization():
 
 async def test_get_order():
     """Test getting a specific order."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"order_id": "your_order_id_here", "expand": ["event", "attendees"]}
 
@@ -331,7 +331,7 @@ async def test_get_order():
 
 async def test_list_attendees():
     """Test listing attendees for an event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"event_id": "your_event_id_here", "status": "attending"}
 
@@ -351,7 +351,7 @@ async def test_list_attendees():
 
 async def test_get_attendee():
     """Test getting a specific attendee."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"event_id": "your_event_id_here", "attendee_id": "your_attendee_id_here"}
 
@@ -369,7 +369,7 @@ async def test_get_attendee():
 
 async def test_list_ticket_classes():
     """Test listing ticket classes for an event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"event_id": "your_event_id_here"}
 
@@ -391,7 +391,7 @@ async def test_list_ticket_classes():
 
 async def test_get_ticket_class():
     """Test getting a specific ticket class."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"event_id": "your_event_id_here", "ticket_class_id": "your_ticket_class_id_here"}
 
@@ -409,7 +409,7 @@ async def test_get_ticket_class():
 
 async def test_create_ticket_class():
     """Test creating a ticket class."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {  # nosec B105
         "event_id": "your_event_id_here",
@@ -436,7 +436,7 @@ async def test_create_ticket_class():
 
 async def test_create_paid_ticket_class():
     """Test creating a paid ticket class."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     # nosec B105
     inputs = {
         "event_id": "your_event_id_here",
@@ -461,7 +461,7 @@ async def test_create_paid_ticket_class():
 
 async def test_update_ticket_class():
     """Test updating a ticket class."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "event_id": "your_event_id_here",
@@ -484,7 +484,7 @@ async def test_update_ticket_class():
 
 async def test_delete_ticket_class():
     """Test deleting a ticket class."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"event_id": "your_event_id_here", "ticket_class_id": "your_ticket_class_id_here"}
 
@@ -501,7 +501,7 @@ async def test_delete_ticket_class():
 
 async def test_list_categories():
     """Test listing event categories."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {}
 
@@ -523,7 +523,7 @@ async def test_list_categories():
 
 async def test_get_category():
     """Test getting a specific category."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"category_id": "103"}  # Music category
 
@@ -541,7 +541,7 @@ async def test_get_category():
 
 async def test_get_event_description():
     """Test getting event description."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"event_id": "your_event_id_here"}
     # nosec B105
