@@ -18,7 +18,12 @@ Protocol: GraphQL only
 API Version: 2024-10
 """
 
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+)
 from typing import Dict, Any, List
 import os
 
@@ -75,7 +80,9 @@ def build_headers(context: ExecutionContext) -> Dict[str, str]:
     if auth_type == "StorefrontPrivate":
         private_token = credentials.get("private_token")
         if not private_token:
-            raise ValueError("Missing required credential: private_token for StorefrontPrivate auth")
+            raise ValueError(
+                "Missing required credential: private_token for StorefrontPrivate auth"
+            )
         headers["Shopify-Storefront-Private-Token"] = private_token
         if credentials.get("buyer_ip"):
             headers["Shopify-Storefront-Buyer-IP"] = credentials["buyer_ip"]
@@ -119,16 +126,22 @@ def parse_graphql_response(response: Dict[str, Any]) -> tuple:
     return response.get("data"), errors
 
 
-def extract_user_errors(data: Dict[str, Any], mutation_key: str, error_key: str = "userErrors") -> List[str]:
+def extract_user_errors(
+    data: Dict[str, Any], mutation_key: str, error_key: str = "userErrors"
+) -> List[str]:
     """Extract user errors from mutation response."""
     if not data:
         return []
     mutation_data = data.get(mutation_key, {}) or {}
     user_errors = mutation_data.get(error_key, []) or []
-    return [err.get("message", "Unknown error") for err in user_errors if err.get("message")]
+    return [
+        err.get("message", "Unknown error") for err in user_errors if err.get("message")
+    ]
 
 
-async def execute_graphql(context: ExecutionContext, query: str, variables: Dict[str, Any] = None) -> Dict[str, Any]:
+async def execute_graphql(
+    context: ExecutionContext, query: str, variables: Dict[str, Any] = None
+) -> Dict[str, Any]:
     """Execute a GraphQL query against the Storefront API."""
     url = get_storefront_url(context)
     headers = build_headers(context)
@@ -557,9 +570,15 @@ mutation CustomerUpdate($customerAccessToken: String!, $customer: CustomerUpdate
 class ListProductsHandler(ActionHandler):
     """List products from the storefront."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
-            variables = {"first": inputs.get("first", 20), "after": inputs.get("after"), "query": inputs.get("query")}
+            variables = {
+                "first": inputs.get("first", 20),
+                "after": inputs.get("after"),
+                "query": inputs.get("query"),
+            }
 
             response = await execute_graphql(context, QUERY_LIST_PRODUCTS, variables)
 
@@ -584,7 +603,9 @@ class ListProductsHandler(ActionHandler):
 class GetProductHandler(ActionHandler):
     """Get a single product by handle or ID."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             require_one_of(inputs, "handle", "product_id")
 
@@ -609,7 +630,9 @@ class GetProductHandler(ActionHandler):
 class SearchProductsHandler(ActionHandler):
     """Search products by keyword."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             variables = {"query": inputs["query"], "first": inputs.get("first", 20)}
 
@@ -622,7 +645,9 @@ class SearchProductsHandler(ActionHandler):
             products = extract_edges(data, "search")
             total_count = data.get("search", {}).get("totalCount", 0)
 
-            return success_response(products=products, count=len(products), total_count=total_count)
+            return success_response(
+                products=products, count=len(products), total_count=total_count
+            )
         except Exception as e:
             return error_response(e, products=[], count=0)
 
@@ -636,7 +661,9 @@ class SearchProductsHandler(ActionHandler):
 class ListCollectionsHandler(ActionHandler):
     """List collections from the storefront."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             variables = {"first": inputs.get("first", 20), "after": inputs.get("after")}
 
@@ -663,7 +690,9 @@ class ListCollectionsHandler(ActionHandler):
 class GetCollectionHandler(ActionHandler):
     """Get a collection with its products."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             require_one_of(inputs, "handle", "collection_id")
 
@@ -697,7 +726,9 @@ class GetCollectionHandler(ActionHandler):
 class CreateCartHandler(ActionHandler):
     """Create a new shopping cart."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             cart_input = {}
 
@@ -728,7 +759,9 @@ class CreateCartHandler(ActionHandler):
 class GetCartHandler(ActionHandler):
     """Get cart contents."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             cart_id = require_input(inputs, "cart_id")
             variables = {"cartId": cart_id}
@@ -751,7 +784,9 @@ class GetCartHandler(ActionHandler):
 class AddToCartHandler(ActionHandler):
     """Add items to cart."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             cart_id = require_input(inputs, "cart_id")
             lines = require_input(inputs, "lines")
@@ -770,7 +805,9 @@ class AddToCartHandler(ActionHandler):
             if user_errors:
                 return error_response(user_errors, cart=None)
 
-            return success_response(cart=(data or {}).get("cartLinesAdd", {}).get("cart"))
+            return success_response(
+                cart=(data or {}).get("cartLinesAdd", {}).get("cart")
+            )
         except Exception as e:
             return error_response(str(e), cart=None)
 
@@ -779,7 +816,9 @@ class AddToCartHandler(ActionHandler):
 class UpdateCartLineHandler(ActionHandler):
     """Update cart line item quantity."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             cart_id = require_input(inputs, "cart_id")
             lines = require_input(inputs, "lines")
@@ -798,7 +837,9 @@ class UpdateCartLineHandler(ActionHandler):
             if user_errors:
                 return error_response(user_errors, cart=None)
 
-            return success_response(cart=(data or {}).get("cartLinesUpdate", {}).get("cart"))
+            return success_response(
+                cart=(data or {}).get("cartLinesUpdate", {}).get("cart")
+            )
         except Exception as e:
             return error_response(str(e), cart=None)
 
@@ -807,7 +848,9 @@ class UpdateCartLineHandler(ActionHandler):
 class RemoveFromCartHandler(ActionHandler):
     """Remove items from cart."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             cart_id = require_input(inputs, "cart_id")
             line_ids = require_input(inputs, "line_ids")
@@ -816,7 +859,9 @@ class RemoveFromCartHandler(ActionHandler):
                 raise ValueError("line_ids must be a non-empty array")
 
             variables = {"cartId": cart_id, "lineIds": line_ids}
-            response = await execute_graphql(context, MUTATION_REMOVE_FROM_CART, variables)
+            response = await execute_graphql(
+                context, MUTATION_REMOVE_FROM_CART, variables
+            )
             data, errors = parse_graphql_response(response)
 
             if errors:
@@ -826,7 +871,9 @@ class RemoveFromCartHandler(ActionHandler):
             if user_errors:
                 return error_response(user_errors, cart=None)
 
-            return success_response(cart=(data or {}).get("cartLinesRemove", {}).get("cart"))
+            return success_response(
+                cart=(data or {}).get("cartLinesRemove", {}).get("cart")
+            )
         except Exception as e:
             return error_response(str(e), cart=None)
 
@@ -835,7 +882,9 @@ class RemoveFromCartHandler(ActionHandler):
 class ApplyDiscountHandler(ActionHandler):
     """Apply discount codes to cart."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             cart_id = require_input(inputs, "cart_id")
             discount_codes = require_input(inputs, "discount_codes")
@@ -844,7 +893,9 @@ class ApplyDiscountHandler(ActionHandler):
                 raise ValueError("discount_codes must be a non-empty array")
 
             variables = {"cartId": cart_id, "discountCodes": discount_codes}
-            response = await execute_graphql(context, MUTATION_APPLY_DISCOUNT, variables)
+            response = await execute_graphql(
+                context, MUTATION_APPLY_DISCOUNT, variables
+            )
             data, errors = parse_graphql_response(response)
 
             if errors:
@@ -854,7 +905,9 @@ class ApplyDiscountHandler(ActionHandler):
             if user_errors:
                 return error_response(user_errors, cart=None)
 
-            return success_response(cart=(data or {}).get("cartDiscountCodesUpdate", {}).get("cart"))
+            return success_response(
+                cart=(data or {}).get("cartDiscountCodesUpdate", {}).get("cart")
+            )
         except Exception as e:
             return error_response(str(e), cart=None)
 
@@ -868,7 +921,9 @@ class ApplyDiscountHandler(ActionHandler):
 class CreateCustomerHandler(ActionHandler):
     """Create a new customer account."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             email = require_input(inputs, "email")
             password = require_input(inputs, "password")
@@ -877,24 +932,32 @@ class CreateCustomerHandler(ActionHandler):
 
             optional_fields = ["firstName", "lastName", "phone", "acceptsMarketing"]
             for field in optional_fields:
-                snake_field = "".join(["_" + c.lower() if c.isupper() else c for c in field]).lstrip("_")
+                snake_field = "".join(
+                    ["_" + c.lower() if c.isupper() else c for c in field]
+                ).lstrip("_")
                 if snake_field in inputs:
                     customer_input[field] = inputs[snake_field]
                 elif field in inputs:
                     customer_input[field] = inputs[field]
 
             variables = {"input": customer_input}
-            response = await execute_graphql(context, MUTATION_CREATE_CUSTOMER, variables)
+            response = await execute_graphql(
+                context, MUTATION_CREATE_CUSTOMER, variables
+            )
             data, errors = parse_graphql_response(response)
 
             if errors:
                 return error_response(errors, customer=None)
 
-            user_errors = extract_user_errors(data, "customerCreate", "customerUserErrors")
+            user_errors = extract_user_errors(
+                data, "customerCreate", "customerUserErrors"
+            )
             if user_errors:
                 return error_response(user_errors, customer=None)
 
-            return success_response(customer=(data or {}).get("customerCreate", {}).get("customer"))
+            return success_response(
+                customer=(data or {}).get("customerCreate", {}).get("customer")
+            )
         except Exception as e:
             return error_response(str(e), customer=None)
 
@@ -903,25 +966,37 @@ class CreateCustomerHandler(ActionHandler):
 class CustomerLoginHandler(ActionHandler):
     """Login customer and get access token."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             email = require_input(inputs, "email")
             password = require_input(inputs, "password")
 
             variables = {"input": {"email": email, "password": password}}
-            response = await execute_graphql(context, MUTATION_CUSTOMER_LOGIN, variables)
+            response = await execute_graphql(
+                context, MUTATION_CUSTOMER_LOGIN, variables
+            )
             data, errors = parse_graphql_response(response)
 
             if errors:
                 return error_response(errors, customer_access_token=None)
 
-            user_errors = extract_user_errors(data, "customerAccessTokenCreate", "customerUserErrors")
+            user_errors = extract_user_errors(
+                data, "customerAccessTokenCreate", "customerUserErrors"
+            )
             if user_errors:
                 return error_response(user_errors, customer_access_token=None)
 
-            token_data = (data or {}).get("customerAccessTokenCreate", {}).get("customerAccessToken")
+            token_data = (
+                (data or {})
+                .get("customerAccessTokenCreate", {})
+                .get("customerAccessToken")
+            )
             return success_response(
-                customer_access_token=token_data.get("accessToken") if token_data else None,
+                customer_access_token=token_data.get("accessToken")
+                if token_data
+                else None,
                 expires_at=token_data.get("expiresAt") if token_data else None,
             )
         except Exception as e:
@@ -932,7 +1007,9 @@ class CustomerLoginHandler(ActionHandler):
 class GetCustomerHandler(ActionHandler):
     """Get customer profile using access token."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             access_token = require_input(inputs, "customer_access_token")
             variables = {"customerAccessToken": access_token}
@@ -944,7 +1021,9 @@ class GetCustomerHandler(ActionHandler):
 
             customer = (data or {}).get("customer")
             if not customer:
-                return error_response("Customer not found or invalid token", customer=None)
+                return error_response(
+                    "Customer not found or invalid token", customer=None
+                )
 
             return success_response(customer=customer)
         except Exception as e:
@@ -955,17 +1034,23 @@ class GetCustomerHandler(ActionHandler):
 class RecoverCustomerHandler(ActionHandler):
     """Send password recovery email."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             email = require_input(inputs, "email")
             variables = {"email": email}
-            response = await execute_graphql(context, MUTATION_CUSTOMER_RECOVER, variables)
+            response = await execute_graphql(
+                context, MUTATION_CUSTOMER_RECOVER, variables
+            )
             data, errors = parse_graphql_response(response)
 
             if errors:
                 return error_response(errors)
 
-            user_errors = extract_user_errors(data, "customerRecover", "customerUserErrors")
+            user_errors = extract_user_errors(
+                data, "customerRecover", "customerUserErrors"
+            )
             if user_errors:
                 return error_response(user_errors)
 
@@ -978,7 +1063,9 @@ class RecoverCustomerHandler(ActionHandler):
 class UpdateCustomerHandler(ActionHandler):
     """Update customer profile using access token."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             access_token = require_input(inputs, "customer_access_token")
 
@@ -997,16 +1084,25 @@ class UpdateCustomerHandler(ActionHandler):
                     customer_input[camel_key] = inputs[snake_key]
 
             if not customer_input:
-                raise ValueError("At least one customer field must be provided for update")
+                raise ValueError(
+                    "At least one customer field must be provided for update"
+                )
 
-            variables = {"customerAccessToken": access_token, "customer": customer_input}
-            response = await execute_graphql(context, MUTATION_CUSTOMER_UPDATE, variables)
+            variables = {
+                "customerAccessToken": access_token,
+                "customer": customer_input,
+            }
+            response = await execute_graphql(
+                context, MUTATION_CUSTOMER_UPDATE, variables
+            )
             data, errors = parse_graphql_response(response)
 
             if errors:
                 return error_response(errors, customer=None)
 
-            user_errors = extract_user_errors(data, "customerUpdate", "customerUserErrors")
+            user_errors = extract_user_errors(
+                data, "customerUpdate", "customerUserErrors"
+            )
             if user_errors:
                 return error_response(user_errors, customer=None)
 
@@ -1015,7 +1111,9 @@ class UpdateCustomerHandler(ActionHandler):
 
             return success_response(
                 customer=update_data.get("customer"),
-                customer_access_token=token_data.get("accessToken") if token_data else None,
+                customer_access_token=token_data.get("accessToken")
+                if token_data
+                else None,
                 expires_at=token_data.get("expiresAt") if token_data else None,
             )
         except Exception as e:

@@ -41,7 +41,9 @@ async def execute_wrapper(action_name, inputs, context):
 AUTH = {
     "auth_type": "PlatformOauth2",
     "credentials": {
-        "access_token": os.getenv("SHOPIFY_ADMIN_TOKEN", "<your-admin-api-access-token>"),
+        "access_token": os.getenv(
+            "SHOPIFY_ADMIN_TOKEN", "<your-admin-api-access-token>"
+        ),
         "shop_url": os.getenv("SHOPIFY_STORE_URL", "your-store.myshopify.com"),
     },
 }
@@ -134,7 +136,11 @@ async def test_create_customer():
 
 async def test_update_customer():
     """Test updating a customer."""
-    inputs = {"customer_id": TEST_CUSTOMER_ID, "note": f"Updated by test at {int(time.time())}", "tags": "test,updated"}
+    inputs = {
+        "customer_id": TEST_CUSTOMER_ID,
+        "note": f"Updated by test at {int(time.time())}",
+        "tags": "test,updated",
+    }
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("update_customer", inputs, context)
@@ -235,7 +241,9 @@ async def test_list_products_with_filter():
             result = await execute_wrapper("list_products", inputs, context)
             print(f"List Products (filtered) Result: {result}")
             assert result.get("success"), f"Failed: {result.get('message')}"
-            print(f"✓ test_list_products_with_filter passed - Found {result['count']} active products")
+            print(
+                f"✓ test_list_products_with_filter passed - Found {result['count']} active products"
+            )
             return result
         except Exception as e:
             print(f"✗ Error: {e}")
@@ -336,7 +344,9 @@ async def test_get_inventory_levels():
             result = await execute_wrapper("get_inventory_levels", inputs, context)
             print(f"Get Inventory Levels Result: {result}")
             assert result.get("success"), f"Failed: {result.get('message')}"
-            print(f"✓ test_get_inventory_levels passed - Found {result['count']} levels")
+            print(
+                f"✓ test_get_inventory_levels passed - Found {result['count']} levels"
+            )
             return result
         except Exception as e:
             print(f"✗ Error: {e}")
@@ -345,7 +355,11 @@ async def test_get_inventory_levels():
 
 async def test_set_inventory_level():
     """Test setting inventory level."""
-    inputs = {"inventory_item_id": TEST_INVENTORY_ITEM_ID, "location_id": TEST_LOCATION_ID, "available": 50}
+    inputs = {
+        "inventory_item_id": TEST_INVENTORY_ITEM_ID,
+        "location_id": TEST_LOCATION_ID,
+        "available": 50,
+    }
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("set_inventory_level", inputs, context)
@@ -390,7 +404,9 @@ async def test_list_draft_orders():
             result = await execute_wrapper("list_draft_orders", inputs, context)
             print(f"List Draft Orders Result: {result}")
             assert result.get("success"), f"Failed: {result.get('message')}"
-            print(f"✓ test_list_draft_orders passed - Found {result['count']} draft orders")
+            print(
+                f"✓ test_list_draft_orders passed - Found {result['count']} draft orders"
+            )
             return result
         except Exception as e:
             print(f"✗ Error: {e}")
@@ -410,7 +426,9 @@ async def test_create_draft_order():
             print(f"Create Draft Order Result: {result}")
             assert result.get("success"), f"Failed: {result.get('message')}"
             assert result["draft_order"].get("id")
-            print(f"✓ test_create_draft_order passed - ID: {result['draft_order']['id']}")
+            print(
+                f"✓ test_create_draft_order passed - ID: {result['draft_order']['id']}"
+            )
             return result
         except Exception as e:
             print(f"✗ Error: {e}")

@@ -25,7 +25,12 @@ Rate Limits:
 API Version: 2024-10
 """
 
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+)
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -110,7 +115,9 @@ def from_gid(gid: str) -> str:
     return gid.split("/")[-1]
 
 
-async def execute_graphql(context: ExecutionContext, query: str, variables: dict = None) -> dict:
+async def execute_graphql(
+    context: ExecutionContext, query: str, variables: dict = None
+) -> dict:
     """Execute a GraphQL query/mutation against Shopify Admin API."""
     url = get_graphql_url(context)
     headers = build_headers(context)
@@ -153,7 +160,9 @@ def build_product_query_filter(inputs: Dict[str, Any]) -> str:
     if inputs.get("vendor"):
         filters.append(f"vendor:{escape_graphql_query_value(inputs['vendor'])}")
     if inputs.get("product_type"):
-        filters.append(f"product_type:{escape_graphql_query_value(inputs['product_type'])}")
+        filters.append(
+            f"product_type:{escape_graphql_query_value(inputs['product_type'])}"
+        )
     if inputs.get("status"):
         filters.append(f"status:{inputs['status']}")
     if inputs.get("created_at_min"):
@@ -188,7 +197,11 @@ def transform_product_response(graphql_product: dict) -> dict:
     variants_data = graphql_product.get("variants", {})
     if isinstance(variants_data, dict):
         variants_data = variants_data.get("nodes", []) or variants_data.get("edges", [])
-    if variants_data and isinstance(variants_data[0], dict) and "node" in variants_data[0]:
+    if (
+        variants_data
+        and isinstance(variants_data[0], dict)
+        and "node" in variants_data[0]
+    ):
         variants_data = [e["node"] for e in variants_data]
 
     product["variants"] = [
@@ -435,7 +448,9 @@ mutation ProductUpdate($input: ProductInput!) {
 class ListCustomersHandler(ActionHandler):
     """List customers with optional filtering and pagination."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             url = get_api_url(context, "/customers.json")
             headers = build_headers(context)
@@ -453,7 +468,9 @@ class ListCustomersHandler(ActionHandler):
             if "limit" not in params:
                 params["limit"] = 50
 
-            response = await context.fetch(url, method="GET", params=params, headers=headers)
+            response = await context.fetch(
+                url, method="GET", params=params, headers=headers
+            )
 
             customers = response.get("customers", [])
             return success_response(customers=customers, count=len(customers))
@@ -465,7 +482,9 @@ class ListCustomersHandler(ActionHandler):
 class GetCustomerHandler(ActionHandler):
     """Get a single customer by ID."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             customer_id = inputs["customer_id"]
             url = get_api_url(context, f"/customers/{customer_id}.json")
@@ -482,7 +501,9 @@ class GetCustomerHandler(ActionHandler):
 class SearchCustomersHandler(ActionHandler):
     """Search customers by query string."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             url = get_api_url(context, "/customers/search.json")
             headers = build_headers(context)
@@ -493,7 +514,9 @@ class SearchCustomersHandler(ActionHandler):
             else:
                 params["limit"] = 50
 
-            response = await context.fetch(url, method="GET", params=params, headers=headers)
+            response = await context.fetch(
+                url, method="GET", params=params, headers=headers
+            )
 
             customers = response.get("customers", [])
             return success_response(customers=customers, count=len(customers))
@@ -505,7 +528,9 @@ class SearchCustomersHandler(ActionHandler):
 class CreateCustomerHandler(ActionHandler):
     """Create a new customer."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             url = get_api_url(context, "/customers.json")
             headers = build_headers(context)
@@ -531,7 +556,9 @@ class CreateCustomerHandler(ActionHandler):
                 customer_data["addresses"] = [inputs["address"]]
 
             payload = {"customer": customer_data}
-            response = await context.fetch(url, method="POST", json=payload, headers=headers)
+            response = await context.fetch(
+                url, method="POST", json=payload, headers=headers
+            )
 
             return success_response(customer=response.get("customer", {}))
         except Exception as e:
@@ -542,7 +569,9 @@ class CreateCustomerHandler(ActionHandler):
 class UpdateCustomerHandler(ActionHandler):
     """Update an existing customer."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             customer_id = inputs["customer_id"]
             url = get_api_url(context, f"/customers/{customer_id}.json")
@@ -564,7 +593,9 @@ class UpdateCustomerHandler(ActionHandler):
                     customer_data[api_field] = inputs[input_field]
 
             payload = {"customer": customer_data}
-            response = await context.fetch(url, method="PUT", json=payload, headers=headers)
+            response = await context.fetch(
+                url, method="PUT", json=payload, headers=headers
+            )
 
             return success_response(customer=response.get("customer", {}))
         except Exception as e:
@@ -580,7 +611,9 @@ class UpdateCustomerHandler(ActionHandler):
 class ListOrdersHandler(ActionHandler):
     """List orders with optional filtering."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             url = get_api_url(context, "/orders.json")
             headers = build_headers(context)
@@ -601,7 +634,9 @@ class ListOrdersHandler(ActionHandler):
             if "status" not in params:
                 params["status"] = "any"
 
-            response = await context.fetch(url, method="GET", params=params, headers=headers)
+            response = await context.fetch(
+                url, method="GET", params=params, headers=headers
+            )
 
             orders = response.get("orders", [])
             return success_response(orders=orders, count=len(orders))
@@ -613,7 +648,9 @@ class ListOrdersHandler(ActionHandler):
 class GetOrderHandler(ActionHandler):
     """Get a single order by ID."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             order_id = inputs["order_id"]
             url = get_api_url(context, f"/orders/{order_id}.json")
@@ -630,7 +667,9 @@ class GetOrderHandler(ActionHandler):
 class CreateOrderHandler(ActionHandler):
     """Create a new order."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             url = get_api_url(context, "/orders.json")
             headers = build_headers(context)
@@ -658,7 +697,9 @@ class CreateOrderHandler(ActionHandler):
                         order_data[field] = inputs[field]
 
             payload = {"order": order_data}
-            response = await context.fetch(url, method="POST", json=payload, headers=headers)
+            response = await context.fetch(
+                url, method="POST", json=payload, headers=headers
+            )
 
             return success_response(order=response.get("order", {}))
         except Exception as e:
@@ -669,7 +710,9 @@ class CreateOrderHandler(ActionHandler):
 class CancelOrderHandler(ActionHandler):
     """Cancel an existing order."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             order_id = inputs["order_id"]
             url = get_api_url(context, f"/orders/{order_id}/cancel.json")
@@ -683,7 +726,9 @@ class CancelOrderHandler(ActionHandler):
             if "restock" in inputs:
                 cancel_data["restock"] = inputs["restock"]
 
-            response = await context.fetch(url, method="POST", json=cancel_data, headers=headers)
+            response = await context.fetch(
+                url, method="POST", json=cancel_data, headers=headers
+            )
 
             return success_response(order=response.get("order", {}))
         except Exception as e:
@@ -699,7 +744,9 @@ class CancelOrderHandler(ActionHandler):
 class ListProductsHandler(ActionHandler):
     """List products with optional filtering using GraphQL API."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             # Build variables for GraphQL query
             limit = inputs.get("limit", 50)
@@ -739,7 +786,9 @@ class ListProductsHandler(ActionHandler):
 class GetProductHandler(ActionHandler):
     """Get a single product by ID using GraphQL API."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             product_id = inputs["product_id"]
             # Convert to GID format if needed
@@ -762,7 +811,9 @@ class GetProductHandler(ActionHandler):
 class CreateProductHandler(ActionHandler):
     """Create a new product using GraphQL API."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             # Build GraphQL input
             product_input = {"title": inputs["title"]}
@@ -840,7 +891,10 @@ class CreateProductHandler(ActionHandler):
             result = data.get("productCreate", {})
             user_errors = result.get("userErrors", [])
             if user_errors:
-                error_messages = [f"{e.get('field', 'unknown')}: {e.get('message', 'error')}" for e in user_errors]
+                error_messages = [
+                    f"{e.get('field', 'unknown')}: {e.get('message', 'error')}"
+                    for e in user_errors
+                ]
                 raise Exception(f"Product creation failed: {'; '.join(error_messages)}")
 
             # Transform response
@@ -855,7 +909,9 @@ class CreateProductHandler(ActionHandler):
 class UpdateProductHandler(ActionHandler):
     """Update an existing product using GraphQL API."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             product_id = inputs["product_id"]
             # Convert to GID format
@@ -892,7 +948,10 @@ class UpdateProductHandler(ActionHandler):
             result = data.get("productUpdate", {})
             user_errors = result.get("userErrors", [])
             if user_errors:
-                error_messages = [f"{e.get('field', 'unknown')}: {e.get('message', 'error')}" for e in user_errors]
+                error_messages = [
+                    f"{e.get('field', 'unknown')}: {e.get('message', 'error')}"
+                    for e in user_errors
+                ]
                 raise Exception(f"Product update failed: {'; '.join(error_messages)}")
 
             # Transform response
@@ -912,7 +971,9 @@ class UpdateProductHandler(ActionHandler):
 class GetInventoryLevelsHandler(ActionHandler):
     """Get inventory levels by location or inventory item IDs."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             url = get_api_url(context, "/inventory_levels.json")
             headers = build_headers(context)
@@ -929,13 +990,19 @@ class GetInventoryLevelsHandler(ActionHandler):
 
             if not params.get("inventory_item_ids") and not params.get("location_ids"):
                 return error_response(
-                    "Either inventory_item_ids or location_ids is required", inventory_levels=[], count=0
+                    "Either inventory_item_ids or location_ids is required",
+                    inventory_levels=[],
+                    count=0,
                 )
 
-            response = await context.fetch(url, method="GET", params=params, headers=headers)
+            response = await context.fetch(
+                url, method="GET", params=params, headers=headers
+            )
 
             inventory_levels = response.get("inventory_levels", [])
-            return success_response(inventory_levels=inventory_levels, count=len(inventory_levels))
+            return success_response(
+                inventory_levels=inventory_levels, count=len(inventory_levels)
+            )
         except Exception as e:
             return error_response(e, inventory_levels=[], count=0)
 
@@ -944,7 +1011,9 @@ class GetInventoryLevelsHandler(ActionHandler):
 class SetInventoryLevelHandler(ActionHandler):
     """Set inventory level for an item at a location."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             url = get_api_url(context, "/inventory_levels/set.json")
             headers = build_headers(context)
@@ -955,7 +1024,9 @@ class SetInventoryLevelHandler(ActionHandler):
                 "available": inputs["available"],
             }
 
-            response = await context.fetch(url, method="POST", json=payload, headers=headers)
+            response = await context.fetch(
+                url, method="POST", json=payload, headers=headers
+            )
 
             return success_response(inventory_level=response.get("inventory_level", {}))
         except Exception as e:
@@ -971,7 +1042,9 @@ class SetInventoryLevelHandler(ActionHandler):
 class ListLocationsHandler(ActionHandler):
     """List all store locations."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             url = get_api_url(context, "/locations.json")
             headers = build_headers(context)
@@ -988,7 +1061,9 @@ class ListLocationsHandler(ActionHandler):
 class GetLocationHandler(ActionHandler):
     """Get a single location by ID."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             location_id = inputs["location_id"]
             url = get_api_url(context, f"/locations/{location_id}.json")
@@ -1010,7 +1085,9 @@ class GetLocationHandler(ActionHandler):
 class GetShopHandler(ActionHandler):
     """Get store information."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             url = get_api_url(context, "/shop.json")
             headers = build_headers(context)
@@ -1031,7 +1108,9 @@ class GetShopHandler(ActionHandler):
 class ListDraftOrdersHandler(ActionHandler):
     """List draft orders."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             url = get_api_url(context, "/draft_orders.json")
             headers = build_headers(context)
@@ -1042,7 +1121,9 @@ class ListDraftOrdersHandler(ActionHandler):
             if "limit" not in params:
                 params["limit"] = 50
 
-            response = await context.fetch(url, method="GET", params=params, headers=headers)
+            response = await context.fetch(
+                url, method="GET", params=params, headers=headers
+            )
 
             draft_orders = response.get("draft_orders", [])
             return success_response(draft_orders=draft_orders, count=len(draft_orders))
@@ -1054,7 +1135,9 @@ class ListDraftOrdersHandler(ActionHandler):
 class CreateDraftOrderHandler(ActionHandler):
     """Create a new draft order."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             url = get_api_url(context, "/draft_orders.json")
             headers = build_headers(context)
@@ -1079,7 +1162,9 @@ class CreateDraftOrderHandler(ActionHandler):
                         draft_order_data[field] = inputs[field]
 
             payload = {"draft_order": draft_order_data}
-            response = await context.fetch(url, method="POST", json=payload, headers=headers)
+            response = await context.fetch(
+                url, method="POST", json=payload, headers=headers
+            )
 
             return success_response(draft_order=response.get("draft_order", {}))
         except Exception as e:
@@ -1090,7 +1175,9 @@ class CreateDraftOrderHandler(ActionHandler):
 class CompleteDraftOrderHandler(ActionHandler):
     """Complete a draft order, converting it to a real order."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             draft_order_id = inputs["draft_order_id"]
             url = get_api_url(context, f"/draft_orders/{draft_order_id}/complete.json")
@@ -1100,7 +1187,9 @@ class CompleteDraftOrderHandler(ActionHandler):
             if "payment_pending" in inputs:
                 params["payment_pending"] = inputs["payment_pending"]
 
-            response = await context.fetch(url, method="PUT", params=params, headers=headers)
+            response = await context.fetch(
+                url, method="PUT", params=params, headers=headers
+            )
 
             return success_response(draft_order=response.get("draft_order", {}))
         except Exception as e:
@@ -1111,7 +1200,9 @@ class CompleteDraftOrderHandler(ActionHandler):
 class DeleteDraftOrderHandler(ActionHandler):
     """Delete a draft order."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             draft_order_id = inputs["draft_order_id"]
             url = get_api_url(context, f"/draft_orders/{draft_order_id}.json")
@@ -1133,7 +1224,9 @@ class DeleteDraftOrderHandler(ActionHandler):
 class ListFulfillmentsHandler(ActionHandler):
     """List fulfillments for an order."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             order_id = inputs["order_id"]
             url = get_api_url(context, f"/orders/{order_id}/fulfillments.json")
@@ -1151,7 +1244,9 @@ class ListFulfillmentsHandler(ActionHandler):
 class CreateFulfillmentHandler(ActionHandler):
     """Create a fulfillment for an order."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             order_id = inputs["order_id"]
             url = get_api_url(context, f"/orders/{order_id}/fulfillments.json")
@@ -1159,14 +1254,22 @@ class CreateFulfillmentHandler(ActionHandler):
 
             fulfillment_data = {"location_id": inputs["location_id"]}
 
-            optional_fields = ["tracking_number", "tracking_company", "tracking_url", "notify_customer", "line_items"]
+            optional_fields = [
+                "tracking_number",
+                "tracking_company",
+                "tracking_url",
+                "notify_customer",
+                "line_items",
+            ]
 
             for field in optional_fields:
                 if field in inputs and inputs[field] is not None:
                     fulfillment_data[field] = inputs[field]
 
             payload = {"fulfillment": fulfillment_data}
-            response = await context.fetch(url, method="POST", json=payload, headers=headers)
+            response = await context.fetch(
+                url, method="POST", json=payload, headers=headers
+            )
 
             return success_response(fulfillment=response.get("fulfillment", {}))
         except Exception as e:
@@ -1177,10 +1280,14 @@ class CreateFulfillmentHandler(ActionHandler):
 class UpdateFulfillmentTrackingHandler(ActionHandler):
     """Update tracking information for a fulfillment."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             fulfillment_id = inputs["fulfillment_id"]
-            url = get_api_url(context, f"/fulfillments/{fulfillment_id}/update_tracking.json")
+            url = get_api_url(
+                context, f"/fulfillments/{fulfillment_id}/update_tracking.json"
+            )
             headers = build_headers(context)
 
             tracking_data = {}
@@ -1192,10 +1299,15 @@ class UpdateFulfillmentTrackingHandler(ActionHandler):
                 tracking_data["url"] = inputs["tracking_url"]
 
             payload = {
-                "fulfillment": {"tracking_info": tracking_data, "notify_customer": inputs.get("notify_customer", False)}
+                "fulfillment": {
+                    "tracking_info": tracking_data,
+                    "notify_customer": inputs.get("notify_customer", False),
+                }
             }
 
-            response = await context.fetch(url, method="POST", json=payload, headers=headers)
+            response = await context.fetch(
+                url, method="POST", json=payload, headers=headers
+            )
 
             return success_response(fulfillment=response.get("fulfillment", {}))
         except Exception as e:

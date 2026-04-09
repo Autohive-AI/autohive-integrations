@@ -23,7 +23,7 @@ def mock_context():
     context = MagicMock()
     context.auth = {
         "credentials": {
-            "access_token": "test_token_123",
+            "access_token": "test_token_123",  # nosec B105
             "shop_url": "test-store.myshopify.com",
             "client_id": "test_client_id",
         }
@@ -39,7 +39,9 @@ class TestHelperFunctions:
         from shopify_customer import get_shop_url
 
         context = MagicMock()
-        context.auth = {"credentials": {"shop_url": "https://test-store.myshopify.com/"}}
+        context.auth = {
+            "credentials": {"shop_url": "https://test-store.myshopify.com/"}
+        }
         result = get_shop_url(context)
         assert result == "test-store.myshopify.com"
 
@@ -56,7 +58,7 @@ class TestHelperFunctions:
         from shopify_customer import build_headers
 
         context = MagicMock()
-        context.auth = {"credentials": {"access_token": "test_token"}}
+        context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
         result = build_headers(context)
         assert result["Authorization"] == "Bearer test_token"
         assert result["Content-Type"] == "application/json"
@@ -107,7 +109,9 @@ class TestGetProfileHandler:
             }
         }
 
-        result = await shopify_customer.execute_action("customer_get_profile", {}, mock_context)
+        result = await shopify_customer.execute_action(
+            "customer_get_profile", {}, mock_context
+        )
 
         assert result.result.data["success"] is True
         assert result.result.data["customer"]["email"] == "test@example.com"
@@ -118,7 +122,9 @@ class TestGetProfileHandler:
 
         # Error responses may fail SDK output validation because customer=None doesn't match schema
         try:
-            result = await shopify_customer.execute_action("customer_get_profile", {}, mock_context)
+            result = await shopify_customer.execute_action(
+                "customer_get_profile", {}, mock_context
+            )
             # If validation passes, check the response
             assert result.result.data.get("success") is False
         except Exception as e:
@@ -145,14 +151,19 @@ class TestListAddressesHandler:
                                 },
                             }
                         ],
-                        "pageInfo": {"hasNextPage": False, "endCursor": "end_cursor_value"},
+                        "pageInfo": {
+                            "hasNextPage": False,
+                            "endCursor": "end_cursor_value",
+                        },
                     },
                     "defaultAddress": {"id": "gid://shopify/CustomerAddress/1"},
                 }
             }
         }
 
-        result = await shopify_customer.execute_action("customer_list_addresses", {"first": 10}, mock_context)
+        result = await shopify_customer.execute_action(
+            "customer_list_addresses", {"first": 10}, mock_context
+        )
 
         assert result.result.data["success"] is True
         assert result.result.data["count"] == 1
@@ -179,7 +190,12 @@ class TestCreateAddressHandler:
 
         result = await shopify_customer.execute_action(
             "customer_create_address",
-            {"address1": "456 Oak Ave", "city": "Los Angeles", "country": "US", "zip": "90001"},
+            {
+                "address1": "456 Oak Ave",
+                "city": "Los Angeles",
+                "country": "US",
+                "zip": "90001",
+            },
             mock_context,
         )
 
@@ -202,7 +218,12 @@ class TestCreateAddressHandler:
         try:
             result = await shopify_customer.execute_action(
                 "customer_create_address",
-                {"address1": "456 Oak Ave", "city": "LA", "country": "US", "zip": "invalid"},
+                {
+                    "address1": "456 Oak Ave",
+                    "city": "LA",
+                    "country": "US",
+                    "zip": "invalid",
+                },
                 mock_context,
             )
             assert result.result.data["success"] is False
@@ -227,17 +248,25 @@ class TestListOrdersHandler:
                                 "node": {
                                     "id": "gid://shopify/Order/123",
                                     "orderNumber": 1001,
-                                    "totalPrice": {"amount": "99.99", "currencyCode": "USD"},
+                                    "totalPrice": {
+                                        "amount": "99.99",
+                                        "currencyCode": "USD",
+                                    },
                                 },
                             }
                         ],
-                        "pageInfo": {"hasNextPage": False, "endCursor": "end_cursor_value"},
+                        "pageInfo": {
+                            "hasNextPage": False,
+                            "endCursor": "end_cursor_value",
+                        },
                     }
                 }
             }
         }
 
-        result = await shopify_customer.execute_action("customer_list_orders", {"first": 10}, mock_context)
+        result = await shopify_customer.execute_action(
+            "customer_list_orders", {"first": 10}, mock_context
+        )
 
         assert result.result.data["success"] is True
         assert result.result.data["count"] == 1
@@ -251,7 +280,10 @@ class TestGenerateOAuthUrl:
     async def test_generate_oauth_url_success(self, mock_context):
         result = await shopify_customer.execute_action(
             "customer_generate_oauth_url",
-            {"client_id": "test_client", "redirect_uri": "https://example.com/callback"},
+            {
+                "client_id": "test_client",
+                "redirect_uri": "https://example.com/callback",
+            },
             mock_context,
         )
 
@@ -260,14 +292,18 @@ class TestGenerateOAuthUrl:
         assert "code_verifier" in result.result.data
         assert "state" in result.result.data
         # Verify correct OAuth endpoint
-        assert "/authentication/oauth/authorize" in result.result.data["authorization_url"]
+        assert (
+            "/authentication/oauth/authorize" in result.result.data["authorization_url"]
+        )
 
     @pytest.mark.asyncio
     async def test_generate_oauth_url_missing_client_id(self, mock_context):
         # The SDK validates required inputs, so this should raise a validation error
         try:
             result = await shopify_customer.execute_action(
-                "customer_generate_oauth_url", {"redirect_uri": "https://example.com/callback"}, mock_context
+                "customer_generate_oauth_url",
+                {"redirect_uri": "https://example.com/callback"},
+                mock_context,
             )
             # If it doesn't raise, check the response
             assert result.result.data["success"] is False
