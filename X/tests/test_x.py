@@ -6,17 +6,14 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_get_me():
     """Test getting authenticated user profile."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await x.execute_action("get_me", {}, context)
             print(f"Get Me Result: {result}")
-            assert result.get('result') == True
-            assert 'user' in result
+            assert result.get("result")
+            assert "user" in result
             return result
         except Exception as e:
             print(f"Error testing get_me: {e}")
@@ -25,18 +22,15 @@ async def test_get_me():
 
 async def test_get_user():
     """Test getting user profile by username."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
     inputs = {"username": "X"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await x.execute_action("get_user", inputs, context)
             print(f"Get User Result: {result}")
-            assert result.get('result') == True
-            assert 'user' in result
+            assert result.get("result")
+            assert "user" in result
             return result
         except Exception as e:
             print(f"Error testing get_user: {e}")
@@ -45,18 +39,15 @@ async def test_get_user():
 
 async def test_create_tweet():
     """Test creating a post."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
     inputs = {"text": "Test post from Autohive X integration!"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await x.execute_action("create_tweet", inputs, context)
             print(f"Create Post Result: {result}")
-            assert result.get('result') == True
-            assert 'post' in result
+            assert result.get("result")
+            assert "post" in result
             return result
         except Exception as e:
             print(f"Error testing create_tweet: {e}")
@@ -67,40 +58,100 @@ async def test_create_tweet_with_media():
     """Test creating a post with media."""
     import base64
 
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
     # Minimal valid PNG (1x1 pixel)
-    png_data = bytes([
-        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
-        0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41,
-        0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
-        0x00, 0x00, 0x03, 0x00, 0x01, 0x00, 0x05, 0xFE,
-        0xD4, 0xEF, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45,
-        0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
-    ])
+    png_data = bytes(
+        [
+            0x89,
+            0x50,
+            0x4E,
+            0x47,
+            0x0D,
+            0x0A,
+            0x1A,
+            0x0A,
+            0x00,
+            0x00,
+            0x00,
+            0x0D,
+            0x49,
+            0x48,
+            0x44,
+            0x52,
+            0x00,
+            0x00,
+            0x00,
+            0x01,
+            0x00,
+            0x00,
+            0x00,
+            0x01,
+            0x08,
+            0x02,
+            0x00,
+            0x00,
+            0x00,
+            0x90,
+            0x77,
+            0x53,
+            0xDE,
+            0x00,
+            0x00,
+            0x00,
+            0x0C,
+            0x49,
+            0x44,
+            0x41,
+            0x54,
+            0x08,
+            0xD7,
+            0x63,
+            0xF8,
+            0xCF,
+            0xC0,
+            0x00,
+            0x00,
+            0x00,
+            0x03,
+            0x00,
+            0x01,
+            0x00,
+            0x05,
+            0xFE,
+            0xD4,
+            0xEF,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x49,
+            0x45,
+            0x4E,
+            0x44,
+            0xAE,
+            0x42,
+            0x60,
+            0x82,
+        ]
+    )
 
     inputs = {
         "text": "Test post with media!",
         "file": {
-            "content": base64.b64encode(png_data).decode('utf-8'),
+            "content": base64.b64encode(png_data).decode("utf-8"),
             "name": "test_image.png",
-            "contentType": "image/png"
-        }
+            "contentType": "image/png",
+        },
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await x.execute_action("create_tweet", inputs, context)
             print(f"Create Post With Media Result: {result}")
-            assert result.get('result') == True
-            assert 'post' in result
-            assert 'media_id' in result
+            assert result.get("result")
+            assert "post" in result
+            assert "media_id" in result
             return result
         except Exception as e:
             print(f"Error testing create_tweet with media: {e}")
@@ -109,18 +160,15 @@ async def test_create_tweet_with_media():
 
 async def test_get_tweet():
     """Test getting a post by ID."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
     inputs = {"post_id": "1234567890123456789", "include_user": True, "include_metrics": True}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await x.execute_action("get_tweet", inputs, context)
             print(f"Get Post Result: {result}")
-            assert result.get('result') == True
-            assert 'post' in result
+            assert result.get("result")
+            assert "post" in result
             return result
         except Exception as e:
             print(f"Error testing get_tweet: {e}")
@@ -129,18 +177,15 @@ async def test_get_tweet():
 
 async def test_search_tweets():
     """Test searching for posts."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
     inputs = {"query": "#AI -is:retweet lang:en", "max_results": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await x.execute_action("search_tweets", inputs, context)
             print(f"Search Posts Result: {result}")
-            assert result.get('result') == True
-            assert 'posts' in result
+            assert result.get("result")
+            assert "posts" in result
             return result
         except Exception as e:
             print(f"Error testing search_tweets: {e}")
@@ -149,18 +194,15 @@ async def test_search_tweets():
 
 async def test_delete_tweet():
     """Test deleting a post."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
     inputs = {"post_id": "1234567890123456789"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await x.execute_action("delete_tweet", inputs, context)
             print(f"Delete Post Result: {result}")
-            assert result.get('result') == True
-            assert 'deleted' in result
+            assert result.get("result")
+            assert "deleted" in result
             return result
         except Exception as e:
             print(f"Error testing delete_tweet: {e}")
@@ -169,18 +211,15 @@ async def test_delete_tweet():
 
 async def test_get_bookmarks():
     """Test getting authenticated user's bookmarks."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
     inputs = {"user_id": "1234567890", "max_results": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await x.execute_action("get_bookmarks", inputs, context)
             print(f"Get Bookmarks Result: {result}")
-            assert result.get('result') == True
-            assert 'posts' in result
+            assert result.get("result")
+            assert "posts" in result
             return result
         except Exception as e:
             print(f"Error testing get_bookmarks: {e}")
@@ -189,18 +228,15 @@ async def test_get_bookmarks():
 
 async def test_bookmark_tweet():
     """Test bookmarking a post."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
     inputs = {"user_id": "1234567890", "post_id": "1234567890123456789"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await x.execute_action("bookmark_tweet", inputs, context)
             print(f"Bookmark Post Result: {result}")
-            assert result.get('result') == True
-            assert 'bookmarked' in result
+            assert result.get("result")
+            assert "bookmarked" in result
             return result
         except Exception as e:
             print(f"Error testing bookmark_tweet: {e}")
@@ -209,18 +245,15 @@ async def test_bookmark_tweet():
 
 async def test_remove_bookmark():
     """Test removing a bookmark."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"}
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
     inputs = {"user_id": "1234567890", "post_id": "1234567890123456789"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await x.execute_action("remove_bookmark", inputs, context)
             print(f"Remove Bookmark Result: {result}")
-            assert result.get('result') == True
-            assert 'removed' in result
+            assert result.get("result")
+            assert "removed" in result
             return result
         except Exception as e:
             print(f"Error testing remove_bookmark: {e}")
