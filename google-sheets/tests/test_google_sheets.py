@@ -102,7 +102,10 @@ class TestGoogleSheetsIntegration:
         mock_drive_service.files.return_value = mock_files
         mock_files.list.return_value = mock_list
         mock_list.execute.return_value = {
-            "files": [{"id": "sheet1", "name": "Test Spreadsheet 1"}, {"id": "sheet2", "name": "Test Spreadsheet 2"}],
+            "files": [
+                {"id": "sheet1", "name": "Test Spreadsheet 1"},
+                {"id": "sheet2", "name": "Test Spreadsheet 2"},
+            ],
             "nextPageToken": "next_token",
         }
 
@@ -131,7 +134,12 @@ class TestGoogleSheetsIntegration:
         mock_files.list.return_value = mock_list
         mock_list.execute.return_value = {"files": []}
 
-        inputs = {"name_contains": "Test", "owner": "me", "pageSize": 10, "pageToken": "token123"}
+        inputs = {
+            "name_contains": "Test",
+            "owner": "me",
+            "pageSize": 10,
+            "pageToken": "token123",
+        }
 
         # Execute action
         await google_sheets.ListSpreadsheets().execute(inputs, self.context)
@@ -192,9 +200,16 @@ class TestGoogleSheetsIntegration:
         mock_sheets_service.spreadsheets.return_value = mock_spreadsheets
         mock_spreadsheets.values.return_value = mock_values
         mock_values.get.return_value = mock_get
-        mock_get.execute.return_value = {"range": "Sheet1!A1:B2", "values": [["Name", "Age"], ["John", "30"]]}
+        mock_get.execute.return_value = {
+            "range": "Sheet1!A1:B2",
+            "values": [["Name", "Age"], ["John", "30"]],
+        }
 
-        inputs = {"spreadsheet_id": "test_id", "range": "Sheet1!A1:B2", "valueRenderOption": "FORMATTED_VALUE"}
+        inputs = {
+            "spreadsheet_id": "test_id",
+            "range": "Sheet1!A1:B2",
+            "valueRenderOption": "FORMATTED_VALUE",
+        }
 
         result = await google_sheets.ReadRange().execute(inputs, self.context)
 
