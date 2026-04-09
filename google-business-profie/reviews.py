@@ -110,8 +110,6 @@ class ListLocations(ActionHandler):
 
             locations = []
             for location in response.get("locations", []):
-                address = format_address(location.get("storefrontAddress", {}))
-
                 # Extract address from storefrontAddress if available
                 address = format_address(location.get("storefrontAddress", {}))
 
