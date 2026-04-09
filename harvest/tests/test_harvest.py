@@ -15,16 +15,16 @@ async def test_create_time_entry():
     print("\n--- Testing create_time_entry ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
-        "account_id": "your_harvest_account_id_here"
+        "access_token": "your_harvest_access_token_here",  # nosec B105
+        "account_id": "your_harvest_account_id_here",
     }
 
     inputs = {
         "project_id": 12345,  # Replace with actual project ID
-        "task_id": 67890,     # Replace with actual task ID
+        "task_id": 67890,  # Replace with actual task ID
         "spent_date": "2025-01-21",
         "hours": 2.5,
-        "notes": "Test time entry from integration test"
+        "notes": "Test time entry from integration test",
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -35,7 +35,7 @@ async def test_create_time_entry():
                 print(f"✓ Successfully created time entry (ID: {entry.get('id')})")
                 print(f"  Hours: {entry.get('hours')}")
                 print(f"  Notes: {entry.get('notes')}")
-                return entry.get('id')  # Return ID for other tests
+                return entry.get("id")  # Return ID for other tests
             else:
                 print(f"✗ Error: {result.get('error')}")
                 return None
@@ -49,8 +49,8 @@ async def test_stop_time_entry():
     print("\n--- Testing stop_time_entry ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
-        "account_id": "your_harvest_account_id_here"
+        "access_token": "your_harvest_access_token_here",  # nosec B105
+        "account_id": "your_harvest_account_id_here",
     }
 
     # First create a running timer
@@ -59,7 +59,7 @@ async def test_stop_time_entry():
         "task_id": 67890,
         "spent_date": "2025-01-21",
         "is_running": True,
-        "notes": "Running timer test"
+        "notes": "Running timer test",
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -79,7 +79,7 @@ async def test_stop_time_entry():
 
             if result.get("success"):
                 entry = result.get("time_entry", {})
-                print(f"✓ Successfully stopped time entry")
+                print("✓ Successfully stopped time entry")
                 print(f"  Final hours: {entry.get('hours')}")
             else:
                 print(f"✗ Error: {result.get('error')}")
@@ -92,20 +92,17 @@ async def test_list_time_entries():
     print("\n--- Testing list_time_entries ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
-        "account_id": "your_harvest_account_id_here"
+        "access_token": "your_harvest_access_token_here",  # nosec B105
+        "account_id": "your_harvest_account_id_here",
     }
 
-    inputs = {
-        "per_page": 10,
-        "is_running": False
-    }
+    inputs = {"per_page": 10, "is_running": False}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await harvest.execute_action("list_time_entries", inputs, context)
             if result.get("success"):
-                entries = result.get('time_entries', [])
+                entries = result.get("time_entries", [])
                 print(f"✓ Successfully retrieved {len(entries)} time entries")
                 print(f"  Total entries: {result.get('total_entries')}")
                 print(f"  Current page: {result.get('page')}/{result.get('total_pages')}")
@@ -122,8 +119,8 @@ async def test_update_time_entry():
     print("\n--- Testing update_time_entry ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
-        "account_id": "your_harvest_account_id_here"
+        "access_token": "your_harvest_access_token_here",  # nosec B105
+        "account_id": "your_harvest_account_id_here",
     }
 
     # First create a time entry
@@ -132,7 +129,7 @@ async def test_update_time_entry():
         "task_id": 67890,
         "spent_date": "2025-01-21",
         "hours": 1.0,
-        "notes": "Original notes"
+        "notes": "Original notes",
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -147,16 +144,12 @@ async def test_update_time_entry():
             print(f"  Created time entry (ID: {time_entry_id})")
 
             # Update the entry
-            update_inputs = {
-                "time_entry_id": time_entry_id,
-                "hours": 2.5,
-                "notes": "Updated notes from test"
-            }
+            update_inputs = {"time_entry_id": time_entry_id, "hours": 2.5, "notes": "Updated notes from test"}
             result = await harvest.execute_action("update_time_entry", update_inputs, context)
 
             if result.get("success"):
                 entry = result.get("time_entry", {})
-                print(f"✓ Successfully updated time entry")
+                print("✓ Successfully updated time entry")
                 print(f"  New hours: {entry.get('hours')}")
                 print(f"  New notes: {entry.get('notes')}")
             else:
@@ -170,8 +163,8 @@ async def test_delete_time_entry():
     print("\n--- Testing delete_time_entry ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
-        "account_id": "your_harvest_account_id_here"
+        "access_token": "your_harvest_access_token_here",  # nosec B105
+        "account_id": "your_harvest_account_id_here",
     }
 
     # First create a time entry to delete
@@ -180,7 +173,7 @@ async def test_delete_time_entry():
         "task_id": 67890,
         "spent_date": "2025-01-21",
         "hours": 0.5,
-        "notes": "Entry to be deleted"
+        "notes": "Entry to be deleted",
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -199,7 +192,7 @@ async def test_delete_time_entry():
             result = await harvest.execute_action("delete_time_entry", delete_inputs, context)
 
             if result.get("success"):
-                print(f"✓ Successfully deleted time entry")
+                print("✓ Successfully deleted time entry")
                 print(f"  {result.get('message')}")
             else:
                 print(f"✗ Error: {result.get('error')}")
@@ -212,24 +205,21 @@ async def test_list_projects():
     print("\n--- Testing list_projects ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
-        "account_id": "your_harvest_account_id_here"
+        "access_token": "your_harvest_access_token_here",  # nosec B105
+        "account_id": "your_harvest_account_id_here",
     }
 
-    inputs = {
-        "is_active": True,
-        "per_page": 10
-    }
+    inputs = {"is_active": True, "per_page": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await harvest.execute_action("list_projects", inputs, context)
             if result.get("success"):
-                projects = result.get('projects', [])
+                projects = result.get("projects", [])
                 print(f"✓ Successfully retrieved {len(projects)} projects")
                 print(f"  Total projects: {result.get('total_entries')}")
                 for project in projects[:3]:  # Show first 3
-                    client = project.get('client', {})
+                    client = project.get("client", {})
                     print(f"  - {project.get('name')} (ID: {project.get('id')}) - Client: {client.get('name', 'N/A')}")
             else:
                 print(f"✗ Error: {result.get('error')}")
@@ -242,8 +232,8 @@ async def test_get_project():
     print("\n--- Testing get_project ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
-        "account_id": "your_harvest_account_id_here"
+        "access_token": "your_harvest_access_token_here",  # nosec B105
+        "account_id": "your_harvest_account_id_here",
     }
 
     inputs = {
@@ -254,8 +244,8 @@ async def test_get_project():
         try:
             result = await harvest.execute_action("get_project", inputs, context)
             if result.get("success"):
-                project = result.get('project', {})
-                print(f"✓ Successfully retrieved project details")
+                project = result.get("project", {})
+                print("✓ Successfully retrieved project details")
                 print(f"  Name: {project.get('name')}")
                 print(f"  Code: {project.get('code')}")
                 print(f"  Is active: {project.get('is_active')}")
@@ -272,20 +262,17 @@ async def test_list_clients():
     print("\n--- Testing list_clients ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
-        "account_id": "your_harvest_account_id_here"
+        "access_token": "your_harvest_access_token_here",  # nosec B105
+        "account_id": "your_harvest_account_id_here",
     }
 
-    inputs = {
-        "is_active": True,
-        "per_page": 10
-    }
+    inputs = {"is_active": True, "per_page": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await harvest.execute_action("list_clients", inputs, context)
             if result.get("success"):
-                clients = result.get('clients', [])
+                clients = result.get("clients", [])
                 print(f"✓ Successfully retrieved {len(clients)} clients")
                 print(f"  Total clients: {result.get('total_entries')}")
                 for client in clients[:3]:  # Show first 3
@@ -301,24 +288,23 @@ async def test_list_tasks():
     print("\n--- Testing list_tasks ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
-        "account_id": "your_harvest_account_id_here"
+        "access_token": "your_harvest_access_token_here",  # nosec B105
+        "account_id": "your_harvest_account_id_here",
     }
 
-    inputs = {
-        "is_active": True,
-        "per_page": 10
-    }
+    inputs = {"is_active": True, "per_page": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await harvest.execute_action("list_tasks", inputs, context)
             if result.get("success"):
-                tasks = result.get('tasks', [])
+                tasks = result.get("tasks", [])
                 print(f"✓ Successfully retrieved {len(tasks)} tasks")
                 print(f"  Total tasks: {result.get('total_entries')}")
                 for task in tasks[:3]:  # Show first 3
-                    print(f"  - {task.get('name')} (ID: {task.get('id')}) - Billable: {task.get('billable_by_default')}")
+                    print(
+                        f"  - {task.get('name')} (ID: {task.get('id')}) - Billable: {task.get('billable_by_default')}"
+                    )
             else:
                 print(f"✗ Error: {result.get('error')}")
         except Exception as e:
@@ -330,20 +316,17 @@ async def test_list_users():
     print("\n--- Testing list_users ---")
 
     auth = {
-        "access_token": "your_harvest_access_token_here",
-        "account_id": "your_harvest_account_id_here"
+        "access_token": "your_harvest_access_token_here",  # nosec B105
+        "account_id": "your_harvest_account_id_here",
     }
 
-    inputs = {
-        "is_active": True,
-        "per_page": 10
-    }
+    inputs = {"is_active": True, "per_page": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await harvest.execute_action("list_users", inputs, context)
             if result.get("success"):
-                users = result.get('users', [])
+                users = result.get("users", [])
                 print(f"✓ Successfully retrieved {len(users)} users")
                 print(f"  Total users: {result.get('total_entries')}")
                 for user in users[:3]:  # Show first 3
@@ -368,20 +351,20 @@ async def main():
     print("\n" + "=" * 60)
     print("TIME ENTRY ACTIONS (5 actions)")
     print("=" * 60)
-    await test_create_time_entry()      # Action 1
-    await test_stop_time_entry()        # Action 2
-    await test_list_time_entries()      # Action 3
-    await test_update_time_entry()      # Action 4
-    await test_delete_time_entry()      # Action 5
+    await test_create_time_entry()  # Action 1
+    await test_stop_time_entry()  # Action 2
+    await test_list_time_entries()  # Action 3
+    await test_update_time_entry()  # Action 4
+    await test_delete_time_entry()  # Action 5
 
     print("\n" + "=" * 60)
     print("RESOURCE MANAGEMENT ACTIONS (5 actions)")
     print("=" * 60)
-    await test_list_projects()          # Action 6
-    await test_get_project()            # Action 7
-    await test_list_clients()           # Action 8
-    await test_list_tasks()             # Action 9
-    await test_list_users()             # Action 10
+    await test_list_projects()  # Action 6
+    await test_get_project()  # Action 7
+    await test_list_clients()  # Action 8
+    await test_list_tasks()  # Action 9
+    await test_list_users()  # Action 10
 
     print("\n" + "=" * 60)
     print("Test suite completed! All 10 actions tested.")
