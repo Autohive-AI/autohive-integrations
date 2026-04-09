@@ -241,3 +241,4 @@ Fetch comments for a specific post. Requires the numeric post `id` (not the slug
 - `get_post_comments` requires the numeric `post_id`, not the slug — get it from `get_publication_posts` or `get_post`
 - Paywalled post `body_html` is truncated for non-subscribers
 - Substack's undocumented APIs may change without notice
+

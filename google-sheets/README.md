@@ -164,3 +164,4 @@ To run the tests:
 1. Navigate to the integration's directory: `cd google-sheets`
 2. Install dependencies: `pip install -r requirements.txt -t dependencies`
 3. Run the tests: `python tests/test_google_sheets.py`
+

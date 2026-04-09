@@ -195,3 +195,4 @@ This integration uses Humanitix Public API **v1**.
 Base URL: `https://api.humanitix.com/v1`
 
 For more information, see the [Humanitix API Documentation](https://humanitix.stoplight.io/docs/humanitix-public-api/).
+

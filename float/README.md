@@ -847,3 +847,4 @@ The connected account handler fetches:
 ## License
 
 This integration is provided as part of the Autohive platform. Refer to your Autohive license agreement for terms and conditions.
+

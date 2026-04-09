@@ -242,3 +242,4 @@ To test the integration:
   - Voice Management: list_voices, get_voice, get_voice_settings (3 actions - FREE)
   - History Management: list_history, download_history_audio (2 actions - FREE)
   - User Account: get_user_subscription (1 action - FREE)
+

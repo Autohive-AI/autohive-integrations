@@ -185,3 +185,4 @@ The test suite includes tests for all four actions: `list_meetings`, `get_transc
 ## Support
 
 For issues or questions about the Fathom API, refer to the [Fathom API Documentation](https://api.fathom.ai/external/v1/docs).
+

@@ -273,3 +273,4 @@ python tests/test_ghost.py
 ## Version History
 
 - **1.0.0** - Initial release: 8 read actions (Content API) + 7 write actions (Admin API)
+

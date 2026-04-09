@@ -62,3 +62,4 @@ To run the tests (requires Python 3.13+):
 1.  Navigate to the integration's directory: `cd api-call`
 2.  Install dependencies: `pip install -r requirements.txt -t dependencies`
 3.  Run the tests: `python tests/test_api_call.py`
+

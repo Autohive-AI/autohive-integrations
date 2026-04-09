@@ -632,3 +632,4 @@ List all gadgets on a specific dashboard.
 2. Set `EMAIL`, `API_TOKEN`, `DOMAIN`, `TEST_PROJECT_KEY`, and `TEST_ISSUE_KEY` at the top
 3. Run: `python tests/test_jira.py`
 4. Expected output: each test prints its result dict. All should show `result: True`
+

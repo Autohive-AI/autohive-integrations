@@ -674,3 +674,4 @@ To run the tests:
 - [Prices API](https://docs.stripe.com/api/prices)
 - [Payment Methods API](https://docs.stripe.com/api/payment_methods)
 - [Stripe Apps Marketplace](https://marketplace.stripe.com)
+

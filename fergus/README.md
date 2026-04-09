@@ -103,3 +103,4 @@ List all users (technicians and staff). Use to find user IDs when assigning jobs
 - The Fergus API enforces a rate limit of 100 requests per minute per company.
 - Endpoint paths are based on `https://api.fergus.com`. Verify against the Swagger docs at
   `https://api.fergus.com/docs` if any endpoint returns unexpected errors.
+

@@ -526,3 +526,4 @@ GitLab accepts project identifiers in two formats:
 - [Commits API](https://docs.gitlab.com/api/commits/)
 - [Pipelines API](https://docs.gitlab.com/api/pipelines/)
 - [Container Registry API](https://docs.gitlab.com/api/container_registry/)
+

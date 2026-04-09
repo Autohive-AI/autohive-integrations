@@ -299,3 +299,4 @@ To test the integration:
   - Analytics API: get_user_analytics (1 action)
   - AI Detection API: analyze_ai_detection, get_ai_detection_results (2 actions)
   - Plagiarism Detection API: analyze_plagiarism_detection, get_plagiarism_detection_results (2 actions)
+

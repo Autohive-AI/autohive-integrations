@@ -79,3 +79,4 @@ If a font file is not found:
 - Verify correct font file is being used
 - Check if fallback to heuristic is occurring
 - Ensure font has proper metrics (some decorative fonts may have issues)
+

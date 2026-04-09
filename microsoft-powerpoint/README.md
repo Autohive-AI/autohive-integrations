@@ -144,3 +144,4 @@ python -m pytest tests/ -v
 - [Microsoft Graph DriveItem API](https://learn.microsoft.com/en-us/graph/api/resources/driveitem)
 - [DriveItem Thumbnails](https://learn.microsoft.com/en-us/graph/api/driveitem-list-thumbnails)
 - [python-pptx Documentation](https://python-pptx.readthedocs.io/)
+

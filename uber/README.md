@@ -252,3 +252,4 @@ If not set, the integration defaults to the production URL (`https://api.uber.co
 - [Uber Riders API](https://developer.uber.com/docs/riders/introduction)
 - [API Reference](https://developer.uber.com/docs/riders/references/api)
 - [Authentication Guide](https://developer.uber.com/docs/riders/guides/authentication/introduction)
+

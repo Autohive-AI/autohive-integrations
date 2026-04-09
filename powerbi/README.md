@@ -352,3 +352,4 @@ Note: Testing requires proper Power BI authentication credentials and may requir
 - Report export operations are also asynchronous - use `get_export_status` to monitor progress
 - DAX queries require appropriate permissions and the dataset must support query operations
 - The integration uses the Power BI REST API v1.0
+

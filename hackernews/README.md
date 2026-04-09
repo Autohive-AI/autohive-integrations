@@ -152,3 +152,4 @@ To run the tests:
 ## License
 
 The Hacker News API is public and provided under the MIT license with no rate limits. See the [official API documentation](https://github.com/HackerNews/API) for details.
+

@@ -334,3 +334,4 @@ From markdown content:
 - ` ``` code ``` ` (auto-layout) → **code block**
 
 **Slide Maker Integration v1.0.0** | Built for Autohive Platform
+

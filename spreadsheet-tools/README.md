@@ -188,3 +188,4 @@ spreadsheet-tools/
 ## Version History
 
 - **1.0.0** - Initial release with CSV and Excel conversion support
+

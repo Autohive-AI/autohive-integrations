@@ -321,3 +321,4 @@ The integration handles rate limit responses (HTTP 429) automatically through th
 ## Version History
 
 - **0.1.0** - Initial release with 10 core actions for time tracking and resource management
+

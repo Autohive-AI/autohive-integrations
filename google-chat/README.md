@@ -239,3 +239,4 @@ To run the tests:
 1. Navigate to the integration's directory: `cd google-chat`
 2. Install dependencies: `pip install -r requirements.txt`
 3. Run the tests: `python tests/test_google_chat.py`
+

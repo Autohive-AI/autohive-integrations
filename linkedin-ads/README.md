@@ -49,3 +49,4 @@ This integration uses LinkedIn Marketing API version `202601`.
 - [LinkedIn Marketing API Documentation](https://learn.microsoft.com/en-us/linkedin/marketing/)
 - [Advertising API Quick Start](https://learn.microsoft.com/en-us/linkedin/marketing/quick-start)
 - [Campaign Management](https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads/account-structure/create-and-manage-campaigns)
+

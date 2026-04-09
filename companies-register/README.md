@@ -199,3 +199,4 @@ Update `SUBSCRIPTION_KEY`, `ACCESS_TOKEN`, and `TEST_NZBN` at the top of the tes
 
 - [Companies Register API Portal](https://portal.api.business.govt.nz/)
 - API Version: v2
+

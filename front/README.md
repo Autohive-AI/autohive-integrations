@@ -460,3 +460,4 @@ To run the tests:
 3. Run the tests: `python tests/test_front.py`
 
 Note: The tests use mock authentication and are designed for development validation. For production testing, ensure you have valid Front OAuth credentials configured.
+

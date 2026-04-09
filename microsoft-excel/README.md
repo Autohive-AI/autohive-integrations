@@ -124,3 +124,4 @@ This integration uses the [Microsoft Graph Excel API](https://learn.microsoft.co
 - Only `.xlsx` files are supported
 - Large range operations (>5M cells) should be avoided
 - Sessions expire after 5-7 minutes of inactivity
+

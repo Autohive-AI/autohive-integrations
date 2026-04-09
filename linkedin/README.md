@@ -114,3 +114,4 @@ Content-Type: application/json
 This integration uses:
 - LinkedIn Posts API (REST) with versioned headers
 - LinkedIn OpenID Connect userinfo endpoint
+

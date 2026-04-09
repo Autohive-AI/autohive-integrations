@@ -315,3 +315,4 @@ Delete a user by their ID.
 - [PostgREST Documentation](https://postgrest.org/en/stable/)
 - [Supabase Storage API](https://supabase.com/docs/guides/storage)
 - [Supabase Auth Admin API](https://supabase.com/docs/reference/javascript/auth-admin-listusers)
+

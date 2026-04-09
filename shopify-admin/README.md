@@ -272,3 +272,4 @@ As of April 2024, Shopify deprecated the REST Admin API `/products` and `/varian
 - Pagination uses cursor-based approach (`after` parameter) instead of `since_id`
 - Filtering uses GraphQL query syntax internally
 - Response format is backward-compatible with REST API structure
+

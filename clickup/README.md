@@ -499,3 +499,4 @@ To test the integration:
 - [ClickUp API Authentication](https://developer.clickup.com/docs/authentication)
 - [ClickUp API Reference](https://developer.clickup.com/reference)
 - [ClickUp Help Center](https://help.clickup.com/)
+

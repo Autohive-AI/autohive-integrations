@@ -173,3 +173,4 @@ To run the tests:
 4.  Run the tests: `python tests/test_heartbeat.py`
 
 Note: The tests include placeholder IDs that will need to be replaced with actual IDs from your Heartbeat community for full functionality testing.
+

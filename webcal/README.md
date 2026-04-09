@@ -120,3 +120,4 @@ This integration works with any iCal-compatible calendar:
 
 - [iCalendar Specification (RFC 5545)](https://datatracker.ietf.org/doc/html/rfc5545)
 - [Timezone Database](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
+

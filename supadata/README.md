@@ -90,3 +90,4 @@ To run the tests for this integration:
 4.  Run the tests: `python tests/test_supadata_transcribe.py`
 
 Note: Tests require a valid Supadata API key to interact with the actual service. Consider setting up environment variables for testing credentials.
+

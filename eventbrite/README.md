@@ -504,3 +504,4 @@ For issues with this integration, please check:
 3. The resource IDs are correct and accessible
 
 For Eventbrite API documentation, visit: https://www.eventbrite.com/platform/api
+
