@@ -1,3 +1,1 @@
-autohive-integrations-sdk
-supadata
-
+autohive-integrations-sdk~=1.0.2

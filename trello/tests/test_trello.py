@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_get_current_member():
     """Test getting current member information."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {}
 
@@ -24,7 +24,7 @@ async def test_get_current_member():
 
 async def test_list_boards():
     """Test listing all boards for authenticated member."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"filter": "open"}
 
@@ -42,7 +42,7 @@ async def test_list_boards():
 
 async def test_create_board():
     """Test creating a new board."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {
         "name": "Test Board via Integration",
@@ -65,7 +65,7 @@ async def test_create_board():
 
 async def test_get_board():
     """Test getting a specific board."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"board_id": "board_id_here", "fields": "name,desc,url"}
 
@@ -83,7 +83,7 @@ async def test_get_board():
 
 async def test_update_board():
     """Test updating a board."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"board_id": "board_id_here", "name": "Updated Board Name", "desc": "Updated board description"}
 
@@ -101,7 +101,7 @@ async def test_update_board():
 
 async def test_create_list():
     """Test creating a new list on a board."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"board_id": "board_id_here", "name": "To Do", "pos": "top"}
 
@@ -119,7 +119,7 @@ async def test_create_list():
 
 async def test_get_list():
     """Test getting a specific list."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"list_id": "list_id_here"}
 
@@ -137,7 +137,7 @@ async def test_get_list():
 
 async def test_update_list():
     """Test updating a list."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"list_id": "list_id_here", "name": "In Progress"}
 
@@ -155,7 +155,7 @@ async def test_update_list():
 
 async def test_list_lists():
     """Test listing all lists on a board."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"board_id": "board_id_here", "filter": "open"}
 
@@ -173,7 +173,7 @@ async def test_list_lists():
 
 async def test_create_card():
     """Test creating a new card."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {
         "list_id": "list_id_here",
@@ -196,7 +196,7 @@ async def test_create_card():
 
 async def test_get_card():
     """Test getting a specific card."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"card_id": "card_id_here", "fields": "name,desc,due,members"}
 
@@ -214,7 +214,7 @@ async def test_get_card():
 
 async def test_update_card():
     """Test updating a card."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"card_id": "card_id_here", "name": "Updated Card Name", "desc": "Updated card description"}
 
@@ -232,7 +232,7 @@ async def test_update_card():
 
 async def test_delete_card():
     """Test deleting a card."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"card_id": "card_id_here"}
 
@@ -249,7 +249,7 @@ async def test_delete_card():
 
 async def test_list_cards():
     """Test listing cards on a list."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"list_id": "list_id_here", "filter": "open"}
 
@@ -267,7 +267,7 @@ async def test_list_cards():
 
 async def test_create_checklist():
     """Test creating a checklist on a card."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"card_id": "card_id_here", "name": "Checklist Items"}
 
@@ -285,7 +285,7 @@ async def test_create_checklist():
 
 async def test_add_checklist_item():
     """Test adding an item to a checklist."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"checklist_id": "checklist_id_here", "name": "Task item 1", "checked": False}
 
@@ -303,7 +303,7 @@ async def test_add_checklist_item():
 
 async def test_add_comment():
     """Test adding a comment to a card."""
-    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {"card_id": "card_id_here", "text": "This is a test comment"}
 
