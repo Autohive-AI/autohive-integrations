@@ -15,7 +15,7 @@ async def get_access_token(session):
     async with session.get(url, headers=headers) as response:
         if response.status == 200:
             data = await response.json()
-            return data.get('access_token', '')
+            return data.get("access_token", "")
         else:
             text = await response.text()
             raise Exception(f"Token error: {response.status} - {text}")
@@ -23,11 +23,7 @@ async def get_access_token(session):
 
 def get_auth_headers(access_token):
     """Build auth headers."""
-    return {
-        "Authorization": f"Bearer {access_token}",
-        "x-api-key": API_KEY,
-        "Accept": "application/json"
-    }
+    return {"Authorization": f"Bearer {access_token}", "x-api-key": API_KEY, "Accept": "application/json"}
 
 
 async def test_list_products(session, token):
@@ -74,7 +70,7 @@ async def main():
         try:
             result = await test_list_products(session, token)
             if "error" not in result:
-                count = len(result) if isinstance(result, list) else len(result.get('Data', []))
+                count = len(result) if isinstance(result, list) else len(result.get("Data", []))
                 print(f"   [PASS] Got {count} products")
             else:
                 print(f"   [FAIL] {result}")
@@ -86,7 +82,7 @@ async def main():
         try:
             result = await test_list_customers(session, token)
             if "error" not in result:
-                count = len(result) if isinstance(result, list) else len(result.get('Data', []))
+                count = len(result) if isinstance(result, list) else len(result.get("Data", []))
                 print(f"   [PASS] Got {count} customers")
             else:
                 print(f"   [FAIL] {result}")
@@ -98,7 +94,7 @@ async def main():
         try:
             result = await test_list_orders(session, token)
             if "error" not in result:
-                count = len(result) if isinstance(result, list) else len(result.get('Data', []))
+                count = len(result) if isinstance(result, list) else len(result.get("Data", []))
                 print(f"   [PASS] Got {count} orders")
             else:
                 print(f"   [FAIL] {result}")
@@ -110,7 +106,7 @@ async def main():
         try:
             result = await test_list_outlets(session, token)
             if "error" not in result:
-                count = len(result) if isinstance(result, list) else len(result.get('Data', []))
+                count = len(result) if isinstance(result, list) else len(result.get("Data", []))
                 print(f"   [PASS] Got {count} outlets")
             else:
                 print(f"   [FAIL] {result}")
