@@ -4,7 +4,7 @@ Test suite for NZBN integration.
 These tests require valid NZBN API credentials to run against the live API.
 Set environment variables before running:
 - NZBN_CLIENT_ID
-- NZBN_CLIENT_SECRET  
+- NZBN_CLIENT_SECRET
 - NZBN_SUBSCRIPTION_KEY
 
 Usage:
@@ -20,9 +20,7 @@ from context import nzbn
 from autohive_integrations_sdk import ExecutionContext
 
 
-TEST_AUTH = {
-    "credentials": {}
-}
+TEST_AUTH = {"credentials": {}}
 
 TEST_NZBN = "9429041525746"
 
@@ -30,14 +28,14 @@ TEST_NZBN = "9429041525746"
 async def test_search_entities():
     """Test searching for entities."""
     print("\n=== Test: Search Entities ===")
-    
+
     inputs = {"search_term": "Xero", "page_size": 5}
-    
+
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await nzbn.execute_action("search_entities", inputs, context)
             data = result.result.data
-            
+
             if data.get("result"):
                 print(f"[OK] Found {data.get('totalItems', 0)} entities")
                 if data.get("items"):
@@ -52,14 +50,9 @@ async def test_search_entities():
 async def test_search_entities_with_filters():
     """Test searching with entity type filter."""
     print("\n=== Test: Search Entities with Filters ===")
-    
-    inputs = {
-        "search_term": "Limited",
-        "entity_type": "LTD",
-        "entity_status": "Registered",
-        "page_size": 3
-    }
-    
+
+    inputs = {"search_term": "Limited", "entity_type": "LTD", "entity_status": "Registered", "page_size": 3}
+
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await nzbn.execute_action("search_entities", inputs, context)
@@ -72,16 +65,16 @@ async def test_search_entities_with_filters():
 async def test_search_entities_missing_term():
     """Test search without search term - should fail validation."""
     print("\n=== Test: Search Entities (Missing Term) ===")
-    
+
     inputs = {}
-    
+
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await nzbn.execute_action("search_entities", inputs, context)
             data = result.result.data
-            
+
             if data.get("result") is False and "required" in data.get("error", "").lower():
-                print(f"[OK] Correctly returned error for missing search term")
+                print("[OK] Correctly returned error for missing search term")
             else:
                 print(f"[FAIL] Expected validation error, got: {data}")
         except Exception as e:
@@ -91,14 +84,14 @@ async def test_search_entities_missing_term():
 async def test_get_entity():
     """Test getting entity details."""
     print("\n=== Test: Get Entity ===")
-    
+
     inputs = {"nzbn": TEST_NZBN}
-    
+
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await nzbn.execute_action("get_entity", inputs, context)
             data = result.result.data
-            
+
             if data.get("result"):
                 entity = data["entity"]
                 print(f"[OK] Got entity: {entity.get('entityName', 'N/A')}")
@@ -120,7 +113,7 @@ async def test_get_entity_missing_nzbn():
             data = result.result.data
 
             if data.get("result") is False and "required" in data.get("error", "").lower():
-                print(f"[OK] Correctly returned error for missing NZBN")
+                print("[OK] Correctly returned error for missing NZBN")
             else:
                 print(f"[FAIL] Expected validation error, got: {data}")
         except Exception as e:
@@ -140,14 +133,14 @@ async def test_get_entity_summary():
 
             if data.get("result"):
                 summary = data["summary"]
-                print(f"[OK] Got entity summary:")
+                print("[OK] Got entity summary:")
                 print(f"     NZBN: {summary.get('nzbn', 'N/A')}")
                 print(f"     Name: {summary.get('entityName', 'N/A')}")
                 print(f"     Office: {summary.get('registeredOffice', 'N/A')}")
 
                 # Verify only 3 fields returned
                 if len(summary.keys()) == 3:
-                    print(f"[OK] Summary contains exactly 3 fields (optimized)")
+                    print("[OK] Summary contains exactly 3 fields (optimized)")
                 else:
                     print(f"[WARN] Summary has {len(summary.keys())} fields, expected 3")
             else:
@@ -168,7 +161,7 @@ async def test_get_entity_summary_missing_nzbn():
             data = result.result.data
 
             if data.get("result") is False and "required" in data.get("error", "").lower():
-                print(f"[OK] Correctly returned error for missing NZBN")
+                print("[OK] Correctly returned error for missing NZBN")
             else:
                 print(f"[FAIL] Expected validation error, got: {data}")
         except Exception as e:
@@ -193,6 +186,7 @@ async def test_token_savings_comparison():
 
             if full_data.get("result") and summary_data.get("result"):
                 import json
+
                 full_size = len(json.dumps(full_data.get("entity", {})))
                 summary_size = len(json.dumps(summary_data.get("summary", {})))
 
@@ -203,11 +197,11 @@ async def test_token_savings_comparison():
                 print(f"[OK] Token savings: {savings_pct}%")
 
                 if savings_pct >= 95:
-                    print(f"[OK] Achieved target of 95%+ token savings")
+                    print("[OK] Achieved target of 95%+ token savings")
                 else:
-                    print(f"[WARN] Token savings below 95% target")
+                    print("[WARN] Token savings below 95% target")
             else:
-                print(f"[INFO] Could not compare - one action failed")
+                print("[INFO] Could not compare - one action failed")
         except Exception as e:
             print(f"[FAIL] Error: {e}")
 
@@ -215,14 +209,14 @@ async def test_token_savings_comparison():
 async def test_get_entity_addresses():
     """Test getting entity addresses."""
     print("\n=== Test: Get Entity Addresses ===")
-    
+
     inputs = {"nzbn": TEST_NZBN}
-    
+
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await nzbn.execute_action("get_entity_addresses", inputs, context)
             data = result.result.data
-            
+
             if data.get("result"):
                 print(f"[OK] Got {len(data.get('addresses', []))} addresses")
             else:
@@ -234,14 +228,14 @@ async def test_get_entity_addresses():
 async def test_get_entity_roles():
     """Test getting entity roles."""
     print("\n=== Test: Get Entity Roles ===")
-    
+
     inputs = {"nzbn": TEST_NZBN}
-    
+
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await nzbn.execute_action("get_entity_roles", inputs, context)
             data = result.result.data
-            
+
             if data.get("result"):
                 print(f"[OK] Got {len(data.get('roles', []))} roles")
             else:
@@ -253,14 +247,14 @@ async def test_get_entity_roles():
 async def test_get_entity_trading_names():
     """Test getting entity trading names."""
     print("\n=== Test: Get Entity Trading Names ===")
-    
+
     inputs = {"nzbn": TEST_NZBN}
-    
+
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await nzbn.execute_action("get_entity_trading_names", inputs, context)
             data = result.result.data
-            
+
             if data.get("result"):
                 print(f"[OK] Got {len(data.get('tradingNames', []))} trading names")
             else:
@@ -272,16 +266,16 @@ async def test_get_entity_trading_names():
 async def test_get_company_details():
     """Test getting company details."""
     print("\n=== Test: Get Company Details ===")
-    
+
     inputs = {"nzbn": TEST_NZBN}
-    
+
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await nzbn.execute_action("get_company_details", inputs, context)
             data = result.result.data
-            
+
             if data.get("result"):
-                print(f"[OK] Got company details")
+                print("[OK] Got company details")
             else:
                 print(f"[INFO] Get company details returned: {data.get('error', 'Unknown')}")
         except Exception as e:
@@ -291,14 +285,14 @@ async def test_get_company_details():
 async def test_get_entity_gst_numbers():
     """Test getting entity GST numbers."""
     print("\n=== Test: Get Entity GST Numbers ===")
-    
+
     inputs = {"nzbn": TEST_NZBN}
-    
+
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await nzbn.execute_action("get_entity_gst_numbers", inputs, context)
             data = result.result.data
-            
+
             if data.get("result"):
                 print(f"[OK] Got {len(data.get('gstNumbers', []))} GST numbers")
             else:
@@ -310,14 +304,14 @@ async def test_get_entity_gst_numbers():
 async def test_get_entity_industry_classifications():
     """Test getting entity industry classifications."""
     print("\n=== Test: Get Entity Industry Classifications ===")
-    
+
     inputs = {"nzbn": TEST_NZBN}
-    
+
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await nzbn.execute_action("get_entity_industry_classifications", inputs, context)
             data = result.result.data
-            
+
             if data.get("result"):
                 print(f"[OK] Got {len(data.get('industryClassifications', []))} classifications")
             else:
@@ -329,17 +323,14 @@ async def test_get_entity_industry_classifications():
 async def test_get_changes():
     """Test getting recent changes."""
     print("\n=== Test: Get Changes ===")
-    
-    inputs = {
-        "change_event_type": "NewRegistration",
-        "page_size": 5
-    }
-    
+
+    inputs = {"change_event_type": "NewRegistration", "page_size": 5}
+
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await nzbn.execute_action("get_changes", inputs, context)
             data = result.result.data
-            
+
             if data.get("result"):
                 print(f"[OK] Got {len(data.get('changes', []))} change events")
             else:
@@ -351,16 +342,16 @@ async def test_get_changes():
 async def test_get_changes_missing_event_type():
     """Test get changes without event type - should fail validation."""
     print("\n=== Test: Get Changes (Missing Event Type) ===")
-    
+
     inputs = {}
-    
+
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
             result = await nzbn.execute_action("get_changes", inputs, context)
             data = result.result.data
-            
+
             if data.get("result") is False and "required" in data.get("error", "").lower():
-                print(f"[OK] Correctly returned error for missing event type")
+                print("[OK] Correctly returned error for missing event type")
             else:
                 print(f"[FAIL] Expected validation error, got: {data}")
         except Exception as e:
@@ -386,13 +377,13 @@ async def run_full_tests():
     print("=" * 60)
     print("\nNote: Set NZBN_CLIENT_ID, NZBN_CLIENT_SECRET, and")
     print("      NZBN_SUBSCRIPTION_KEY environment variables.\n")
-    
+
     await run_quick_tests()
-    
+
     print("\n" + "-" * 60)
     print("API Tests (require valid credentials)")
     print("-" * 60)
-    
+
     await test_search_entities()
     await test_search_entities_with_filters()
     await test_get_entity()
@@ -409,12 +400,12 @@ async def run_full_tests():
 
 async def main():
     quick_mode = "--quick" in sys.argv
-    
+
     if quick_mode:
         await run_quick_tests()
     else:
         await run_full_tests()
-    
+
     print("\n" + "=" * 60)
     print("[DONE] All tests completed!")
     print("=" * 60)
