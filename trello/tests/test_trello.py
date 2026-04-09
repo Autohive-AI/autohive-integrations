@@ -6,13 +6,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_get_current_member():
     """Test getting current member information."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {}
 
@@ -20,8 +14,8 @@ async def test_get_current_member():
         try:
             result = await trello.execute_action("get_current_member", inputs, context)
             print(f"Get Current Member Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'member' in result, "Response missing 'member' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "member" in result, "Response missing 'member' field"
             return result
         except Exception as e:
             print(f"Error testing get_current_member: {e}")
@@ -30,24 +24,16 @@ async def test_get_current_member():
 
 async def test_list_boards():
     """Test listing all boards for authenticated member."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "filter": "open"
-    }
+    inputs = {"filter": "open"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("list_boards", inputs, context)
             print(f"List Boards Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'boards' in result, "Response missing 'boards' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "boards" in result, "Response missing 'boards' field"
             return result
         except Exception as e:
             print(f"Error testing list_boards: {e}")
@@ -56,27 +42,21 @@ async def test_list_boards():
 
 async def test_create_board():
     """Test creating a new board."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {
         "name": "Test Board via Integration",
         "desc": "This is a test board created via Trello API integration",
         "defaultLists": True,
-        "prefs_permissionLevel": "private"
+        "prefs_permissionLevel": "private",
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("create_board", inputs, context)
             print(f"Create Board Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'board' in result, "Response missing 'board' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "board" in result, "Response missing 'board' field"
             return result
         except Exception as e:
             print(f"Error testing create_board: {e}")
@@ -85,25 +65,16 @@ async def test_create_board():
 
 async def test_get_board():
     """Test getting a specific board."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "board_id": "board_id_here",
-        "fields": "name,desc,url"
-    }
+    inputs = {"board_id": "board_id_here", "fields": "name,desc,url"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("get_board", inputs, context)
             print(f"Get Board Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'board' in result, "Response missing 'board' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "board" in result, "Response missing 'board' field"
             return result
         except Exception as e:
             print(f"Error testing get_board: {e}")
@@ -112,26 +83,16 @@ async def test_get_board():
 
 async def test_update_board():
     """Test updating a board."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "board_id": "board_id_here",
-        "name": "Updated Board Name",
-        "desc": "Updated board description"
-    }
+    inputs = {"board_id": "board_id_here", "name": "Updated Board Name", "desc": "Updated board description"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("update_board", inputs, context)
             print(f"Update Board Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'board' in result, "Response missing 'board' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "board" in result, "Response missing 'board' field"
             return result
         except Exception as e:
             print(f"Error testing update_board: {e}")
@@ -140,26 +101,16 @@ async def test_update_board():
 
 async def test_create_list():
     """Test creating a new list on a board."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "board_id": "board_id_here",
-        "name": "To Do",
-        "pos": "top"
-    }
+    inputs = {"board_id": "board_id_here", "name": "To Do", "pos": "top"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("create_list", inputs, context)
             print(f"Create List Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'list' in result, "Response missing 'list' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "list" in result, "Response missing 'list' field"
             return result
         except Exception as e:
             print(f"Error testing create_list: {e}")
@@ -168,24 +119,16 @@ async def test_create_list():
 
 async def test_get_list():
     """Test getting a specific list."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "list_id": "list_id_here"
-    }
+    inputs = {"list_id": "list_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("get_list", inputs, context)
             print(f"Get List Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'list' in result, "Response missing 'list' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "list" in result, "Response missing 'list' field"
             return result
         except Exception as e:
             print(f"Error testing get_list: {e}")
@@ -194,25 +137,16 @@ async def test_get_list():
 
 async def test_update_list():
     """Test updating a list."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "list_id": "list_id_here",
-        "name": "In Progress"
-    }
+    inputs = {"list_id": "list_id_here", "name": "In Progress"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("update_list", inputs, context)
             print(f"Update List Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'list' in result, "Response missing 'list' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "list" in result, "Response missing 'list' field"
             return result
         except Exception as e:
             print(f"Error testing update_list: {e}")
@@ -221,25 +155,16 @@ async def test_update_list():
 
 async def test_list_lists():
     """Test listing all lists on a board."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "board_id": "board_id_here",
-        "filter": "open"
-    }
+    inputs = {"board_id": "board_id_here", "filter": "open"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("list_lists", inputs, context)
             print(f"List Lists Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'lists' in result, "Response missing 'lists' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "lists" in result, "Response missing 'lists' field"
             return result
         except Exception as e:
             print(f"Error testing list_lists: {e}")
@@ -248,27 +173,21 @@ async def test_list_lists():
 
 async def test_create_card():
     """Test creating a new card."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
     inputs = {
         "list_id": "list_id_here",
         "name": "Test Card via Integration",
         "desc": "This is a test card created via Trello API integration",
-        "pos": "top"
+        "pos": "top",
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("create_card", inputs, context)
             print(f"Create Card Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'card' in result, "Response missing 'card' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "card" in result, "Response missing 'card' field"
             return result
         except Exception as e:
             print(f"Error testing create_card: {e}")
@@ -277,25 +196,16 @@ async def test_create_card():
 
 async def test_get_card():
     """Test getting a specific card."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "card_id": "card_id_here",
-        "fields": "name,desc,due,members"
-    }
+    inputs = {"card_id": "card_id_here", "fields": "name,desc,due,members"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("get_card", inputs, context)
             print(f"Get Card Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'card' in result, "Response missing 'card' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "card" in result, "Response missing 'card' field"
             return result
         except Exception as e:
             print(f"Error testing get_card: {e}")
@@ -304,26 +214,16 @@ async def test_get_card():
 
 async def test_update_card():
     """Test updating a card."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "card_id": "card_id_here",
-        "name": "Updated Card Name",
-        "desc": "Updated card description"
-    }
+    inputs = {"card_id": "card_id_here", "name": "Updated Card Name", "desc": "Updated card description"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("update_card", inputs, context)
             print(f"Update Card Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'card' in result, "Response missing 'card' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "card" in result, "Response missing 'card' field"
             return result
         except Exception as e:
             print(f"Error testing update_card: {e}")
@@ -332,23 +232,15 @@ async def test_update_card():
 
 async def test_delete_card():
     """Test deleting a card."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "card_id": "card_id_here"
-    }
+    inputs = {"card_id": "card_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("delete_card", inputs, context)
             print(f"Delete Card Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
             return result
         except Exception as e:
             print(f"Error testing delete_card: {e}")
@@ -357,25 +249,16 @@ async def test_delete_card():
 
 async def test_list_cards():
     """Test listing cards on a list."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "list_id": "list_id_here",
-        "filter": "open"
-    }
+    inputs = {"list_id": "list_id_here", "filter": "open"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("list_cards", inputs, context)
             print(f"List Cards Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'cards' in result, "Response missing 'cards' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "cards" in result, "Response missing 'cards' field"
             return result
         except Exception as e:
             print(f"Error testing list_cards: {e}")
@@ -384,25 +267,16 @@ async def test_list_cards():
 
 async def test_create_checklist():
     """Test creating a checklist on a card."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "card_id": "card_id_here",
-        "name": "Checklist Items"
-    }
+    inputs = {"card_id": "card_id_here", "name": "Checklist Items"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("create_checklist", inputs, context)
             print(f"Create Checklist Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'checklist' in result, "Response missing 'checklist' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "checklist" in result, "Response missing 'checklist' field"
             return result
         except Exception as e:
             print(f"Error testing create_checklist: {e}")
@@ -411,26 +285,16 @@ async def test_create_checklist():
 
 async def test_add_checklist_item():
     """Test adding an item to a checklist."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "checklist_id": "checklist_id_here",
-        "name": "Task item 1",
-        "checked": False
-    }
+    inputs = {"checklist_id": "checklist_id_here", "name": "Task item 1", "checked": False}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("add_checklist_item", inputs, context)
             print(f"Add Checklist Item Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'checkItem' in result, "Response missing 'checkItem' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "checkItem" in result, "Response missing 'checkItem' field"
             return result
         except Exception as e:
             print(f"Error testing add_checklist_item: {e}")
@@ -439,25 +303,16 @@ async def test_add_checklist_item():
 
 async def test_add_comment():
     """Test adding a comment to a card."""
-    auth = {
-        "auth_type": "custom",
-        "credentials": {
-            "api_key": "your_api_key_here",
-            "token": "your_token_here"
-        }
-    }
+    auth = {"auth_type": "custom", "credentials": {"api_key": "your_api_key_here", "token": "your_token_here"}}  # nosec B105
 
-    inputs = {
-        "card_id": "card_id_here",
-        "text": "This is a test comment"
-    }
+    inputs = {"card_id": "card_id_here", "text": "This is a test comment"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await trello.execute_action("add_comment", inputs, context)
             print(f"Add Comment Result: {result}")
-            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
-            assert 'comment' in result, "Response missing 'comment' field"
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "comment" in result, "Response missing 'comment' field"
             return result
         except Exception as e:
             print(f"Error testing add_comment: {e}")
