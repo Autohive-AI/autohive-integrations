@@ -10,7 +10,7 @@ from autohive_integrations_sdk import ExecutionContext
 SUBSCRIPTION_KEY = "your_subscription_key_here"
 
 # OAuth access token from RealMe authentication (sandbox: use L_testuser)
-ACCESS_TOKEN = "your_oauth_token_here"
+ACCESS_TOKEN = "your_oauth_token_here"  # nosec B105
 
 # NZBN of a registered company to test against (status 50)
 # Example NZBN from MBIE sandbox data

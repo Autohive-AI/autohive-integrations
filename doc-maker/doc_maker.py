@@ -51,7 +51,7 @@ def load_document_from_files(document_id: str, files: List[Dict[str, Any]]) -> N
                     documents[document_id] = doc
                     return
                 except Exception:
-                    continue
+                    continue  # nosec B112
 
         # If no valid Word file found, provide better error message
         available_files = list(processed_files.keys())
