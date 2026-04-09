@@ -7,7 +7,7 @@ from autohive_integrations_sdk import ExecutionContext
 # Get your access_token via HeyGen OAuth flow: https://app.heygen.com/oauth/authorize
 TEST_AUTH = {
     "credentials": {
-        "access_token": "your_oauth_access_token_here"
+        "access_token": "your_oauth_access_token_here"  # nosec B105
     }
 }
 
@@ -85,10 +85,7 @@ async def test_list_avatars():
     """Test listing available avatars. FREE - no credits used."""
     print("\n[TEST] Listing available avatars...")
 
-    inputs = {
-        "page": 1,
-        "limit": 10
-    }
+    inputs = {"page": 1, "limit": 10}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -129,9 +126,7 @@ async def test_get_avatar_details():
 
     print(f"\n[TEST] Getting avatar details for {test_avatar_id}...")
 
-    inputs = {
-        "avatar_id": test_avatar_id
-    }
+    inputs = {"avatar_id": test_avatar_id}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -160,10 +155,7 @@ async def test_list_avatar_groups():
     """Test listing avatar groups. FREE - no credits used."""
     print("\n[TEST] Listing avatar groups...")
 
-    inputs = {
-        "page": 1,
-        "limit": 10
-    }
+    inputs = {"page": 1, "limit": 10}
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
