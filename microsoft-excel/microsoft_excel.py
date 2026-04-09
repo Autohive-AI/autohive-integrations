@@ -1,4 +1,9 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+)
 from typing import Dict, Any
 from urllib.parse import quote
 
@@ -25,7 +30,9 @@ def encode_range_address(address: str) -> str:
 
 @microsoft_excel.action("excel_list_workbooks")
 class ListWorkbooks(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             name_contains = inputs.get("name_contains")
             folder_path = inputs.get("folder_path")
@@ -55,7 +62,10 @@ class ListWorkbooks(ActionHandler):
             workbooks = []
             for item in items:
                 if item.get("file", {}).get("mimeType") == EXCEL_MIMETYPE:
-                    if name_contains and name_contains.lower() not in item.get("name", "").lower():
+                    if (
+                        name_contains
+                        and name_contains.lower() not in item.get("name", "").lower()
+                    ):
                         continue
                     workbooks.append(
                         {
@@ -87,7 +97,9 @@ class ListWorkbooks(ActionHandler):
 
 @microsoft_excel.action("excel_get_workbook")
 class GetWorkbook(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
 
@@ -96,7 +108,9 @@ class GetWorkbook(ActionHandler):
             file_data = await context.fetch(file_url, method="GET")
 
             # Get worksheets (non-fatal: continue with empty list if API call fails)
-            worksheets_url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/worksheets"
+            worksheets_url = (
+                f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/worksheets"
+            )
             worksheets = []
             try:
                 ws_data = await context.fetch(worksheets_url, method="GET")
@@ -114,7 +128,9 @@ class GetWorkbook(ActionHandler):
                 pass
 
             # Get tables (non-fatal: continue with empty list if API call fails)
-            tables_url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/tables"
+            tables_url = (
+                f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/tables"
+            )
             tables = []
             try:
                 tables_data = await context.fetch(tables_url, method="GET")
@@ -177,7 +193,9 @@ class GetWorkbook(ActionHandler):
 
 @microsoft_excel.action("excel_list_worksheets")
 class ListWorksheets(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
 
@@ -195,7 +213,9 @@ class ListWorksheets(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"worksheets": worksheets, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"worksheets": worksheets, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
             return ActionResult(
@@ -210,7 +230,9 @@ class ListWorksheets(ActionHandler):
 
 @microsoft_excel.action("excel_read_range")
 class ReadRange(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             worksheet_name = inputs["worksheet_name"]
@@ -226,7 +248,9 @@ class ReadRange(ActionHandler):
             response = await context.fetch(url, method="GET")
 
             values = response.get("values", [])
-            formulas = response.get("formulas", []) if value_render_option == "FORMULA" else []
+            formulas = (
+                response.get("formulas", []) if value_render_option == "FORMULA" else []
+            )
             number_format = response.get("numberFormat", [])
 
             row_count = len(values)
@@ -257,7 +281,9 @@ class ReadRange(ActionHandler):
 
 @microsoft_excel.action("excel_write_range")
 class WriteRange(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             worksheet_name = inputs["worksheet_name"]
@@ -300,7 +326,9 @@ class WriteRange(ActionHandler):
 
 @microsoft_excel.action("excel_list_tables")
 class ListTables(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             worksheet_name = inputs.get("worksheet_name")
@@ -340,7 +368,9 @@ class ListTables(ActionHandler):
 
 @microsoft_excel.action("excel_get_table_data")
 class GetTableData(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             table_name = inputs["table_name"]
@@ -390,7 +420,9 @@ class GetTableData(ActionHandler):
             if select_columns:
                 col_indices = [all_headers.index(c) for c in select_columns]
                 headers_out = [all_headers[i] for i in col_indices]
-                rows_out = [[row[i] for i in col_indices if i < len(row)] for row in all_rows]
+                rows_out = [
+                    [row[i] for i in col_indices if i < len(row)] for row in all_rows
+                ]
             else:
                 headers_out = all_headers
                 rows_out = all_rows
@@ -431,7 +463,9 @@ class GetTableData(ActionHandler):
 
 @microsoft_excel.action("excel_add_table_row")
 class AddTableRow(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             table_name = inputs["table_name"]
@@ -478,7 +512,9 @@ class AddTableRow(ActionHandler):
 
 @microsoft_excel.action("excel_get_used_range")
 class GetUsedRange(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             worksheet_name = inputs["worksheet_name"]
@@ -537,12 +573,16 @@ class GetUsedRange(ActionHandler):
 
 @microsoft_excel.action("excel_create_worksheet")
 class CreateWorksheet(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             name = inputs["name"]
 
-            url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/worksheets/add"
+            url = (
+                f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/worksheets/add"
+            )
 
             body = {"name": name}
             response = await context.fetch(url, method="POST", json=body)
@@ -572,7 +612,9 @@ class CreateWorksheet(ActionHandler):
 
 @microsoft_excel.action("excel_delete_worksheet")
 class DeleteWorksheet(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             worksheet_name = inputs["worksheet_name"]
@@ -596,7 +638,9 @@ class DeleteWorksheet(ActionHandler):
 
 @microsoft_excel.action("excel_create_table")
 class CreateTable(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             worksheet_name = inputs["worksheet_name"]
@@ -633,7 +677,9 @@ class CreateTable(ActionHandler):
 
 @microsoft_excel.action("excel_update_table_row")
 class UpdateTableRow(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             table_name = inputs["table_name"]
@@ -649,7 +695,9 @@ class UpdateTableRow(ActionHandler):
             body = {"values": [values]}
             response = await context.fetch(url, method="PATCH", json=body)
 
-            return ActionResult(data={"updated_row": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"updated_row": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
             return ActionResult(
@@ -663,7 +711,9 @@ class UpdateTableRow(ActionHandler):
 
 @microsoft_excel.action("excel_delete_table_row")
 class DeleteTableRow(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             table_name = inputs["table_name"]
@@ -691,7 +741,9 @@ class DeleteTableRow(ActionHandler):
 
 @microsoft_excel.action("excel_sort_range")
 class SortRange(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             worksheet_name = inputs["worksheet_name"]
@@ -733,7 +785,9 @@ class SortRange(ActionHandler):
 
 @microsoft_excel.action("excel_apply_filter")
 class ApplyFilter(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             table_name = inputs["table_name"]
@@ -791,7 +845,9 @@ class ApplyFilter(ActionHandler):
 
 @microsoft_excel.action("excel_clear_filter")
 class ClearFilter(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             table_name = inputs["table_name"]
@@ -815,7 +871,9 @@ class ClearFilter(ActionHandler):
 
 @microsoft_excel.action("excel_format_range")
 class FormatRange(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             workbook_id = inputs["workbook_id"]
             worksheet_name = inputs["worksheet_name"]
@@ -835,7 +893,9 @@ class FormatRange(ActionHandler):
             if "font" in format_spec:
                 font_url = f"{base_url}/font"
                 try:
-                    await context.fetch(font_url, method="PATCH", json=format_spec["font"])
+                    await context.fetch(
+                        font_url, method="PATCH", json=format_spec["font"]
+                    )
                 except Exception as e:
                     errors.append(f"Font: {str(e)}")
 
@@ -843,14 +903,18 @@ class FormatRange(ActionHandler):
             if "fill" in format_spec:
                 fill_url = f"{base_url}/fill"
                 try:
-                    await context.fetch(fill_url, method="PATCH", json=format_spec["fill"])
+                    await context.fetch(
+                        fill_url, method="PATCH", json=format_spec["fill"]
+                    )
                 except Exception as e:
                     errors.append(f"Fill: {str(e)}")
 
             # Apply alignment formatting
             alignment_body = {}
             if "horizontalAlignment" in format_spec:
-                alignment_body["horizontalAlignment"] = format_spec["horizontalAlignment"]
+                alignment_body["horizontalAlignment"] = format_spec[
+                    "horizontalAlignment"
+                ]
             if "verticalAlignment" in format_spec:
                 alignment_body["verticalAlignment"] = format_spec["verticalAlignment"]
 
@@ -867,7 +931,11 @@ class FormatRange(ActionHandler):
                     f"/worksheets/{encoded_ws}/range(address='{encoded_range}')"
                 )
                 try:
-                    await context.fetch(range_url, method="PATCH", json={"numberFormat": format_spec["numberFormat"]})
+                    await context.fetch(
+                        range_url,
+                        method="PATCH",
+                        json={"numberFormat": format_spec["numberFormat"]},
+                    )
                 except Exception as e:
                     errors.append(f"NumberFormat: {str(e)}")
 

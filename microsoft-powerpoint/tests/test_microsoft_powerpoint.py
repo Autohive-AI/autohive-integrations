@@ -44,7 +44,8 @@ class TestListPresentationsAction:
 
         action = ListPresentationsAction()
         result = await action.execute(
-            {"name_contains": "Report", "folder_path": "Documents", "page_size": 10}, mock_context
+            {"name_contains": "Report", "folder_path": "Documents", "page_size": 10},
+            mock_context,
         )
 
         assert result["result"] is True
@@ -57,7 +58,9 @@ class TestListPresentationsAction:
         mock_context.fetch.return_value = {"value": [], "@odata.nextLink": None}
 
         action = ListPresentationsAction()
-        result = await action.execute({"name_contains": "O'Brien's Report"}, mock_context)
+        result = await action.execute(
+            {"name_contains": "O'Brien's Report"}, mock_context
+        )
 
         assert result["result"] is True
         call_args = mock_context.fetch.call_args
@@ -120,7 +123,12 @@ class TestGetSlidesAction:
         mock_download.return_value = buffer.read()
 
         mock_context.fetch.return_value = {
-            "value": [{"id": "0", "medium": {"url": "https://thumb.com", "width": 800, "height": 600}}]
+            "value": [
+                {
+                    "id": "0",
+                    "medium": {"url": "https://thumb.com", "width": 800, "height": 600},
+                }
+            ]
         }
 
         action = GetSlidesAction()
@@ -148,11 +156,22 @@ class TestGetSlideAction:
         mock_download.return_value = buffer.read()
 
         mock_context.fetch.return_value = {
-            "value": [{"id": "0", "large": {"url": "https://thumb.com", "width": 1600, "height": 1200}}]
+            "value": [
+                {
+                    "id": "0",
+                    "large": {
+                        "url": "https://thumb.com",
+                        "width": 1600,
+                        "height": 1200,
+                    },
+                }
+            ]
         }
 
         action = GetSlideAction()
-        result = await action.execute({"presentation_id": "item-123", "slide_index": 2}, mock_context)
+        result = await action.execute(
+            {"presentation_id": "item-123", "slide_index": 2}, mock_context
+        )
 
         assert result["result"] is True
         assert result["index"] == 2
@@ -162,7 +181,9 @@ class TestGetSlideAction:
         from microsoft_powerpoint import GetSlideAction
 
         action = GetSlideAction()
-        result = await action.execute({"presentation_id": "item-123", "slide_index": 0}, mock_context)
+        result = await action.execute(
+            {"presentation_id": "item-123", "slide_index": 0}, mock_context
+        )
 
         assert result["result"] is False
         assert "error" in result
@@ -181,7 +202,9 @@ class TestGetSlideAction:
         mock_download.return_value = buffer.read()
 
         action = GetSlideAction()
-        result = await action.execute({"presentation_id": "item-123", "slide_index": 5}, mock_context)
+        result = await action.execute(
+            {"presentation_id": "item-123", "slide_index": 5}, mock_context
+        )
 
         assert result["result"] is False
         assert "out of range" in result["error"]
@@ -191,7 +214,9 @@ class TestDeleteSlideAction:
     @pytest.mark.asyncio
     @patch("microsoft_powerpoint.overwrite_file_content")
     @patch("microsoft_powerpoint.download_file_content")
-    async def test_delete_slide_success(self, mock_download, mock_overwrite, mock_context):
+    async def test_delete_slide_success(
+        self, mock_download, mock_overwrite, mock_context
+    ):
         from microsoft_powerpoint import DeleteSlideAction
         from pptx import Presentation
 
@@ -205,7 +230,9 @@ class TestDeleteSlideAction:
         mock_overwrite.return_value = {}
 
         action = DeleteSlideAction()
-        result = await action.execute({"presentation_id": "item-123", "slide_index": 1}, mock_context)
+        result = await action.execute(
+            {"presentation_id": "item-123", "slide_index": 1}, mock_context
+        )
 
         assert result["result"] is True
         assert result["deleted"] is True
@@ -225,7 +252,9 @@ class TestDeleteSlideAction:
         mock_download.return_value = buffer.read()
 
         action = DeleteSlideAction()
-        result = await action.execute({"presentation_id": "item-123", "slide_index": 1}, mock_context)
+        result = await action.execute(
+            {"presentation_id": "item-123", "slide_index": 1}, mock_context
+        )
 
         assert result["result"] is False
         assert "Cannot delete the last slide" in result["error"]
@@ -237,9 +266,17 @@ class TestExportPdfAction:
         from microsoft_powerpoint import ExportPdfAction
 
         mock_context.fetch.side_effect = [
-            {"name": "Report.pptx", "parentReference": {"path": "/drive/root:/Documents"}},
+            {
+                "name": "Report.pptx",
+                "parentReference": {"path": "/drive/root:/Documents"},
+            },
             b"%PDF-1.4...",
-            {"id": "pdf-123", "name": "Report.pdf", "webUrl": "https://example.com/pdf", "size": 1024},
+            {
+                "id": "pdf-123",
+                "name": "Report.pdf",
+                "webUrl": "https://example.com/pdf",
+                "size": 1024,
+            },
             {"@microsoft.graph.downloadUrl": "https://download.com/pdf"},
         ]
 
@@ -266,11 +303,22 @@ class TestGetSlideImageAction:
         mock_download.return_value = buffer.read()
 
         mock_context.fetch.return_value = {
-            "value": [{"id": "0", "large": {"url": "https://image.com/slide1.png", "width": 1600, "height": 1200}}]
+            "value": [
+                {
+                    "id": "0",
+                    "large": {
+                        "url": "https://image.com/slide1.png",
+                        "width": 1600,
+                        "height": 1200,
+                    },
+                }
+            ]
         }
 
         action = GetSlideImageAction()
-        result = await action.execute({"presentation_id": "item-123", "slide_index": 1}, mock_context)
+        result = await action.execute(
+            {"presentation_id": "item-123", "slide_index": 1}, mock_context
+        )
 
         assert result["result"] is True
         assert result["image_url"] == "https://image.com/slide1.png"
@@ -282,7 +330,9 @@ class TestGetSlideImageAction:
         from microsoft_powerpoint import GetSlideImageAction
 
         action = GetSlideImageAction()
-        result = await action.execute({"presentation_id": "item-123", "slide_index": 0}, mock_context)
+        result = await action.execute(
+            {"presentation_id": "item-123", "slide_index": 0}, mock_context
+        )
 
         assert result["result"] is False
 
@@ -300,14 +350,18 @@ class TestCreatePresentationAction:
         }
 
         action = CreatePresentationAction()
-        result = await action.execute({"name": "New Presentation", "template_id": "template-123"}, mock_context)
+        result = await action.execute(
+            {"name": "New Presentation", "template_id": "template-123"}, mock_context
+        )
 
         assert result["result"] is True
 
     @pytest.mark.asyncio
     @patch("microsoft_powerpoint.create_blank_pptx")
     @patch("microsoft_powerpoint.upload_file_content")
-    async def test_create_blank_presentation(self, mock_upload, mock_create_blank, mock_context):
+    async def test_create_blank_presentation(
+        self, mock_upload, mock_create_blank, mock_context
+    ):
         from microsoft_powerpoint import CreatePresentationAction
 
         mock_create_blank.return_value = b"PK..."
