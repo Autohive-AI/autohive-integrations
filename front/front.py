@@ -1,8 +1,5 @@
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler
-)
-from typing import Dict, Any, List, Optional
-import json
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from typing import Dict, Any, List
 import base64
 import aiohttp
 import io
@@ -15,40 +12,41 @@ FRONT_API_BASE = "https://api2.frontapp.com"
 
 # ---- Utility Classes ----
 
+
 class FrontDataParser:
     @staticmethod
     def parse_conversation(raw_conversation: Dict[str, Any]) -> Dict[str, Any]:
         """Parse raw Front conversation into standardized format."""
         # Required fields
         conversation = {
-            "id": raw_conversation.get('id', ''),
-            "subject": raw_conversation.get('subject', ''),
-            "status": raw_conversation.get('status', ''),
+            "id": raw_conversation.get("id", ""),
+            "subject": raw_conversation.get("subject", ""),
+            "status": raw_conversation.get("status", ""),
         }
 
         # Add optional status fields
-        if 'status_id' in raw_conversation:
-            conversation['status_id'] = raw_conversation['status_id']
-        if 'status_category' in raw_conversation:
-            conversation['status_category'] = raw_conversation['status_category']
-        if 'ticket_ids' in raw_conversation:
-            conversation['ticket_ids'] = raw_conversation['ticket_ids']
+        if "status_id" in raw_conversation:
+            conversation["status_id"] = raw_conversation["status_id"]
+        if "status_category" in raw_conversation:
+            conversation["status_category"] = raw_conversation["status_category"]
+        if "ticket_ids" in raw_conversation:
+            conversation["ticket_ids"] = raw_conversation["ticket_ids"]
 
         # Add optional fields if they exist (these may be None/null which is valid)
-        conversation['assignee'] = raw_conversation.get('assignee')
-        conversation['recipient'] = raw_conversation.get('recipient')
-        conversation['tags'] = raw_conversation.get('tags', [])
-        conversation['links'] = raw_conversation.get('links', [])
-        conversation['scheduled_reminders'] = raw_conversation.get('scheduled_reminders', [])
-        conversation['custom_fields'] = raw_conversation.get('custom_fields', {})
-        conversation['metadata'] = raw_conversation.get('metadata', {})
+        conversation["assignee"] = raw_conversation.get("assignee")
+        conversation["recipient"] = raw_conversation.get("recipient")
+        conversation["tags"] = raw_conversation.get("tags", [])
+        conversation["links"] = raw_conversation.get("links", [])
+        conversation["scheduled_reminders"] = raw_conversation.get("scheduled_reminders", [])
+        conversation["custom_fields"] = raw_conversation.get("custom_fields", {})
+        conversation["metadata"] = raw_conversation.get("metadata", {})
 
-        if 'created_at' in raw_conversation:
-            conversation['created_at'] = raw_conversation['created_at']
-        if 'waiting_since' in raw_conversation:
-            conversation['waiting_since'] = raw_conversation['waiting_since']
-        if 'is_private' in raw_conversation:
-            conversation['is_private'] = raw_conversation['is_private']
+        if "created_at" in raw_conversation:
+            conversation["created_at"] = raw_conversation["created_at"]
+        if "waiting_since" in raw_conversation:
+            conversation["waiting_since"] = raw_conversation["waiting_since"]
+        if "is_private" in raw_conversation:
+            conversation["is_private"] = raw_conversation["is_private"]
 
         return conversation
 
@@ -56,25 +54,27 @@ class FrontDataParser:
     def parse_message(raw_message: Dict[str, Any]) -> Dict[str, Any]:
         """Parse raw Front message into standardized format."""
         message = {
-            "id": raw_message.get('id', ''),
-            "type": raw_message.get('type', ''),
-            "is_inbound": raw_message.get('is_inbound', False),
-            "author": raw_message.get('author'),  # Can be None for external messages
+            "id": raw_message.get("id", ""),
+            "type": raw_message.get("type", ""),
+            "is_inbound": raw_message.get("is_inbound", False),
+            "author": raw_message.get("author"),  # Can be None for external messages
         }
 
         # Add optional fields if they exist
-        if 'recipients' in raw_message:
-            message['recipients'] = raw_message['recipients']
-        if 'subject' in raw_message:
-            message['subject'] = raw_message['subject']
-        if 'body' in raw_message:
-            message['body'] = raw_message['body']
-        if 'created_at' in raw_message:
-            message['created_at'] = raw_message['created_at']
+        if "recipients" in raw_message:
+            message["recipients"] = raw_message["recipients"]
+        if "subject" in raw_message:
+            message["subject"] = raw_message["subject"]
+        if "body" in raw_message:
+            message["body"] = raw_message["body"]
+        if "created_at" in raw_message:
+            message["created_at"] = raw_message["created_at"]
 
         return message
 
+
 # ---- Action Handlers ----
+
 
 @front.action("get_inbox")
 class GetInboxAction(ActionHandler):
@@ -83,16 +83,14 @@ class GetInboxAction(ActionHandler):
             inbox_id = inputs["inbox_id"]
 
             # Make API call
-            response = await context.fetch(
-                f"{FRONT_API_BASE}/inboxes/{inbox_id}"
-            )
+            response = await context.fetch(f"{FRONT_API_BASE}/inboxes/{inbox_id}")
 
             # Check for API errors
             if "error" in response:
                 return {
                     "inbox": {},
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse inbox
@@ -103,24 +101,18 @@ class GetInboxAction(ActionHandler):
             }
 
             # Add optional fields
-            if 'type' in response:
-                inbox['type'] = response['type']
-            if 'send_as' in response:
-                inbox['send_as'] = response['send_as']
-            if 'is_private' in response:
-                inbox['is_private'] = response['is_private']
+            if "type" in response:
+                inbox["type"] = response["type"]
+            if "send_as" in response:
+                inbox["send_as"] = response["send_as"]
+            if "is_private" in response:
+                inbox["is_private"] = response["is_private"]
 
-            return {
-                "inbox": inbox,
-                "result": True
-            }
+            return {"inbox": inbox, "result": True}
 
         except Exception as e:
-            return {
-                "inbox": {},
-                "result": False,
-                "error": f"Error getting inbox: {str(e)}"
-            }
+            return {"inbox": {}, "result": False, "error": f"Error getting inbox: {str(e)}"}
+
 
 @front.action("list_inbox_conversations")
 class ListInboxConversationsAction(ActionHandler):
@@ -139,17 +131,14 @@ class ListInboxConversationsAction(ActionHandler):
             params["limit"] = min(limit, 100)
 
             # Make API call to inbox-specific conversations endpoint
-            response = await context.fetch(
-                f"{FRONT_API_BASE}/inboxes/{inbox_id}/conversations",
-                params=params
-            )
+            response = await context.fetch(f"{FRONT_API_BASE}/inboxes/{inbox_id}/conversations", params=params)
 
             # Check for API errors
             if "error" in response:
                 return {
                     "conversations": [],
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse conversations
@@ -159,17 +148,11 @@ class ListInboxConversationsAction(ActionHandler):
             for raw_conv in raw_conversations:
                 conversations.append(FrontDataParser.parse_conversation(raw_conv))
 
-            return {
-                "conversations": conversations,
-                "result": True
-            }
+            return {"conversations": conversations, "result": True}
 
         except Exception as e:
-            return {
-                "conversations": [],
-                "result": False,
-                "error": f"Error listing inbox conversations: {str(e)}"
-            }
+            return {"conversations": [], "result": False, "error": f"Error listing inbox conversations: {str(e)}"}
+
 
 @front.action("get_conversation")
 class GetConversationAction(ActionHandler):
@@ -178,32 +161,24 @@ class GetConversationAction(ActionHandler):
             conversation_id = inputs["conversation_id"]
 
             # Make API call
-            response = await context.fetch(
-                f"{FRONT_API_BASE}/conversations/{conversation_id}"
-            )
+            response = await context.fetch(f"{FRONT_API_BASE}/conversations/{conversation_id}")
 
             # Check for API errors
             if "error" in response:
                 return {
                     "conversation": {},
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse conversation - Front returns conversation data directly
             conversation = FrontDataParser.parse_conversation(response)
 
-            return {
-                "conversation": conversation,
-                "result": True
-            }
+            return {"conversation": conversation, "result": True}
 
         except Exception as e:
-            return {
-                "conversation": {},
-                "result": False,
-                "error": f"Error getting conversation: {str(e)}"
-            }
+            return {"conversation": {}, "result": False, "error": f"Error getting conversation: {str(e)}"}
+
 
 @front.action("list_conversation_messages")
 class ListConversationMessagesAction(ActionHandler):
@@ -214,8 +189,7 @@ class ListConversationMessagesAction(ActionHandler):
 
             # Make API call
             response = await context.fetch(
-                f"{FRONT_API_BASE}/conversations/{conversation_id}/messages",
-                params={"limit": min(limit, 100)}
+                f"{FRONT_API_BASE}/conversations/{conversation_id}/messages", params={"limit": min(limit, 100)}
             )
 
             # Check for API errors
@@ -223,7 +197,7 @@ class ListConversationMessagesAction(ActionHandler):
                 return {
                     "messages": [],
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse messages
@@ -233,17 +207,11 @@ class ListConversationMessagesAction(ActionHandler):
             for raw_msg in raw_messages:
                 messages.append(FrontDataParser.parse_message(raw_msg))
 
-            return {
-                "messages": messages,
-                "result": True
-            }
+            return {"messages": messages, "result": True}
 
         except Exception as e:
-            return {
-                "messages": [],
-                "result": False,
-                "error": f"Error listing conversation messages: {str(e)}"
-            }
+            return {"messages": [], "result": False, "error": f"Error listing conversation messages: {str(e)}"}
+
 
 @front.action("create_message_reply")
 class CreateMessageReplyAction(ActionHandler):
@@ -260,9 +228,7 @@ class CreateMessageReplyAction(ActionHandler):
             conversation_id = inputs["conversation_id"]
 
             # Build message payload for reply
-            message_data = {
-                "body": inputs["body"]
-            }
+            message_data = {"body": inputs["body"]}
 
             # Add optional fields
             if inputs.get("to"):
@@ -299,23 +265,21 @@ class CreateMessageReplyAction(ActionHandler):
 
             if files:
                 for f in files:
-                    attachments.append({
-                        "filename": f.get("name", "attachment"),
-                        "content": f.get("content", ""),
-                        "content_type": f.get("contentType", "application/octet-stream")
-                    })
+                    attachments.append(
+                        {
+                            "filename": f.get("name", "attachment"),
+                            "content": f.get("content", ""),
+                            "content_type": f.get("contentType", "application/octet-stream"),
+                        }
+                    )
 
             if attachments:
                 # Use multipart/form-data for attachments
-                response = await self._send_reply_with_attachments(
-                    context, conversation_id, message_data, attachments
-                )
+                response = await self._send_reply_with_attachments(context, conversation_id, message_data, attachments)
             else:
                 # Use JSON for messages without attachments
                 response = await context.fetch(
-                    f"{FRONT_API_BASE}/conversations/{conversation_id}/messages",
-                    method="POST",
-                    json=message_data
+                    f"{FRONT_API_BASE}/conversations/{conversation_id}/messages", method="POST", json=message_data
                 )
 
             # Check for API errors
@@ -323,25 +287,21 @@ class CreateMessageReplyAction(ActionHandler):
                 return {
                     "message_uid": "",
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Front returns message_uid for async processing
-            return {
-                "message_uid": response.get("message_uid", ""),
-                "result": True
-            }
+            return {"message_uid": response.get("message_uid", ""), "result": True}
 
         except Exception as e:
-            return {
-                "message_uid": "",
-                "result": False,
-                "error": f"Error creating message reply: {str(e)}"
-            }
+            return {"message_uid": "", "result": False, "error": f"Error creating message reply: {str(e)}"}
 
     async def _send_reply_with_attachments(
-        self, context: ExecutionContext, conversation_id: str,
-        message_data: Dict[str, Any], attachments: List[Dict[str, Any]]
+        self,
+        context: ExecutionContext,
+        conversation_id: str,
+        message_data: Dict[str, Any],
+        attachments: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Send reply with attachments using multipart/form-data"""
         # Get auth token from context
@@ -356,41 +316,41 @@ class CreateMessageReplyAction(ActionHandler):
         form = aiohttp.FormData()
 
         # Add body field - convert plain text newlines to HTML if needed
-        body_content = message_data['body']
+        body_content = message_data["body"]
 
         # If body doesn't contain HTML tags, convert newlines to <br> for proper rendering
-        if '<' not in body_content and '>' not in body_content:
+        if "<" not in body_content and ">" not in body_content:
             # Plain text - convert newlines to HTML breaks
-            body_content = body_content.replace('\r\n', '<br>').replace('\n', '<br>').replace('\r', '<br>')
+            body_content = body_content.replace("\r\n", "<br>").replace("\n", "<br>").replace("\r", "<br>")
 
-        form.add_field('body', body_content)
+        form.add_field("body", body_content)
 
         # Add optional fields (for replies)
-        if 'to' in message_data:
-            for recipient in message_data['to']:
-                form.add_field('to[]', recipient)
-        if 'cc' in message_data:
-            for recipient in message_data['cc']:
-                form.add_field('cc[]', recipient)
-        if 'bcc' in message_data:
-            for recipient in message_data['bcc']:
-                form.add_field('bcc[]', recipient)
-        if 'subject' in message_data:
-            form.add_field('subject', message_data['subject'])
-        if 'author_id' in message_data:
-            form.add_field('author_id', message_data['author_id'])
-        if 'sender_name' in message_data:
-            form.add_field('sender_name', message_data['sender_name'])
-        if 'channel_id' in message_data:
-            form.add_field('channel_id', message_data['channel_id'])
-        if 'text' in message_data:
-            form.add_field('text', message_data['text'])
-        if 'quote_body' in message_data:
-            form.add_field('quote_body', message_data['quote_body'])
-        if 'signature_id' in message_data:
-            form.add_field('signature_id', message_data['signature_id'])
-        if 'should_add_default_signature' in message_data:
-            form.add_field('should_add_default_signature', str(message_data['should_add_default_signature']).lower())
+        if "to" in message_data:
+            for recipient in message_data["to"]:
+                form.add_field("to[]", recipient)
+        if "cc" in message_data:
+            for recipient in message_data["cc"]:
+                form.add_field("cc[]", recipient)
+        if "bcc" in message_data:
+            for recipient in message_data["bcc"]:
+                form.add_field("bcc[]", recipient)
+        if "subject" in message_data:
+            form.add_field("subject", message_data["subject"])
+        if "author_id" in message_data:
+            form.add_field("author_id", message_data["author_id"])
+        if "sender_name" in message_data:
+            form.add_field("sender_name", message_data["sender_name"])
+        if "channel_id" in message_data:
+            form.add_field("channel_id", message_data["channel_id"])
+        if "text" in message_data:
+            form.add_field("text", message_data["text"])
+        if "quote_body" in message_data:
+            form.add_field("quote_body", message_data["quote_body"])
+        if "signature_id" in message_data:
+            form.add_field("signature_id", message_data["signature_id"])
+        if "should_add_default_signature" in message_data:
+            form.add_field("should_add_default_signature", str(message_data["should_add_default_signature"]).lower())
 
         # Add each attachment as binary file
         for idx, attachment in enumerate(attachments):
@@ -403,7 +363,9 @@ class CreateMessageReplyAction(ActionHandler):
                 raise Exception(f"Attachment '{filename}' has no content provided")
 
             # Clean up base64 string (remove whitespace/newlines that might be present)
-            content_b64_cleaned = content_b64.strip().replace('\n', '').replace('\r', '').replace(' ', '').replace('\t', '')
+            content_b64_cleaned = (
+                content_b64.strip().replace("\n", "").replace("\r", "").replace(" ", "").replace("\t", "")
+            )
 
             # Check length before and after cleaning
             original_length = len(content_b64)
@@ -413,7 +375,7 @@ class CreateMessageReplyAction(ActionHandler):
             # If it's not, check if adding padding would make it valid
             padding_needed = cleaned_length % 4
             if padding_needed != 0:
-                content_b64_cleaned += '=' * (4 - padding_needed)
+                content_b64_cleaned += "=" * (4 - padding_needed)
 
             # Validate minimum size - a small file should be at least 100 chars in base64
             # PDFs and images should be much larger (typically thousands of chars)
@@ -440,25 +402,18 @@ class CreateMessageReplyAction(ActionHandler):
                 raise Exception(f"Attachment '{filename}' decoded to empty content")
 
             # Log file size for debugging
-            file_size = len(file_bytes)
+            len(file_bytes)
 
             # Wrap bytes in BytesIO to create file-like object (like open('file', 'rb'))
             file_obj = io.BytesIO(file_bytes)
             file_obj.seek(0)  # Ensure we're at the beginning of the stream
 
             # Add file to form data - Front expects 'attachments[]' for multiple files
-            form.add_field(
-                'attachments[]',
-                file_obj,
-                filename=filename,
-                content_type=content_type
-            )
+            form.add_field("attachments[]", file_obj, filename=filename, content_type=content_type)
 
         # Send request with aiohttp
         url = f"{FRONT_API_BASE}/conversations/{conversation_id}/messages"
-        headers = {
-            "Authorization": f"Bearer {auth_token}"
-        }
+        headers = {"Authorization": f"Bearer {auth_token}"}
 
         async with aiohttp.ClientSession() as session:
             async with session.post(url, data=form, headers=headers) as resp:
@@ -468,6 +423,7 @@ class CreateMessageReplyAction(ActionHandler):
 
                 return await resp.json()
 
+
 @front.action("get_message")
 class GetMessageAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -475,32 +431,24 @@ class GetMessageAction(ActionHandler):
             message_id = inputs["message_id"]
 
             # Make API call
-            response = await context.fetch(
-                f"{FRONT_API_BASE}/messages/{message_id}"
-            )
+            response = await context.fetch(f"{FRONT_API_BASE}/messages/{message_id}")
 
             # Check for API errors
             if "error" in response:
                 return {
                     "message": {},
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse message
             message = FrontDataParser.parse_message(response)
 
-            return {
-                "message": message,
-                "result": True
-            }
+            return {"message": message, "result": True}
 
         except Exception as e:
-            return {
-                "message": {},
-                "result": False,
-                "error": f"Error getting message: {str(e)}"
-            }
+            return {"message": {}, "result": False, "error": f"Error getting message: {str(e)}"}
+
 
 @front.action("download_message_attachment")
 class DownloadMessageAttachmentAction(ActionHandler):
@@ -529,48 +477,42 @@ class DownloadMessageAttachmentAction(ActionHandler):
                 async with session.get(attachment_url, headers=headers) as resp:
                     if resp.status >= 400:
                         error_text = await resp.text()
-                        return {
-                            "file": {},
-                            "result": False,
-                            "error": f"HTTP {resp.status}: {error_text}"
-                        }
+                        return {"file": {}, "result": False, "error": f"HTTP {resp.status}: {error_text}"}
 
                     # Read complete file content as binary
                     file_bytes = await resp.read()
 
                     # Extract content type from response
-                    content_type = resp.headers.get('content-type', 'application/octet-stream')
+                    content_type = resp.headers.get("content-type", "application/octet-stream")
 
                     # Extract filename from Content-Disposition header or URL
                     filename = "attachment"
-                    content_disposition = resp.headers.get('content-disposition', '')
-                    if 'filename=' in content_disposition:
-                        filename = content_disposition.split('filename=')[1].strip('"\'')
+                    content_disposition = resp.headers.get("content-disposition", "")
+                    if "filename=" in content_disposition:
+                        filename = content_disposition.split("filename=")[1].strip("\"'")
                     else:
                         from urllib.parse import urlparse
+
                         url_path = urlparse(attachment_url).path
                         if url_path:
-                            filename = url_path.split('/')[-1] or "attachment"
+                            filename = url_path.split("/")[-1] or "attachment"
 
                     # Encode to base64 for JSON transport and attachment forwarding
-                    content_b64 = base64.b64encode(file_bytes).decode('utf-8')
+                    content_b64 = base64.b64encode(file_bytes).decode("utf-8")
 
                     return {
                         "file": {
                             "content": content_b64,  # Use this in create_message attachments
                             "name": filename,
                             "contentType": content_type,
-                            "size": len(file_bytes)
+                            "size": len(file_bytes),
                         },
-                        "result": True
+                        "result": True,
                     }
 
         except Exception as e:
-            return {
-                "file": {},
-                "result": False,
-                "error": f"Error downloading attachment: {str(e)}"
-            }
+            return {"file": {}, "result": False, "error": f"Error downloading attachment: {str(e)}"}
+
 
 @front.action("create_message")
 class CreateMessageAction(ActionHandler):
@@ -587,10 +529,7 @@ class CreateMessageAction(ActionHandler):
             channel_id = inputs["channel_id"]
 
             # Build message payload for new message
-            message_data = {
-                "body": inputs["body"],
-                "to": inputs["to"]
-            }
+            message_data = {"body": inputs["body"], "to": inputs["to"]}
 
             # Add optional fields
             if inputs.get("cc"):
@@ -621,23 +560,21 @@ class CreateMessageAction(ActionHandler):
 
             if files:
                 for f in files:
-                    attachments.append({
-                        "filename": f.get("name", "attachment"),
-                        "content": f.get("content", ""),
-                        "content_type": f.get("contentType", "application/octet-stream")
-                    })
+                    attachments.append(
+                        {
+                            "filename": f.get("name", "attachment"),
+                            "content": f.get("content", ""),
+                            "content_type": f.get("contentType", "application/octet-stream"),
+                        }
+                    )
 
             if attachments:
                 # Use multipart/form-data for attachments
-                response = await self._send_with_attachments(
-                    context, channel_id, message_data, attachments
-                )
+                response = await self._send_with_attachments(context, channel_id, message_data, attachments)
             else:
                 # Use JSON for messages without attachments
                 response = await context.fetch(
-                    f"{FRONT_API_BASE}/channels/{channel_id}/messages",
-                    method="POST",
-                    json=message_data
+                    f"{FRONT_API_BASE}/channels/{channel_id}/messages", method="POST", json=message_data
                 )
 
             # Check for API errors
@@ -645,25 +582,21 @@ class CreateMessageAction(ActionHandler):
                 return {
                     "message_uid": "",
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Front returns message_uid for async processing
-            return {
-                "message_uid": response.get("message_uid", ""),
-                "result": True
-            }
+            return {"message_uid": response.get("message_uid", ""), "result": True}
 
         except Exception as e:
-            return {
-                "message_uid": "",
-                "result": False,
-                "error": f"Error creating message: {str(e)}"
-            }
+            return {"message_uid": "", "result": False, "error": f"Error creating message: {str(e)}"}
 
     async def _send_with_attachments(
-        self, context: ExecutionContext, channel_id: str,
-        message_data: Dict[str, Any], attachments: List[Dict[str, Any]]
+        self,
+        context: ExecutionContext,
+        channel_id: str,
+        message_data: Dict[str, Any],
+        attachments: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Send message with attachments using multipart/form-data"""
         # Get auth token from context
@@ -678,39 +611,39 @@ class CreateMessageAction(ActionHandler):
         form = aiohttp.FormData()
 
         # Add body field - convert plain text newlines to HTML if needed
-        body_content = message_data['body']
+        body_content = message_data["body"]
 
         # If body doesn't contain HTML tags, convert newlines to <br> for proper rendering
-        if '<' not in body_content and '>' not in body_content:
+        if "<" not in body_content and ">" not in body_content:
             # Plain text - convert newlines to HTML breaks
-            body_content = body_content.replace('\r\n', '<br>').replace('\n', '<br>').replace('\r', '<br>')
+            body_content = body_content.replace("\r\n", "<br>").replace("\n", "<br>").replace("\r", "<br>")
 
-        form.add_field('body', body_content)
+        form.add_field("body", body_content)
 
         # Add 'to' recipients as array
-        if 'to' in message_data:
-            for recipient in message_data['to']:
-                form.add_field('to[]', recipient)
+        if "to" in message_data:
+            for recipient in message_data["to"]:
+                form.add_field("to[]", recipient)
 
         # Add optional fields
-        if 'cc' in message_data:
-            for recipient in message_data['cc']:
-                form.add_field('cc[]', recipient)
-        if 'bcc' in message_data:
-            for recipient in message_data['bcc']:
-                form.add_field('bcc[]', recipient)
-        if 'subject' in message_data:
-            form.add_field('subject', message_data['subject'])
-        if 'author_id' in message_data:
-            form.add_field('author_id', message_data['author_id'])
-        if 'sender_name' in message_data:
-            form.add_field('sender_name', message_data['sender_name'])
-        if 'text' in message_data:
-            form.add_field('text', message_data['text'])
-        if 'signature_id' in message_data:
-            form.add_field('signature_id', message_data['signature_id'])
-        if 'should_add_default_signature' in message_data:
-            form.add_field('should_add_default_signature', str(message_data['should_add_default_signature']).lower())
+        if "cc" in message_data:
+            for recipient in message_data["cc"]:
+                form.add_field("cc[]", recipient)
+        if "bcc" in message_data:
+            for recipient in message_data["bcc"]:
+                form.add_field("bcc[]", recipient)
+        if "subject" in message_data:
+            form.add_field("subject", message_data["subject"])
+        if "author_id" in message_data:
+            form.add_field("author_id", message_data["author_id"])
+        if "sender_name" in message_data:
+            form.add_field("sender_name", message_data["sender_name"])
+        if "text" in message_data:
+            form.add_field("text", message_data["text"])
+        if "signature_id" in message_data:
+            form.add_field("signature_id", message_data["signature_id"])
+        if "should_add_default_signature" in message_data:
+            form.add_field("should_add_default_signature", str(message_data["should_add_default_signature"]).lower())
 
         # Add each attachment as binary file
         for idx, attachment in enumerate(attachments):
@@ -723,7 +656,9 @@ class CreateMessageAction(ActionHandler):
                 raise Exception(f"Attachment '{filename}' has no content provided")
 
             # Clean up base64 string (remove whitespace/newlines that might be present)
-            content_b64_cleaned = content_b64.strip().replace('\n', '').replace('\r', '').replace(' ', '').replace('\t', '')
+            content_b64_cleaned = (
+                content_b64.strip().replace("\n", "").replace("\r", "").replace(" ", "").replace("\t", "")
+            )
 
             # Check length before and after cleaning
             original_length = len(content_b64)
@@ -733,7 +668,7 @@ class CreateMessageAction(ActionHandler):
             # If it's not, check if adding padding would make it valid
             padding_needed = cleaned_length % 4
             if padding_needed != 0:
-                content_b64_cleaned += '=' * (4 - padding_needed)
+                content_b64_cleaned += "=" * (4 - padding_needed)
 
             # Validate minimum size - a small file should be at least 100 chars in base64
             # PDFs and images should be much larger (typically thousands of chars)
@@ -760,25 +695,18 @@ class CreateMessageAction(ActionHandler):
                 raise Exception(f"Attachment '{filename}' decoded to empty content")
 
             # Log file size for debugging
-            file_size = len(file_bytes)
+            len(file_bytes)
 
             # Wrap bytes in BytesIO to create file-like object (like open('file', 'rb'))
             file_obj = io.BytesIO(file_bytes)
             file_obj.seek(0)  # Ensure we're at the beginning of the stream
 
             # Add file to form data - Front expects 'attachments[]' for multiple files
-            form.add_field(
-                'attachments[]',
-                file_obj,
-                filename=filename,
-                content_type=content_type
-            )
+            form.add_field("attachments[]", file_obj, filename=filename, content_type=content_type)
 
         # Send request with aiohttp
         url = f"{FRONT_API_BASE}/channels/{channel_id}/messages"
-        headers = {
-            "Authorization": f"Bearer {auth_token}"
-        }
+        headers = {"Authorization": f"Bearer {auth_token}"}
 
         async with aiohttp.ClientSession() as session:
             async with session.post(url, data=form, headers=headers) as resp:
@@ -788,6 +716,7 @@ class CreateMessageAction(ActionHandler):
 
                 return await resp.json()
 
+
 @front.action("list_channels")
 class ListChannelsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -795,17 +724,14 @@ class ListChannelsAction(ActionHandler):
             limit = inputs.get("limit", 50)
 
             # Make API call
-            response = await context.fetch(
-                f"{FRONT_API_BASE}/channels",
-                params={"limit": min(limit, 100)}
-            )
+            response = await context.fetch(f"{FRONT_API_BASE}/channels", params={"limit": min(limit, 100)})
 
             # Check for API errors
             if "error" in response:
                 return {
                     "channels": [],
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse channels
@@ -819,26 +745,20 @@ class ListChannelsAction(ActionHandler):
                     "type": raw_channel.get("types", raw_channel.get("type", "")),  # Front API uses "types" field
                 }
                 # Add optional fields
-                if 'address' in raw_channel:
-                    channel['address'] = raw_channel['address']
-                if 'send_as' in raw_channel:
-                    channel['send_as'] = raw_channel['send_as']
-                if 'settings' in raw_channel:
-                    channel['settings'] = raw_channel['settings']
+                if "address" in raw_channel:
+                    channel["address"] = raw_channel["address"]
+                if "send_as" in raw_channel:
+                    channel["send_as"] = raw_channel["send_as"]
+                if "settings" in raw_channel:
+                    channel["settings"] = raw_channel["settings"]
 
                 channels.append(channel)
 
-            return {
-                "channels": channels,
-                "result": True
-            }
+            return {"channels": channels, "result": True}
 
         except Exception as e:
-            return {
-                "channels": [],
-                "result": False,
-                "error": f"Error listing channels: {str(e)}"
-            }
+            return {"channels": [], "result": False, "error": f"Error listing channels: {str(e)}"}
+
 
 @front.action("list_inbox_channels")
 class ListInboxChannelsAction(ActionHandler):
@@ -849,8 +769,7 @@ class ListInboxChannelsAction(ActionHandler):
 
             # Make API call
             response = await context.fetch(
-                f"{FRONT_API_BASE}/inboxes/{inbox_id}/channels",
-                params={"limit": min(limit, 100)}
+                f"{FRONT_API_BASE}/inboxes/{inbox_id}/channels", params={"limit": min(limit, 100)}
             )
 
             # Check for API errors
@@ -858,7 +777,7 @@ class ListInboxChannelsAction(ActionHandler):
                 return {
                     "channels": [],
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse channels
@@ -872,26 +791,20 @@ class ListInboxChannelsAction(ActionHandler):
                     "type": raw_channel.get("types", raw_channel.get("type", "")),  # Front API uses "types" field
                 }
                 # Add optional fields
-                if 'address' in raw_channel:
-                    channel['address'] = raw_channel['address']
-                if 'send_as' in raw_channel:
-                    channel['send_as'] = raw_channel['send_as']
-                if 'settings' in raw_channel:
-                    channel['settings'] = raw_channel['settings']
+                if "address" in raw_channel:
+                    channel["address"] = raw_channel["address"]
+                if "send_as" in raw_channel:
+                    channel["send_as"] = raw_channel["send_as"]
+                if "settings" in raw_channel:
+                    channel["settings"] = raw_channel["settings"]
 
                 channels.append(channel)
 
-            return {
-                "channels": channels,
-                "result": True
-            }
+            return {"channels": channels, "result": True}
 
         except Exception as e:
-            return {
-                "channels": [],
-                "result": False,
-                "error": f"Error listing inbox channels: {str(e)}"
-            }
+            return {"channels": [], "result": False, "error": f"Error listing inbox channels: {str(e)}"}
+
 
 @front.action("get_channel")
 class GetChannelAction(ActionHandler):
@@ -900,20 +813,14 @@ class GetChannelAction(ActionHandler):
             channel_id = inputs["channel_id"]
 
             # Make API call
-            response = await context.fetch(
-                f"{FRONT_API_BASE}/channels/{channel_id}"
-            )
+            response = await context.fetch(f"{FRONT_API_BASE}/channels/{channel_id}")
 
             # Check for API errors
             if "error" in response:
                 return {
-                    "channel": {
-                        "id": "",
-                        "name": "",
-                        "type": ""
-                    },
+                    "channel": {"id": "", "name": "", "type": ""},
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse channel - Note: Front API returns "types" but we standardize to "type"
@@ -924,30 +831,24 @@ class GetChannelAction(ActionHandler):
             }
 
             # Add optional fields
-            if 'address' in response:
-                channel['address'] = response['address']
-            if 'send_as' in response:
-                channel['send_as'] = response['send_as']
-            if 'is_private' in response:
-                channel['is_private'] = response['is_private']
-            if 'settings' in response:
-                channel['settings'] = response['settings']
+            if "address" in response:
+                channel["address"] = response["address"]
+            if "send_as" in response:
+                channel["send_as"] = response["send_as"]
+            if "is_private" in response:
+                channel["is_private"] = response["is_private"]
+            if "settings" in response:
+                channel["settings"] = response["settings"]
 
-            return {
-                "channel": channel,
-                "result": True
-            }
+            return {"channel": channel, "result": True}
 
         except Exception as e:
             return {
-                "channel": {
-                    "id": "",
-                    "name": "",
-                    "type": ""
-                },
+                "channel": {"id": "", "name": "", "type": ""},
                 "result": False,
-                "error": f"Error getting channel: {str(e)}"
+                "error": f"Error getting channel: {str(e)}",
             }
+
 
 @front.action("list_message_templates")
 class ListMessageTemplatesAction(ActionHandler):
@@ -956,17 +857,14 @@ class ListMessageTemplatesAction(ActionHandler):
             limit = inputs.get("limit", 50)
 
             # Make API call
-            response = await context.fetch(
-                f"{FRONT_API_BASE}/message_templates",
-                params={"limit": min(limit, 100)}
-            )
+            response = await context.fetch(f"{FRONT_API_BASE}/message_templates", params={"limit": min(limit, 100)})
 
             # Check for API errors
             if "error" in response:
                 return {
                     "templates": [],
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse templates
@@ -980,22 +878,16 @@ class ListMessageTemplatesAction(ActionHandler):
                     "subject": raw_template.get("subject", ""),
                     "body": raw_template.get("body", ""),
                     "attachments": raw_template.get("attachments", []),
-                    "metadata": raw_template.get("metadata", {})
+                    "metadata": raw_template.get("metadata", {}),
                 }
 
                 templates.append(template)
 
-            return {
-                "templates": templates,
-                "result": True
-            }
+            return {"templates": templates, "result": True}
 
         except Exception as e:
-            return {
-                "templates": [],
-                "result": False,
-                "error": f"Error listing message templates: {str(e)}"
-            }
+            return {"templates": [], "result": False, "error": f"Error listing message templates: {str(e)}"}
+
 
 @front.action("get_message_template")
 class GetMessageTemplateAction(ActionHandler):
@@ -1004,16 +896,14 @@ class GetMessageTemplateAction(ActionHandler):
             template_id = inputs["message_template_id"]
 
             # Make API call
-            response = await context.fetch(
-                f"{FRONT_API_BASE}/message_templates/{template_id}"
-            )
+            response = await context.fetch(f"{FRONT_API_BASE}/message_templates/{template_id}")
 
             # Check for API errors
             if "error" in response:
                 return {
                     "template": {},
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse template
@@ -1023,20 +913,14 @@ class GetMessageTemplateAction(ActionHandler):
                 "subject": response.get("subject", ""),
                 "body": response.get("body", ""),
                 "attachments": response.get("attachments", []),
-                "metadata": response.get("metadata", {})
+                "metadata": response.get("metadata", {}),
             }
 
-            return {
-                "template": template,
-                "result": True
-            }
+            return {"template": template, "result": True}
 
         except Exception as e:
-            return {
-                "template": {},
-                "result": False,
-                "error": f"Error getting message template: {str(e)}"
-            }
+            return {"template": {}, "result": False, "error": f"Error getting message template: {str(e)}"}
+
 
 @front.action("update_conversation")
 class UpdateConversationAction(ActionHandler):
@@ -1062,62 +946,45 @@ class UpdateConversationAction(ActionHandler):
                 update_data["custom_fields"] = inputs["custom_fields"]
 
             if not update_data:
-                return {
-                    "conversation": {},
-                    "result": False,
-                    "error": "No valid update fields provided"
-                }
+                return {"conversation": {}, "result": False, "error": "No valid update fields provided"}
 
             # Update conversation
             response = await context.fetch(
-                f"{FRONT_API_BASE}/conversations/{conversation_id}",
-                method="PATCH",
-                json=update_data
+                f"{FRONT_API_BASE}/conversations/{conversation_id}", method="PATCH", json=update_data
             )
 
             # Front API may return None for successful PATCH (HTTP 204 No Content)
             # In that case, fetch the updated conversation
             if response is None:
                 # Fetch the updated conversation to return
-                get_response = await context.fetch(
-                    f"{FRONT_API_BASE}/conversations/{conversation_id}"
-                )
+                get_response = await context.fetch(f"{FRONT_API_BASE}/conversations/{conversation_id}")
 
                 if get_response is None or "error" in get_response:
                     return {
                         "conversation": {},
                         "result": False,
-                        "error": f"Update may have succeeded but failed to fetch updated conversation: {get_response.get('error', 'Unknown error') if get_response else 'No response'}"
+                        "error": f"Update may have succeeded but failed to fetch updated conversation: {get_response.get('error', 'Unknown error') if get_response else 'No response'}",
                     }
 
                 conversation = FrontDataParser.parse_conversation(get_response)
-                return {
-                    "conversation": conversation,
-                    "result": True
-                }
+                return {"conversation": conversation, "result": True}
 
             # Check for API errors in response
             if "error" in response:
                 return {
                     "conversation": {},
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse response conversation
             conversation = FrontDataParser.parse_conversation(response)
 
-            return {
-                "conversation": conversation,
-                "result": True
-            }
+            return {"conversation": conversation, "result": True}
 
         except Exception as e:
-            return {
-                "conversation": {},
-                "result": False,
-                "error": f"Error updating conversation: {str(e)}"
-            }
+            return {"conversation": {}, "result": False, "error": f"Error updating conversation: {str(e)}"}
+
 
 @front.action("list_inboxes")
 class ListInboxesAction(ActionHandler):
@@ -1126,17 +993,14 @@ class ListInboxesAction(ActionHandler):
             limit = inputs.get("limit", 50)
 
             # Make API call
-            response = await context.fetch(
-                f"{FRONT_API_BASE}/inboxes",
-                params={"limit": min(limit, 100)}
-            )
+            response = await context.fetch(f"{FRONT_API_BASE}/inboxes", params={"limit": min(limit, 100)})
 
             # Check for API errors
             if "error" in response:
                 return {
                     "inboxes": [],
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse inboxes
@@ -1150,24 +1014,18 @@ class ListInboxesAction(ActionHandler):
                     "address": raw_inbox.get("address", ""),
                 }
                 # Add optional fields
-                if 'type' in raw_inbox:
-                    inbox['type'] = raw_inbox['type']
-                if 'send_as' in raw_inbox:
-                    inbox['send_as'] = raw_inbox['send_as']
+                if "type" in raw_inbox:
+                    inbox["type"] = raw_inbox["type"]
+                if "send_as" in raw_inbox:
+                    inbox["send_as"] = raw_inbox["send_as"]
 
                 inboxes.append(inbox)
 
-            return {
-                "inboxes": inboxes,
-                "result": True
-            }
+            return {"inboxes": inboxes, "result": True}
 
         except Exception as e:
-            return {
-                "inboxes": [],
-                "result": False,
-                "error": f"Error listing inboxes: {str(e)}"
-            }
+            return {"inboxes": [], "result": False, "error": f"Error listing inboxes: {str(e)}"}
+
 
 @front.action("list_teammates")
 class ListTeammatesAction(ActionHandler):
@@ -1176,17 +1034,14 @@ class ListTeammatesAction(ActionHandler):
             limit = inputs.get("limit", 50)
 
             # Make API call
-            response = await context.fetch(
-                f"{FRONT_API_BASE}/teammates",
-                params={"limit": min(limit, 100)}
-            )
+            response = await context.fetch(f"{FRONT_API_BASE}/teammates", params={"limit": min(limit, 100)})
 
             # Check for API errors
             if "error" in response:
                 return {
                     "teammates": [],
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse teammates
@@ -1204,22 +1059,16 @@ class ListTeammatesAction(ActionHandler):
                     "is_available": raw_teammate.get("is_available", True),
                     "is_blocked": raw_teammate.get("is_blocked", False),
                     "type": raw_teammate.get("type", "user"),
-                    "custom_fields": raw_teammate.get("custom_fields", {})
+                    "custom_fields": raw_teammate.get("custom_fields", {}),
                 }
 
                 teammates.append(teammate)
 
-            return {
-                "teammates": teammates,
-                "result": True
-            }
+            return {"teammates": teammates, "result": True}
 
         except Exception as e:
-            return {
-                "teammates": [],
-                "result": False,
-                "error": f"Error listing teammates: {str(e)}"
-            }
+            return {"teammates": [], "result": False, "error": f"Error listing teammates: {str(e)}"}
+
 
 @front.action("get_teammate")
 class GetTeammateAction(ActionHandler):
@@ -1228,16 +1077,14 @@ class GetTeammateAction(ActionHandler):
             teammate_id = inputs["teammate_id"]
 
             # Make API call
-            response = await context.fetch(
-                f"{FRONT_API_BASE}/teammates/{teammate_id}"
-            )
+            response = await context.fetch(f"{FRONT_API_BASE}/teammates/{teammate_id}")
 
             # Check for API errors
             if "error" in response:
                 return {
                     "teammate": {},
                     "result": False,
-                    "error": f"API request failed: {response.get('error', 'Unknown error')}"
+                    "error": f"API request failed: {response.get('error', 'Unknown error')}",
                 }
 
             # Parse teammate
@@ -1251,22 +1098,17 @@ class GetTeammateAction(ActionHandler):
                 "is_available": response.get("is_available", True),
                 "is_blocked": response.get("is_blocked", False),
                 "type": response.get("type", "user"),
-                "custom_fields": response.get("custom_fields", {})
+                "custom_fields": response.get("custom_fields", {}),
             }
 
-            return {
-                "teammate": teammate,
-                "result": True
-            }
+            return {"teammate": teammate, "result": True}
 
         except Exception as e:
-            return {
-                "teammate": {},
-                "result": False,
-                "error": f"Error getting teammate: {str(e)}"
-            }
+            return {"teammate": {}, "result": False, "error": f"Error getting teammate: {str(e)}"}
+
 
 # ---- Helper Actions for Name-Based Lookups ----
+
 
 @front.action("find_teammate")
 class FindTeammateAction(ActionHandler):
@@ -1286,7 +1128,7 @@ class FindTeammateAction(ActionHandler):
                 return {
                     "teammates": [],
                     "result": False,
-                    "error": f"Failed to fetch teammates: {list_result.get('error', 'Unknown error')}"
+                    "error": f"Failed to fetch teammates: {list_result.get('error', 'Unknown error')}",
                 }
 
             # Filter teammates by search query (case-insensitive partial match)
@@ -1302,25 +1144,20 @@ class FindTeammateAction(ActionHandler):
                 email = (teammate.get("email") or "").lower()
 
                 # Check if search query matches any field
-                if (search_query in first_name or
-                    search_query in last_name or
-                    search_query in full_name or
-                    search_query in username or
-                    search_query in email):
+                if (
+                    search_query in first_name
+                    or search_query in last_name
+                    or search_query in full_name
+                    or search_query in username
+                    or search_query in email
+                ):
                     matching_teammates.append(teammate)
 
-            return {
-                "teammates": matching_teammates,
-                "result": True,
-                "count": len(matching_teammates)
-            }
+            return {"teammates": matching_teammates, "result": True, "count": len(matching_teammates)}
 
         except Exception as e:
-            return {
-                "teammates": [],
-                "result": False,
-                "error": f"Error finding teammate: {str(e)}"
-            }
+            return {"teammates": [], "result": False, "error": f"Error finding teammate: {str(e)}"}
+
 
 @front.action("find_inbox")
 class FindInboxAction(ActionHandler):
@@ -1340,7 +1177,7 @@ class FindInboxAction(ActionHandler):
                 return {
                     "inboxes": [],
                     "result": False,
-                    "error": f"Failed to fetch inboxes: {list_result.get('error', 'Unknown error')}"
+                    "error": f"Failed to fetch inboxes: {list_result.get('error', 'Unknown error')}",
                 }
 
             # Filter inboxes by name (case-insensitive partial match)
@@ -1354,18 +1191,11 @@ class FindInboxAction(ActionHandler):
                 if inbox_name in name:
                     matching_inboxes.append(inbox)
 
-            return {
-                "inboxes": matching_inboxes,
-                "result": True,
-                "count": len(matching_inboxes)
-            }
+            return {"inboxes": matching_inboxes, "result": True, "count": len(matching_inboxes)}
 
         except Exception as e:
-            return {
-                "inboxes": [],
-                "result": False,
-                "error": f"Error finding inbox: {str(e)}"
-            }
+            return {"inboxes": [], "result": False, "error": f"Error finding inbox: {str(e)}"}
+
 
 @front.action("find_conversation")
 class FindConversationAction(ActionHandler):
@@ -1380,16 +1210,13 @@ class FindConversationAction(ActionHandler):
 
             # Use the existing list_inbox_conversations action
             list_action = ListInboxConversationsAction()
-            list_result = await list_action.execute({
-                "inbox_id": inbox_id,
-                "limit": 100
-            }, context)
+            list_result = await list_action.execute({"inbox_id": inbox_id, "limit": 100}, context)
 
             if not list_result["result"]:
                 return {
                     "conversations": [],
                     "result": False,
-                    "error": f"Failed to fetch conversations: {list_result.get('error', 'Unknown error')}"
+                    "error": f"Failed to fetch conversations: {list_result.get('error', 'Unknown error')}",
                 }
 
             # Filter conversations by search query (case-insensitive partial match)
@@ -1408,23 +1235,15 @@ class FindConversationAction(ActionHandler):
                 recipient_str = f"{recipient_handle} {recipient_name}".lower()
 
                 # Check if search query matches any field
-                if (search_query in subject or
-                    search_query in recipient_handle or
-                    search_query in recipient_name or
-                    search_query in recipient_str):
+                if (
+                    search_query in subject
+                    or search_query in recipient_handle
+                    or search_query in recipient_name
+                    or search_query in recipient_str
+                ):
                     matching_conversations.append(conversation)
 
-            return {
-                "conversations": matching_conversations,
-                "result": True,
-                "count": len(matching_conversations)
-            }
+            return {"conversations": matching_conversations, "result": True, "count": len(matching_conversations)}
 
         except Exception as e:
-            return {
-                "conversations": [],
-                "result": False,
-                "error": f"Error finding conversation: {str(e)}"
-            }
-
-
+            return {"conversations": [], "result": False, "error": f"Error finding conversation: {str(e)}"}

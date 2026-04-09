@@ -45,9 +45,7 @@ def handle_github_errors(action_name: str):
 
     def decorator(func: Callable):
         @wraps(func)
-        async def wrapper(
-            self, inputs: Dict[str, Any], context: ExecutionContext
-        ) -> ActionResult:
+        async def wrapper(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
             try:
                 # Validate token is present
                 credentials = context.auth.get("credentials", {})
@@ -64,9 +62,7 @@ def handle_github_errors(action_name: str):
                 return await func(self, inputs, context)
 
             except Exception as e:
-                return ActionResult(
-                    data={"error": str(e), "result": False}, cost_usd=0.0
-                )
+                return ActionResult(data={"error": str(e), "result": False}, cost_usd=0.0)
 
         return wrapper
 
@@ -183,14 +179,10 @@ class GitHubAPI:
         if license_template:
             data["license_template"] = license_template
 
-        return await context.fetch(
-            url, method="POST", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
-    async def get_repository(
-        context: ExecutionContext, owner: str, repo: str
-    ) -> Dict[str, Any]:
+    async def get_repository(context: ExecutionContext, owner: str, repo: str) -> Dict[str, Any]:
         """Get repository details"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}"
         return await context.fetch(url, headers=GitHubAPI.get_headers(context))
@@ -246,25 +238,17 @@ class GitHubAPI:
         return await GitHubAPI.paginated_fetch(context, url, params)
 
     @staticmethod
-    async def update_repository(
-        context: ExecutionContext, owner: str, repo: str, **kwargs
-    ) -> Dict[str, Any]:
+    async def update_repository(context: ExecutionContext, owner: str, repo: str, **kwargs) -> Dict[str, Any]:
         """Update repository settings"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}"
         data = {k: v for k, v in kwargs.items() if v is not None}
-        return await context.fetch(
-            url, method="PATCH", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="PATCH", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
-    async def delete_repository(
-        context: ExecutionContext, owner: str, repo: str
-    ) -> None:
+    async def delete_repository(context: ExecutionContext, owner: str, repo: str) -> None:
         """Delete a repository"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}"
-        await context.fetch(
-            url, method="DELETE", headers=GitHubAPI.get_headers(context)
-        )
+        await context.fetch(url, method="DELETE", headers=GitHubAPI.get_headers(context))
 
     # ---- Commit Operations ----
 
@@ -294,9 +278,7 @@ class GitHubAPI:
         return await GitHubAPI.paginated_fetch(context, url, params)
 
     @staticmethod
-    async def get_commit(
-        context: ExecutionContext, owner: str, repo: str, sha: str
-    ) -> Dict[str, Any]:
+    async def get_commit(context: ExecutionContext, owner: str, repo: str, sha: str) -> Dict[str, Any]:
         """Get a specific commit"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/commits/{sha}"
         return await context.fetch(url, headers=GitHubAPI.get_headers(context))
@@ -334,9 +316,7 @@ class GitHubAPI:
         return await GitHubAPI.paginated_fetch(context, url, params)
 
     @staticmethod
-    async def get_issue(
-        context: ExecutionContext, owner: str, repo: str, issue_number: int
-    ) -> Dict[str, Any]:
+    async def get_issue(context: ExecutionContext, owner: str, repo: str, issue_number: int) -> Dict[str, Any]:
         """Get a specific issue"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/issues/{issue_number}"
         return await context.fetch(url, headers=GitHubAPI.get_headers(context))
@@ -365,9 +345,7 @@ class GitHubAPI:
         if milestone:
             data["milestone"] = milestone
 
-        return await context.fetch(
-            url, method="POST", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
     async def update_issue(
@@ -399,18 +377,14 @@ class GitHubAPI:
         if milestone is not None:
             data["milestone"] = milestone
 
-        return await context.fetch(
-            url, method="PATCH", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="PATCH", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
     async def get_issue_comments(
         context: ExecutionContext, owner: str, repo: str, issue_number: int
     ) -> List[Dict[str, Any]]:
         """Get comments for an issue"""
-        url = (
-            f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/issues/{issue_number}/comments"
-        )
+        url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/issues/{issue_number}/comments"
         return await GitHubAPI.paginated_fetch(context, url)
 
     @staticmethod
@@ -418,13 +392,9 @@ class GitHubAPI:
         context: ExecutionContext, owner: str, repo: str, issue_number: int, body: str
     ) -> Dict[str, Any]:
         """Create a comment on an issue"""
-        url = (
-            f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/issues/{issue_number}/comments"
-        )
+        url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/issues/{issue_number}/comments"
         data = {"body": body}
-        return await context.fetch(
-            url, method="POST", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
 
     # ---- Pull Request Operations ----
 
@@ -492,9 +462,7 @@ class GitHubAPI:
         return all_prs
 
     @staticmethod
-    async def get_pull_request(
-        context: ExecutionContext, owner: str, repo: str, pull_number: int
-    ) -> Dict[str, Any]:
+    async def get_pull_request(context: ExecutionContext, owner: str, repo: str, pull_number: int) -> Dict[str, Any]:
         """Get detailed information about a pull request"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/pulls/{pull_number}"
         return await context.fetch(url, headers=GitHubAPI.get_headers(context))
@@ -524,9 +492,7 @@ class GitHubAPI:
         if body:
             data["body"] = body
 
-        return await context.fetch(
-            url, method="POST", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
     async def update_pull_request(
@@ -535,9 +501,7 @@ class GitHubAPI:
         """Update a pull request"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/pulls/{pull_number}"
         data = {k: v for k, v in kwargs.items() if v is not None}
-        return await context.fetch(
-            url, method="PATCH", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="PATCH", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
     async def merge_pull_request(
@@ -558,9 +522,7 @@ class GitHubAPI:
         if commit_message:
             data["commit_message"] = commit_message
 
-        return await context.fetch(
-            url, method="PUT", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="PUT", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
     async def add_pull_request_reviewers(
@@ -580,9 +542,7 @@ class GitHubAPI:
         if team_reviewers:
             data["team_reviewers"] = team_reviewers
 
-        return await context.fetch(
-            url, method="POST", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
     async def remove_pull_request_reviewers(
@@ -602,9 +562,7 @@ class GitHubAPI:
         if team_reviewers:
             data["team_reviewers"] = team_reviewers
 
-        return await context.fetch(
-            url, method="DELETE", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="DELETE", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
     async def list_pull_request_reviewers(
@@ -635,24 +593,18 @@ class GitHubAPI:
         if comments:
             data["comments"] = comments
 
-        return await context.fetch(
-            url, method="POST", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
 
     # ---- Branch Operations ----
 
     @staticmethod
-    async def list_branches(
-        context: ExecutionContext, owner: str, repo: str
-    ) -> List[Dict[str, Any]]:
+    async def list_branches(context: ExecutionContext, owner: str, repo: str) -> List[Dict[str, Any]]:
         """List branches for a repository"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/branches"
         return await GitHubAPI.paginated_fetch(context, url)
 
     @staticmethod
-    async def get_branch(
-        context: ExecutionContext, owner: str, repo: str, branch: str
-    ) -> Dict[str, Any]:
+    async def get_branch(context: ExecutionContext, owner: str, repo: str, branch: str) -> Dict[str, Any]:
         """Get branch details"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/branches/{branch}"
         return await context.fetch(url, headers=GitHubAPI.get_headers(context))
@@ -664,24 +616,16 @@ class GitHubAPI:
         """Create a new branch"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/git/refs"
         data = {"ref": f"refs/heads/{branch_name}", "sha": sha}
-        return await context.fetch(
-            url, method="POST", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
-    async def delete_branch(
-        context: ExecutionContext, owner: str, repo: str, branch: str
-    ) -> None:
+    async def delete_branch(context: ExecutionContext, owner: str, repo: str, branch: str) -> None:
         """Delete a branch"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/git/refs/heads/{branch}"
-        await context.fetch(
-            url, method="DELETE", headers=GitHubAPI.get_headers(context)
-        )
+        await context.fetch(url, method="DELETE", headers=GitHubAPI.get_headers(context))
 
     @staticmethod
-    async def get_branch_protection(
-        context: ExecutionContext, owner: str, repo: str, branch: str
-    ) -> Dict[str, Any]:
+    async def get_branch_protection(context: ExecutionContext, owner: str, repo: str, branch: str) -> Dict[str, Any]:
         """Get branch protection rules"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/branches/{branch}/protection"
         return await context.fetch(url, headers=GitHubAPI.get_headers(context))
@@ -717,30 +661,22 @@ class GitHubAPI:
         )
 
     @staticmethod
-    async def list_webhooks(
-        context: ExecutionContext, owner: str, repo: str
-    ) -> List[Dict[str, Any]]:
+    async def list_webhooks(context: ExecutionContext, owner: str, repo: str) -> List[Dict[str, Any]]:
         """List webhooks for a repository"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/hooks"
         return await GitHubAPI.paginated_fetch(context, url)
 
     @staticmethod
-    async def get_webhook(
-        context: ExecutionContext, owner: str, repo: str, hook_id: int
-    ) -> Dict[str, Any]:
+    async def get_webhook(context: ExecutionContext, owner: str, repo: str, hook_id: int) -> Dict[str, Any]:
         """Get webhook details"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/hooks/{hook_id}"
         return await context.fetch(url, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
-    async def delete_webhook(
-        context: ExecutionContext, owner: str, repo: str, hook_id: int
-    ) -> None:
+    async def delete_webhook(context: ExecutionContext, owner: str, repo: str, hook_id: int) -> None:
         """Delete a webhook"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/hooks/{hook_id}"
-        await context.fetch(
-            url, method="DELETE", headers=GitHubAPI.get_headers(context)
-        )
+        await context.fetch(url, method="DELETE", headers=GitHubAPI.get_headers(context))
 
     # ---- File Operations ----
 
@@ -762,9 +698,7 @@ class GitHubAPI:
         )
 
         # Decode base64 content
-        content = base64.b64decode(
-            response.get("content", "").replace("\n", "")
-        ).decode("utf-8")
+        content = base64.b64decode(response.get("content", "").replace("\n", "")).decode("utf-8")
 
         return {
             "content": content,
@@ -796,9 +730,7 @@ class GitHubAPI:
         if branch:
             data["branch"] = branch
 
-        return await context.fetch(
-            url, method="PUT", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="PUT", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
     async def update_file(
@@ -823,9 +755,7 @@ class GitHubAPI:
         if branch:
             data["branch"] = branch
 
-        return await context.fetch(
-            url, method="PUT", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="PUT", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
     async def delete_file(
@@ -845,9 +775,7 @@ class GitHubAPI:
         if branch:
             data["branch"] = branch
 
-        return await context.fetch(
-            url, method="DELETE", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="DELETE", json=data, headers=GitHubAPI.get_headers(context))
 
     # ---- Gist Operations ----
 
@@ -861,9 +789,7 @@ class GitHubAPI:
         """Create a gist"""
         url = f"{GitHubAPI.BASE_URL}/gists"
         data = {"description": description, "public": public, "files": files}
-        return await context.fetch(
-            url, method="POST", json=data, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
     async def get_gist(context: ExecutionContext, gist_id: str) -> Dict[str, Any]:
@@ -872,9 +798,7 @@ class GitHubAPI:
         return await context.fetch(url, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
-    async def list_gists(
-        context: ExecutionContext, username: str = None
-    ) -> List[Dict[str, Any]]:
+    async def list_gists(context: ExecutionContext, username: str = None) -> List[Dict[str, Any]]:
         """List gists"""
         if username:
             url = f"{GitHubAPI.BASE_URL}/users/{username}/gists"
@@ -887,16 +811,12 @@ class GitHubAPI:
     async def delete_gist(context: ExecutionContext, gist_id: str) -> None:
         """Delete a gist"""
         url = f"{GitHubAPI.BASE_URL}/gists/{gist_id}"
-        await context.fetch(
-            url, method="DELETE", headers=GitHubAPI.get_headers(context)
-        )
+        await context.fetch(url, method="DELETE", headers=GitHubAPI.get_headers(context))
 
     # ---- User Operations ----
 
     @staticmethod
-    async def get_user(
-        context: ExecutionContext, username: str = None
-    ) -> Dict[str, Any]:
+    async def get_user(context: ExecutionContext, username: str = None) -> Dict[str, Any]:
         """Get user information"""
         if username:
             url = f"{GitHubAPI.BASE_URL}/users/{username}"
@@ -908,9 +828,7 @@ class GitHubAPI:
     # ---- Organization Operations ----
 
     @staticmethod
-    async def list_organization_members(
-        context: ExecutionContext, org: str, role: str = "all"
-    ) -> List[Dict[str, Any]]:
+    async def list_organization_members(context: ExecutionContext, org: str, role: str = "all") -> List[Dict[str, Any]]:
         """List organization members"""
         url = f"{GitHubAPI.BASE_URL}/orgs/{org}/members"
         params = {"role": role}
@@ -919,14 +837,10 @@ class GitHubAPI:
     # ---- GitHub Actions/Workflows ----
 
     @staticmethod
-    async def list_workflows(
-        context: ExecutionContext, owner: str, repo: str
-    ) -> List[Dict[str, Any]]:
+    async def list_workflows(context: ExecutionContext, owner: str, repo: str) -> List[Dict[str, Any]]:
         """List workflows for a repository"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/actions/workflows"
-        return await GitHubAPI.paginated_fetch(
-            context, url, params={}, data_key="workflows"
-        )
+        return await GitHubAPI.paginated_fetch(context, url, params={}, data_key="workflows")
 
     @staticmethod
     async def get_workflow_runs(
@@ -975,9 +889,7 @@ class GitHubAPI:
         """
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/tags"
         params = {"per_page": per_page, "page": page}
-        return await context.fetch(
-            url, params=params, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, params=params, headers=GitHubAPI.get_headers(context))
 
     # -------------------------------------------------------------------------
     # Release Operations
@@ -1006,14 +918,10 @@ class GitHubAPI:
         """
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/releases"
         params = {"per_page": per_page, "page": page}
-        return await context.fetch(
-            url, params=params, headers=GitHubAPI.get_headers(context)
-        )
+        return await context.fetch(url, params=params, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
-    async def get_release(
-        context: ExecutionContext, owner: str, repo: str, release_id: int
-    ) -> Dict[str, Any]:
+    async def get_release(context: ExecutionContext, owner: str, repo: str, release_id: int) -> Dict[str, Any]:
         """
         Get a specific release by ID.
 
@@ -1029,9 +937,7 @@ class GitHubAPI:
         return await context.fetch(url, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
-    async def get_latest_release(
-        context: ExecutionContext, owner: str, repo: str
-    ) -> Dict[str, Any]:
+    async def get_latest_release(context: ExecutionContext, owner: str, repo: str) -> Dict[str, Any]:
         """
         Get the latest published release for a repository.
 
@@ -1048,9 +954,7 @@ class GitHubAPI:
         return await context.fetch(url, headers=GitHubAPI.get_headers(context))
 
     @staticmethod
-    async def get_release_by_tag(
-        context: ExecutionContext, owner: str, repo: str, tag: str
-    ) -> Dict[str, Any]:
+    async def get_release_by_tag(context: ExecutionContext, owner: str, repo: str, tag: str) -> Dict[str, Any]:
         """
         Get a release by tag name.
 
@@ -1133,9 +1037,7 @@ class GetRepository(ActionHandler):
 
     @handle_github_errors("get_repository")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        repo_data = await GitHubAPI.get_repository(
-            context, inputs["owner"], inputs["repo"]
-        )
+        repo_data = await GitHubAPI.get_repository(context, inputs["owner"], inputs["repo"])
 
         return ActionResult(
             data={
@@ -1212,9 +1114,7 @@ class UpdateRepository(ActionHandler):
             "has_wiki": inputs.get("has_wiki"),
         }
 
-        repo = await GitHubAPI.update_repository(
-            context, inputs["owner"], inputs["repo"], **update_data
-        )
+        repo = await GitHubAPI.update_repository(context, inputs["owner"], inputs["repo"], **update_data)
 
         return ActionResult(
             data={
@@ -1293,9 +1193,7 @@ class GetCommit(ActionHandler):
 
     @handle_github_errors("get_commit")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        commit = await GitHubAPI.get_commit(
-            context, inputs["owner"], inputs["repo"], inputs["sha"]
-        )
+        commit = await GitHubAPI.get_commit(context, inputs["owner"], inputs["repo"], inputs["sha"])
 
         return ActionResult(
             data={
@@ -1353,14 +1251,8 @@ class ListIssues(ActionHandler):
                         "login": issue["user"]["login"],
                         "avatar_url": issue["user"]["avatar_url"],
                     },
-                    "assignees": [
-                        {"login": assignee["login"]}
-                        for assignee in issue.get("assignees", [])
-                    ],
-                    "labels": [
-                        {"name": label["name"], "color": label["color"]}
-                        for label in issue.get("labels", [])
-                    ],
+                    "assignees": [{"login": assignee["login"]} for assignee in issue.get("assignees", [])],
+                    "labels": [{"name": label["name"], "color": label["color"]} for label in issue.get("labels", [])],
                     "url": issue["html_url"],
                 }
                 for issue in issues
@@ -1375,9 +1267,7 @@ class GetIssue(ActionHandler):
 
     @handle_github_errors("get_issue")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        issue = await GitHubAPI.get_issue(
-            context, inputs["owner"], inputs["repo"], inputs["issue_number"]
-        )
+        issue = await GitHubAPI.get_issue(context, inputs["owner"], inputs["repo"], inputs["issue_number"])
 
         return ActionResult(
             data={
@@ -1392,14 +1282,8 @@ class GetIssue(ActionHandler):
                     "login": issue["user"]["login"],
                     "avatar_url": issue["user"]["avatar_url"],
                 },
-                "assignees": [
-                    {"login": assignee["login"]}
-                    for assignee in issue.get("assignees", [])
-                ],
-                "labels": [
-                    {"name": label["name"], "color": label["color"]}
-                    for label in issue.get("labels", [])
-                ],
+                "assignees": [{"login": assignee["login"]} for assignee in issue.get("assignees", [])],
+                "labels": [{"name": label["name"], "color": label["color"]} for label in issue.get("labels", [])],
                 "comments": issue.get("comments", 0),
                 "url": issue["html_url"],
             },
@@ -1436,14 +1320,8 @@ class CreateIssue(ActionHandler):
                     "login": issue["user"]["login"],
                     "avatar_url": issue["user"]["avatar_url"],
                 },
-                "assignees": [
-                    {"login": assignee["login"]}
-                    for assignee in issue.get("assignees", [])
-                ],
-                "labels": [
-                    {"name": label["name"], "color": label["color"]}
-                    for label in issue.get("labels", [])
-                ],
+                "assignees": [{"login": assignee["login"]} for assignee in issue.get("assignees", [])],
+                "labels": [{"name": label["name"], "color": label["color"]} for label in issue.get("labels", [])],
                 "url": issue["html_url"],
             },
             cost_usd=0.0,
@@ -1482,14 +1360,8 @@ class UpdateIssue(ActionHandler):
                     "login": issue["user"]["login"],
                     "avatar_url": issue["user"]["avatar_url"],
                 },
-                "assignees": [
-                    {"login": assignee["login"]}
-                    for assignee in issue.get("assignees", [])
-                ],
-                "labels": [
-                    {"name": label["name"], "color": label["color"]}
-                    for label in issue.get("labels", [])
-                ],
+                "assignees": [{"login": assignee["login"]} for assignee in issue.get("assignees", [])],
+                "labels": [{"name": label["name"], "color": label["color"]} for label in issue.get("labels", [])],
                 "url": issue["html_url"],
             },
             cost_usd=0.0,
@@ -1532,9 +1404,7 @@ class GetIssueComments(ActionHandler):
 
     @handle_github_errors("get_issue_comments")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        comments = await GitHubAPI.get_issue_comments(
-            context, inputs["owner"], inputs["repo"], inputs["issue_number"]
-        )
+        comments = await GitHubAPI.get_issue_comments(context, inputs["owner"], inputs["repo"], inputs["issue_number"])
 
         return ActionResult(
             data=[
@@ -1606,9 +1476,7 @@ class GetPullRequest(ActionHandler):
 
     @handle_github_errors("get_pull_request")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        pr = await GitHubAPI.get_pull_request(
-            context, inputs["owner"], inputs["repo"], inputs["pull_number"]
-        )
+        pr = await GitHubAPI.get_pull_request(context, inputs["owner"], inputs["repo"], inputs["pull_number"])
 
         return ActionResult(
             data={
@@ -1628,17 +1496,9 @@ class GetPullRequest(ActionHandler):
                     "login": pr["user"]["login"],
                     "avatar_url": pr["user"]["avatar_url"],
                 },
-                "assignees": [
-                    {"login": assignee["login"]} for assignee in pr.get("assignees", [])
-                ],
-                "requested_reviewers": [
-                    {"login": reviewer["login"]}
-                    for reviewer in pr.get("requested_reviewers", [])
-                ],
-                "labels": [
-                    {"name": label["name"], "color": label["color"]}
-                    for label in pr.get("labels", [])
-                ],
+                "assignees": [{"login": assignee["login"]} for assignee in pr.get("assignees", [])],
+                "requested_reviewers": [{"login": reviewer["login"]} for reviewer in pr.get("requested_reviewers", [])],
+                "labels": [{"name": label["name"], "color": label["color"]} for label in pr.get("labels", [])],
                 "head": {
                     "ref": pr["head"]["ref"],
                     "sha": pr["head"]["sha"],
@@ -1714,21 +1574,16 @@ class CreatePullRequest(ActionHandler):
                 if pr.get("assignee")
                 else None,
                 "assignees": [
-                    {"login": a["login"], "id": a["id"], "avatar_url": a["avatar_url"]}
-                    for a in pr.get("assignees", [])
+                    {"login": a["login"], "id": a["id"], "avatar_url": a["avatar_url"]} for a in pr.get("assignees", [])
                 ],
                 "requested_reviewers": [
                     {"login": r["login"], "id": r["id"], "avatar_url": r["avatar_url"]}
                     for r in pr.get("requested_reviewers", [])
                 ],
                 "requested_teams": [
-                    {"id": t["id"], "name": t["name"], "slug": t["slug"]}
-                    for t in pr.get("requested_teams", [])
+                    {"id": t["id"], "name": t["name"], "slug": t["slug"]} for t in pr.get("requested_teams", [])
                 ],
-                "labels": [
-                    {"name": label["name"], "color": label["color"]}
-                    for label in pr.get("labels", [])
-                ],
+                "labels": [{"name": label["name"], "color": label["color"]} for label in pr.get("labels", [])],
                 "milestone": {
                     "id": pr["milestone"]["id"],
                     "number": pr["milestone"]["number"],
@@ -1787,10 +1642,8 @@ class MergePullRequest(ActionHandler):
                 "merged": True,
                 "message": result.get("message"),
                 "sha": result.get("sha"),
-                "commit_title": inputs.get("commit_title")
-                or result.get("commit_title"),
-                "commit_message": inputs.get("commit_message")
-                or result.get("commit_message"),
+                "commit_title": inputs.get("commit_title") or result.get("commit_title"),
+                "commit_message": inputs.get("commit_message") or result.get("commit_message"),
             },
             cost_usd=0.0,
         )
@@ -1877,8 +1730,7 @@ class ListPullRequestReviewers(ActionHandler):
                     for user in result.get("users", [])
                 ],
                 "teams": [
-                    {"slug": team["slug"], "id": team["id"], "name": team["name"]}
-                    for team in result.get("teams", [])
+                    {"slug": team["slug"], "id": team["id"], "name": team["name"]} for team in result.get("teams", [])
                 ],
             },
             cost_usd=0.0,
@@ -1926,9 +1778,7 @@ class ListBranches(ActionHandler):
 
     @handle_github_errors("list_branches")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        branches = await GitHubAPI.list_branches(
-            context, inputs["owner"], inputs["repo"]
-        )
+        branches = await GitHubAPI.list_branches(context, inputs["owner"], inputs["repo"])
 
         return ActionResult(
             data=[
@@ -1952,9 +1802,7 @@ class GetBranch(ActionHandler):
 
     @handle_github_errors("get_branch")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        branch = await GitHubAPI.get_branch(
-            context, inputs["owner"], inputs["repo"], inputs["branch"]
-        )
+        branch = await GitHubAPI.get_branch(context, inputs["owner"], inputs["repo"], inputs["branch"])
 
         return ActionResult(
             data={
@@ -2004,13 +1852,9 @@ class DeleteBranch(ActionHandler):
 
     @handle_github_errors("delete_branch")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        await GitHubAPI.delete_branch(
-            context, inputs["owner"], inputs["repo"], inputs["branch"]
-        )
+        await GitHubAPI.delete_branch(context, inputs["owner"], inputs["repo"], inputs["branch"])
 
-        return ActionResult(
-            data={"deleted": True, "branch": inputs["branch"]}, cost_usd=0.0
-        )
+        return ActionResult(data={"deleted": True, "branch": inputs["branch"]}, cost_usd=0.0)
 
 
 @github.action("get_branch_protection")
@@ -2027,48 +1871,34 @@ class GetBranchProtection(ActionHandler):
             return ActionResult(
                 data={
                     "enabled": True,
-                    "required_status_checks": protection.get(
-                        "required_status_checks", {}
-                    ).get("contexts", [])
+                    "required_status_checks": protection.get("required_status_checks", {}).get("contexts", [])
                     if protection.get("required_status_checks")
                     else [],
-                    "enforce_admins": protection.get("enforce_admins", {}).get(
-                        "enabled", False
-                    )
+                    "enforce_admins": protection.get("enforce_admins", {}).get("enabled", False)
                     if protection.get("enforce_admins")
                     else False,
                     "required_pull_request_reviews": {
-                        "required_approving_review_count": protection.get(
-                            "required_pull_request_reviews", {}
-                        ).get("required_approving_review_count", 0)
+                        "required_approving_review_count": protection.get("required_pull_request_reviews", {}).get(
+                            "required_approving_review_count", 0
+                        )
                         if protection.get("required_pull_request_reviews")
                         else 0,
-                        "dismiss_stale_reviews": protection.get(
-                            "required_pull_request_reviews", {}
-                        ).get("dismiss_stale_reviews", False)
+                        "dismiss_stale_reviews": protection.get("required_pull_request_reviews", {}).get(
+                            "dismiss_stale_reviews", False
+                        )
                         if protection.get("required_pull_request_reviews")
                         else False,
-                        "require_code_owner_reviews": protection.get(
-                            "required_pull_request_reviews", {}
-                        ).get("require_code_owner_reviews", False)
+                        "require_code_owner_reviews": protection.get("required_pull_request_reviews", {}).get(
+                            "require_code_owner_reviews", False
+                        )
                         if protection.get("required_pull_request_reviews")
                         else False,
                     },
                     "restrictions": {
-                        "users": [
-                            user["login"]
-                            for user in protection.get("restrictions", {}).get(
-                                "users", []
-                            )
-                        ]
+                        "users": [user["login"] for user in protection.get("restrictions", {}).get("users", [])]
                         if protection.get("restrictions")
                         else [],
-                        "teams": [
-                            team["slug"]
-                            for team in protection.get("restrictions", {}).get(
-                                "teams", []
-                            )
-                        ]
+                        "teams": [team["slug"] for team in protection.get("restrictions", {}).get("teams", [])]
                         if protection.get("restrictions")
                         else [],
                     },
@@ -2173,9 +2003,7 @@ class ListWebhooks(ActionHandler):
 
     @handle_github_errors("list_webhooks")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        webhooks = await GitHubAPI.list_webhooks(
-            context, inputs["owner"], inputs["repo"]
-        )
+        webhooks = await GitHubAPI.list_webhooks(context, inputs["owner"], inputs["repo"])
 
         return ActionResult(
             data=[
@@ -2204,13 +2032,9 @@ class DeleteWebhook(ActionHandler):
 
     @handle_github_errors("delete_webhook")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        await GitHubAPI.delete_webhook(
-            context, inputs["owner"], inputs["repo"], inputs["hook_id"]
-        )
+        await GitHubAPI.delete_webhook(context, inputs["owner"], inputs["repo"], inputs["hook_id"])
 
-        return ActionResult(
-            data={"deleted": True, "hook_id": inputs["hook_id"]}, cost_usd=0.0
-        )
+        return ActionResult(data={"deleted": True, "hook_id": inputs["hook_id"]}, cost_usd=0.0)
 
 
 # ---- File Operation Actions ----
@@ -2359,10 +2183,7 @@ class CreateGist(ActionHandler):
                 "id": gist["id"],
                 "description": gist["description"],
                 "public": gist["public"],
-                "files": {
-                    name: {"size": file["size"], "type": file["type"]}
-                    for name, file in gist["files"].items()
-                },
+                "files": {name: {"size": file["size"], "type": file["type"]} for name, file in gist["files"].items()},
                 "created_at": gist["created_at"],
                 "updated_at": gist["updated_at"],
                 "url": gist["html_url"],
@@ -2414,9 +2235,7 @@ class ListOrganizationMembers(ActionHandler):
 
     @handle_github_errors("list_organization_members")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        members = await GitHubAPI.list_organization_members(
-            context, inputs["org"], role=inputs.get("role", "all")
-        )
+        members = await GitHubAPI.list_organization_members(context, inputs["org"], role=inputs.get("role", "all"))
 
         return ActionResult(
             data=[
@@ -2443,9 +2262,7 @@ class ListWorkflows(ActionHandler):
 
     @handle_github_errors("list_workflows")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        workflows = await GitHubAPI.list_workflows(
-            context, inputs["owner"], inputs["repo"]
-        )
+        workflows = await GitHubAPI.list_workflows(context, inputs["owner"], inputs["repo"])
 
         return ActionResult(
             data=[
@@ -2715,9 +2532,7 @@ class GetRelease(ActionHandler):
 
     @handle_github_errors("get_release")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        release = await GitHubAPI.get_release(
-            context, inputs["owner"], inputs["repo"], inputs["release_id"]
-        )
+        release = await GitHubAPI.get_release(context, inputs["owner"], inputs["repo"], inputs["release_id"])
 
         return ActionResult(
             data={
@@ -2766,9 +2581,7 @@ class GetLatestRelease(ActionHandler):
 
     @handle_github_errors("get_latest_release")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        release = await GitHubAPI.get_latest_release(
-            context, inputs["owner"], inputs["repo"]
-        )
+        release = await GitHubAPI.get_latest_release(context, inputs["owner"], inputs["repo"])
 
         return ActionResult(
             data={
@@ -2812,9 +2625,7 @@ class GetReleaseByTag(ActionHandler):
 
     @handle_github_errors("get_release_by_tag")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        release = await GitHubAPI.get_release_by_tag(
-            context, inputs["owner"], inputs["repo"], inputs["tag"]
-        )
+        release = await GitHubAPI.get_release_by_tag(context, inputs["owner"], inputs["repo"], inputs["tag"])
 
         return ActionResult(
             data={

@@ -38,9 +38,7 @@ async def test_get_repository():
     test_repo_owner = "octocat"
     test_repo_name = "Hello-World"
 
-    print(
-        f"\n[TEST] Getting repository details for {test_repo_owner}/{test_repo_name}..."
-    )
+    print(f"\n[TEST] Getting repository details for {test_repo_owner}/{test_repo_name}...")
 
     inputs = {"owner": test_repo_owner, "repo": test_repo_name}
 
@@ -48,16 +46,10 @@ async def test_get_repository():
         try:
             result = await github.execute_action("get_repository", inputs, context)
 
-            assert isinstance(result, IntegrationResult), (
-                "Should return IntegrationResult"
-            )
-            assert isinstance(result.result, ActionResult), (
-                "Result should contain ActionResult"
-            )
+            assert isinstance(result, IntegrationResult), "Should return IntegrationResult"
+            assert isinstance(result.result, ActionResult), "Result should contain ActionResult"
             data = result.result.data
-            assert data.get("name") == test_repo_name, (
-                "Should return correct repository"
-            )
+            assert data.get("name") == test_repo_name, "Should return correct repository"
             print(f"[OK] Retrieved repository: {data.get('full_name')}")
             print(f"  Description: {data.get('description', 'N/A')}")
             print(f"  Stars: {data.get('stargazers_count', 0)}")
@@ -92,12 +84,8 @@ async def test_list_commits():
         try:
             result = await github.execute_action("list_commits", inputs, context)
 
-            assert isinstance(result, IntegrationResult), (
-                "Should return IntegrationResult"
-            )
-            assert isinstance(result.result, ActionResult), (
-                "Result should contain ActionResult"
-            )
+            assert isinstance(result, IntegrationResult), "Should return IntegrationResult"
+            assert isinstance(result.result, ActionResult), "Result should contain ActionResult"
             data = result.result.data
             assert isinstance(data, list), "Data should be an array"
             print(f"[OK] Found {len(data)} commit(s)")
@@ -137,12 +125,8 @@ async def test_list_issues():
         try:
             result = await github.execute_action("list_issues", inputs, context)
 
-            assert isinstance(result, IntegrationResult), (
-                "Should return IntegrationResult"
-            )
-            assert isinstance(result.result, ActionResult), (
-                "Result should contain ActionResult"
-            )
+            assert isinstance(result, IntegrationResult), "Should return IntegrationResult"
+            assert isinstance(result.result, ActionResult), "Result should contain ActionResult"
             data = result.result.data
             assert isinstance(data, list), "Data should be an array"
             print(f"[OK] Found {len(data)} issue(s)")
@@ -153,9 +137,7 @@ async def test_list_issues():
                 print(f"  Using issue: #{test_issue_number} - {data[0].get('title')}")
 
                 for issue in data[:3]:
-                    print(
-                        f"  - #{issue.get('number')}: {issue.get('title')} ({issue.get('state')})"
-                    )
+                    print(f"  - #{issue.get('number')}: {issue.get('title')} ({issue.get('state')})")
 
             return data
 
@@ -238,12 +220,8 @@ async def test_list_pull_requests():
         try:
             result = await github.execute_action("list_pull_requests", inputs, context)
 
-            assert isinstance(result, IntegrationResult), (
-                "Should return IntegrationResult"
-            )
-            assert isinstance(result.result, ActionResult), (
-                "Result should contain ActionResult"
-            )
+            assert isinstance(result, IntegrationResult), "Should return IntegrationResult"
+            assert isinstance(result.result, ActionResult), "Result should contain ActionResult"
             data = result.result.data
             assert isinstance(data, list), "Data should be an array"
             print(f"[OK] Found {len(data)} pull request(s)")
@@ -291,9 +269,7 @@ async def test_create_pull_request():
 async def test_get_workflow_runs():
     """Test getting workflow runs. Skipped - requires workflow_id."""
     print("\n[TEST] Skipping get_workflow_runs - requires specific workflow_id")
-    print(
-        "  To enable, provide a valid workflow_id for a repository you have access to"
-    )
+    print("  To enable, provide a valid workflow_id for a repository you have access to")
     return None
 
     # Uncomment below to actually test
@@ -360,16 +336,10 @@ async def test_diff_branch_to_branch():
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await github.execute_action(
-                "diff_branch_to_branch", inputs, context
-            )
+            result = await github.execute_action("diff_branch_to_branch", inputs, context)
 
-            assert isinstance(result, IntegrationResult), (
-                "Should return IntegrationResult"
-            )
-            assert isinstance(result.result, ActionResult), (
-                "Result should contain ActionResult"
-            )
+            assert isinstance(result, IntegrationResult), "Should return IntegrationResult"
+            assert isinstance(result.result, ActionResult), "Result should contain ActionResult"
             data = result.result.data
             print("[OK] Retrieved branch comparison")
             print(f"  Status: {data.get('status', 'N/A')}")
@@ -393,11 +363,7 @@ async def main():
     print("=" * 70)
     print("\nSETUP:")
     token = TEST_AUTH["credentials"]["access_token"]
-    print(
-        f"  Access Token: {token[:20]}..."
-        if len(token) > 20
-        else f"  Access Token: {token}"
-    )
+    print(f"  Access Token: {token[:20]}..." if len(token) > 20 else f"  Access Token: {token}")
     print("\nActions defined in config.json:")
     print("  - list_commits, list_pull_requests, get_repository")
     print("  - list_issues, create_issue, update_issue")
@@ -456,9 +422,7 @@ async def main():
         print("=" * 70)
         print("\nSummary: 10 actions tested (matching config.json)")
         print("  - Tested read operations for repositories, commits, issues, PRs")
-        print(
-            "  - Write operations (create/update) are commented out to avoid test data"
-        )
+        print("  - Write operations (create/update) are commented out to avoid test data")
         print("=" * 70)
 
     except Exception as e:
