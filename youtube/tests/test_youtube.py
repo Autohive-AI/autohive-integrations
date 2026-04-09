@@ -3,20 +3,12 @@ import asyncio
 from context import youtube
 from autohive_integrations_sdk import ExecutionContext
 
+
 async def test_search():
     """Test searching for videos."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
-        "query": "python programming",
-        "max_results": 5,
-        "type": "video"
-    }
+    inputs = {"query": "python programming", "max_results": 5, "type": "video"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -30,16 +22,9 @@ async def test_search():
 
 async def test_get_video():
     """Test getting video details."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
-        "video_id": "test_video_id_here"
-    }
+    inputs = {"video_id": "test_video_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -53,18 +38,13 @@ async def test_get_video():
 
 async def test_update_video():
     """Test updating video metadata."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {
         "video_id": "test_video_id_here",
         "title": "Updated Video Title",
         "description": "This video has been updated via the integration",
-        "tags": ["test", "integration", "youtube"]
+        "tags": ["test", "integration", "youtube"],
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -79,16 +59,9 @@ async def test_update_video():
 
 async def test_get_channel():
     """Test getting channel details."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
-        "mine": True
-    }
+    inputs = {"mine": True}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -102,17 +75,9 @@ async def test_get_channel():
 
 async def test_list_playlists():
     """Test listing playlists."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
-        "mine": True,
-        "max_results": 10
-    }
+    inputs = {"mine": True, "max_results": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -126,17 +91,12 @@ async def test_list_playlists():
 
 async def test_create_playlist():
     """Test creating a new playlist."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
     inputs = {
         "title": "Test Playlist",
         "description": "A test playlist created by the integration",
-        "privacy_status": "private"
+        "privacy_status": "private",
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -151,17 +111,9 @@ async def test_create_playlist():
 
 async def test_list_playlist_items():
     """Test listing items in a playlist."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
-        "playlist_id": "test_playlist_id_here",
-        "max_results": 10
-    }
+    inputs = {"playlist_id": "test_playlist_id_here", "max_results": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -175,17 +127,9 @@ async def test_list_playlist_items():
 
 async def test_add_video_to_playlist():
     """Test adding a video to a playlist."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
-        "playlist_id": "test_playlist_id_here",
-        "video_id": "test_video_id_here"
-    }
+    inputs = {"playlist_id": "test_playlist_id_here", "video_id": "test_video_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -199,18 +143,9 @@ async def test_add_video_to_playlist():
 
 async def test_list_comments():
     """Test listing comments on a video."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
-        "video_id": "test_video_id_here",
-        "max_results": 20,
-        "order": "relevance"
-    }
+    inputs = {"video_id": "test_video_id_here", "max_results": 20, "order": "relevance"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -224,17 +159,9 @@ async def test_list_comments():
 
 async def test_post_comment():
     """Test posting a comment on a video."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
-        "video_id": "test_video_id_here",
-        "text": "This is a test comment from the integration!"
-    }
+    inputs = {"video_id": "test_video_id_here", "text": "This is a test comment from the integration!"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -248,17 +175,9 @@ async def test_post_comment():
 
 async def test_update_comment():
     """Test updating a comment."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
-        "comment_id": "test_comment_id_here",
-        "text": "This comment has been updated!"
-    }
+    inputs = {"comment_id": "test_comment_id_here", "text": "This comment has been updated!"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -272,16 +191,9 @@ async def test_update_comment():
 
 async def test_delete_comment():
     """Test deleting a comment."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"
-        }
-    }
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
 
-    inputs = {
-        "comment_id": "test_comment_id_here"
-    }
+    inputs = {"comment_id": "test_comment_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -324,8 +236,8 @@ async def main():
     print()
 
     # If create succeeded, try to add video and list items
-    if created_playlist and created_playlist.get('result'):
-        playlist_id = created_playlist.get('playlist', {}).get('id')
+    if created_playlist and created_playlist.get("result"):
+        playlist_id = created_playlist.get("playlist", {}).get("id")
         if playlist_id:
             print("7. Testing add_video_to_playlist on created playlist...")
             await test_add_video_to_playlist()
@@ -344,8 +256,8 @@ async def main():
     print()
 
     # If post succeeded, try to update and delete
-    if posted_comment and posted_comment.get('result'):
-        comment_id = posted_comment.get('comment', {}).get('id')
+    if posted_comment and posted_comment.get("result"):
+        comment_id = posted_comment.get("comment", {}).get("id")
         if comment_id:
             print("11. Testing update_comment on posted comment...")
             await test_update_comment()
