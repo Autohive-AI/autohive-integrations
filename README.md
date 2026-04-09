@@ -124,6 +124,8 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Reddit
 
+[retail-express](retail-express): Retail Express is a cloud-based POS and retail management platform for multi-site retail businesses. The integration provides 10 actions covering products, customers, orders, and outlets. Supports custom API key authentication. Ideal for syncing product catalogues, managing customer records, processing orders, and accessing outlet data across retail locations.
+
 [reddit](reddit): Connect workflows to Reddit with automated engagement capabilities. Search posts across subreddits with customizable filtering options and automatically post comments to join conversations. Includes authentication via Reddit OAuth with read and submit permissions, comprehensive post data extraction, and support for brand monitoring and community engagement workflows.
 
 ### App and Business Reviews
