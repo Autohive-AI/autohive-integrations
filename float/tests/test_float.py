@@ -9,7 +9,7 @@ from autohive_integrations_sdk import ExecutionContext, ActionResult
 #   FLOAT_API_KEY, FLOAT_CONTACT_EMAIL, FLOAT_APPLICATION_NAME
 TEST_AUTH = {
     "credentials": {
-        "api_key": os.getenv("FLOAT_API_KEY", "your_api_key_here"),
+        "api_key": os.getenv("FLOAT_API_KEY", "your_api_key_here"),  # nosec B105
         "contact_email": os.getenv("FLOAT_CONTACT_EMAIL", "your_email@example.com"),
         "application_name": os.getenv("FLOAT_APPLICATION_NAME", "Your Application Name"),
     }
