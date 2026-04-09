@@ -548,7 +548,7 @@ async def test_get_invoice_pdf_success():
     mock_pdf_content = b"%PDF-1.4\n%Mock PDF content for testing"
     base64_pdf = base64.b64encode(mock_pdf_content).decode("utf-8")
 
-    auth = {"credentials": {"access_token": "test-access-token-123"}}
+    auth = {"credentials": {"access_token": "test-access-token-123"}}  # nosec B105
     inputs = {"tenant_id": "test-tenant-456", "invoice_id": "test-invoice-789"}
 
     # Mock aiohttp response for PDF download
@@ -579,7 +579,7 @@ async def test_get_invoice_pdf_not_found():
     """Test that get_invoice_pdf handles 404 errors correctly"""
     from context import xero
 
-    auth = {"credentials": {"access_token": "test-access-token-123"}}
+    auth = {"credentials": {"access_token": "test-access-token-123"}}  # nosec B105
     inputs = {"tenant_id": "test-tenant-456", "invoice_id": "non-existent-invoice"}
 
     # Mock aiohttp response for 404 error

@@ -5,7 +5,7 @@ from context import whatsapp
 from autohive_integrations_sdk import ExecutionContext
 
 # Constants for testing
-AUTH = {"access_token": "ACCESS_TOKEN"}
+AUTH = {"access_token": "ACCESS_TOKEN"}  # nosec B105
 
 PHONE_NUMBER_ID = "PHONE_NUMBER_ID"  # Using the ID from the first test case
 TEST_RECIPIENT_PHONE = "TEST_RECIPIENT_PHONE"  # Using the phone number from the first test case

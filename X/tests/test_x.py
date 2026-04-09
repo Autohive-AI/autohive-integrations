@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_get_me():
     """Test getting authenticated user profile."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -22,7 +22,7 @@ async def test_get_me():
 
 async def test_get_user():
     """Test getting user profile by username."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"username": "X"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -39,7 +39,7 @@ async def test_get_user():
 
 async def test_create_tweet():
     """Test creating a post."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"text": "Test post from Autohive X integration!"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -58,7 +58,7 @@ async def test_create_tweet_with_media():
     """Test creating a post with media."""
     import base64
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     # Minimal valid PNG (1x1 pixel)
     png_data = bytes(
@@ -160,7 +160,7 @@ async def test_create_tweet_with_media():
 
 async def test_get_tweet():
     """Test getting a post by ID."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"post_id": "1234567890123456789", "include_user": True, "include_metrics": True}
 
     async with ExecutionContext(auth=auth) as context:
@@ -177,7 +177,7 @@ async def test_get_tweet():
 
 async def test_search_tweets():
     """Test searching for posts."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"query": "#AI -is:retweet lang:en", "max_results": 10}
 
     async with ExecutionContext(auth=auth) as context:
@@ -194,7 +194,7 @@ async def test_search_tweets():
 
 async def test_delete_tweet():
     """Test deleting a post."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"post_id": "1234567890123456789"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -211,7 +211,7 @@ async def test_delete_tweet():
 
 async def test_get_bookmarks():
     """Test getting authenticated user's bookmarks."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"user_id": "1234567890", "max_results": 10}
 
     async with ExecutionContext(auth=auth) as context:
@@ -228,7 +228,7 @@ async def test_get_bookmarks():
 
 async def test_bookmark_tweet():
     """Test bookmarking a post."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"user_id": "1234567890", "post_id": "1234567890123456789"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -245,7 +245,7 @@ async def test_bookmark_tweet():
 
 async def test_remove_bookmark():
     """Test removing a bookmark."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"user_id": "1234567890", "post_id": "1234567890123456789"}
 
     async with ExecutionContext(auth=auth) as context:
