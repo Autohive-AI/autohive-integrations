@@ -34,9 +34,7 @@ async def download_file_content(context: ExecutionContext, item_id: str) -> byte
     return response
 
 
-async def overwrite_file_content(
-    context: ExecutionContext, item_id: str, content: bytes
-) -> Dict[str, Any]:
+async def overwrite_file_content(context: ExecutionContext, item_id: str, content: bytes) -> Dict[str, Any]:
     """Overwrite file content by item ID (simpler and more reliable than path-based upload)."""
     if len(content) > MAX_SIMPLE_UPLOAD_SIZE:
         raise ValueError(
@@ -47,9 +45,7 @@ async def overwrite_file_content(
     response = await context.fetch(
         f"{GRAPH_API_BASE_URL}/me/drive/items/{item_id}/content",
         method="PUT",
-        headers={
-            "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        },
+        headers={"Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
         data=content,
     )
     return response
@@ -73,9 +69,7 @@ async def upload_file_content(
     response = await context.fetch(
         upload_url,
         method="PUT",
-        headers={
-            "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        },
+        headers={"Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
         data=content,
     )
     return response
@@ -100,9 +94,7 @@ def create_blank_pptx() -> bytes:
 class ListPresentationsAction(ActionHandler):
     """Find accessible PowerPoint presentations (.pptx) in OneDrive/SharePoint."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             folder_path = inputs.get("folder_path", "")
             name_contains = inputs.get("name_contains", "")
@@ -163,9 +155,7 @@ class ListPresentationsAction(ActionHandler):
 class GetPresentationAction(ActionHandler):
     """Retrieve presentation properties including file info, author, and last modified details."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             presentation_id = inputs["presentation_id"]
 
@@ -204,9 +194,7 @@ class GetPresentationAction(ActionHandler):
 class GetSlidesAction(ActionHandler):
     """List all slides in a presentation with their basic metadata."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             from pptx import Presentation
 
@@ -228,15 +216,13 @@ class GetSlidesAction(ActionHandler):
                     )
                     thumbnail_sets = thumbnails_response.get("value", [])
                     if thumbnail_sets:
-                        size_data = thumbnail_sets[0].get(
-                            thumbnail_size, thumbnail_sets[0].get("medium", {})
-                        )
+                        size_data = thumbnail_sets[0].get(thumbnail_size, thumbnail_sets[0].get("medium", {}))
                         thumbnail_data = {
                             "url": size_data.get("url"),
                             "width": size_data.get("width"),
                             "height": size_data.get("height"),
                         }
-                except Exception:
+                except Exception:  # nosec B110
                     pass  # Thumbnail fetch is non-critical - continue without thumbnails
 
             for i, slide in enumerate(prs.slides):
@@ -246,9 +232,7 @@ class GetSlidesAction(ActionHandler):
                     slide_info["thumbnailUrl"] = thumbnail_data.get("url")
                     slide_info["thumbnailWidth"] = thumbnail_data.get("width")
                     slide_info["thumbnailHeight"] = thumbnail_data.get("height")
-                    slide_info["thumbnailNote"] = (
-                        "Thumbnail is for entire presentation, not individual slide"
-                    )
+                    slide_info["thumbnailNote"] = "Thumbnail is for entire presentation, not individual slide"
 
                 slides.append(slide_info)
 
@@ -278,9 +262,7 @@ class GetSlidesAction(ActionHandler):
 class GetSlideAction(ActionHandler):
     """Get details for a specific slide by its index (1-based)."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             from pptx import Presentation
 
@@ -325,16 +307,12 @@ class GetSlideAction(ActionHandler):
                     )
                     thumbnail_sets = thumbnails_response.get("value", [])
                     if thumbnail_sets:
-                        size_data = thumbnail_sets[0].get(
-                            thumbnail_size, thumbnail_sets[0].get("large", {})
-                        )
+                        size_data = thumbnail_sets[0].get(thumbnail_size, thumbnail_sets[0].get("large", {}))
                         result_data["thumbnailUrl"] = size_data.get("url")
                         result_data["thumbnailWidth"] = size_data.get("width")
                         result_data["thumbnailHeight"] = size_data.get("height")
-                        result_data["thumbnailNote"] = (
-                            "Thumbnail is for entire presentation, not individual slide"
-                        )
-                except Exception:
+                        result_data["thumbnailNote"] = "Thumbnail is for entire presentation, not individual slide"
+                except Exception:  # nosec B110
                     pass  # Thumbnail fetch is non-critical - continue without thumbnail
 
             return ActionResult(data=result_data, cost_usd=0.0)
@@ -355,9 +333,7 @@ class GetSlideAction(ActionHandler):
 class CreatePresentationAction(ActionHandler):
     """Create a new PowerPoint presentation in the specified folder."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             name = inputs["name"]
             folder_path = inputs.get("folder_path", "")
@@ -376,11 +352,7 @@ class CreatePresentationAction(ActionHandler):
 
                 copy_body = {
                     "name": file_name,
-                    "parentReference": {
-                        "path": f"/drive/root:{dest_path}"
-                        if dest_path != "/"
-                        else "/drive/root:"
-                    },
+                    "parentReference": {"path": f"/drive/root:{dest_path}" if dest_path != "/" else "/drive/root:"},
                 }
 
                 response = await context.fetch(
@@ -411,9 +383,7 @@ class CreatePresentationAction(ActionHandler):
                     )
             else:
                 pptx_content = create_blank_pptx()
-                response = await upload_file_content(
-                    context, folder_path, file_name, pptx_content
-                )
+                response = await upload_file_content(context, folder_path, file_name, pptx_content)
 
                 return ActionResult(
                     data={
@@ -434,9 +404,7 @@ class CreatePresentationAction(ActionHandler):
 class AddSlideAction(ActionHandler):
     """Add a new slide to an existing presentation."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             from pptx import Presentation
             from pptx.util import Inches, Pt  # noqa: F401
@@ -532,9 +500,7 @@ class AddSlideAction(ActionHandler):
 class UpdateSlideAction(ActionHandler):
     """Update the content of an existing slide."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             from pptx import Presentation
 
@@ -573,10 +539,7 @@ class UpdateSlideAction(ActionHandler):
                 title_types = {PP_PLACEHOLDER.TITLE, PP_PLACEHOLDER.CENTER_TITLE}
                 for shape in slide.shapes:
                     if shape.has_text_frame and shape.is_placeholder:
-                        if (
-                            hasattr(shape, "placeholder_format")
-                            and shape.placeholder_format.type in title_types
-                        ):
+                        if hasattr(shape, "placeholder_format") and shape.placeholder_format.type in title_types:
                             shape.text = title
                             updated = True
                             break
@@ -587,10 +550,7 @@ class UpdateSlideAction(ActionHandler):
                 body_types = {PP_PLACEHOLDER.BODY, PP_PLACEHOLDER.OBJECT}
                 for shape in slide.shapes:
                     if shape.has_text_frame and shape.is_placeholder:
-                        if (
-                            hasattr(shape, "placeholder_format")
-                            and shape.placeholder_format.type in body_types
-                        ):
+                        if hasattr(shape, "placeholder_format") and shape.placeholder_format.type in body_types:
                             shape.text = content
                             updated = True
                             break
@@ -628,9 +588,7 @@ class UpdateSlideAction(ActionHandler):
 class DeleteSlideAction(ActionHandler):
     """Delete a slide from the presentation."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             from pptx import Presentation
 
@@ -701,9 +659,7 @@ class DeleteSlideAction(ActionHandler):
 class ExportPdfAction(ActionHandler):
     """Export the presentation to PDF format."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             presentation_id = inputs["presentation_id"]
             output_folder = inputs.get("output_folder")
@@ -716,18 +672,10 @@ class ExportPdfAction(ActionHandler):
             )
 
             original_name = file_info.get("name", "presentation.pptx")
-            parent_path = (
-                file_info.get("parentReference", {})
-                .get("path", "/drive/root:")
-                .replace("/drive/root:", "")
-            )
+            parent_path = file_info.get("parentReference", {}).get("path", "/drive/root:").replace("/drive/root:", "")
 
             if output_name:
-                pdf_name = (
-                    output_name
-                    if output_name.endswith(".pdf")
-                    else f"{output_name}.pdf"
-                )
+                pdf_name = output_name if output_name.endswith(".pdf") else f"{output_name}.pdf"
             else:
                 pdf_name = original_name.replace(".pptx", ".pdf")
 
@@ -762,9 +710,7 @@ class ExportPdfAction(ActionHandler):
                     "pdf_name": response.get("name"),
                     "pdf_webUrl": response.get("webUrl"),
                     "pdf_size": response.get("size"),
-                    "download_url": download_response.get(
-                        "@microsoft.graph.downloadUrl"
-                    ),
+                    "download_url": download_response.get("@microsoft.graph.downloadUrl"),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -779,9 +725,7 @@ class GetSlideImageAction(ActionHandler):
     """Get a presentation thumbnail image. Note: Microsoft Graph returns a single thumbnail for the entire
     presentation, not per-slide images."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             from pptx import Presentation
 
