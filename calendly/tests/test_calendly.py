@@ -9,8 +9,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_get_current_user():
     """Test getting current user info."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
-    # nosec B105
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await calendly.execute_action("get_current_user", {}, context)
@@ -25,11 +24,11 @@ async def test_get_current_user():
 
 async def test_get_user():
     """Test getting user by UUID."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"user_uuid": "your_user_uuid_here"}
 
     async with ExecutionContext(auth=auth) as context:
-        try:  # nosec B105
+        try:
             result = await calendly.execute_action("get_user", inputs, context)
             print(f"Get User Result: {result}")
             assert result.data.get("result")
@@ -45,13 +44,13 @@ async def test_get_user():
 
 async def test_list_event_types():
     """Test listing event types."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"count": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await calendly.execute_action("list_event_types", inputs, context)
-            print(f"List Event Types Result: {result}")  # nosec B105
+            print(f"List Event Types Result: {result}")
             assert result.data.get("result")
             assert "event_types" in result.data
             return result
@@ -62,7 +61,7 @@ async def test_list_event_types():
 
 async def test_get_event_type():
     """Test getting event type details."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"event_type_uuid": "your_event_type_uuid_here"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -71,7 +70,7 @@ async def test_get_event_type():
             print(f"Get Event Type Result: {result}")
             assert result.data.get("result")
             assert "event_type" in result.data
-            return result  # nosec B105
+            return result
         except Exception as e:
             print(f"Error testing get_event_type: {e}")
             return None
@@ -82,7 +81,7 @@ async def test_get_event_type():
 
 async def test_list_scheduled_events():
     """Test listing scheduled events."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"count": 10, "status": "active"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -93,13 +92,13 @@ async def test_list_scheduled_events():
             assert "events" in result.data
             return result
         except Exception as e:
-            print(f"Error testing list_scheduled_events: {e}")  # nosec B105
+            print(f"Error testing list_scheduled_events: {e}")
             return None
 
 
 async def test_get_scheduled_event():
     """Test getting scheduled event details."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"event_uuid": "your_event_uuid_here"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -114,10 +113,9 @@ async def test_get_scheduled_event():
             return None
 
 
-# nosec B105
 async def test_cancel_scheduled_event():
     """Test canceling a scheduled event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"event_uuid": "your_event_uuid_to_cancel", "reason": "Test cancellation"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -134,9 +132,9 @@ async def test_cancel_scheduled_event():
 # ---- Invitee Tests ----
 
 
-async def test_list_event_invitees():  # nosec B105
+async def test_list_event_invitees():
     """Test listing event invitees."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"event_uuid": "your_event_uuid_here", "count": 10}
 
     async with ExecutionContext(auth=auth) as context:
@@ -153,9 +151,8 @@ async def test_list_event_invitees():  # nosec B105
 
 async def test_get_invitee():
     """Test getting invitee details."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"event_uuid": "your_event_uuid_here", "invitee_uuid": "your_invitee_uuid_here"}
-    # nosec B105
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await calendly.execute_action("get_invitee", inputs, context)
@@ -173,9 +170,9 @@ async def test_get_invitee():
 
 async def test_get_event_type_available_times():
     """Test getting available times for an event type."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {
-        "event_type": "https://api.calendly.com/event_types/your_event_type_uuid",  # nosec B105
+        "event_type": "https://api.calendly.com/event_types/your_event_type_uuid",
         "start_time": "2025-01-25T00:00:00Z",
         "end_time": "2025-01-31T23:59:59Z",
     }
@@ -194,10 +191,10 @@ async def test_get_event_type_available_times():
 
 async def test_get_user_busy_times():
     """Test getting user busy times."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {
         "user": "https://api.calendly.com/users/your_user_uuid",
-        "start_time": "2025-01-25T00:00:00Z",  # nosec B105
+        "start_time": "2025-01-25T00:00:00Z",
         "end_time": "2025-01-31T23:59:59Z",
     }
 
@@ -215,13 +212,13 @@ async def test_get_user_busy_times():
 
 async def test_list_user_availability_schedules():
     """Test listing user availability schedules."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"user": "https://api.calendly.com/users/your_user_uuid"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await calendly.execute_action("list_user_availability_schedules", inputs, context)
-            print(f"List Availability Schedules Result: {result}")  # nosec B105
+            print(f"List Availability Schedules Result: {result}")
             assert result.data.get("result")
             assert "availability_schedules" in result.data
             return result
@@ -235,7 +232,7 @@ async def test_list_user_availability_schedules():
 
 async def test_list_organization_memberships():
     """Test listing organization members."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"count": 10}
 
     async with ExecutionContext(auth=auth) as context:
@@ -245,7 +242,7 @@ async def test_list_organization_memberships():
             assert result.data.get("result")
             assert "memberships" in result.data
             return result
-        except Exception as e:  # nosec B105
+        except Exception as e:
             print(f"Error testing list_organization_memberships: {e}")
             return None
 
@@ -255,7 +252,7 @@ async def test_list_organization_memberships():
 
 async def test_list_webhooks():
     """Test listing webhooks."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"organization": "https://api.calendly.com/organizations/your_org_uuid"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -267,12 +264,12 @@ async def test_list_webhooks():
             return result
         except Exception as e:
             print(f"Error testing list_webhooks: {e}")
-            return None  # nosec B105
+            return None
 
 
 async def test_get_webhook():
     """Test getting webhook details."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"webhook_uuid": "your_webhook_uuid_here"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -309,9 +306,9 @@ async def test_create_webhook():
             return None
 
 
-async def test_delete_webhook():  # nosec B105
+async def test_delete_webhook():
     """Test deleting a webhook."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"webhook_uuid": "your_webhook_uuid_to_delete"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -329,8 +326,8 @@ async def test_delete_webhook():  # nosec B105
 
 
 async def test_list_routing_forms():
-    """Test listing routing forms."""  # nosec B105
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    """Test listing routing forms."""
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"organization": "https://api.calendly.com/organizations/your_org_uuid"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -347,14 +344,14 @@ async def test_list_routing_forms():
 
 async def test_get_routing_form():
     """Test getting routing form details."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"routing_form_uuid": "your_routing_form_uuid_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await calendly.execute_action("get_routing_form", inputs, context)
             print(f"Get Routing Form Result: {result}")
-            assert result.data.get("result")  # nosec B105
+            assert result.data.get("result")
             assert "routing_form" in result.data
             return result
         except Exception as e:
@@ -364,7 +361,7 @@ async def test_get_routing_form():
 
 async def test_list_routing_form_submissions():
     """Test listing routing form submissions."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
     inputs = {"routing_form": "https://api.calendly.com/routing_forms/your_routing_form_uuid"}
 
     async with ExecutionContext(auth=auth) as context:
@@ -375,7 +372,7 @@ async def test_list_routing_form_submissions():
             assert "submissions" in result.data
             return result
         except Exception as e:
-            print(f"Error testing list_routing_form_submissions: {e}")  # nosec B105
+            print(f"Error testing list_routing_form_submissions: {e}")
             return None
 
 
@@ -395,7 +392,7 @@ async def run_all_tests():
         ("Get Event Type", test_get_event_type),
         # Scheduled Events
         ("List Scheduled Events", test_list_scheduled_events),
-        ("Get Scheduled Event", test_get_scheduled_event),  # nosec B105
+        ("Get Scheduled Event", test_get_scheduled_event),
         ("Cancel Scheduled Event", test_cancel_scheduled_event),
         # Invitees
         ("List Event Invitees", test_list_event_invitees),
@@ -415,7 +412,7 @@ async def run_all_tests():
         ("List Routing Forms", test_list_routing_forms),
         ("Get Routing Form", test_get_routing_form),
         ("List Routing Form Submissions", test_list_routing_form_submissions),
-    ]  # nosec B105
+    ]
 
     results = []
     for test_name, test_func in test_functions:
