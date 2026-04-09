@@ -9,7 +9,7 @@ async def test_list_workbooks():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -38,7 +38,7 @@ async def test_list_workbooks_with_filter():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -63,7 +63,7 @@ async def test_get_workbook():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -93,7 +93,7 @@ async def test_list_worksheets():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -122,7 +122,7 @@ async def test_read_range():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -151,7 +151,7 @@ async def test_write_range():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -182,7 +182,7 @@ async def test_list_tables():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -211,7 +211,7 @@ async def test_get_table_data():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -241,7 +241,7 @@ async def test_add_table_row():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -270,7 +270,7 @@ async def test_create_worksheet():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -297,7 +297,7 @@ async def test_delete_worksheet():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -323,7 +323,7 @@ async def test_create_table():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -352,7 +352,7 @@ async def test_update_table_row():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -379,7 +379,7 @@ async def test_delete_table_row():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -406,7 +406,7 @@ async def test_get_used_range():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -433,7 +433,7 @@ async def test_sort_range():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -464,7 +464,7 @@ async def test_apply_filter():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -495,7 +495,7 @@ async def test_clear_filter():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
@@ -521,7 +521,7 @@ async def test_format_range():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"
+            "access_token": "your_access_token_here"  # nosec B105
         }
     }
 
