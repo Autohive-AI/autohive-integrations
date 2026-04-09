@@ -11,7 +11,7 @@ PROPERTY_ID = "your_property_id_here"  # Replace with actual Google Analytics 4 
 auth = {
     "auth_type": "custom",
     "credentials": {
-        "access_token": "your_access_token_here"  # Replace with actual access token
+        "access_token": "your_access_token_here"  # Replace with actual access token  # nosec B105
     },
 }
 

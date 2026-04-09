@@ -27,7 +27,7 @@ def build_credentials(context: ExecutionContext):
     """
     access_token = context.auth["credentials"]["access_token"]
 
-    creds = Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")
+    creds = Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")  # nosec B106
 
     return creds
 

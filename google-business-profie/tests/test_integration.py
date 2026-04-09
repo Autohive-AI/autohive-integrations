@@ -7,7 +7,7 @@ from autohive_integrations_sdk import ExecutionContext
 async def test_list_accounts():
     """Test listing business accounts with OAuth2 authentication."""
     # Setup OAuth2 auth object
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {}  # No inputs required for listing accounts
 
@@ -23,7 +23,7 @@ async def test_list_accounts():
 
 async def test_list_locations():
     """Test listing business locations for a specific account."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"account_name": "accounts/your_account_id_here"}
 
@@ -39,7 +39,7 @@ async def test_list_locations():
 
 async def test_list_reviews():
     """Test listing reviews for a specific business location."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"location_name": "accounts/your_account_id/locations/your_location_id"}
 
@@ -55,7 +55,7 @@ async def test_list_reviews():
 
 async def test_reply_to_review():
     """Test replying to a customer review."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "review_name": "accounts/your_account_id/locations/your_location_id/reviews/your_review_id",
@@ -74,7 +74,7 @@ async def test_reply_to_review():
 
 async def test_delete_review_reply():
     """Test deleting a review reply."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"review_name": "accounts/your_account_id/locations/your_location_id/reviews/your_review_id"}
 

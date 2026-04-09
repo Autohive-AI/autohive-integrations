@@ -7,7 +7,7 @@ from autohive_integrations_sdk import ExecutionContext
 async def test_list_calendars():
     """Test listing calendars with OAuth2 authentication."""
     # Setup OAuth2 auth object
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {}  # No inputs required for listing calendars
 
@@ -23,7 +23,7 @@ async def test_list_calendars():
 
 async def test_list_events():
     """Test listing events from primary calendar."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"calendar_id": "primary", "max_results": 10}
 
@@ -39,7 +39,7 @@ async def test_list_events():
 
 async def test_get_event():
     """Test getting a specific event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"calendar_id": "primary", "event_id": "test_event_id_here"}
 
@@ -55,7 +55,7 @@ async def test_get_event():
 
 async def test_create_event():
     """Test creating a new calendar event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "calendar_id": "primary",
@@ -78,7 +78,7 @@ async def test_create_event():
 
 async def test_update_event():
     """Test updating an existing event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "calendar_id": "primary",
@@ -99,7 +99,7 @@ async def test_update_event():
 
 async def test_delete_event():
     """Test deleting an event."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"calendar_id": "primary", "event_id": "test_event_id_here"}
 
