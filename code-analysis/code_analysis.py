@@ -77,7 +77,7 @@ class ExecutePythonCodeAction(ActionHandler):
                 os.chdir(work_dir)
 
                 with contextlib.redirect_stdout(stdout_io), contextlib.redirect_stderr(stderr_io):
-                    exec(python_code, exec_globals)
+                    exec(python_code, exec_globals)  # nosec B102
             except Exception:
                 returncode = 1
                 stderr_io.write(traceback.format_exc())
