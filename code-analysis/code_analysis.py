@@ -1,5 +1,4 @@
 import os
-import sys
 import shutil
 import base64
 import tempfile
@@ -9,9 +8,7 @@ import traceback
 import mimetypes
 from typing import Dict, Any, List
 
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler, ActionResult
-)
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 
 code_analysis = Integration.load()
 
@@ -38,7 +35,7 @@ class ExecutePythonCodeAction(ActionHandler):
                         try:
                             file_bytes = base64.b64decode(file_content_b64)
                             dest_path = os.path.join(temp_dir, file_name)
-                            with open(dest_path, 'wb') as f:
+                            with open(dest_path, "wb") as f:
                                 f.write(file_bytes)
                             context.logger.info(f"Decoded and wrote input file: {file_name} to {temp_dir}")
                         except Exception as e:
@@ -115,24 +112,21 @@ class ExecutePythonCodeAction(ActionHandler):
                         if not content_type:
                             content_type = "application/octet-stream"
 
-                        output_files_for_sdk.append({
-                            "name": rel_path,
-                            "content": content_b64,
-                            "contentType": content_type
-                        })
+                        output_files_for_sdk.append(
+                            {"name": rel_path, "content": content_b64, "contentType": content_type}
+                        )
                         context.logger.info(f"Processed output file: {rel_path} (type: {content_type})")
                     except Exception as e:
                         context.logger.error(f"Failed to process output file {rel_path}: {e}")
 
-            sdk_output = {
-                "result": stdout,
-                "files": output_files_for_sdk
-            }
+            sdk_output = {"result": stdout, "files": output_files_for_sdk}
 
             if stderr:
                 sdk_output["error"] = stderr
 
             if returncode != 0:
-                context.logger.error("User script raised an exception during execution. Traceback has been captured in output.")
+                context.logger.error(
+                    "User script raised an exception during execution. Traceback has been captured in output."
+                )
 
             return ActionResult(data=sdk_output, cost_usd=None)
