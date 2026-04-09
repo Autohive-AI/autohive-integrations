@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_search():
     """Test searching for videos."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"query": "python programming", "max_results": 5, "type": "video"}
 
@@ -22,7 +22,7 @@ async def test_search():
 
 async def test_get_video():
     """Test getting video details."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"video_id": "test_video_id_here"}
 
@@ -38,7 +38,7 @@ async def test_get_video():
 
 async def test_update_video():
     """Test updating video metadata."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "video_id": "test_video_id_here",
@@ -59,7 +59,7 @@ async def test_update_video():
 
 async def test_get_channel():
     """Test getting channel details."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"mine": True}
 
@@ -75,7 +75,7 @@ async def test_get_channel():
 
 async def test_list_playlists():
     """Test listing playlists."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"mine": True, "max_results": 10}
 
@@ -91,7 +91,7 @@ async def test_list_playlists():
 
 async def test_create_playlist():
     """Test creating a new playlist."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {
         "title": "Test Playlist",
@@ -111,7 +111,7 @@ async def test_create_playlist():
 
 async def test_list_playlist_items():
     """Test listing items in a playlist."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"playlist_id": "test_playlist_id_here", "max_results": 10}
 
@@ -127,7 +127,7 @@ async def test_list_playlist_items():
 
 async def test_add_video_to_playlist():
     """Test adding a video to a playlist."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"playlist_id": "test_playlist_id_here", "video_id": "test_video_id_here"}
 
@@ -143,7 +143,7 @@ async def test_add_video_to_playlist():
 
 async def test_list_comments():
     """Test listing comments on a video."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"video_id": "test_video_id_here", "max_results": 20, "order": "relevance"}
 
@@ -159,7 +159,7 @@ async def test_list_comments():
 
 async def test_post_comment():
     """Test posting a comment on a video."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"video_id": "test_video_id_here", "text": "This is a test comment from the integration!"}
 
@@ -175,7 +175,7 @@ async def test_post_comment():
 
 async def test_update_comment():
     """Test updating a comment."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"comment_id": "test_comment_id_here", "text": "This comment has been updated!"}
 
@@ -191,7 +191,7 @@ async def test_update_comment():
 
 async def test_delete_comment():
     """Test deleting a comment."""
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "your_access_token_here"}}  # nosec B105
 
     inputs = {"comment_id": "test_comment_id_here"}
 

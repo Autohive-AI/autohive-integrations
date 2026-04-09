@@ -1,3 +1,1 @@
-autohive-integrations-sdk
-google-api-python-client
-Pillow
+autohive-integrations-sdk~=1.0.2

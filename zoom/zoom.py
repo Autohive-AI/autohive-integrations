@@ -163,7 +163,7 @@ class ListMeetingsAction(ActionHandler):
             return ActionResult(
                 data={
                     "meetings": [],
-                    "next_page_token": None,
+                    "next_page_token": None,  # nosec B105
                     "page_count": 0,
                     "page_size": 0,
                     "total_records": 0,
@@ -222,7 +222,7 @@ class GetMeetingAction(ActionHandler):
                     "created_at": "",
                     "start_url": "",
                     "join_url": "",
-                    "password": "",
+                    "password": "",  # nosec B105
                     "host_id": "",
                     "host_email": "",
                     "settings": {},
@@ -302,7 +302,7 @@ class CreateMeetingAction(ActionHandler):
                     "duration": 0,
                     "start_url": "",
                     "join_url": "",
-                    "password": "",
+                    "password": "",  # nosec B105
                     "result": False,
                     "error": str(e),
                 },
@@ -483,7 +483,7 @@ class GetMeetingParticipantsAction(ActionHandler):
             return ActionResult(
                 data={
                     "participants": [],
-                    "next_page_token": None,
+                    "next_page_token": None,  # nosec B105
                     "page_count": 0,
                     "page_size": 0,
                     "total_records": 0,
@@ -888,7 +888,7 @@ class ListCalendarEventsAction(ActionHandler):
             )
         except Exception as e:
             return ActionResult(
-                data={"events": [], "next_page_token": None, "time_zone": "", "result": False, "error": str(e)},
+                data={"events": [], "next_page_token": None, "time_zone": "", "result": False, "error": str(e)},  # nosec B105
                 cost_usd=0.0,
             )
 
@@ -921,7 +921,7 @@ class ListCalendarSettingsAction(ActionHandler):
             )
         except Exception as e:
             return ActionResult(
-                data={"settings": [], "next_page_token": None, "result": False, "error": str(e)}, cost_usd=0.0
+                data={"settings": [], "next_page_token": None, "result": False, "error": str(e)}, cost_usd=0.0  # nosec B105
             )
 
 
@@ -975,7 +975,7 @@ class ListContactsAction(ActionHandler):
             )
         except Exception as e:
             return ActionResult(
-                data={"contacts": [], "next_page_token": None, "total_records": 0, "result": False, "error": str(e)},
+                data={"contacts": [], "next_page_token": None, "total_records": 0, "result": False, "error": str(e)},  # nosec B105
                 cost_usd=0.0,
             )
 
