@@ -141,7 +141,7 @@ class CreateDeployAction(ActionHandler):
             hash_to_content = {}
 
             for path, content in files.items():
-                sha1 = hashlib.sha1(content.encode()).hexdigest()
+                sha1 = hashlib.sha1(content.encode(), usedforsecurity=False).hexdigest()  # nosec B324
                 files_dict[path] = sha1
                 hash_to_content[sha1] = content
 
