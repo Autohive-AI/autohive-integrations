@@ -1,7 +1,5 @@
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler
-)
-from typing import Dict, Any, List, Optional
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from typing import Dict, Any
 
 # Create the integration using the config.json
 powerbi = Integration.load()
@@ -10,6 +8,7 @@ powerbi = Integration.load()
 POWERBI_API_BASE = "https://api.powerbi.com/v1.0/myorg"
 
 # ---- Action Handlers ----
+
 
 @powerbi.action("list_workspaces")
 class ListWorkspacesAction(ActionHandler):
@@ -23,32 +22,25 @@ class ListWorkspacesAction(ActionHandler):
             if inputs.get("top"):
                 params["$top"] = inputs["top"]
 
-            response = await context.fetch(
-                f"{POWERBI_API_BASE}/groups",
-                params=params
-            )
+            response = await context.fetch(f"{POWERBI_API_BASE}/groups", params=params)
 
             workspaces = []
             for workspace in response.get("value", []):
-                workspaces.append({
-                    "id": workspace.get("id"),
-                    "name": workspace.get("name"),
-                    "isReadOnly": workspace.get("isReadOnly", False),
-                    "isOnDedicatedCapacity": workspace.get("isOnDedicatedCapacity", False),
-                    "type": workspace.get("type", "Workspace")
-                })
+                workspaces.append(
+                    {
+                        "id": workspace.get("id"),
+                        "name": workspace.get("name"),
+                        "isReadOnly": workspace.get("isReadOnly", False),
+                        "isOnDedicatedCapacity": workspace.get("isOnDedicatedCapacity", False),
+                        "type": workspace.get("type", "Workspace"),
+                    }
+                )
 
-            return {
-                "workspaces": workspaces,
-                "result": True
-            }
+            return {"workspaces": workspaces, "result": True}
 
         except Exception as e:
-            return {
-                "workspaces": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"workspaces": [], "result": False, "error": str(e)}
+
 
 @powerbi.action("get_workspace")
 class GetWorkspaceAction(ActionHandler):
@@ -56,21 +48,13 @@ class GetWorkspaceAction(ActionHandler):
         try:
             workspace_id = inputs["workspace_id"]
 
-            response = await context.fetch(
-                f"{POWERBI_API_BASE}/groups/{workspace_id}"
-            )
+            response = await context.fetch(f"{POWERBI_API_BASE}/groups/{workspace_id}")
 
-            return {
-                "workspace": response,
-                "result": True
-            }
+            return {"workspace": response, "result": True}
 
         except Exception as e:
-            return {
-                "workspace": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"workspace": {}, "result": False, "error": str(e)}
+
 
 @powerbi.action("list_datasets")
 class ListDatasetsAction(ActionHandler):
@@ -87,27 +71,23 @@ class ListDatasetsAction(ActionHandler):
 
             datasets = []
             for dataset in response.get("value", []):
-                datasets.append({
-                    "id": dataset.get("id"),
-                    "name": dataset.get("name"),
-                    "configuredBy": dataset.get("configuredBy"),
-                    "isRefreshable": dataset.get("isRefreshable", False),
-                    "isEffectiveIdentityRequired": dataset.get("isEffectiveIdentityRequired", False),
-                    "isEffectiveIdentityRolesRequired": dataset.get("isEffectiveIdentityRolesRequired", False),
-                    "isOnPremGatewayRequired": dataset.get("isOnPremGatewayRequired", False)
-                })
+                datasets.append(
+                    {
+                        "id": dataset.get("id"),
+                        "name": dataset.get("name"),
+                        "configuredBy": dataset.get("configuredBy"),
+                        "isRefreshable": dataset.get("isRefreshable", False),
+                        "isEffectiveIdentityRequired": dataset.get("isEffectiveIdentityRequired", False),
+                        "isEffectiveIdentityRolesRequired": dataset.get("isEffectiveIdentityRolesRequired", False),
+                        "isOnPremGatewayRequired": dataset.get("isOnPremGatewayRequired", False),
+                    }
+                )
 
-            return {
-                "datasets": datasets,
-                "result": True
-            }
+            return {"datasets": datasets, "result": True}
 
         except Exception as e:
-            return {
-                "datasets": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"datasets": [], "result": False, "error": str(e)}
+
 
 @powerbi.action("get_dataset")
 class GetDatasetAction(ActionHandler):
@@ -123,17 +103,11 @@ class GetDatasetAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {
-                "dataset": response,
-                "result": True
-            }
+            return {"dataset": response, "result": True}
 
         except Exception as e:
-            return {
-                "dataset": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"dataset": {}, "result": False, "error": str(e)}
+
 
 @powerbi.action("refresh_dataset")
 class RefreshDatasetAction(ActionHandler):
@@ -183,28 +157,18 @@ class RefreshDatasetAction(ActionHandler):
             if not refresh_request:
                 refresh_request["notifyOption"] = "NoNotification"
 
-            response = await context.fetch(
-                url,
-                method="POST",
-                json=refresh_request
-            )
+            response = await context.fetch(url, method="POST", json=refresh_request)
 
             # Extract request ID from response headers if available
             request_id = None
-            if hasattr(response, 'headers') and 'x-ms-request-id' in response.headers:
-                request_id = response.headers['x-ms-request-id']
+            if hasattr(response, "headers") and "x-ms-request-id" in response.headers:
+                request_id = response.headers["x-ms-request-id"]
 
-            return {
-                "result": True,
-                "message": "Dataset refresh initiated successfully",
-                "request_id": request_id
-            }
+            return {"result": True, "message": "Dataset refresh initiated successfully", "request_id": request_id}
 
         except Exception as e:
-            return {
-                "result": False,
-                "error": str(e)
-            }
+            return {"result": False, "error": str(e)}
+
 
 @powerbi.action("get_refresh_history")
 class GetRefreshHistoryAction(ActionHandler):
@@ -225,25 +189,21 @@ class GetRefreshHistoryAction(ActionHandler):
 
             refreshes = []
             for refresh in response.get("value", []):
-                refreshes.append({
-                    "refreshType": refresh.get("refreshType"),
-                    "startTime": refresh.get("startTime"),
-                    "endTime": refresh.get("endTime"),
-                    "status": refresh.get("status"),
-                    "requestId": refresh.get("requestId")
-                })
+                refreshes.append(
+                    {
+                        "refreshType": refresh.get("refreshType"),
+                        "startTime": refresh.get("startTime"),
+                        "endTime": refresh.get("endTime"),
+                        "status": refresh.get("status"),
+                        "requestId": refresh.get("requestId"),
+                    }
+                )
 
-            return {
-                "refreshes": refreshes,
-                "result": True
-            }
+            return {"refreshes": refreshes, "result": True}
 
         except Exception as e:
-            return {
-                "refreshes": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"refreshes": [], "result": False, "error": str(e)}
+
 
 @powerbi.action("list_reports")
 class ListReportsAction(ActionHandler):
@@ -260,25 +220,21 @@ class ListReportsAction(ActionHandler):
 
             reports = []
             for report in response.get("value", []):
-                reports.append({
-                    "id": report.get("id"),
-                    "name": report.get("name"),
-                    "webUrl": report.get("webUrl"),
-                    "embedUrl": report.get("embedUrl"),
-                    "datasetId": report.get("datasetId")
-                })
+                reports.append(
+                    {
+                        "id": report.get("id"),
+                        "name": report.get("name"),
+                        "webUrl": report.get("webUrl"),
+                        "embedUrl": report.get("embedUrl"),
+                        "datasetId": report.get("datasetId"),
+                    }
+                )
 
-            return {
-                "reports": reports,
-                "result": True
-            }
+            return {"reports": reports, "result": True}
 
         except Exception as e:
-            return {
-                "reports": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"reports": [], "result": False, "error": str(e)}
+
 
 @powerbi.action("get_report")
 class GetReportAction(ActionHandler):
@@ -294,17 +250,11 @@ class GetReportAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {
-                "report": response,
-                "result": True
-            }
+            return {"report": response, "result": True}
 
         except Exception as e:
-            return {
-                "report": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"report": {}, "result": False, "error": str(e)}
+
 
 @powerbi.action("get_report_datasources")
 class GetReportDatasourcesAction(ActionHandler):
@@ -327,7 +277,7 @@ class GetReportDatasourcesAction(ActionHandler):
                     "datasourceId": datasource.get("datasourceId"),
                     "gatewayId": datasource.get("gatewayId"),
                     "name": datasource.get("name"),
-                    "connectionString": datasource.get("connectionString")
+                    "connectionString": datasource.get("connectionString"),
                 }
 
                 # Add connection details if present
@@ -336,17 +286,11 @@ class GetReportDatasourcesAction(ActionHandler):
 
                 datasources.append(ds_data)
 
-            return {
-                "datasources": datasources,
-                "result": True
-            }
+            return {"datasources": datasources, "result": True}
 
         except Exception as e:
-            return {
-                "datasources": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"datasources": [], "result": False, "error": str(e)}
+
 
 @powerbi.action("refresh_report")
 class RefreshReportAction(ActionHandler):
@@ -366,10 +310,7 @@ class RefreshReportAction(ActionHandler):
             dataset_id = report_response.get("datasetId")
 
             if not dataset_id:
-                return {
-                    "result": False,
-                    "error": "Report does not have an associated dataset"
-                }
+                return {"result": False, "error": "Report does not have an associated dataset"}
 
             # Now refresh the dataset
             if workspace_id:
@@ -377,27 +318,19 @@ class RefreshReportAction(ActionHandler):
             else:
                 refresh_url = f"{POWERBI_API_BASE}/datasets/{dataset_id}/refreshes"
 
-            refresh_request = {
-                "notifyOption": notify_option
-            }
+            refresh_request = {"notifyOption": notify_option}
 
-            await context.fetch(
-                refresh_url,
-                method="POST",
-                json=refresh_request
-            )
+            await context.fetch(refresh_url, method="POST", json=refresh_request)
 
             return {
                 "result": True,
                 "message": f"Dataset refresh initiated successfully for report '{report_response.get('name')}'",
-                "dataset_id": dataset_id
+                "dataset_id": dataset_id,
             }
 
         except Exception as e:
-            return {
-                "result": False,
-                "error": str(e)
-            }
+            return {"result": False, "error": str(e)}
+
 
 @powerbi.action("clone_report")
 class CloneReportAction(ActionHandler):
@@ -414,9 +347,7 @@ class CloneReportAction(ActionHandler):
             else:
                 url = f"{POWERBI_API_BASE}/reports/{report_id}/Clone"
 
-            clone_request = {
-                "name": name
-            }
+            clone_request = {"name": name}
 
             if target_workspace_id:
                 clone_request["targetWorkspaceId"] = target_workspace_id
@@ -424,25 +355,19 @@ class CloneReportAction(ActionHandler):
             if target_dataset_id:
                 clone_request["targetModelId"] = target_dataset_id
 
-            response = await context.fetch(
-                url,
-                method="POST",
-                json=clone_request
-            )
+            response = await context.fetch(url, method="POST", json=clone_request)
 
             return {
                 "id": response.get("id"),
                 "name": response.get("name"),
                 "webUrl": response.get("webUrl"),
                 "embedUrl": response.get("embedUrl"),
-                "result": True
+                "result": True,
             }
 
         except Exception as e:
-            return {
-                "result": False,
-                "error": str(e)
-            }
+            return {"result": False, "error": str(e)}
+
 
 @powerbi.action("export_report")
 class ExportReportAction(ActionHandler):
@@ -457,27 +382,15 @@ class ExportReportAction(ActionHandler):
             else:
                 url = f"{POWERBI_API_BASE}/reports/{report_id}/ExportTo"
 
-            export_request = {
-                "format": export_format
-            }
+            export_request = {"format": export_format}
 
-            response = await context.fetch(
-                url,
-                method="POST",
-                json=export_request
-            )
+            response = await context.fetch(url, method="POST", json=export_request)
 
-            return {
-                "export_id": response.get("id"),
-                "result": True,
-                "message": "Export initiated successfully"
-            }
+            return {"export_id": response.get("id"), "result": True, "message": "Export initiated successfully"}
 
         except Exception as e:
-            return {
-                "result": False,
-                "error": str(e)
-            }
+            return {"result": False, "error": str(e)}
+
 
 @powerbi.action("get_export_status")
 class GetExportStatusAction(ActionHandler):
@@ -497,16 +410,12 @@ class GetExportStatusAction(ActionHandler):
             return {
                 "status": response.get("status"),
                 "percentComplete": response.get("percentComplete", 0),
-                "result": True
+                "result": True,
             }
 
         except Exception as e:
-            return {
-                "status": "Failed",
-                "percentComplete": 0,
-                "result": False,
-                "error": str(e)
-            }
+            return {"status": "Failed", "percentComplete": 0, "result": False, "error": str(e)}
+
 
 @powerbi.action("list_dashboards")
 class ListDashboardsAction(ActionHandler):
@@ -523,24 +432,20 @@ class ListDashboardsAction(ActionHandler):
 
             dashboards = []
             for dashboard in response.get("value", []):
-                dashboards.append({
-                    "id": dashboard.get("id"),
-                    "displayName": dashboard.get("displayName"),
-                    "isReadOnly": dashboard.get("isReadOnly", False),
-                    "embedUrl": dashboard.get("embedUrl")
-                })
+                dashboards.append(
+                    {
+                        "id": dashboard.get("id"),
+                        "displayName": dashboard.get("displayName"),
+                        "isReadOnly": dashboard.get("isReadOnly", False),
+                        "embedUrl": dashboard.get("embedUrl"),
+                    }
+                )
 
-            return {
-                "dashboards": dashboards,
-                "result": True
-            }
+            return {"dashboards": dashboards, "result": True}
 
         except Exception as e:
-            return {
-                "dashboards": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"dashboards": [], "result": False, "error": str(e)}
+
 
 @powerbi.action("get_dashboard")
 class GetDashboardAction(ActionHandler):
@@ -556,17 +461,11 @@ class GetDashboardAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {
-                "dashboard": response,
-                "result": True
-            }
+            return {"dashboard": response, "result": True}
 
         except Exception as e:
-            return {
-                "dashboard": {},
-                "result": False,
-                "error": str(e)
-            }
+            return {"dashboard": {}, "result": False, "error": str(e)}
+
 
 @powerbi.action("get_dashboard_tiles")
 class GetDashboardTilesAction(ActionHandler):
@@ -584,25 +483,21 @@ class GetDashboardTilesAction(ActionHandler):
 
             tiles = []
             for tile in response.get("value", []):
-                tiles.append({
-                    "id": tile.get("id"),
-                    "title": tile.get("title"),
-                    "embedUrl": tile.get("embedUrl"),
-                    "datasetId": tile.get("datasetId"),
-                    "reportId": tile.get("reportId")
-                })
+                tiles.append(
+                    {
+                        "id": tile.get("id"),
+                        "title": tile.get("title"),
+                        "embedUrl": tile.get("embedUrl"),
+                        "datasetId": tile.get("datasetId"),
+                        "reportId": tile.get("reportId"),
+                    }
+                )
 
-            return {
-                "tiles": tiles,
-                "result": True
-            }
+            return {"tiles": tiles, "result": True}
 
         except Exception as e:
-            return {
-                "tiles": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"tiles": [], "result": False, "error": str(e)}
+
 
 @powerbi.action("execute_queries")
 class ExecuteQueriesAction(ActionHandler):
@@ -617,27 +512,11 @@ class ExecuteQueriesAction(ActionHandler):
             else:
                 url = f"{POWERBI_API_BASE}/datasets/{dataset_id}/executeQueries"
 
-            query_request = {
-                "queries": queries,
-                "serializerSettings": {
-                    "includeNulls": True
-                }
-            }
+            query_request = {"queries": queries, "serializerSettings": {"includeNulls": True}}
 
-            response = await context.fetch(
-                url,
-                method="POST",
-                json=query_request
-            )
+            response = await context.fetch(url, method="POST", json=query_request)
 
-            return {
-                "results": response.get("results", []),
-                "result": True
-            }
+            return {"results": response.get("results", []), "result": True}
 
         except Exception as e:
-            return {
-                "results": [],
-                "result": False,
-                "error": str(e)
-            }
+            return {"results": [], "result": False, "error": str(e)}
