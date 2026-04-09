@@ -22,7 +22,7 @@ config_path = os.path.join(os.path.dirname(__file__), "config.json")
 instagram = Integration.load(config_path)
 
 # Import actions to register handlers
-import actions  # noqa: F401 - registers action handlers
+import actions  # noqa: F401, E402 - registers action handlers
 
 
 @instagram.connected_account()
@@ -40,18 +40,9 @@ class InstagramConnectedAccountHandler(ConnectedAccountHandler):
         Returns:
             ConnectedAccountInfo with user's username, name, avatar, etc.
         """
-        fields = ",".join([
-            "id",
-            "username",
-            "name",
-            "profile_picture_url"
-        ])
+        fields = ",".join(["id", "username", "name", "profile_picture_url"])
 
-        response = await context.fetch(
-            f"{INSTAGRAM_GRAPH_API_BASE}/me",
-            method="GET",
-            params={"fields": fields}
-        )
+        response = await context.fetch(f"{INSTAGRAM_GRAPH_API_BASE}/me", method="GET", params={"fields": fields})
 
         name = response.get("name", "")
         name_parts = name.split(maxsplit=1) if name else []
@@ -61,5 +52,5 @@ class InstagramConnectedAccountHandler(ConnectedAccountHandler):
             first_name=name_parts[0] if len(name_parts) > 0 else None,
             last_name=name_parts[1] if len(name_parts) > 1 else None,
             avatar_url=response.get("profile_picture_url"),
-            user_id=response.get("id")
+            user_id=response.get("id"),
         )
