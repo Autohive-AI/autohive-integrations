@@ -1,5 +1,6 @@
 {
     "name": "App and Business Reviews",
+    "display_name": "App and Business Reviews",
     "version": "1.0.0",
     "description": "Access reviews from App Store, Google Play Store, and Google Maps using SerpAPI",
     "entry_point": "app_business_reviews.py",
