@@ -32,8 +32,7 @@ from google.ads.googleads.client import GoogleAdsClient  # noqa: E402
 from google.api_core import protobuf_helpers  # noqa: E402
 
 # Load integration configuration
-_config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
-google_ads = Integration.load(_config_path)
+google_ads = Integration.load()
 
 
 # ---- Utility Functions ----
