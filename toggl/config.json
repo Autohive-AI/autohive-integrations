@@ -1,49 +1,93 @@
 {
-  "name": "Toggl Track",
-  "version": "0.1.0",
-  "description": "Create time entries in Toggl Track via API.",
-  "entry_point": "toggl.py",
-  "auth": {
-    "type": "custom",
-    "title": "Toggl Track",
-    "fields": {
-      "type": "object",
-      "properties": {
-        "api_token": {
-          "type": "string",
-          "format": "password",
-          "label": "Toggl API Token",
-          "help_text": "Find it under https://track.toggl.com/profile"
+    "name": "Toggl Track",
+    "version": "0.1.0",
+    "description": "Create time entries in Toggl Track via API.",
+    "entry_point": "toggl.py",
+    "auth": {
+        "type": "custom",
+        "title": "Toggl Track",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_token": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Toggl API Token",
+                    "help_text": "Find it under https://track.toggl.com/profile"
+                }
+            }
         }
-      }
-    }
-  },
-  "actions": {
-    "create_time_entry": {
-      "display_name": "Create Time Entry",
-      "description": "Creates a time entry in a Toggl workspace.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "workspace_id": { "type": "integer", "description": "Numeric Toggl workspace ID" },
-          "description": { "type": "string", "description": "Entry description" },
-          "start": { "type": "string", "description": "Start time in UTC, format 2006-01-02T15:04:05Z" },
-          "stop": { "type": "string", "description": "Stop time in UTC; omit if still running or using duration" },
-          "duration": { "type": "integer", "description": "Duration in seconds. If running, use -1." },
-          "project_id": { "type": "integer", "description": "Project ID" },
-          "task_id": { "type": "integer", "description": "Task ID" },
-          "billable": { "type": "boolean", "description": "Whether the entry is billable", "default": false },
-          "tags": { "type": "array", "items": { "type": "string" }, "description": "Tag names" },
-          "tag_ids": { "type": "array", "items": { "type": "integer" }, "description": "Tag IDs" },
-          "user_id": { "type": "integer", "description": "Creator user ID; defaults to auth user" }
-        },
-        "required": ["workspace_id", "start"]
-      },
-      "output_schema": {
-        "type": "object",
-        "additionalProperties": true,
-        "properties": {}
-      }
-    }
-  }
+    },
+    "actions": {
+        "create_time_entry": {
+            "display_name": "Create Time Entry",
+            "description": "Creates a time entry in a Toggl workspace.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "workspace_id": {
+                        "type": "integer",
+                        "description": "Numeric Toggl workspace ID"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Entry description"
+                    },
+                    "start": {
+                        "type": "string",
+                        "description": "Start time in UTC, format 2006-01-02T15:04:05Z"
+                    },
+                    "stop": {
+                        "type": "string",
+                        "description": "Stop time in UTC; omit if still running or using duration"
+                    },
+                    "duration": {
+                        "type": "integer",
+                        "description": "Duration in seconds. If running, use -1."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "Project ID"
+                    },
+                    "task_id": {
+                        "type": "integer",
+                        "description": "Task ID"
+                    },
+                    "billable": {
+                        "type": "boolean",
+                        "description": "Whether the entry is billable",
+                        "default": false
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Tag names"
+                    },
+                    "tag_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Tag IDs"
+                    },
+                    "user_id": {
+                        "type": "integer",
+                        "description": "Creator user ID; defaults to auth user"
+                    }
+                },
+                "required": [
+                    "workspace_id",
+                    "start"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {}
+            }
+        }
+    },
+    "display_name": "Toggl Track"
 }
