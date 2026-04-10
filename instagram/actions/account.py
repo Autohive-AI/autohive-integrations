@@ -13,38 +13,38 @@ from helpers import INSTAGRAM_GRAPH_API_BASE
 class GetAccountAction(ActionHandler):
     """
     Retrieve Instagram Business/Creator account details.
-
+    
     Returns profile information including username, bio, follower counts,
     and other account metadata.
     """
-
+    
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        fields = ",".join(
-            [
-                "id",
-                "username",
-                "name",
-                "biography",
-                "followers_count",
-                "follows_count",
-                "media_count",
-                "profile_picture_url",
-                "website",
-            ]
+        fields = ",".join([
+            "id",
+            "username", 
+            "name",
+            "biography",
+            "followers_count",
+            "follows_count",
+            "media_count",
+            "profile_picture_url",
+            "website"
+        ])
+        
+        response = await context.fetch(
+            f"{INSTAGRAM_GRAPH_API_BASE}/me",
+            method="GET",
+            params={"fields": fields}
         )
-
-        response = await context.fetch(f"{INSTAGRAM_GRAPH_API_BASE}/me", method="GET", params={"fields": fields})
-
-        return ActionResult(
-            data={
-                "id": response.get("id", ""),
-                "username": response.get("username", ""),
-                "name": response.get("name", ""),
-                "biography": response.get("biography", ""),
-                "followers_count": response.get("followers_count", 0),
-                "following_count": response.get("follows_count", 0),
-                "media_count": response.get("media_count", 0),
-                "profile_picture_url": response.get("profile_picture_url", ""),
-                "website": response.get("website", ""),
-            }
-        )
+        
+        return ActionResult(data={
+            "id": response.get("id", ""),
+            "username": response.get("username", ""),
+            "name": response.get("name", ""),
+            "biography": response.get("biography", ""),
+            "followers_count": response.get("followers_count", 0),
+            "following_count": response.get("follows_count", 0),
+            "media_count": response.get("media_count", 0),
+            "profile_picture_url": response.get("profile_picture_url", ""),
+            "website": response.get("website", "")
+        })

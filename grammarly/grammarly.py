@@ -1,15 +1,17 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration, ExecutionContext, ActionHandler, ActionResult
+)
 from typing import Dict, Any, Optional
 import aiohttp
 import os
 
 # Create the integration using the config.json from the same directory as this file
 config_dir = os.path.dirname(os.path.abspath(__file__))
-config_path = os.path.join(config_dir, "config.json")
+config_path = os.path.join(config_dir, 'config.json')
 grammarly = Integration.load(config_path)
 
 # Base URLs for Grammarly API
-GRAMMARLY_TOKEN_URL = "https://auth.grammarly.com/v4/api/oauth2/token"  # nosec B105
+GRAMMARLY_TOKEN_URL = "https://auth.grammarly.com/v4/api/oauth2/token"
 GRAMMARLY_WRITING_SCORE_URL = "https://api.grammarly.com/ecosystem/api/v2/scores"
 GRAMMARLY_ANALYTICS_URL = "https://api.grammarly.com/ecosystem/api/v2/analytics/users"
 GRAMMARLY_AI_DETECTION_URL = "https://api.grammarly.com/ecosystem/api/v1/ai-detection"
@@ -17,7 +19,6 @@ GRAMMARLY_PLAGIARISM_URL = "https://api.grammarly.com/ecosystem/api/v1/plagiaris
 
 
 # ---- Helper Functions ----
-
 
 async def get_access_token(context: ExecutionContext) -> str:
     """
@@ -40,9 +41,16 @@ async def get_access_token(context: ExecutionContext) -> str:
     scopes = "scores-api:read scores-api:write analytics-api:read ai-detection-api:read ai-detection-api:write plagiarism-api:read plagiarism-api:write"
 
     # Request new token using form-encoded data
-    body = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret, "scope": scopes}
+    body = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scope": scopes
+    }
 
-    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
 
     async with aiohttp.ClientSession() as session:
         async with session.post(GRAMMARLY_TOKEN_URL, data=body, headers=headers) as resp:
@@ -59,7 +67,7 @@ async def api_request(
     method: str,
     url: str,
     json_data: Optional[Dict[str, Any]] = None,
-    params: Optional[Dict[str, Any]] = None,
+    params: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Execute an API request to Grammarly API.
@@ -76,7 +84,10 @@ async def api_request(
     """
     access_token = await get_access_token(context)
 
-    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
 
     async with aiohttp.ClientSession() as session:
         async with session.request(method, url, headers=headers, json=json_data, params=params) as resp:
@@ -98,16 +109,17 @@ async def upload_file(upload_url: str, file_content: str) -> bool:
     Returns:
         True if upload was successful
     """
-    headers = {"Content-Type": "text/plain"}
+    headers = {
+        "Content-Type": "text/plain"
+    }
 
     # Use yarl.URL with encoded=True to prevent aiohttp from modifying the pre-signed URL
     # This is critical for S3 pre-signed URLs which have query parameters with signatures
     from yarl import URL
-
     url = URL(upload_url, encoded=True)
 
     async with aiohttp.ClientSession() as session:
-        async with session.put(url, data=file_content.encode("utf-8"), headers=headers) as resp:
+        async with session.put(url, data=file_content.encode('utf-8'), headers=headers) as resp:
             if resp.status in [200, 201, 204]:
                 return True
             else:
@@ -116,7 +128,6 @@ async def upload_file(upload_url: str, file_content: str) -> bool:
 
 
 # ---- Writing Score API Actions ----
-
 
 @grammarly.action("analyze_writing_score")
 class AnalyzeWritingScoreAction(ActionHandler):
@@ -137,7 +148,13 @@ class AnalyzeWritingScoreAction(ActionHandler):
             # Step 2: Upload the file to the pre-signed URL
             await upload_file(upload_url, file_content)
 
-            return ActionResult(data={"score_request_id": score_request_id, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "score_request_id": score_request_id,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
@@ -154,7 +171,10 @@ class GetWritingScoreResultsAction(ActionHandler):
 
             response = await api_request(context, "GET", url)
 
-            result = {"status": response.get("status"), "result": True}
+            result = {
+                "status": response.get("status"),
+                "result": True
+            }
 
             # Add score data if available
             if response.get("status") == "COMPLETED" and "score" in response:
@@ -173,14 +193,16 @@ class GetWritingScoreResultsAction(ActionHandler):
 
 # ---- Analytics API Actions ----
 
-
 @grammarly.action("get_user_analytics")
 class GetUserAnalyticsAction(ActionHandler):
     """Get user analytics data for a date range."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = {"date_from": inputs["date_from"], "date_to": inputs["date_to"]}
+            params = {
+                "date_from": inputs["date_from"],
+                "date_to": inputs["date_to"]
+            }
 
             if "cursor" in inputs and inputs["cursor"]:
                 params["cursor"] = inputs["cursor"]
@@ -191,8 +213,12 @@ class GetUserAnalyticsAction(ActionHandler):
             response = await api_request(context, "GET", GRAMMARLY_ANALYTICS_URL, params=params)
 
             return ActionResult(
-                data={"data": response.get("data", []), "paging": response.get("paging", {}), "result": True},
-                cost_usd=0.0,
+                data={
+                    "data": response.get("data", []),
+                    "paging": response.get("paging", {}),
+                    "result": True
+                },
+                cost_usd=0.0
             )
 
         except Exception as e:
@@ -200,7 +226,6 @@ class GetUserAnalyticsAction(ActionHandler):
 
 
 # ---- AI Detection API Actions ----
-
 
 @grammarly.action("analyze_ai_detection")
 class AnalyzeAIDetectionAction(ActionHandler):
@@ -221,7 +246,13 @@ class AnalyzeAIDetectionAction(ActionHandler):
             # Step 2: Upload the file to the pre-signed URL
             await upload_file(upload_url, file_content)
 
-            return ActionResult(data={"score_request_id": score_request_id, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "score_request_id": score_request_id,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
@@ -238,7 +269,10 @@ class GetAIDetectionResultsAction(ActionHandler):
 
             response = await api_request(context, "GET", url)
 
-            result = {"status": response.get("status"), "result": True}
+            result = {
+                "status": response.get("status"),
+                "result": True
+            }
 
             # Add score data if available
             if response.get("status") == "COMPLETED" and "score" in response:
@@ -254,7 +288,6 @@ class GetAIDetectionResultsAction(ActionHandler):
 
 
 # ---- Plagiarism Detection API Actions ----
-
 
 @grammarly.action("analyze_plagiarism_detection")
 class AnalyzePlagiarismDetectionAction(ActionHandler):
@@ -275,7 +308,13 @@ class AnalyzePlagiarismDetectionAction(ActionHandler):
             # Step 2: Upload the file to the pre-signed URL
             await upload_file(upload_url, file_content)
 
-            return ActionResult(data={"score_request_id": score_request_id, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "score_request_id": score_request_id,
+                    "result": True
+                },
+                cost_usd=0.0
+            )
 
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
@@ -292,7 +331,10 @@ class GetPlagiarismDetectionResultsAction(ActionHandler):
 
             response = await api_request(context, "GET", url)
 
-            result = {"status": response.get("status"), "result": True}
+            result = {
+                "status": response.get("status"),
+                "result": True
+            }
 
             # Add score data if available
             if response.get("status") == "COMPLETED" and "score" in response:

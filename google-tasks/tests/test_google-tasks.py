@@ -6,7 +6,7 @@ from autohive_integrations_sdk import ExecutionContext
 # Test configuration
 # Note: For real testing, replace with actual OAuth tokens or use mock responses
 TEST_AUTH = {
-    "access_token": "test_token_here"  # nosec B105
+    "access_token": "test_token_here"
 }
 
 # Store created resource IDs for cleanup
@@ -18,7 +18,9 @@ async def test_list_tasklists():
     """Test listing all task lists."""
     print("\n[TEST] Listing task lists...")
 
-    inputs = {"maxResults": 10}
+    inputs = {
+        "maxResults": 10
+    }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -50,7 +52,9 @@ async def test_get_tasklist():
 
     print(f"\n[TEST] Getting task list {test_tasklist_id}...")
 
-    inputs = {"tasklist": test_tasklist_id}
+    inputs = {
+        "tasklist": test_tasklist_id
+    }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -74,13 +78,13 @@ async def test_create_task():
         print("\n[TEST] Skipping create_task - no task list ID available")
         return None
 
-    print("\n[TEST] Creating a new task...")
+    print(f"\n[TEST] Creating a new task...")
 
     inputs = {
         "tasklist": test_tasklist_id,
         "title": "Test Task from Autohive",
         "notes": "This is a test task created by the integration test suite",
-        "status": "needsAction",
+        "status": "needsAction"
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
@@ -108,14 +112,14 @@ async def test_create_task_with_due_date():
         print("\n[TEST] Skipping create_task_with_due_date - no task list ID available")
         return None
 
-    print("\n[TEST] Creating a task with due date...")
+    print(f"\n[TEST] Creating a task with due date...")
 
     inputs = {
         "tasklist": test_tasklist_id,
         "title": "Task with Due Date",
         "notes": "This task has a due date",
         "due": "2025-12-31T00:00:00.000Z",
-        "status": "needsAction",
+        "status": "needsAction"
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
@@ -143,9 +147,13 @@ async def test_list_tasks():
         print("\n[TEST] Skipping list_tasks - no task list ID available")
         return None
 
-    print("\n[TEST] Listing tasks...")
+    print(f"\n[TEST] Listing tasks...")
 
-    inputs = {"tasklist": test_tasklist_id, "maxResults": 20, "showCompleted": True}
+    inputs = {
+        "tasklist": test_tasklist_id,
+        "maxResults": 20,
+        "showCompleted": True
+    }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -171,7 +179,10 @@ async def test_get_task():
     task_id = created_task_ids[0]
     print(f"\n[TEST] Getting task {task_id}...")
 
-    inputs = {"tasklist": test_tasklist_id, "task": task_id}
+    inputs = {
+        "tasklist": test_tasklist_id,
+        "task": task_id
+    }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -203,7 +214,7 @@ async def test_update_task():
         "task": task_id,
         "title": "Updated Test Task",
         "notes": "This task has been updated by the test suite",
-        "status": "completed",
+        "status": "completed"
     }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
@@ -232,7 +243,11 @@ async def test_create_subtask():
     parent_task_id = created_task_ids[0]
     print(f"\n[TEST] Creating subtask under {parent_task_id}...")
 
-    inputs = {"tasklist": test_tasklist_id, "title": "Subtask of Test Task", "parent": parent_task_id}
+    inputs = {
+        "tasklist": test_tasklist_id,
+        "title": "Subtask of Test Task",
+        "parent": parent_task_id
+    }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -262,7 +277,10 @@ async def test_move_task():
     task_id = created_task_ids[1]
     print(f"\n[TEST] Moving task {task_id}...")
 
-    inputs = {"tasklist": test_tasklist_id, "task": task_id}
+    inputs = {
+        "tasklist": test_tasklist_id,
+        "task": task_id
+    }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -288,7 +306,10 @@ async def test_delete_task():
     task_id = created_task_ids.pop()  # Remove from list as we delete
     print(f"\n[TEST] Deleting task {task_id}...")
 
-    inputs = {"tasklist": test_tasklist_id, "task": task_id}
+    inputs = {
+        "tasklist": test_tasklist_id,
+        "task": task_id
+    }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
@@ -296,7 +317,7 @@ async def test_delete_task():
 
             assert result["result"] is True, "Action should succeed"
 
-            print("✓ Deleted task successfully")
+            print(f"✓ Deleted task successfully")
             return result
 
         except Exception as e:
@@ -314,7 +335,10 @@ async def cleanup_tasks():
     async with ExecutionContext(auth=TEST_AUTH) as context:
         for task_id in created_task_ids:
             try:
-                inputs = {"tasklist": test_tasklist_id, "task": task_id}
+                inputs = {
+                    "tasklist": test_tasklist_id,
+                    "task": task_id
+                }
                 await google_tasks.execute_action("delete_task", inputs, context)
                 print(f"  ✓ Deleted task {task_id}")
             except Exception as e:

@@ -6,7 +6,12 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_list_companies():
     """Test listing all companies."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {"per_page": 10}
 
@@ -22,7 +27,12 @@ async def test_list_companies():
 
 async def test_search_companies():
     """Test searching for companies by name."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {"name": "Acme"}  # Replace with a company name that exists in your account
 
@@ -38,12 +48,17 @@ async def test_search_companies():
 
 async def test_create_company():
     """Test creating a new company."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {
         "name": "Test Company via Integration",
         "description": "A test company created via API",
-        "domains": ["testcompany.com"],
+        "domains": ["testcompany.com"]
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -58,7 +73,12 @@ async def test_create_company():
 
 async def test_get_company():
     """Test getting a specific company."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {"company_id": 123456}  # Replace with actual company ID
 
@@ -74,7 +94,12 @@ async def test_get_company():
 
 async def test_create_ticket():
     """Test creating a new ticket."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {
         "subject": "Test Ticket",
@@ -82,7 +107,7 @@ async def test_create_ticket():
         "email": "customer@example.com",
         "priority": 2,
         "status": 2,
-        "tags": ["api-test"],
+        "tags": ["api-test"]
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -97,7 +122,12 @@ async def test_create_ticket():
 
 async def test_list_tickets():
     """Test listing all tickets."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {"per_page": 10}
 
@@ -113,7 +143,12 @@ async def test_list_tickets():
 
 async def test_get_ticket():
     """Test getting a specific ticket."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {"ticket_id": 1}  # Replace with actual ticket ID
 
@@ -129,13 +164,18 @@ async def test_get_ticket():
 
 async def test_create_contact():
     """Test creating a new contact."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {
         "name": "John Doe",
         "email": "john.doe@example.com",
         "phone": "555-0123",
-        "job_title": "Software Engineer",
+        "job_title": "Software Engineer"
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -150,7 +190,12 @@ async def test_create_contact():
 
 async def test_list_contacts():
     """Test listing all contacts."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {"per_page": 10}
 
@@ -166,7 +211,12 @@ async def test_list_contacts():
 
 async def test_search_contacts():
     """Test searching for contacts by name."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {"term": "John"}  # Replace with a contact name that exists in your account
 
@@ -182,7 +232,12 @@ async def test_search_contacts():
 
 async def test_list_conversations():
     """Test listing conversations for a ticket."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {"ticket_id": 1}  # Replace with actual ticket ID
 
@@ -198,11 +253,16 @@ async def test_list_conversations():
 
 async def test_create_note():
     """Test creating a private note on a ticket."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {
         "ticket_id": 1,  # Replace with actual ticket ID
-        "body": "<p>This is a private note for internal use.</p>",
+        "body": "<p>This is a private note for internal use.</p>"
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -217,11 +277,16 @@ async def test_create_note():
 
 async def test_create_reply():
     """Test creating a public reply on a ticket."""
-    auth = {"credentials": {"api_key": "your_api_key_here", "domain": "your_domain_here"}}
+    auth = {
+        "credentials": {
+            "api_key": "your_api_key_here",
+            "domain": "your_domain_here"
+        }
+    }
 
     inputs = {
         "ticket_id": 1,  # Replace with actual ticket ID
-        "body": "<p>This is a public reply to the customer.</p>",
+        "body": "<p>This is a public reply to the customer.</p>"
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -254,7 +319,7 @@ async def main():
     print()
 
     print("3. Testing create_company...")
-    await test_create_company()
+    created_company = await test_create_company()
     print()
 
     print("4. Testing get_company...")
@@ -263,7 +328,7 @@ async def main():
 
     # Test ticket actions
     print("5. Testing create_ticket...")
-    await test_create_ticket()
+    created_ticket = await test_create_ticket()
     print()
 
     print("6. Testing list_tickets...")
@@ -276,7 +341,7 @@ async def main():
 
     # Test contact actions
     print("8. Testing create_contact...")
-    await test_create_contact()
+    created_contact = await test_create_contact()
     print()
 
     print("9. Testing list_contacts...")

@@ -1,5 +1,7 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
-from typing import Dict, Any
+from autohive_integrations_sdk import (
+    Integration, ExecutionContext, ActionHandler, ActionResult
+)
+from typing import Dict, Any, List, Optional
 
 # Create the integration using the config.json
 heygen = Integration.load()
@@ -9,7 +11,6 @@ HEYGEN_API_BASE_URL = "https://api.heygen.com/v2"
 
 
 # ---- Helper Functions ----
-
 
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     """
@@ -25,11 +26,14 @@ def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     credentials = context.auth.get("credentials", {})
     access_token = credentials.get("access_token", "")
 
-    return {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json", "User-Agent": "AutoHive/1.0"}
+    return {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+        "User-Agent": "AutoHive/1.0"
+    }
 
 
 # ---- Action Handlers ----
-
 
 @heygen.action("generate_photo_avatar")
 class GeneratePhotoAvatarHandler(ActionHandler):
@@ -55,7 +59,7 @@ class GeneratePhotoAvatarHandler(ActionHandler):
             "orientation": inputs["orientation"],
             "pose": inputs["pose"],
             "style": inputs["style"],
-            "appearance": inputs["appearance"],
+            "appearance": inputs["appearance"]
         }
 
         # Add optional parameters if provided
@@ -73,13 +77,22 @@ class GeneratePhotoAvatarHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/photo_avatar/photo/generate",
                 method="POST",
                 headers=headers,
-                json=request_body,
+                json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("check_generation_status")
@@ -102,13 +115,24 @@ class CheckGenerationStatusHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{HEYGEN_API_BASE_URL}/photo_avatar/generation/{generation_id}", headers=headers, method="GET"
+                url=f"{HEYGEN_API_BASE_URL}/photo_avatar/generation/{generation_id}",
+                headers=headers,
+                method="GET"
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("create_avatar_group")
@@ -126,7 +150,10 @@ class CreateAvatarGroupHandler(ActionHandler):
         Returns:
             Dictionary containing group_id for subsequent operations
         """
-        request_body = {"name": inputs["name"], "image_key": inputs["image_key"]}
+        request_body = {
+            "name": inputs["name"],
+            "image_key": inputs["image_key"]
+        }
 
         # Add optional generation_id if provided (only for AI-generated avatars)
         if "generation_id" in inputs and inputs["generation_id"]:
@@ -139,13 +166,22 @@ class CreateAvatarGroupHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/photo_avatar/avatar_group/create",
                 method="POST",
                 headers=headers,
-                json=request_body,
+                json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("add_looks_to_group")
@@ -163,7 +199,11 @@ class AddLooksToGroupHandler(ActionHandler):
         Returns:
             Dictionary containing updated group information
         """
-        request_body = {"group_id": inputs["group_id"], "image_keys": inputs["image_keys"], "name": inputs["name"]}
+        request_body = {
+            "group_id": inputs["group_id"],
+            "image_keys": inputs["image_keys"],
+            "name": inputs["name"]
+        }
 
         # Add optional generation_id if provided (only for AI-generated avatars)
         if "generation_id" in inputs and inputs["generation_id"]:
@@ -176,13 +216,22 @@ class AddLooksToGroupHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/photo_avatar/avatar_group/add",
                 method="POST",
                 headers=headers,
-                json=request_body,
+                json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("train_avatar_group")
@@ -200,19 +249,33 @@ class TrainAvatarGroupHandler(ActionHandler):
         Returns:
             Dictionary containing training job information
         """
-        request_body = {"group_id": inputs["group_id"]}
+        request_body = {
+            "group_id": inputs["group_id"]
+        }
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{HEYGEN_API_BASE_URL}/photo_avatar/train", method="POST", headers=headers, json=request_body
+                url=f"{HEYGEN_API_BASE_URL}/photo_avatar/train",
+                method="POST",
+                headers=headers,
+                json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("check_training_status")
@@ -235,13 +298,24 @@ class CheckTrainingStatusHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{HEYGEN_API_BASE_URL}/photo_avatar/train/status/{group_id}", headers=headers, method="GET"
+                url=f"{HEYGEN_API_BASE_URL}/photo_avatar/train/status/{group_id}",
+                headers=headers,
+                method="GET"
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("generate_avatar_look")
@@ -264,7 +338,7 @@ class GenerateAvatarLookHandler(ActionHandler):
             "prompt": inputs["prompt"],
             "orientation": inputs["orientation"],
             "pose": inputs["pose"],
-            "style": inputs["style"],
+            "style": inputs["style"]
         }
 
         headers = get_auth_headers(context)
@@ -274,13 +348,22 @@ class GenerateAvatarLookHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/photo_avatar/look/generate",
                 method="POST",
                 headers=headers,
-                json=request_body,
+                json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("add_motion_to_avatar")
@@ -298,7 +381,9 @@ class AddMotionToAvatarHandler(ActionHandler):
         Returns:
             Dictionary containing new ID for motion-enhanced version
         """
-        request_body = {"id": inputs["id"]}
+        request_body = {
+            "id": inputs["id"]
+        }
 
         # Add optional parameters if provided
         if "prompt" in inputs and inputs["prompt"]:
@@ -311,13 +396,25 @@ class AddMotionToAvatarHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{HEYGEN_API_BASE_URL}/photo_avatar/add_motion", method="POST", headers=headers, json=request_body
+                url=f"{HEYGEN_API_BASE_URL}/photo_avatar/add_motion",
+                method="POST",
+                headers=headers,
+                json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("add_sound_effect_to_avatar")
@@ -335,7 +432,9 @@ class AddSoundEffectToAvatarHandler(ActionHandler):
         Returns:
             Dictionary containing updated avatar information
         """
-        request_body = {"id": inputs["id"]}
+        request_body = {
+            "id": inputs["id"]
+        }
 
         headers = get_auth_headers(context)
 
@@ -344,13 +443,22 @@ class AddSoundEffectToAvatarHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/photo_avatar/add_sound_effect",
                 method="POST",
                 headers=headers,
-                json=request_body,
+                json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("list_avatar_groups")
@@ -383,13 +491,25 @@ class ListAvatarGroupsHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{HEYGEN_API_BASE_URL}/avatar_group.list", headers=headers, method="GET", params=params
+                url=f"{HEYGEN_API_BASE_URL}/avatar_group.list",
+                headers=headers,
+                method="GET",
+                params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("list_avatars_in_group")
@@ -412,13 +532,24 @@ class ListAvatarsInGroupHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{HEYGEN_API_BASE_URL}/avatar_group/{group_id}/avatars", headers=headers, method="GET"
+                url=f"{HEYGEN_API_BASE_URL}/avatar_group/{group_id}/avatars",
+                headers=headers,
+                method="GET"
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("get_avatar_details")
@@ -441,13 +572,24 @@ class GetAvatarDetailsHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{HEYGEN_API_BASE_URL}/avatar/{avatar_id}/details", headers=headers, method="GET"
+                url=f"{HEYGEN_API_BASE_URL}/avatar/{avatar_id}/details",
+                headers=headers,
+                method="GET"
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("get_photo_avatar_details")
@@ -470,13 +612,24 @@ class GetPhotoAvatarDetailsHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{HEYGEN_API_BASE_URL}/photo_avatar/{photo_avatar_id}", headers=headers, method="GET"
+                url=f"{HEYGEN_API_BASE_URL}/photo_avatar/{photo_avatar_id}",
+                headers=headers,
+                method="GET"
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("list_voices")
@@ -497,12 +650,25 @@ class ListVoicesHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            response = await context.fetch(url=f"{HEYGEN_API_BASE_URL}/voices", headers=headers, method="GET")
+            response = await context.fetch(
+                url=f"{HEYGEN_API_BASE_URL}/voices",
+                headers=headers,
+                method="GET"
+            )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("list_voice_locales")
@@ -528,13 +694,25 @@ class ListVoiceLocalesHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{HEYGEN_API_BASE_URL}/voices/locales", headers=headers, method="GET", params=params
+                url=f"{HEYGEN_API_BASE_URL}/voices/locales",
+                headers=headers,
+                method="GET",
+                params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("list_avatars")
@@ -564,7 +742,10 @@ class ListAvatarsHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{HEYGEN_API_BASE_URL}/avatars", headers=headers, method="GET", params=params
+                url=f"{HEYGEN_API_BASE_URL}/avatars",
+                headers=headers,
+                method="GET",
+                params=params
             )
 
             # Simplify response to reduce size - remove long URLs
@@ -575,34 +756,39 @@ class ListAvatarsHandler(ActionHandler):
                 if "avatars" in data and data["avatars"]:
                     simplified_avatars = []
                     for avatar in data["avatars"]:
-                        simplified_avatars.append(
-                            {
-                                "avatar_id": avatar.get("avatar_id"),
-                                "avatar_name": avatar.get("avatar_name"),
-                                "gender": avatar.get("gender"),
-                                "type": avatar.get("type"),
-                                "premium": avatar.get("premium"),
-                                "default_voice_id": avatar.get("default_voice_id"),
-                            }
-                        )
+                        simplified_avatars.append({
+                            "avatar_id": avatar.get("avatar_id"),
+                            "avatar_name": avatar.get("avatar_name"),
+                            "gender": avatar.get("gender"),
+                            "type": avatar.get("type"),
+                            "premium": avatar.get("premium"),
+                            "default_voice_id": avatar.get("default_voice_id")
+                        })
                     data["avatars"] = simplified_avatars
 
                 # Simplify talking_photos list
                 if "talking_photos" in data and data["talking_photos"]:
                     simplified_photos = []
                     for photo in data["talking_photos"]:
-                        simplified_photos.append(
-                            {
-                                "talking_photo_id": photo.get("talking_photo_id"),
-                                "talking_photo_name": photo.get("talking_photo_name"),
-                            }
-                        )
+                        simplified_photos.append({
+                            "talking_photo_id": photo.get("talking_photo_id"),
+                            "talking_photo_name": photo.get("talking_photo_name")
+                        })
                     data["talking_photos"] = simplified_photos
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("create_avatar_video")
@@ -620,7 +806,9 @@ class CreateAvatarVideoHandler(ActionHandler):
         Returns:
             Dictionary containing video_id for status tracking
         """
-        request_body = {"video_inputs": inputs["video_inputs"]}
+        request_body = {
+            "video_inputs": inputs["video_inputs"]
+        }
 
         # Add optional parameters
         if "title" in inputs and inputs["title"]:
@@ -645,13 +833,25 @@ class CreateAvatarVideoHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{HEYGEN_API_BASE_URL}/video/generate", method="POST", headers=headers, json=request_body
+                url=f"{HEYGEN_API_BASE_URL}/video/generate",
+                method="POST",
+                headers=headers,
+                json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("create_photo_avatar_video")
@@ -669,7 +869,10 @@ class CreatePhotoAvatarVideoHandler(ActionHandler):
         Returns:
             Dictionary containing video_id for status tracking
         """
-        request_body = {"image_key": inputs["image_key"], "video_title": inputs["video_title"]}
+        request_body = {
+            "image_key": inputs["image_key"],
+            "video_title": inputs["video_title"]
+        }
 
         # Add script and voice_id if provided (text-to-speech)
         if "script" in inputs and inputs["script"]:
@@ -702,13 +905,25 @@ class CreatePhotoAvatarVideoHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{HEYGEN_API_BASE_URL}/video/av4/generate", method="POST", headers=headers, json=request_body
+                url=f"{HEYGEN_API_BASE_URL}/video/av4/generate",
+                method="POST",
+                headers=headers,
+                json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
 
 
 @heygen.action("get_video_status")
@@ -731,10 +946,23 @@ class GetVideoStatusHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"https://api.heygen.com/v1/video_status.get?video_id={video_id}", headers=headers, method="GET"
+                url=f"https://api.heygen.com/v1/video_status.get?video_id={video_id}",
+                headers=headers,
+                method="GET"
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(
+                data=response,
+                cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "error": str(e),
+                    "data": None
+                },
+                cost_usd=0.0
+            )
+
+

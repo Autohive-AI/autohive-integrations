@@ -20,17 +20,18 @@ async def _toggle_check(inputs: Dict[str, Any], context: ExecutionContext, actio
     params = {"overrideLocation": override_location} if override_location else None
     url = build_url(f"events/{event_id}/tickets/{ticket_id}/{action}", params)
 
-    response = await context.fetch(url, method="POST", headers=headers)
-
-    if error := build_error_result(response):
-        return error
-
-    return ActionResult(
-        data={
-            "result": True,
-            "scanningMessages": response.get("scanningMessages", []) if isinstance(response, dict) else [],
-        }
+    response = await context.fetch(
+        url,
+        method="POST",
+        headers=headers
     )
+
+    if error := build_error_result(response): return error
+
+    return ActionResult(data={
+        "result": True,
+        "scanningMessages": response.get("scanningMessages", []) if isinstance(response, dict) else []
+    })
 
 
 @humanitix.action("check_in")

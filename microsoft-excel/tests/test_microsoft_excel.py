@@ -9,21 +9,23 @@ async def test_list_workbooks():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"page_size": 10}
+    inputs = {
+        "page_size": 10
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_list_workbooks", inputs, context)
             print(f"List Workbooks Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
-            assert "workbooks" in result, "Response missing 'workbooks' field"
-            if result.get("workbooks"):
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            assert 'workbooks' in result, "Response missing 'workbooks' field"
+            if result.get('workbooks'):
                 print(f"  -> Found {len(result['workbooks'])} workbook(s)")
-                for wb in result["workbooks"][:5]:
+                for wb in result['workbooks'][:5]:
                     print(f"     - {wb.get('name')} (ID: {wb.get('id')})")
             return result
         except Exception as e:
@@ -36,17 +38,20 @@ async def test_list_workbooks_with_filter():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"name_contains": "your_filter_here", "page_size": 10}
+    inputs = {
+        "name_contains": "your_filter_here",
+        "page_size": 10
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_list_workbooks", inputs, context)
             print(f"List Workbooks (Filtered) Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
             return result
         except Exception as e:
             print(f"Error testing list_workbooks with filter: {e}")
@@ -58,22 +63,24 @@ async def test_get_workbook():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"workbook_id": "your_workbook_id_here"}
+    inputs = {
+        "workbook_id": "your_workbook_id_here"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_get_workbook", inputs, context)
             print(f"Get Workbook Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
-            if result.get("workbook"):
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            if result.get('workbook'):
                 print(f"  -> Workbook: {result['workbook'].get('name')}")
-            if result.get("worksheets"):
+            if result.get('worksheets'):
                 print(f"  -> Worksheets: {len(result['worksheets'])}")
-            if result.get("tables"):
+            if result.get('tables'):
                 print(f"  -> Tables: {len(result['tables'])}")
             return result
         except Exception as e:
@@ -86,21 +93,23 @@ async def test_list_worksheets():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"workbook_id": "your_workbook_id_here"}
+    inputs = {
+        "workbook_id": "your_workbook_id_here"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_list_worksheets", inputs, context)
             print(f"List Worksheets Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
-            assert "worksheets" in result, "Response missing 'worksheets' field"
-            if result.get("worksheets"):
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            assert 'worksheets' in result, "Response missing 'worksheets' field"
+            if result.get('worksheets'):
                 print(f"  -> Found {len(result['worksheets'])} worksheet(s)")
-                for ws in result["worksheets"]:
+                for ws in result['worksheets']:
                     print(f"     - {ws.get('name')} (Position: {ws.get('position')})")
             return result
         except Exception as e:
@@ -113,18 +122,22 @@ async def test_read_range():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"workbook_id": "your_workbook_id_here", "worksheet_name": "Sheet1", "range": "A1:D10"}
+    inputs = {
+        "workbook_id": "your_workbook_id_here",
+        "worksheet_name": "Sheet1",
+        "range": "A1:D10"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_read_range", inputs, context)
             print(f"Read Range Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
-            if result.get("values"):
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            if result.get('values'):
                 print(f"  -> Rows: {result.get('row_count')}, Columns: {result.get('column_count')}")
                 print(f"  -> First row: {result['values'][0] if result['values'] else 'empty'}")
             return result
@@ -138,22 +151,25 @@ async def test_write_range():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
         "worksheet_name": "Sheet1",
         "range": "A1:C2",
-        "values": [["Name", "Email", "Status"], ["Test User", "test@example.com", "Active"]],
+        "values": [
+            ["Name", "Email", "Status"],
+            ["Test User", "test@example.com", "Active"]
+        ]
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_write_range", inputs, context)
             print(f"Write Range Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
             print(f"  -> Updated: {result.get('updated_cells')} cells")
             return result
         except Exception as e:
@@ -166,21 +182,23 @@ async def test_list_tables():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"workbook_id": "your_workbook_id_here"}
+    inputs = {
+        "workbook_id": "your_workbook_id_here"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_list_tables", inputs, context)
             print(f"List Tables Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
-            assert "tables" in result, "Response missing 'tables' field"
-            if result.get("tables"):
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            assert 'tables' in result, "Response missing 'tables' field"
+            if result.get('tables'):
                 print(f"  -> Found {len(result['tables'])} table(s)")
-                for table in result["tables"]:
+                for table in result['tables']:
                     print(f"     - {table.get('name')} (ID: {table.get('id')})")
             return result
         except Exception as e:
@@ -193,20 +211,24 @@ async def test_get_table_data():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"workbook_id": "your_workbook_id_here", "table_name": "your_table_name_here", "top": 10}
+    inputs = {
+        "workbook_id": "your_workbook_id_here",
+        "table_name": "your_table_name_here",
+        "top": 10
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_get_table_data", inputs, context)
             print(f"Get Table Data Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
-            if result.get("headers"):
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            if result.get('headers'):
                 print(f"  -> Headers: {result['headers']}")
-            if result.get("rows"):
+            if result.get('rows'):
                 print(f"  -> Rows: {len(result['rows'])} (Total: {result.get('total_rows')})")
             return result
         except Exception as e:
@@ -219,21 +241,23 @@ async def test_add_table_row():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
         "table_name": "your_table_name_here",
-        "rows": [["New Entry", "new@example.com", "Pending"]],
+        "rows": [
+            ["New Entry", "new@example.com", "Pending"]
+        ]
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_add_table_row", inputs, context)
             print(f"Add Table Row Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
             print(f"  -> Added {result.get('added_rows')} row(s)")
             return result
         except Exception as e:
@@ -246,18 +270,21 @@ async def test_create_worksheet():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"workbook_id": "your_workbook_id_here", "name": "NewSheet"}
+    inputs = {
+        "workbook_id": "your_workbook_id_here",
+        "name": "NewSheet"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_create_worksheet", inputs, context)
             print(f"Create Worksheet Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
-            if result.get("worksheet"):
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            if result.get('worksheet'):
                 print(f"  -> Created: {result['worksheet'].get('name')}")
             return result
         except Exception as e:
@@ -270,17 +297,20 @@ async def test_delete_worksheet():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"workbook_id": "your_workbook_id_here", "worksheet_name": "SheetToDelete"}
+    inputs = {
+        "workbook_id": "your_workbook_id_here",
+        "worksheet_name": "SheetToDelete"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_delete_worksheet", inputs, context)
             print(f"Delete Worksheet Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
             print(f"  -> Deleted: {result.get('deleted')}")
             return result
         except Exception as e:
@@ -293,18 +323,23 @@ async def test_create_table():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"workbook_id": "your_workbook_id_here", "worksheet_name": "Sheet1", "range": "A1:C5", "has_headers": True}
+    inputs = {
+        "workbook_id": "your_workbook_id_here",
+        "worksheet_name": "Sheet1",
+        "range": "A1:C5",
+        "has_headers": True
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_create_table", inputs, context)
             print(f"Create Table Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
-            if result.get("table"):
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
+            if result.get('table'):
                 print(f"  -> Created: {result['table'].get('name')}")
             return result
         except Exception as e:
@@ -317,22 +352,22 @@ async def test_update_table_row():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
         "table_name": "your_table_name_here",
         "row_index": 0,
-        "values": ["Updated Name", "updated@example.com", "Inactive"],
+        "values": ["Updated Name", "updated@example.com", "Inactive"]
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_update_table_row", inputs, context)
             print(f"Update Table Row Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
             return result
         except Exception as e:
             print(f"Error testing update_table_row: {e}")
@@ -344,17 +379,21 @@ async def test_delete_table_row():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"workbook_id": "your_workbook_id_here", "table_name": "your_table_name_here", "row_index": 0}
+    inputs = {
+        "workbook_id": "your_workbook_id_here",
+        "table_name": "your_table_name_here",
+        "row_index": 0
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_delete_table_row", inputs, context)
             print(f"Delete Table Row Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
             print(f"  -> Deleted: {result.get('deleted')}")
             return result
         except Exception as e:
@@ -367,17 +406,20 @@ async def test_get_used_range():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"workbook_id": "your_workbook_id_here", "worksheet_name": "Sheet1"}
+    inputs = {
+        "workbook_id": "your_workbook_id_here",
+        "worksheet_name": "Sheet1"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_get_used_range", inputs, context)
             print(f"Get Used Range Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
             print(f"  -> Range: {result.get('range')}")
             print(f"  -> Size: {result.get('row_count')} rows x {result.get('column_count')} columns")
             return result
@@ -391,23 +433,25 @@ async def test_sort_range():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
         "worksheet_name": "Sheet1",
         "range": "A1:C10",
-        "sort_fields": [{"column_index": 0, "ascending": True}],
-        "has_headers": True,
+        "sort_fields": [
+            {"column_index": 0, "ascending": True}
+        ],
+        "has_headers": True
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_sort_range", inputs, context)
             print(f"Sort Range Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
             print(f"  -> Sorted: {result.get('sorted')}")
             return result
         except Exception as e:
@@ -420,22 +464,25 @@ async def test_apply_filter():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
     inputs = {
         "workbook_id": "your_workbook_id_here",
         "table_name": "your_table_name_here",
         "column_index": 0,
-        "filter_criteria": {"filterOn": "Values", "values": ["Active"]},
+        "filter_criteria": {
+            "filterOn": "Values",
+            "values": ["Active"]
+        }
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_apply_filter", inputs, context)
             print(f"Apply Filter Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
             print(f"  -> Filtered: {result.get('filtered')}")
             return result
         except Exception as e:
@@ -448,17 +495,20 @@ async def test_clear_filter():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
-    inputs = {"workbook_id": "your_workbook_id_here", "table_name": "your_table_name_here"}
+    inputs = {
+        "workbook_id": "your_workbook_id_here",
+        "table_name": "your_table_name_here"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_clear_filter", inputs, context)
             print(f"Clear Filter Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
             print(f"  -> Cleared: {result.get('cleared')}")
             return result
         except Exception as e:
@@ -471,8 +521,8 @@ async def test_format_range():
     auth = {
         "auth_type": "PlatformOauth2",
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
+            "access_token": "your_access_token_here"
+        }
     }
 
     inputs = {
@@ -480,17 +530,22 @@ async def test_format_range():
         "worksheet_name": "Sheet1",
         "range": "A1:D1",
         "format": {
-            "font": {"bold": True, "color": "#FFFFFF"},
-            "fill": {"color": "#4472C4"},
-            "horizontalAlignment": "Center",
-        },
+            "font": {
+                "bold": True,
+                "color": "#FFFFFF"
+            },
+            "fill": {
+                "color": "#4472C4"
+            },
+            "horizontalAlignment": "Center"
+        }
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await microsoft_excel.execute_action("excel_format_range", inputs, context)
             print(f"Format Range Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get('result') == True, f"Action failed: {result.get('error', 'Unknown error')}"
             print(f"  -> Formatted: {result.get('formatted')}")
             return result
         except Exception as e:

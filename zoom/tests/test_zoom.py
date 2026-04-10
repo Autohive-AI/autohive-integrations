@@ -8,7 +8,7 @@ async def test_connected_account():
     """Test the connected account handler."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -39,11 +39,15 @@ async def test_list_meetings():
     """Test listing meetings for a user."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"user_id": "me", "type": "scheduled", "page_size": 10}
+    inputs = {
+        "user_id": "me",
+        "type": "scheduled",
+        "page_size": 10
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -55,8 +59,8 @@ async def test_list_meetings():
             print(f"  Success: {data.get('result')}")
             print(f"  Total Records: {data.get('total_records')}")
             print(f"  Cost (USD): {cost}")
-            if data.get("meetings"):
-                for meeting in data["meetings"][:3]:
+            if data.get('meetings'):
+                for meeting in data['meetings'][:3]:
                     print(f"  - {meeting.get('topic')} (ID: {meeting.get('id')})")
             return result
         except Exception as e:
@@ -68,11 +72,13 @@ async def test_get_meeting():
     """Test getting meeting details."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"meeting_id": "your_meeting_id_here"}
+    inputs = {
+        "meeting_id": "your_meeting_id_here"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -95,7 +101,7 @@ async def test_create_meeting():
     """Test creating a new meeting."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -109,7 +115,7 @@ async def test_create_meeting():
         "agenda": "Test meeting created via Autohive integration",
         "waiting_room": True,
         "join_before_host": False,
-        "mute_upon_entry": True,
+        "mute_upon_entry": True
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -134,7 +140,7 @@ async def test_update_meeting():
     """Test updating a meeting."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -142,7 +148,7 @@ async def test_update_meeting():
         "meeting_id": "your_meeting_id_here",
         "topic": "Updated Meeting Topic",
         "duration": 90,
-        "agenda": "Updated meeting agenda",
+        "agenda": "Updated meeting agenda"
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -164,11 +170,14 @@ async def test_delete_meeting():
     """Test deleting a meeting."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"meeting_id": "your_meeting_id_here", "schedule_for_reminder": True}
+    inputs = {
+        "meeting_id": "your_meeting_id_here",
+        "schedule_for_reminder": True
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -189,11 +198,13 @@ async def test_get_user():
     """Test getting user details."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"user_id": "me"}
+    inputs = {
+        "user_id": "me"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -217,11 +228,14 @@ async def test_get_meeting_participants():
     """Test getting meeting participants."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"meeting_id": "your_meeting_id_here", "page_size": 30}
+    inputs = {
+        "meeting_id": "your_meeting_id_here",
+        "page_size": 30
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -232,8 +246,8 @@ async def test_get_meeting_participants():
             print(f"  Success: {data.get('result')}")
             print(f"  Total Records: {data.get('total_records')}")
             print(f"  Cost (USD): {cost}")
-            if data.get("participants"):
-                for participant in data["participants"][:5]:
+            if data.get('participants'):
+                for participant in data['participants'][:5]:
                     print(f"  - {participant.get('name')} (Duration: {participant.get('duration')}s)")
             return result
         except Exception as e:
@@ -245,7 +259,7 @@ async def test_add_meeting_registrant():
     """Test adding a meeting registrant."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -254,7 +268,7 @@ async def test_add_meeting_registrant():
         "email": "test@example.com",
         "first_name": "Test",
         "last_name": "User",
-        "auto_approve": True,
+        "auto_approve": True
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -277,11 +291,13 @@ async def test_list_contacts():
     """Test listing contacts."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"page_size": 50}
+    inputs = {
+        "page_size": 50
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -292,8 +308,8 @@ async def test_list_contacts():
             print(f"  Success: {data.get('result')}")
             print(f"  Total Records: {data.get('total_records')}")
             print(f"  Cost (USD): {cost}")
-            if data.get("contacts"):
-                for contact in data["contacts"][:3]:
+            if data.get('contacts'):
+                for contact in data['contacts'][:3]:
                     print(f"  - {contact.get('first_name')} {contact.get('last_name')} ({contact.get('email')})")
             return result
         except Exception as e:
@@ -305,17 +321,23 @@ async def test_create_calendar_event():
     """Test creating a calendar event."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
     inputs = {
         "calendar_id": "primary",
         "summary": "Test Event from Autohive",
-        "start": {"dateTime": "2025-01-20T10:00:00Z", "timeZone": "America/New_York"},
-        "end": {"dateTime": "2025-01-20T11:00:00Z", "timeZone": "America/New_York"},
+        "start": {
+            "dateTime": "2025-01-20T10:00:00Z",
+            "timeZone": "America/New_York"
+        },
+        "end": {
+            "dateTime": "2025-01-20T11:00:00Z",
+            "timeZone": "America/New_York"
+        },
         "description": "Test event created via Autohive integration",
-        "location": "Virtual",
+        "location": "Virtual"
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -339,11 +361,14 @@ async def test_list_calendar_events():
     """Test listing calendar events."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"calendar_id": "primary", "max_results": 10}
+    inputs = {
+        "calendar_id": "primary",
+        "max_results": 10
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -354,8 +379,8 @@ async def test_list_calendar_events():
             print(f"  Success: {data.get('result')}")
             print(f"  Time Zone: {data.get('time_zone')}")
             print(f"  Cost (USD): {cost}")
-            if data.get("events"):
-                for event in data["events"][:3]:
+            if data.get('events'):
+                for event in data['events'][:3]:
                     print(f"  - {event.get('summary')} (ID: {event.get('id')})")
             return result
         except Exception as e:
@@ -367,11 +392,14 @@ async def test_get_calendar_event():
     """Test getting a calendar event."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"calendar_id": "primary", "event_id": "your_event_id_here"}
+    inputs = {
+        "calendar_id": "primary",
+        "event_id": "your_event_id_here"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -394,11 +422,14 @@ async def test_delete_calendar_event():
     """Test deleting a calendar event."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"calendar_id": "primary", "event_id": "your_event_id_here"}
+    inputs = {
+        "calendar_id": "primary",
+        "event_id": "your_event_id_here"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -419,11 +450,14 @@ async def test_quick_create_calendar_event():
     """Test quick creating a calendar event."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"calendar_id": "primary", "text": "Team meeting tomorrow at 2pm"}
+    inputs = {
+        "calendar_id": "primary",
+        "text": "Team meeting tomorrow at 2pm"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -445,11 +479,13 @@ async def test_get_calendar_metadata():
     """Test getting calendar metadata."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"calendar_id": "primary"}
+    inputs = {
+        "calendar_id": "primary"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -473,7 +509,7 @@ async def test_list_calendar_settings():
     """Test listing calendar settings."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
@@ -487,8 +523,8 @@ async def test_list_calendar_settings():
             print("List Calendar Settings Result:")
             print(f"  Success: {data.get('result')}")
             print(f"  Cost (USD): {cost}")
-            if data.get("settings"):
-                for setting in data["settings"][:5]:
+            if data.get('settings'):
+                for setting in data['settings'][:5]:
                     print(f"  - {setting.get('id')}: {setting.get('value')}")
             return result
         except Exception as e:
@@ -500,11 +536,15 @@ async def test_create_meeting_template():
     """Test creating a meeting template from an existing meeting."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"user_id": "me", "meeting_id": "your_meeting_id_here", "name": "Test Meeting Template"}
+    inputs = {
+        "user_id": "me",
+        "meeting_id": "your_meeting_id_here",
+        "name": "Test Meeting Template"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -526,11 +566,14 @@ async def test_get_meeting_template_detail():
     """Test getting meeting template detail."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"user_id": "me", "template_id": "your_template_id_here"}
+    inputs = {
+        "user_id": "me",
+        "template_id": "your_template_id_here"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -554,14 +597,17 @@ async def test_create_meeting_invite_links():
     """Test creating meeting invite links."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
     inputs = {
         "meeting_id": "your_meeting_id_here",
-        "attendees": [{"name": "John Doe"}, {"name": "Jane Smith"}],
-        "ttl": 7200,
+        "attendees": [
+            {"name": "John Doe"},
+            {"name": "Jane Smith"}
+        ],
+        "ttl": 7200
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -572,8 +618,8 @@ async def test_create_meeting_invite_links():
             print("Create Meeting Invite Links Result:")
             print(f"  Success: {data.get('result')}")
             print(f"  Cost (USD): {cost}")
-            if data.get("attendees"):
-                for attendee in data["attendees"]:
+            if data.get('attendees'):
+                for attendee in data['attendees']:
                     print(f"  - {attendee.get('name')}: {attendee.get('join_url')}")
             return result
         except Exception as e:
@@ -585,11 +631,14 @@ async def test_get_meeting_participant():
     """Test getting a meeting participant."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"meeting_id": "your_meeting_id_here", "participant_id": "your_participant_id_here"}
+    inputs = {
+        "meeting_id": "your_meeting_id_here",
+        "participant_id": "your_participant_id_here"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -613,11 +662,13 @@ async def test_get_past_meeting():
     """Test getting past meeting details."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"meeting_id": "your_meeting_id_here"}
+    inputs = {
+        "meeting_id": "your_meeting_id_here"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -642,11 +693,13 @@ async def test_get_user_permissions():
     """Test getting user permissions."""
     auth = {
         "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
+            "access_token": "your_access_token_here"
         }
     }
 
-    inputs = {"user_id": "me"}
+    inputs = {
+        "user_id": "me"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -656,9 +709,9 @@ async def test_get_user_permissions():
             print("Get User Permissions Result:")
             print(f"  Success: {data.get('result')}")
             print(f"  Cost (USD): {cost}")
-            if data.get("permissions"):
+            if data.get('permissions'):
                 print(f"  Permissions: {', '.join(data['permissions'][:10])}")
-                if len(data["permissions"]) > 10:
+                if len(data['permissions']) > 10:
                     print(f"    ... and {len(data['permissions']) - 10} more")
             return result
         except Exception as e:

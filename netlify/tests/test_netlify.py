@@ -8,15 +8,15 @@ async def test_list_sites():
     """Test listing all sites."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"}
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await netlify.execute_action("list_sites", {}, context)
             print(f"List Sites Result: {result}")
-            assert result.data.get("result")
-            assert "sites" in result.data
+            assert result.data.get('result') == True
+            assert 'sites' in result.data
             return result
         except Exception as e:
             print(f"Error testing list_sites: {e}")
@@ -27,7 +27,7 @@ async def test_create_site():
     """Test creating a new site."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"}
     }
     inputs = {"name": "test-site-autohive"}
 
@@ -35,8 +35,8 @@ async def test_create_site():
         try:
             result = await netlify.execute_action("create_site", inputs, context)
             print(f"Create Site Result: {result}")
-            assert result.data.get("result")
-            assert "site" in result.data
+            assert result.data.get('result') == True
+            assert 'site' in result.data
             return result
         except Exception as e:
             print(f"Error testing create_site: {e}")
@@ -47,7 +47,7 @@ async def test_get_site():
     """Test getting site details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"}
     }
     inputs = {"site_id": "your_site_id_here"}
 
@@ -55,8 +55,8 @@ async def test_get_site():
         try:
             result = await netlify.execute_action("get_site", inputs, context)
             print(f"Get Site Result: {result}")
-            assert result.data.get("result")
-            assert "site" in result.data
+            assert result.data.get('result') == True
+            assert 'site' in result.data
             return result
         except Exception as e:
             print(f"Error testing get_site: {e}")
@@ -67,7 +67,7 @@ async def test_list_deploys():
     """Test listing deploys for a site."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"}
     }
     inputs = {"site_id": "your_site_id_here"}
 
@@ -75,8 +75,8 @@ async def test_list_deploys():
         try:
             result = await netlify.execute_action("list_deploys", inputs, context)
             print(f"List Deploys Result: {result}")
-            assert result.data.get("result")
-            assert "deploys" in result.data
+            assert result.data.get('result') == True
+            assert 'deploys' in result.data
             return result
         except Exception as e:
             print(f"Error testing list_deploys: {e}")
@@ -87,20 +87,22 @@ async def test_create_deploy():
     """Test creating a deploy with files."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"}
     }
     inputs = {
         "site_id": "your_site_id_here",
-        "files": {"/index.html": "<html><body><h1>Hello from Autohive!</h1></body></html>"},
+        "files": {
+            "/index.html": "<html><body><h1>Hello from Autohive!</h1></body></html>"
+        }
     }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await netlify.execute_action("create_deploy", inputs, context)
             print(f"Create Deploy Result: {result}")
-            assert result.data.get("result")
-            assert "deploy" in result.data
-            assert "deploy_url" in result.data
+            assert result.data.get('result') == True
+            assert 'deploy' in result.data
+            assert 'deploy_url' in result.data
             return result
         except Exception as e:
             print(f"Error testing create_deploy: {e}")
@@ -111,7 +113,7 @@ async def test_get_deploy():
     """Test getting deploy details."""
     auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "your_access_token_here"},  # nosec B105
+        "credentials": {"access_token": "your_access_token_here"}
     }
     inputs = {"deploy_id": "your_deploy_id_here"}
 
@@ -119,8 +121,8 @@ async def test_get_deploy():
         try:
             result = await netlify.execute_action("get_deploy", inputs, context)
             print(f"Get Deploy Result: {result}")
-            assert result.data.get("result")
-            assert "deploy" in result.data
+            assert result.data.get('result') == True
+            assert 'deploy' in result.data
             return result
         except Exception as e:
             print(f"Error testing get_deploy: {e}")

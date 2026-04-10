@@ -1,40 +1,39 @@
 import asyncio
 import json
+from typing import Dict, Any
 from unittest.mock import AsyncMock, MagicMock
 from notion import notion
 from notion.notion import NotionGetCommentsHandler
 
-
 async def test_integration_config():
     """Test that the integration configuration is valid"""
-
+    
     # Test that all actions defined in config.json have corresponding handlers
     with open("config.json", "r") as f:
         config = json.load(f)
-
+    
     defined_actions = set(config.get("actions", {}).keys())
-
+    
     # Get all registered action handlers from the integration
-    registered_actions = set(notion._actions.keys()) if hasattr(notion, "_actions") else set()
-
+    registered_actions = set(notion._actions.keys()) if hasattr(notion, '_actions') else set()
+    
     print(f"Actions defined in config.json: {defined_actions}")
     print(f"Actions registered in handlers: {registered_actions}")
-
+    
     missing_handlers = defined_actions - registered_actions
     extra_handlers = registered_actions - defined_actions
-
+    
     if missing_handlers:
         print(f"Missing handlers for actions: {missing_handlers}")
-
+    
     if extra_handlers:
         print(f"Extra handlers without config: {extra_handlers}")
-
+    
     if not missing_handlers and not extra_handlers:
         print("ll actions have matching handlers!")
         return True
-
+    
     return False
-
 
 async def test_get_comments():
     """Test that the get_notion_comments action is properly configured"""
@@ -148,11 +147,11 @@ async def test_get_comments_handler_basic():
                 "discussion_id": "disc-456",
                 "created_time": "2024-01-15T10:00:00.000Z",
                 "rich_text": [{"type": "text", "text": {"content": "Test comment"}}],
-                "parent": {"type": "page_id", "page_id": "page-789"},
+                "parent": {"type": "page_id", "page_id": "page-789"}
             }
         ],
         "next_cursor": None,
-        "has_more": False,
+        "has_more": False
     }
 
     mock_context = MagicMock()
@@ -166,7 +165,7 @@ async def test_get_comments_handler_basic():
         url="https://api.notion.com/v1/comments",
         method="GET",
         headers={"Notion-Version": "2025-09-03"},
-        params={"block_id": "page-789"},
+        params={"block_id": "page-789"}
     )
 
     assert len(result.data["comments"]) == 1
@@ -182,13 +181,17 @@ async def test_get_comments_handler_with_pagination():
         "object": "list",
         "results": [{"id": "comment-1"}, {"id": "comment-2"}],
         "next_cursor": "cursor-abc",
-        "has_more": True,
+        "has_more": True
     }
 
     mock_context = MagicMock()
     mock_context.fetch = AsyncMock(return_value=mock_response)
 
-    inputs = {"block_id": "page-123", "page_size": 2, "start_cursor": "prev-cursor"}
+    inputs = {
+        "block_id": "page-123",
+        "page_size": 2,
+        "start_cursor": "prev-cursor"
+    }
     result = await handler.execute(inputs, mock_context)
 
     # Verify fetch was called with pagination params
@@ -196,7 +199,11 @@ async def test_get_comments_handler_with_pagination():
         url="https://api.notion.com/v1/comments",
         method="GET",
         headers={"Notion-Version": "2025-09-03"},
-        params={"block_id": "page-123", "page_size": 2, "start_cursor": "prev-cursor"},
+        params={
+            "block_id": "page-123",
+            "page_size": 2,
+            "start_cursor": "prev-cursor"
+        }
     )
 
     assert result.data["has_more"] is True
@@ -228,7 +235,11 @@ async def test_get_comments_handler_empty_optional_params():
     mock_context.fetch = AsyncMock(return_value=mock_response)
 
     # Pass empty/None values for optional params
-    inputs = {"block_id": "page-123", "page_size": None, "start_cursor": ""}
+    inputs = {
+        "block_id": "page-123",
+        "page_size": None,
+        "start_cursor": ""
+    }
     await handler.execute(inputs, mock_context)
 
     # Verify only block_id was passed (empty values should be ignored)
@@ -236,7 +247,7 @@ async def test_get_comments_handler_empty_optional_params():
         url="https://api.notion.com/v1/comments",
         method="GET",
         headers={"Notion-Version": "2025-09-03"},
-        params={"block_id": "page-123"},
+        params={"block_id": "page-123"}
     )
 
 
@@ -244,31 +255,30 @@ async def test_new_actions():
     """Test that the new update/delete actions are properly configured"""
 
     new_actions = ["update_notion_block", "delete_notion_block", "update_notion_page", "get_notion_comments"]
-
+    
     with open("config.json", "r") as f:
         config = json.load(f)
-
+    
     actions = config.get("actions", {})
-
+    
     for action in new_actions:
         if action in actions:
             print(f"✅ {action} is defined in config.json")
-
+            
             # Check required fields
             action_config = actions[action]
             if "display_name" in action_config and "description" in action_config:
                 print(f"   - Has display_name: {action_config['display_name']}")
                 print(f"   - Has description: {action_config['description']}")
             else:
-                print("Missing display_name or description")
-
+                print(f"Missing display_name or description")
+                
             if "input_schema" in action_config and "output_schema" in action_config:
-                print("   - Has input and output schemas")
+                print(f"   - Has input and output schemas")
             else:
-                print("Missing input or output schema")
+                print(f"Missing input or output schema")
         else:
             print(f"{action} is NOT defined in config.json")
-
 
 async def main():
     """Run all tests"""
@@ -320,7 +330,6 @@ async def main():
         print("- get_notion_comments: Retrieve comments from pages/blocks")
     else:
         print("Integration has configuration issues that need to be fixed.")
-
 
 if __name__ == "__main__":
     asyncio.run(main())

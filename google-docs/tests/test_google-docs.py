@@ -3,16 +3,17 @@ import asyncio
 from context import google_docs
 from autohive_integrations_sdk import ExecutionContext
 
-
 async def test_create_document():
     """Test creating a new document."""
     auth = {
         "credentials": {
-            "access_token": "test_access_token"  # nosec B105
+            "access_token": "test_access_token"
         }
     }
 
-    inputs = {"title": "Test Document"}
+    inputs = {
+        "title": "Test Document"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -26,11 +27,14 @@ async def test_get_document():
     """Test retrieving a document."""
     auth = {
         "credentials": {
-            "access_token": "test_access_token"  # nosec B105
+            "access_token": "test_access_token"
         }
     }
 
-    inputs = {"document_id": "test_document_id", "include_tabs_content": True}
+    inputs = {
+        "document_id": "test_document_id",
+        "include_tabs_content": True
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -44,14 +48,18 @@ async def test_insert_paragraphs():
     """Test inserting plain paragraphs."""
     auth = {
         "credentials": {
-            "access_token": "test_access_token"  # nosec B105
+            "access_token": "test_access_token"
         }
     }
 
     inputs = {
         "document_id": "test_document_id",
-        "paragraphs": ["This is the first paragraph.", "This is the second paragraph.", "This is the third paragraph."],
-        "append": True,
+        "paragraphs": [
+            "This is the first paragraph.",
+            "This is the second paragraph.",
+            "This is the third paragraph."
+        ],
+        "append": True
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -66,7 +74,7 @@ async def test_insert_markdown_content():
     """Test inserting markdown content with automatic styling (all heading levels and inline formatting)."""
     auth = {
         "credentials": {
-            "access_token": "test_access_token"  # nosec B105
+            "access_token": "test_access_token"
         }
     }
 
@@ -88,7 +96,11 @@ Another paragraph with **important** information.
 
 Final paragraph with mixed **bold** and *italic* styles."""
 
-    inputs = {"document_id": "test_document_id", "content": markdown_content, "append": True}
+    inputs = {
+        "document_id": "test_document_id",
+        "content": markdown_content,
+        "append": True
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -105,7 +117,7 @@ async def test_batch_update():
     """Test batch update for text formatting."""
     auth = {
         "credentials": {
-            "access_token": "test_access_token"  # nosec B105
+            "access_token": "test_access_token"
         }
     }
 
@@ -114,19 +126,29 @@ async def test_batch_update():
         "requests": [
             {
                 "updateTextStyle": {
-                    "range": {"startIndex": 1, "endIndex": 10},
-                    "textStyle": {"bold": True},
-                    "fields": "bold",
+                    "range": {
+                        "startIndex": 1,
+                        "endIndex": 10
+                    },
+                    "textStyle": {
+                        "bold": True
+                    },
+                    "fields": "bold"
                 }
             },
             {
                 "updateTextStyle": {
-                    "range": {"startIndex": 10, "endIndex": 20},
-                    "textStyle": {"italic": True},
-                    "fields": "italic",
+                    "range": {
+                        "startIndex": 10,
+                        "endIndex": 20
+                    },
+                    "textStyle": {
+                        "italic": True
+                    },
+                    "fields": "italic"
                 }
-            },
-        ],
+            }
+        ]
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -141,11 +163,13 @@ async def test_parse_structure():
     """Test parsing document structure."""
     auth = {
         "credentials": {
-            "access_token": "test_access_token"  # nosec B105
+            "access_token": "test_access_token"
         }
     }
 
-    inputs = {"document_id": "test_document_id"}
+    inputs = {
+        "document_id": "test_document_id"
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -186,7 +210,6 @@ async def main():
 
     print("================================")
     print("All tests completed!")
-
 
 if __name__ == "__main__":
     asyncio.run(main())

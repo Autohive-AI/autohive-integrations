@@ -40,9 +40,12 @@ class GetTagsAction(ActionHandler):
 
         url = build_url("tags", params)
 
-        response = await context.fetch(url, method="GET", headers=get_api_headers(context))
+        response = await context.fetch(
+            url,
+            method="GET",
+            headers=get_api_headers(context)
+        )
 
-        if error := build_error_result(response):
-            return error
+        if error := build_error_result(response): return error
 
         return build_paginated_result(response, "tags", page, page_size)

@@ -11,24 +11,16 @@ class MockExecutionContext:
         self.metadata = {"api_base_url": "https://api.gong.io"}
         self._responses = responses
 
-    async def fetch(
-        self,
-        url: str,
-        method: str = "GET",
-        params: Optional[Dict[str, Any]] = None,
-        json: Any = None,
-        headers: Optional[Dict[str, str]] = None,
-        **kwargs,
-    ):
+    async def fetch(self, url: str, method: str = "GET", params: Optional[Dict[str, Any]] = None, json: Any = None, headers: Optional[Dict[str, str]] = None, **kwargs):
         # Route by endpoint suffix for simplicity
         if url.endswith("/calls") and method == "GET":
             return self._responses.get("GET /calls", {"calls": [], "hasMore": False})
-
+        
         # Match GET /calls/{id}
         if "/calls/" in url and method == "GET" and not url.endswith("/calls"):
-            # Simple ID extraction or just return a default "GET /calls/{id}" mock
+             # Simple ID extraction or just return a default "GET /calls/{id}" mock
             return self._responses.get("GET /calls/{id}", {})
-
+            
         if url.endswith("/calls/extensive") and method == "POST":
             return self._responses.get("POST /calls/extensive", {"calls": []})
         if url.endswith("/calls/transcript") and method == "POST":
@@ -42,22 +34,8 @@ async def test_list_calls_basic():
     responses = {
         "GET /calls": {
             "calls": [
-                {
-                    "id": "2",
-                    "title": "B",
-                    "started": "2025-01-02T00:00:00Z",
-                    "duration": 5,
-                    "participants": [],
-                    "outcome": "",
-                },
-                {
-                    "id": "1",
-                    "title": "A",
-                    "started": "2025-01-01T00:00:00Z",
-                    "duration": 10,
-                    "participants": [],
-                    "outcome": "",
-                },
+                {"id": "2", "title": "B", "started": "2025-01-02T00:00:00Z", "duration": 5, "participants": [], "outcome": ""},
+                {"id": "1", "title": "A", "started": "2025-01-01T00:00:00Z", "duration": 10, "participants": [], "outcome": ""},
             ],
             "hasMore": False,
             "nextCursor": None,
@@ -83,9 +61,14 @@ async def test_get_call_details_shim():
         },
         "POST /calls/extensive": {
             "calls": [
-                {"id": "abc", "parties": [{"userId": "u1", "name": "Jane"}], "crmData": {"opp": 123}, "outcome": "Won"}
+                {
+                    "id": "abc",
+                    "parties": [{"userId": "u1", "name": "Jane"}],
+                    "crmData": {"opp": 123},
+                    "outcome": "Won"
+                }
             ]
-        },
+        }
     }
     context = MockExecutionContext(responses)
     result = await gong.execute_action("get_call_details", {"call_id": "abc"}, context)
@@ -98,18 +81,20 @@ async def test_get_call_details_shim():
 
 async def test_get_call_transcript_mapping():
     responses = {
-        "GET /calls/{id}": {"call": {"id": "xyz", "started": "2025-01-01T00:00:00Z"}},
+        "GET /calls/{id}": {
+            "call": {"id": "xyz", "started": "2025-01-01T00:00:00Z"}
+        },
         "POST /calls/extensive": {
-            "calls": [{"parties": [{"speakerId": 1, "name": "Alice"}, {"speakerId": 2, "name": "Bob"}]}]
+            "calls": [
+                {"parties": [{"speakerId": 1, "name": "Alice"}, {"speakerId": 2, "name": "Bob"}]}
+            ]
         },
         "POST /calls/transcript": {
             "callTranscripts": [
-                {
-                    "transcript": [
-                        {"speakerId": 1, "sentences": [{"start": 0, "end": 1000, "text": "Hi"}]},
-                        {"speakerId": 2, "sentences": [{"start": 1000, "end": 2000, "text": "Hello"}]},
-                    ]
-                }
+                {"transcript": [
+                    {"speakerId": 1, "sentences": [{"start": 0, "end": 1000, "text": "Hi"}]},
+                    {"speakerId": 2, "sentences": [{"start": 1000, "end": 2000, "text": "Hello"}]}
+                ]}
             ]
         },
     }
@@ -123,7 +108,9 @@ async def test_get_call_transcript_mapping():
 async def test_list_users():
     responses = {
         "GET /users": {
-            "users": [{"id": "u1", "name": "Alice", "email": "a@example.com", "role": "admin", "active": True}],
+            "users": [
+                {"id": "u1", "name": "Alice", "email": "a@example.com", "role": "admin", "active": True}
+            ],
             "hasMore": False,
             "nextCursor": None,
         }
@@ -153,7 +140,12 @@ async def test_list_calls_filters_private():
 
 
 async def test_get_call_details_private_filtered():
-    responses = {"GET /calls/{id}": {"id": "x", "isPrivate": True}}
+    responses = {
+        "GET /calls/{id}": {
+            "id": "x",
+            "isPrivate": True
+        }
+    }
     context = MockExecutionContext(responses)
     result = await gong.execute_action("get_call_details", {"call_id": "x"}, context)
     data = result.result.data
@@ -163,7 +155,12 @@ async def test_get_call_details_private_filtered():
 
 
 async def test_get_call_transcript_private_filtered():
-    responses = {"GET /calls/{id}": {"id": "y", "isPrivate": True}}
+    responses = {
+        "GET /calls/{id}": {
+            "id": "y",
+            "isPrivate": True
+        }
+    }
     context = MockExecutionContext(responses)
     result = await gong.execute_action("get_call_transcript", {"call_id": "y"}, context)
     data = result.result.data
@@ -178,15 +175,15 @@ async def test_search_calls_skips_private():
                 {
                     "id": "priv",
                     "isPrivate": True,
-                    "content": {"pointsOfInterest": [{"action": "demo pricing", "startTime": 0}]},
+                    "content": {"pointsOfInterest": [{"action": "demo pricing", "startTime": 0}]}
                 },
                 {
                     "id": "pub",
                     "isPrivate": False,
                     "title": "Public",
                     "started": "2025-01-01T00:00:00Z",
-                    "content": {"pointsOfInterest": [{"action": "product demo pricing", "startTime": 10}]},
-                },
+                    "content": {"pointsOfInterest": [{"action": "product demo pricing", "startTime": 10}]}
+                }
             ]
         }
     }
@@ -212,3 +209,8 @@ if __name__ == "__main__":
     _run(test_get_call_transcript_private_filtered())
     _run(test_search_calls_skips_private())
     print("All tests passed")
+
+
+
+
+

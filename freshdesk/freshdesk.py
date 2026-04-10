@@ -1,5 +1,7 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
-from typing import Dict, Any
+from autohive_integrations_sdk import (
+    Integration, ExecutionContext, ActionHandler
+)
+from typing import Dict, Any, List, Optional
 import base64
 
 # Create the integration using the config.json
@@ -10,7 +12,6 @@ FRESHDESK_API_VERSION = "v2"
 
 
 # ---- Helper Functions ----
-
 
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     """
@@ -28,10 +29,13 @@ def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
 
     # Freshdesk requires Basic Auth with format: api_key:X
     auth_string = f"{api_key}:X"
-    auth_bytes = auth_string.encode("ascii")
-    base64_auth = base64.b64encode(auth_bytes).decode("ascii")
+    auth_bytes = auth_string.encode('ascii')
+    base64_auth = base64.b64encode(auth_bytes).decode('ascii')
 
-    return {"Authorization": f"Basic {base64_auth}", "Content-Type": "application/json"}
+    return {
+        "Authorization": f"Basic {base64_auth}",
+        "Content-Type": "application/json"
+    }
 
 
 def get_base_url(context: ExecutionContext) -> str:
@@ -52,7 +56,6 @@ def get_base_url(context: ExecutionContext) -> str:
 
 # ---- Action Handlers ----
 
-
 @freshdesk.action("list_companies")
 class ListCompaniesAction(ActionHandler):
     """
@@ -63,11 +66,14 @@ class ListCompaniesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract pagination parameters
-            page = inputs.get("page", 1)
-            per_page = inputs.get("per_page", 30)
+            page = inputs.get('page', 1)
+            per_page = inputs.get('per_page', 30)
 
             # Build query parameters
-            params = {"page": page, "per_page": per_page}
+            params = {
+                'page': page,
+                'per_page': per_page
+            }
 
             # Get auth headers and base URL
             headers = get_auth_headers(context)
@@ -75,15 +81,29 @@ class ListCompaniesAction(ActionHandler):
 
             # Make API request
             url = f"{base_url}/companies"
-            response = await context.fetch(url, method="GET", headers=headers, params=params)
+            response = await context.fetch(
+                url,
+                method="GET",
+                headers=headers,
+                params=params
+            )
 
             # Response is a list of companies
             companies = response if isinstance(response, list) else []
 
-            return {"companies": companies, "total": len(companies), "result": True}
+            return {
+                "companies": companies,
+                "total": len(companies),
+                "result": True
+            }
 
         except Exception as e:
-            return {"companies": [], "total": 0, "result": False, "error": str(e)}
+            return {
+                "companies": [],
+                "total": 0,
+                "result": False,
+                "error": str(e)
+            }
 
 
 @freshdesk.action("create_company")
@@ -96,20 +116,22 @@ class CreateCompanyAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Build request body
-            body = {"name": inputs["name"]}
+            body = {
+                "name": inputs['name']
+            }
 
             # Add optional fields if provided
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+            if 'description' in inputs and inputs['description']:
+                body['description'] = inputs['description']
 
-            if "domains" in inputs and inputs["domains"]:
-                body["domains"] = inputs["domains"]
+            if 'domains' in inputs and inputs['domains']:
+                body['domains'] = inputs['domains']
 
-            if "note" in inputs and inputs["note"]:
-                body["note"] = inputs["note"]
+            if 'note' in inputs and inputs['note']:
+                body['note'] = inputs['note']
 
-            if "custom_fields" in inputs and inputs["custom_fields"]:
-                body["custom_fields"] = inputs["custom_fields"]
+            if 'custom_fields' in inputs and inputs['custom_fields']:
+                body['custom_fields'] = inputs['custom_fields']
 
             # Get auth headers and base URL
             headers = get_auth_headers(context)
@@ -117,12 +139,24 @@ class CreateCompanyAction(ActionHandler):
 
             # Make API request
             url = f"{base_url}/companies"
-            response = await context.fetch(url, method="POST", headers=headers, json=body)
+            response = await context.fetch(
+                url,
+                method="POST",
+                headers=headers,
+                json=body
+            )
 
-            return {"company": response, "result": True}
+            return {
+                "company": response,
+                "result": True
+            }
 
         except Exception as e:
-            return {"company": {}, "result": False, "error": str(e)}
+            return {
+                "company": {},
+                "result": False,
+                "error": str(e)
+            }
 
 
 @freshdesk.action("get_company")
@@ -134,7 +168,7 @@ class GetCompanyAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract company ID
-            company_id = inputs["company_id"]
+            company_id = inputs['company_id']
 
             # Get auth headers and base URL
             headers = get_auth_headers(context)
@@ -142,12 +176,23 @@ class GetCompanyAction(ActionHandler):
 
             # Make API request
             url = f"{base_url}/companies/{company_id}"
-            response = await context.fetch(url, method="GET", headers=headers)
+            response = await context.fetch(
+                url,
+                method="GET",
+                headers=headers
+            )
 
-            return {"company": response, "result": True}
+            return {
+                "company": response,
+                "result": True
+            }
 
         except Exception as e:
-            return {"company": {}, "result": False, "error": str(e)}
+            return {
+                "company": {},
+                "result": False,
+                "error": str(e)
+            }
 
 
 @freshdesk.action("update_company")
@@ -160,25 +205,25 @@ class UpdateCompanyAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract company ID
-            company_id = inputs["company_id"]
+            company_id = inputs['company_id']
 
             # Build request body with only provided fields
             body = {}
 
-            if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
+            if 'name' in inputs and inputs['name']:
+                body['name'] = inputs['name']
 
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+            if 'description' in inputs and inputs['description']:
+                body['description'] = inputs['description']
 
-            if "domains" in inputs and inputs["domains"]:
-                body["domains"] = inputs["domains"]
+            if 'domains' in inputs and inputs['domains']:
+                body['domains'] = inputs['domains']
 
-            if "note" in inputs and inputs["note"]:
-                body["note"] = inputs["note"]
+            if 'note' in inputs and inputs['note']:
+                body['note'] = inputs['note']
 
-            if "custom_fields" in inputs and inputs["custom_fields"]:
-                body["custom_fields"] = inputs["custom_fields"]
+            if 'custom_fields' in inputs and inputs['custom_fields']:
+                body['custom_fields'] = inputs['custom_fields']
 
             # Get auth headers and base URL
             headers = get_auth_headers(context)
@@ -186,12 +231,24 @@ class UpdateCompanyAction(ActionHandler):
 
             # Make API request
             url = f"{base_url}/companies/{company_id}"
-            response = await context.fetch(url, method="PUT", headers=headers, json=body)
+            response = await context.fetch(
+                url,
+                method="PUT",
+                headers=headers,
+                json=body
+            )
 
-            return {"company": response, "result": True}
+            return {
+                "company": response,
+                "result": True
+            }
 
         except Exception as e:
-            return {"company": {}, "result": False, "error": str(e)}
+            return {
+                "company": {},
+                "result": False,
+                "error": str(e)
+            }
 
 
 @freshdesk.action("delete_company")
@@ -204,7 +261,7 @@ class DeleteCompanyAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract company ID
-            company_id = inputs["company_id"]
+            company_id = inputs['company_id']
 
             # Get auth headers and base URL
             headers = get_auth_headers(context)
@@ -212,12 +269,21 @@ class DeleteCompanyAction(ActionHandler):
 
             # Make API request
             url = f"{base_url}/companies/{company_id}"
-            await context.fetch(url, method="DELETE", headers=headers)
+            await context.fetch(
+                url,
+                method="DELETE",
+                headers=headers
+            )
 
-            return {"result": True}
+            return {
+                "result": True
+            }
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return {
+                "result": False,
+                "error": str(e)
+            }
 
 
 @freshdesk.action("search_companies")
@@ -232,30 +298,45 @@ class SearchCompaniesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract search keyword
-            name = inputs["name"]
+            name = inputs['name']
 
             # Get auth headers and base URL
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
             # Build query parameters
-            params = {"name": name}
+            params = {
+                'name': name
+            }
 
             # Make API request to autocomplete endpoint
             url = f"{base_url}/companies/autocomplete"
-            response = await context.fetch(url, method="GET", headers=headers, params=params)
+            response = await context.fetch(
+                url,
+                method="GET",
+                headers=headers,
+                params=params
+            )
 
             # Extract companies from response
-            companies = response.get("companies", []) if isinstance(response, dict) else []
+            companies = response.get('companies', []) if isinstance(response, dict) else []
 
-            return {"companies": companies, "total": len(companies), "result": True}
+            return {
+                "companies": companies,
+                "total": len(companies),
+                "result": True
+            }
 
         except Exception as e:
-            return {"companies": [], "total": 0, "result": False, "error": str(e)}
+            return {
+                "companies": [],
+                "total": 0,
+                "result": False,
+                "error": str(e)
+            }
 
 
 # ---- Ticket Handlers ----
-
 
 @freshdesk.action("create_ticket")
 class CreateTicketAction(ActionHandler):
@@ -263,27 +344,35 @@ class CreateTicketAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = {"subject": inputs["subject"], "email": inputs["email"]}
+            body = {
+                "subject": inputs['subject'],
+                "email": inputs['email']
+            }
 
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
-            if "priority" in inputs:
-                body["priority"] = inputs["priority"]
-            if "status" in inputs:
-                body["status"] = inputs["status"]
-            if "source" in inputs:
-                body["source"] = inputs["source"]
-            if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
-            if "company_id" in inputs:
-                body["company_id"] = inputs["company_id"]
-            if "tags" in inputs and inputs["tags"]:
-                body["tags"] = inputs["tags"]
+            if 'description' in inputs and inputs['description']:
+                body['description'] = inputs['description']
+            if 'priority' in inputs:
+                body['priority'] = inputs['priority']
+            if 'status' in inputs:
+                body['status'] = inputs['status']
+            if 'source' in inputs:
+                body['source'] = inputs['source']
+            if 'name' in inputs and inputs['name']:
+                body['name'] = inputs['name']
+            if 'company_id' in inputs:
+                body['company_id'] = inputs['company_id']
+            if 'tags' in inputs and inputs['tags']:
+                body['tags'] = inputs['tags']
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
-            response = await context.fetch(f"{base_url}/tickets", method="POST", headers=headers, json=body)
+            response = await context.fetch(
+                f"{base_url}/tickets",
+                method="POST",
+                headers=headers,
+                json=body
+            )
 
             return {"ticket": response, "result": True}
 
@@ -297,12 +386,20 @@ class ListTicketsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = {"page": inputs.get("page", 1), "per_page": inputs.get("per_page", 30)}
+            params = {
+                'page': inputs.get('page', 1),
+                'per_page': inputs.get('per_page', 30)
+            }
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
-            response = await context.fetch(f"{base_url}/tickets", method="GET", headers=headers, params=params)
+            response = await context.fetch(
+                f"{base_url}/tickets",
+                method="GET",
+                headers=headers,
+                params=params
+            )
 
             tickets = response if isinstance(response, list) else []
 
@@ -318,12 +415,16 @@ class GetTicketAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            ticket_id = inputs["ticket_id"]
+            ticket_id = inputs['ticket_id']
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
-            response = await context.fetch(f"{base_url}/tickets/{ticket_id}", method="GET", headers=headers)
+            response = await context.fetch(
+                f"{base_url}/tickets/{ticket_id}",
+                method="GET",
+                headers=headers
+            )
 
             return {"ticket": response, "result": True}
 
@@ -337,24 +438,29 @@ class UpdateTicketAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            ticket_id = inputs["ticket_id"]
+            ticket_id = inputs['ticket_id']
             body = {}
 
-            if "subject" in inputs and inputs["subject"]:
-                body["subject"] = inputs["subject"]
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
-            if "priority" in inputs:
-                body["priority"] = inputs["priority"]
-            if "status" in inputs:
-                body["status"] = inputs["status"]
-            if "tags" in inputs and inputs["tags"]:
-                body["tags"] = inputs["tags"]
+            if 'subject' in inputs and inputs['subject']:
+                body['subject'] = inputs['subject']
+            if 'description' in inputs and inputs['description']:
+                body['description'] = inputs['description']
+            if 'priority' in inputs:
+                body['priority'] = inputs['priority']
+            if 'status' in inputs:
+                body['status'] = inputs['status']
+            if 'tags' in inputs and inputs['tags']:
+                body['tags'] = inputs['tags']
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
-            response = await context.fetch(f"{base_url}/tickets/{ticket_id}", method="PUT", headers=headers, json=body)
+            response = await context.fetch(
+                f"{base_url}/tickets/{ticket_id}",
+                method="PUT",
+                headers=headers,
+                json=body
+            )
 
             return {"ticket": response, "result": True}
 
@@ -368,12 +474,16 @@ class DeleteTicketAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            ticket_id = inputs["ticket_id"]
+            ticket_id = inputs['ticket_id']
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
-            await context.fetch(f"{base_url}/tickets/{ticket_id}", method="DELETE", headers=headers)
+            await context.fetch(
+                f"{base_url}/tickets/{ticket_id}",
+                method="DELETE",
+                headers=headers
+            )
 
             return {"result": True}
 
@@ -383,32 +493,39 @@ class DeleteTicketAction(ActionHandler):
 
 # ---- Contact Handlers ----
 
-
 @freshdesk.action("create_contact")
 class CreateContactAction(ActionHandler):
     """Create a new contact."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = {"name": inputs["name"], "email": inputs["email"]}
+            body = {
+                "name": inputs['name'],
+                "email": inputs['email']
+            }
 
-            if "phone" in inputs and inputs["phone"]:
-                body["phone"] = inputs["phone"]
-            if "mobile" in inputs and inputs["mobile"]:
-                body["mobile"] = inputs["mobile"]
-            if "company_id" in inputs:
-                body["company_id"] = inputs["company_id"]
-            if "job_title" in inputs and inputs["job_title"]:
-                body["job_title"] = inputs["job_title"]
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
-            if "tags" in inputs and inputs["tags"]:
-                body["tags"] = inputs["tags"]
+            if 'phone' in inputs and inputs['phone']:
+                body['phone'] = inputs['phone']
+            if 'mobile' in inputs and inputs['mobile']:
+                body['mobile'] = inputs['mobile']
+            if 'company_id' in inputs:
+                body['company_id'] = inputs['company_id']
+            if 'job_title' in inputs and inputs['job_title']:
+                body['job_title'] = inputs['job_title']
+            if 'description' in inputs and inputs['description']:
+                body['description'] = inputs['description']
+            if 'tags' in inputs and inputs['tags']:
+                body['tags'] = inputs['tags']
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
-            response = await context.fetch(f"{base_url}/contacts", method="POST", headers=headers, json=body)
+            response = await context.fetch(
+                f"{base_url}/contacts",
+                method="POST",
+                headers=headers,
+                json=body
+            )
 
             return {"contact": response, "result": True}
 
@@ -422,12 +539,20 @@ class ListContactsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = {"page": inputs.get("page", 1), "per_page": inputs.get("per_page", 30)}
+            params = {
+                'page': inputs.get('page', 1),
+                'per_page': inputs.get('per_page', 30)
+            }
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
-            response = await context.fetch(f"{base_url}/contacts", method="GET", headers=headers, params=params)
+            response = await context.fetch(
+                f"{base_url}/contacts",
+                method="GET",
+                headers=headers,
+                params=params
+            )
 
             contacts = response if isinstance(response, list) else []
 
@@ -443,12 +568,16 @@ class GetContactAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            contact_id = inputs["contact_id"]
+            contact_id = inputs['contact_id']
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
-            response = await context.fetch(f"{base_url}/contacts/{contact_id}", method="GET", headers=headers)
+            response = await context.fetch(
+                f"{base_url}/contacts/{contact_id}",
+                method="GET",
+                headers=headers
+            )
 
             return {"contact": response, "result": True}
 
@@ -462,27 +591,30 @@ class UpdateContactAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            contact_id = inputs["contact_id"]
+            contact_id = inputs['contact_id']
             body = {}
 
-            if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
-            if "email" in inputs and inputs["email"]:
-                body["email"] = inputs["email"]
-            if "phone" in inputs and inputs["phone"]:
-                body["phone"] = inputs["phone"]
-            if "mobile" in inputs and inputs["mobile"]:
-                body["mobile"] = inputs["mobile"]
-            if "job_title" in inputs and inputs["job_title"]:
-                body["job_title"] = inputs["job_title"]
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+            if 'name' in inputs and inputs['name']:
+                body['name'] = inputs['name']
+            if 'email' in inputs and inputs['email']:
+                body['email'] = inputs['email']
+            if 'phone' in inputs and inputs['phone']:
+                body['phone'] = inputs['phone']
+            if 'mobile' in inputs and inputs['mobile']:
+                body['mobile'] = inputs['mobile']
+            if 'job_title' in inputs and inputs['job_title']:
+                body['job_title'] = inputs['job_title']
+            if 'description' in inputs and inputs['description']:
+                body['description'] = inputs['description']
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
             response = await context.fetch(
-                f"{base_url}/contacts/{contact_id}", method="PUT", headers=headers, json=body
+                f"{base_url}/contacts/{contact_id}",
+                method="PUT",
+                headers=headers,
+                json=body
             )
 
             return {"contact": response, "result": True}
@@ -497,12 +629,16 @@ class DeleteContactAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            contact_id = inputs["contact_id"]
+            contact_id = inputs['contact_id']
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
-            await context.fetch(f"{base_url}/contacts/{contact_id}", method="DELETE", headers=headers)
+            await context.fetch(
+                f"{base_url}/contacts/{contact_id}",
+                method="DELETE",
+                headers=headers
+            )
 
             return {"result": True}
 
@@ -522,30 +658,45 @@ class SearchContactsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract search term
-            term = inputs["term"]
+            term = inputs['term']
 
             # Get auth headers and base URL
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
             # Build query parameters
-            params = {"term": term}
+            params = {
+                'term': term
+            }
 
             # Make API request to autocomplete endpoint
             url = f"{base_url}/contacts/autocomplete"
-            response = await context.fetch(url, method="GET", headers=headers, params=params)
+            response = await context.fetch(
+                url,
+                method="GET",
+                headers=headers,
+                params=params
+            )
 
             # Response is directly an array of contacts
             contacts = response if isinstance(response, list) else []
 
-            return {"contacts": contacts, "total": len(contacts), "result": True}
+            return {
+                "contacts": contacts,
+                "total": len(contacts),
+                "result": True
+            }
 
         except Exception as e:
-            return {"contacts": [], "total": 0, "result": False, "error": str(e)}
+            return {
+                "contacts": [],
+                "total": 0,
+                "result": False,
+                "error": str(e)
+            }
 
 
 # ---- Conversation Handlers ----
-
 
 @freshdesk.action("list_conversations")
 class ListConversationsAction(ActionHandler):
@@ -553,13 +704,15 @@ class ListConversationsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            ticket_id = inputs["ticket_id"]
+            ticket_id = inputs['ticket_id']
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
             response = await context.fetch(
-                f"{base_url}/tickets/{ticket_id}/conversations", method="GET", headers=headers
+                f"{base_url}/tickets/{ticket_id}/conversations",
+                method="GET",
+                headers=headers
             )
 
             conversations = response if isinstance(response, list) else []
@@ -576,17 +729,23 @@ class CreateNoteAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            ticket_id = inputs["ticket_id"]
-            body = {"body": inputs["body"], "private": True}
+            ticket_id = inputs['ticket_id']
+            body = {
+                "body": inputs['body'],
+                "private": True
+            }
 
-            if "notify_emails" in inputs and inputs["notify_emails"]:
-                body["notify_emails"] = inputs["notify_emails"]
+            if 'notify_emails' in inputs and inputs['notify_emails']:
+                body['notify_emails'] = inputs['notify_emails']
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
             response = await context.fetch(
-                f"{base_url}/tickets/{ticket_id}/notes", method="POST", headers=headers, json=body
+                f"{base_url}/tickets/{ticket_id}/notes",
+                method="POST",
+                headers=headers,
+                json=body
             )
 
             return {"conversation": response, "result": True}
@@ -601,20 +760,27 @@ class CreateReplyAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            ticket_id = inputs["ticket_id"]
-            body = {"body": inputs["body"]}
+            ticket_id = inputs['ticket_id']
+            body = {
+                "body": inputs['body']
+            }
 
-            if "from_email" in inputs and inputs["from_email"]:
-                body["from_email"] = inputs["from_email"]
+            if 'from_email' in inputs and inputs['from_email']:
+                body['from_email'] = inputs['from_email']
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
             response = await context.fetch(
-                f"{base_url}/tickets/{ticket_id}/reply", method="POST", headers=headers, json=body
+                f"{base_url}/tickets/{ticket_id}/reply",
+                method="POST",
+                headers=headers,
+                json=body
             )
 
             return {"conversation": response, "result": True}
 
         except Exception as e:
             return {"conversation": {}, "result": False, "error": str(e)}
+
+

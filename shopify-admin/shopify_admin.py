@@ -25,7 +25,9 @@ Rate Limits:
 API Version: 2024-10
 """
 
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration, ExecutionContext, ActionHandler, ActionResult
+)
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -39,16 +41,15 @@ API_VERSION = "2024-10"
 # Helper Functions
 # ============================================================================
 
-
 def get_shop_url(context: ExecutionContext) -> str:
     """Extract the shop URL from the context credentials."""
-    credentials = context.auth.get("credentials", {})
-    shop_url = credentials.get("shop_url", "")
+    credentials = context.auth.get('credentials', {})
+    shop_url = credentials.get('shop_url', '')
     if shop_url:
         # Remove protocol if present
-        shop_url = shop_url.replace("https://", "").replace("http://", "")
+        shop_url = shop_url.replace('https://', '').replace('http://', '')
         # Remove trailing slash
-        shop_url = shop_url.rstrip("/")
+        shop_url = shop_url.rstrip('/')
     return shop_url
 
 
@@ -60,8 +61,11 @@ def get_api_url(context: ExecutionContext, endpoint: str = "") -> str:
 
 def build_headers(context: ExecutionContext) -> Dict[str, str]:
     """Build headers for Shopify API requests with OAuth token."""
-    access_token = context.auth["credentials"]["access_token"]
-    return {"X-Shopify-Access-Token": access_token, "Content-Type": "application/json"}
+    access_token = context.auth['credentials']['access_token']
+    return {
+        "X-Shopify-Access-Token": access_token,
+        "Content-Type": "application/json"
+    }
 
 
 def build_query_params(inputs: Dict[str, Any], allowed_params: list) -> Dict[str, Any]:
@@ -88,7 +92,6 @@ def error_response(message: str, **kwargs) -> ActionResult:
 # ============================================================================
 # GraphQL Helper Functions
 # ============================================================================
-
 
 def get_graphql_url(context: ExecutionContext) -> str:
     """Build Shopify GraphQL Admin API URL."""
@@ -137,7 +140,7 @@ def escape_graphql_query_value(value: str) -> str:
     """
     value = str(value)
     # Escape backslashes first, then double quotes
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    escaped = value.replace('\\', '\\\\').replace('"', '\\"')
     # Always quote the value to handle spaces and special characters safely
     return f'"{escaped}"'
 
@@ -146,19 +149,19 @@ def build_product_query_filter(inputs: Dict[str, Any]) -> str:
     """Build GraphQL query filter string from inputs."""
     filters = []
 
-    if inputs.get("title"):
+    if inputs.get('title'):
         # For wildcard search with spaces, format is: title:*"value"*
-        title = str(inputs["title"]).replace("\\", "\\\\").replace('"', '\\"')
+        title = str(inputs['title']).replace('\\', '\\\\').replace('"', '\\"')
         filters.append(f'title:*"{title}"*')
-    if inputs.get("vendor"):
+    if inputs.get('vendor'):
         filters.append(f"vendor:{escape_graphql_query_value(inputs['vendor'])}")
-    if inputs.get("product_type"):
+    if inputs.get('product_type'):
         filters.append(f"product_type:{escape_graphql_query_value(inputs['product_type'])}")
-    if inputs.get("status"):
+    if inputs.get('status'):
         filters.append(f"status:{inputs['status']}")
-    if inputs.get("created_at_min"):
+    if inputs.get('created_at_min'):
         filters.append(f"created_at:>{inputs['created_at_min']}")
-    if inputs.get("created_at_max"):
+    if inputs.get('created_at_max'):
         filters.append(f"created_at:<{inputs['created_at_max']}")
 
     return " AND ".join(filters) if filters else None
@@ -177,9 +180,7 @@ def transform_product_response(graphql_product: dict) -> dict:
         "vendor": graphql_product.get("vendor"),
         "product_type": graphql_product.get("productType"),
         "status": (graphql_product.get("status") or "").lower(),
-        "tags": ", ".join(graphql_product.get("tags", []))
-        if isinstance(graphql_product.get("tags"), list)
-        else graphql_product.get("tags", ""),
+        "tags": ", ".join(graphql_product.get("tags", [])) if isinstance(graphql_product.get("tags"), list) else graphql_product.get("tags", ""),
         "created_at": graphql_product.get("createdAt"),
         "updated_at": graphql_product.get("updatedAt"),
     }
@@ -430,7 +431,6 @@ mutation ProductUpdate($input: ProductInput!) {
 # Customer Actions
 # ============================================================================
 
-
 @shopify_admin.action("list_customers")
 class ListCustomersHandler(ActionHandler):
     """List customers with optional filtering and pagination."""
@@ -441,21 +441,17 @@ class ListCustomersHandler(ActionHandler):
             headers = build_headers(context)
 
             allowed_params = [
-                "limit",
-                "since_id",
-                "created_at_min",
-                "created_at_max",
-                "updated_at_min",
-                "updated_at_max",
+                'limit', 'since_id', 'created_at_min', 'created_at_max',
+                'updated_at_min', 'updated_at_max'
             ]
             params = build_query_params(inputs, allowed_params)
 
-            if "limit" not in params:
-                params["limit"] = 50
+            if 'limit' not in params:
+                params['limit'] = 50
 
             response = await context.fetch(url, method="GET", params=params, headers=headers)
 
-            customers = response.get("customers", [])
+            customers = response.get('customers', [])
             return success_response(customers=customers, count=len(customers))
         except Exception as e:
             return error_response(e, customers=[], count=0)
@@ -467,13 +463,13 @@ class GetCustomerHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            customer_id = inputs["customer_id"]
+            customer_id = inputs['customer_id']
             url = get_api_url(context, f"/customers/{customer_id}.json")
             headers = build_headers(context)
 
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return success_response(customer=response.get("customer", {}))
+            return success_response(customer=response.get('customer', {}))
         except Exception as e:
             return error_response(e, customer=None)
 
@@ -487,15 +483,15 @@ class SearchCustomersHandler(ActionHandler):
             url = get_api_url(context, "/customers/search.json")
             headers = build_headers(context)
 
-            params = {"query": inputs["query"]}
-            if "limit" in inputs and inputs["limit"]:
-                params["limit"] = inputs["limit"]
+            params = {'query': inputs['query']}
+            if 'limit' in inputs and inputs['limit']:
+                params['limit'] = inputs['limit']
             else:
-                params["limit"] = 50
+                params['limit'] = 50
 
             response = await context.fetch(url, method="GET", params=params, headers=headers)
 
-            customers = response.get("customers", [])
+            customers = response.get('customers', [])
             return success_response(customers=customers, count=len(customers))
         except Exception as e:
             return error_response(e, customers=[], count=0)
@@ -512,28 +508,28 @@ class CreateCustomerHandler(ActionHandler):
 
             customer_data = {}
             field_mapping = {
-                "email": "email",
-                "first_name": "first_name",
-                "last_name": "last_name",
-                "phone": "phone",
-                "verified_email": "verified_email",
-                "send_email_welcome": "send_email_welcome",
-                "tags": "tags",
-                "note": "note",
-                "tax_exempt": "tax_exempt",
+                'email': 'email',
+                'first_name': 'first_name',
+                'last_name': 'last_name',
+                'phone': 'phone',
+                'verified_email': 'verified_email',
+                'send_email_welcome': 'send_email_welcome',
+                'tags': 'tags',
+                'note': 'note',
+                'tax_exempt': 'tax_exempt'
             }
 
             for input_field, api_field in field_mapping.items():
                 if input_field in inputs and inputs[input_field] is not None:
                     customer_data[api_field] = inputs[input_field]
 
-            if "address" in inputs and inputs["address"]:
-                customer_data["addresses"] = [inputs["address"]]
+            if 'address' in inputs and inputs['address']:
+                customer_data['addresses'] = [inputs['address']]
 
             payload = {"customer": customer_data}
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return success_response(customer=response.get("customer", {}))
+            return success_response(customer=response.get('customer', {}))
         except Exception as e:
             return error_response(e, customer=None)
 
@@ -544,19 +540,19 @@ class UpdateCustomerHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            customer_id = inputs["customer_id"]
+            customer_id = inputs['customer_id']
             url = get_api_url(context, f"/customers/{customer_id}.json")
             headers = build_headers(context)
 
             customer_data = {}
             field_mapping = {
-                "email": "email",
-                "first_name": "first_name",
-                "last_name": "last_name",
-                "phone": "phone",
-                "tags": "tags",
-                "note": "note",
-                "tax_exempt": "tax_exempt",
+                'email': 'email',
+                'first_name': 'first_name',
+                'last_name': 'last_name',
+                'phone': 'phone',
+                'tags': 'tags',
+                'note': 'note',
+                'tax_exempt': 'tax_exempt'
             }
 
             for input_field, api_field in field_mapping.items():
@@ -566,7 +562,7 @@ class UpdateCustomerHandler(ActionHandler):
             payload = {"customer": customer_data}
             response = await context.fetch(url, method="PUT", json=payload, headers=headers)
 
-            return success_response(customer=response.get("customer", {}))
+            return success_response(customer=response.get('customer', {}))
         except Exception as e:
             return error_response(e, customer=None)
 
@@ -574,7 +570,6 @@ class UpdateCustomerHandler(ActionHandler):
 # ============================================================================
 # Order Actions
 # ============================================================================
-
 
 @shopify_admin.action("list_orders")
 class ListOrdersHandler(ActionHandler):
@@ -586,24 +581,19 @@ class ListOrdersHandler(ActionHandler):
             headers = build_headers(context)
 
             allowed_params = [
-                "limit",
-                "status",
-                "financial_status",
-                "fulfillment_status",
-                "since_id",
-                "created_at_min",
-                "created_at_max",
+                'limit', 'status', 'financial_status', 'fulfillment_status',
+                'since_id', 'created_at_min', 'created_at_max'
             ]
             params = build_query_params(inputs, allowed_params)
 
-            if "limit" not in params:
-                params["limit"] = 50
-            if "status" not in params:
-                params["status"] = "any"
+            if 'limit' not in params:
+                params['limit'] = 50
+            if 'status' not in params:
+                params['status'] = 'any'
 
             response = await context.fetch(url, method="GET", params=params, headers=headers)
 
-            orders = response.get("orders", [])
+            orders = response.get('orders', [])
             return success_response(orders=orders, count=len(orders))
         except Exception as e:
             return error_response(e, orders=[], count=0)
@@ -615,13 +605,13 @@ class GetOrderHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            order_id = inputs["order_id"]
+            order_id = inputs['order_id']
             url = get_api_url(context, f"/orders/{order_id}.json")
             headers = build_headers(context)
 
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return success_response(order=response.get("order", {}))
+            return success_response(order=response.get('order', {}))
         except Exception as e:
             return error_response(e, order=None)
 
@@ -635,32 +625,25 @@ class CreateOrderHandler(ActionHandler):
             url = get_api_url(context, "/orders.json")
             headers = build_headers(context)
 
-            order_data = {"line_items": inputs["line_items"]}
+            order_data = {"line_items": inputs['line_items']}
 
             optional_fields = [
-                "customer_id",
-                "email",
-                "financial_status",
-                "fulfillment_status",
-                "send_receipt",
-                "send_fulfillment_receipt",
-                "note",
-                "tags",
-                "shipping_address",
-                "billing_address",
+                'customer_id', 'email', 'financial_status', 'fulfillment_status',
+                'send_receipt', 'send_fulfillment_receipt', 'note', 'tags',
+                'shipping_address', 'billing_address'
             ]
 
             for field in optional_fields:
                 if field in inputs and inputs[field] is not None:
-                    if field == "customer_id":
-                        order_data["customer"] = {"id": inputs[field]}
+                    if field == 'customer_id':
+                        order_data['customer'] = {'id': inputs[field]}
                     else:
                         order_data[field] = inputs[field]
 
             payload = {"order": order_data}
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return success_response(order=response.get("order", {}))
+            return success_response(order=response.get('order', {}))
         except Exception as e:
             return error_response(e, order=None)
 
@@ -671,21 +654,21 @@ class CancelOrderHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            order_id = inputs["order_id"]
+            order_id = inputs['order_id']
             url = get_api_url(context, f"/orders/{order_id}/cancel.json")
             headers = build_headers(context)
 
             cancel_data = {}
-            if "reason" in inputs and inputs["reason"]:
-                cancel_data["reason"] = inputs["reason"]
-            if "email" in inputs:
-                cancel_data["email"] = inputs["email"]
-            if "restock" in inputs:
-                cancel_data["restock"] = inputs["restock"]
+            if 'reason' in inputs and inputs['reason']:
+                cancel_data['reason'] = inputs['reason']
+            if 'email' in inputs:
+                cancel_data['email'] = inputs['email']
+            if 'restock' in inputs:
+                cancel_data['restock'] = inputs['restock']
 
             response = await context.fetch(url, method="POST", json=cancel_data, headers=headers)
 
-            return success_response(order=response.get("order", {}))
+            return success_response(order=response.get('order', {}))
         except Exception as e:
             return error_response(e, order=None)
 
@@ -694,7 +677,6 @@ class CancelOrderHandler(ActionHandler):
 # Product Actions (GraphQL)
 # ============================================================================
 
-
 @shopify_admin.action("list_products")
 class ListProductsHandler(ActionHandler):
     """List products with optional filtering using GraphQL API."""
@@ -702,14 +684,14 @@ class ListProductsHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             # Build variables for GraphQL query
-            limit = inputs.get("limit", 50)
+            limit = inputs.get('limit', 50)
             if limit > 250:
                 limit = 250  # GraphQL max is 250
 
             variables = {
                 "first": limit,
-                "after": inputs.get("after"),  # Cursor for pagination
-                "query": build_product_query_filter(inputs),
+                "after": inputs.get('after'),  # Cursor for pagination
+                "query": build_product_query_filter(inputs)
             }
 
             # Remove None values
@@ -729,7 +711,7 @@ class ListProductsHandler(ActionHandler):
                 products=products,
                 count=len(products),
                 hasNextPage=page_info.get("hasNextPage", False),
-                endCursor=page_info.get("endCursor"),
+                endCursor=page_info.get("endCursor")
             )
         except Exception as e:
             return error_response(e, products=[], count=0)
@@ -741,7 +723,7 @@ class GetProductHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            product_id = inputs["product_id"]
+            product_id = inputs['product_id']
             # Convert to GID format if needed
             gid = to_gid("Product", product_id)
 
@@ -765,71 +747,73 @@ class CreateProductHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             # Build GraphQL input
-            product_input = {"title": inputs["title"]}
+            product_input = {
+                "title": inputs['title']
+            }
 
             # Map REST field names to GraphQL field names
-            if inputs.get("body_html"):
-                product_input["descriptionHtml"] = inputs["body_html"]
-            if inputs.get("vendor"):
-                product_input["vendor"] = inputs["vendor"]
-            if inputs.get("product_type"):
-                product_input["productType"] = inputs["product_type"]
-            if inputs.get("tags"):
+            if inputs.get('body_html'):
+                product_input['descriptionHtml'] = inputs['body_html']
+            if inputs.get('vendor'):
+                product_input['vendor'] = inputs['vendor']
+            if inputs.get('product_type'):
+                product_input['productType'] = inputs['product_type']
+            if inputs.get('tags'):
                 # Convert comma-separated string to array if needed
-                tags = inputs["tags"]
+                tags = inputs['tags']
                 if isinstance(tags, str):
-                    tags = [t.strip() for t in tags.split(",") if t.strip()]
-                product_input["tags"] = tags
-            if inputs.get("status"):
+                    tags = [t.strip() for t in tags.split(',') if t.strip()]
+                product_input['tags'] = tags
+            if inputs.get('status'):
                 # Convert to uppercase for GraphQL enum
-                product_input["status"] = inputs["status"].upper()
+                product_input['status'] = inputs['status'].upper()
 
             # Handle variants - GraphQL uses different structure
-            if inputs.get("variants"):
-                variants = inputs["variants"]
+            if inputs.get('variants'):
+                variants = inputs['variants']
                 graphql_variants = []
                 for v in variants:
                     gql_variant = {}
-                    if v.get("price"):
-                        gql_variant["price"] = str(v["price"])
-                    if v.get("sku"):
-                        gql_variant["sku"] = v["sku"]
-                    if v.get("barcode"):
-                        gql_variant["barcode"] = v["barcode"]
-                    if v.get("weight"):
-                        gql_variant["weight"] = v["weight"]
-                    if v.get("compare_at_price"):
-                        gql_variant["compareAtPrice"] = str(v["compare_at_price"])
+                    if v.get('price'):
+                        gql_variant['price'] = str(v['price'])
+                    if v.get('sku'):
+                        gql_variant['sku'] = v['sku']
+                    if v.get('barcode'):
+                        gql_variant['barcode'] = v['barcode']
+                    if v.get('weight'):
+                        gql_variant['weight'] = v['weight']
+                    if v.get('compare_at_price'):
+                        gql_variant['compareAtPrice'] = str(v['compare_at_price'])
                     if gql_variant:
                         graphql_variants.append(gql_variant)
                 if graphql_variants:
-                    product_input["variants"] = graphql_variants
+                    product_input['variants'] = graphql_variants
 
             # Handle options - convert REST format to GraphQL productOptions format
             # REST format: [{"name": "Size", "values": ["S", "M"]}]
             # GraphQL format: [{name: "Size", values: [{name: "S"}, {name: "M"}]}]
             # Note: GraphQL uses 'productOptions' field, not 'options'
-            if inputs.get("options"):
-                options = inputs["options"]
+            if inputs.get('options'):
+                options = inputs['options']
                 graphql_options = []
                 for opt in options:
-                    if isinstance(opt, dict) and "name" in opt:
-                        graphql_opt = {"name": opt["name"]}
+                    if isinstance(opt, dict) and 'name' in opt:
+                        graphql_opt = {'name': opt['name']}
                         # Convert values from strings to objects if needed
-                        if opt.get("values"):
-                            values = opt["values"]
+                        if opt.get('values'):
+                            values = opt['values']
                             if values and isinstance(values[0], str):
                                 # REST format: ["S", "M"] -> [{name: "S"}, {name: "M"}]
-                                graphql_opt["values"] = [{"name": v} for v in values]
+                                graphql_opt['values'] = [{'name': v} for v in values]
                             else:
                                 # Already in GraphQL format
-                                graphql_opt["values"] = values
+                                graphql_opt['values'] = values
                         graphql_options.append(graphql_opt)
                     elif isinstance(opt, str):
                         # Simple string option name
-                        graphql_options.append({"name": opt})
+                        graphql_options.append({'name': opt})
                 if graphql_options:
-                    product_input["productOptions"] = graphql_options
+                    product_input['productOptions'] = graphql_options
 
             variables = {"input": product_input}
 
@@ -857,7 +841,7 @@ class UpdateProductHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            product_id = inputs["product_id"]
+            product_id = inputs['product_id']
             # Convert to GID format
             gid = to_gid("Product", product_id)
 
@@ -865,23 +849,23 @@ class UpdateProductHandler(ActionHandler):
             product_input = {"id": gid}
 
             # Map REST field names to GraphQL field names
-            if inputs.get("title"):
-                product_input["title"] = inputs["title"]
-            if inputs.get("body_html"):
-                product_input["descriptionHtml"] = inputs["body_html"]
-            if inputs.get("vendor"):
-                product_input["vendor"] = inputs["vendor"]
-            if inputs.get("product_type"):
-                product_input["productType"] = inputs["product_type"]
-            if inputs.get("tags"):
+            if inputs.get('title'):
+                product_input['title'] = inputs['title']
+            if inputs.get('body_html'):
+                product_input['descriptionHtml'] = inputs['body_html']
+            if inputs.get('vendor'):
+                product_input['vendor'] = inputs['vendor']
+            if inputs.get('product_type'):
+                product_input['productType'] = inputs['product_type']
+            if inputs.get('tags'):
                 # Convert comma-separated string to array if needed
-                tags = inputs["tags"]
+                tags = inputs['tags']
                 if isinstance(tags, str):
-                    tags = [t.strip() for t in tags.split(",") if t.strip()]
-                product_input["tags"] = tags
-            if inputs.get("status"):
+                    tags = [t.strip() for t in tags.split(',') if t.strip()]
+                product_input['tags'] = tags
+            if inputs.get('status'):
                 # Convert to uppercase for GraphQL enum
-                product_input["status"] = inputs["status"].upper()
+                product_input['status'] = inputs['status'].upper()
 
             variables = {"input": product_input}
 
@@ -907,7 +891,6 @@ class UpdateProductHandler(ActionHandler):
 # Inventory Actions
 # ============================================================================
 
-
 @shopify_admin.action("get_inventory_levels")
 class GetInventoryLevelsHandler(ActionHandler):
     """Get inventory levels by location or inventory item IDs."""
@@ -918,23 +901,24 @@ class GetInventoryLevelsHandler(ActionHandler):
             headers = build_headers(context)
 
             params = {}
-            if "inventory_item_ids" in inputs and inputs["inventory_item_ids"]:
-                params["inventory_item_ids"] = inputs["inventory_item_ids"]
-            if "location_ids" in inputs and inputs["location_ids"]:
-                params["location_ids"] = inputs["location_ids"]
-            if "limit" in inputs and inputs["limit"]:
-                params["limit"] = inputs["limit"]
+            if 'inventory_item_ids' in inputs and inputs['inventory_item_ids']:
+                params['inventory_item_ids'] = inputs['inventory_item_ids']
+            if 'location_ids' in inputs and inputs['location_ids']:
+                params['location_ids'] = inputs['location_ids']
+            if 'limit' in inputs and inputs['limit']:
+                params['limit'] = inputs['limit']
             else:
-                params["limit"] = 50
+                params['limit'] = 50
 
-            if not params.get("inventory_item_ids") and not params.get("location_ids"):
+            if not params.get('inventory_item_ids') and not params.get('location_ids'):
                 return error_response(
-                    "Either inventory_item_ids or location_ids is required", inventory_levels=[], count=0
+                    "Either inventory_item_ids or location_ids is required",
+                    inventory_levels=[], count=0
                 )
 
             response = await context.fetch(url, method="GET", params=params, headers=headers)
 
-            inventory_levels = response.get("inventory_levels", [])
+            inventory_levels = response.get('inventory_levels', [])
             return success_response(inventory_levels=inventory_levels, count=len(inventory_levels))
         except Exception as e:
             return error_response(e, inventory_levels=[], count=0)
@@ -950,14 +934,14 @@ class SetInventoryLevelHandler(ActionHandler):
             headers = build_headers(context)
 
             payload = {
-                "location_id": inputs["location_id"],
-                "inventory_item_id": inputs["inventory_item_id"],
-                "available": inputs["available"],
+                "location_id": inputs['location_id'],
+                "inventory_item_id": inputs['inventory_item_id'],
+                "available": inputs['available']
             }
 
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return success_response(inventory_level=response.get("inventory_level", {}))
+            return success_response(inventory_level=response.get('inventory_level', {}))
         except Exception as e:
             return error_response(e, inventory_level=None)
 
@@ -965,7 +949,6 @@ class SetInventoryLevelHandler(ActionHandler):
 # ============================================================================
 # Location Actions
 # ============================================================================
-
 
 @shopify_admin.action("list_locations")
 class ListLocationsHandler(ActionHandler):
@@ -978,7 +961,7 @@ class ListLocationsHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", headers=headers)
 
-            locations = response.get("locations", [])
+            locations = response.get('locations', [])
             return success_response(locations=locations, count=len(locations))
         except Exception as e:
             return error_response(e, locations=[], count=0)
@@ -990,13 +973,13 @@ class GetLocationHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            location_id = inputs["location_id"]
+            location_id = inputs['location_id']
             url = get_api_url(context, f"/locations/{location_id}.json")
             headers = build_headers(context)
 
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return success_response(location=response.get("location", {}))
+            return success_response(location=response.get('location', {}))
         except Exception as e:
             return error_response(e, location=None)
 
@@ -1004,7 +987,6 @@ class GetLocationHandler(ActionHandler):
 # ============================================================================
 # Shop Actions
 # ============================================================================
-
 
 @shopify_admin.action("get_shop")
 class GetShopHandler(ActionHandler):
@@ -1017,7 +999,7 @@ class GetShopHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return success_response(shop=response.get("shop", {}))
+            return success_response(shop=response.get('shop', {}))
         except Exception as e:
             return error_response(e, shop=None)
 
@@ -1025,7 +1007,6 @@ class GetShopHandler(ActionHandler):
 # ============================================================================
 # Draft Order Actions
 # ============================================================================
-
 
 @shopify_admin.action("list_draft_orders")
 class ListDraftOrdersHandler(ActionHandler):
@@ -1036,15 +1017,15 @@ class ListDraftOrdersHandler(ActionHandler):
             url = get_api_url(context, "/draft_orders.json")
             headers = build_headers(context)
 
-            allowed_params = ["limit", "since_id", "status"]
+            allowed_params = ['limit', 'since_id', 'status']
             params = build_query_params(inputs, allowed_params)
 
-            if "limit" not in params:
-                params["limit"] = 50
+            if 'limit' not in params:
+                params['limit'] = 50
 
             response = await context.fetch(url, method="GET", params=params, headers=headers)
 
-            draft_orders = response.get("draft_orders", [])
+            draft_orders = response.get('draft_orders', [])
             return success_response(draft_orders=draft_orders, count=len(draft_orders))
         except Exception as e:
             return error_response(e, draft_orders=[], count=0)
@@ -1059,29 +1040,24 @@ class CreateDraftOrderHandler(ActionHandler):
             url = get_api_url(context, "/draft_orders.json")
             headers = build_headers(context)
 
-            draft_order_data = {"line_items": inputs["line_items"]}
+            draft_order_data = {"line_items": inputs['line_items']}
 
             optional_fields = [
-                "customer_id",
-                "email",
-                "note",
-                "tags",
-                "shipping_address",
-                "billing_address",
-                "use_customer_default_address",
+                'customer_id', 'email', 'note', 'tags',
+                'shipping_address', 'billing_address', 'use_customer_default_address'
             ]
 
             for field in optional_fields:
                 if field in inputs and inputs[field] is not None:
-                    if field == "customer_id":
-                        draft_order_data["customer"] = {"id": inputs[field]}
+                    if field == 'customer_id':
+                        draft_order_data['customer'] = {'id': inputs[field]}
                     else:
                         draft_order_data[field] = inputs[field]
 
             payload = {"draft_order": draft_order_data}
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return success_response(draft_order=response.get("draft_order", {}))
+            return success_response(draft_order=response.get('draft_order', {}))
         except Exception as e:
             return error_response(e, draft_order=None)
 
@@ -1092,17 +1068,17 @@ class CompleteDraftOrderHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            draft_order_id = inputs["draft_order_id"]
+            draft_order_id = inputs['draft_order_id']
             url = get_api_url(context, f"/draft_orders/{draft_order_id}/complete.json")
             headers = build_headers(context)
 
             params = {}
-            if "payment_pending" in inputs:
-                params["payment_pending"] = inputs["payment_pending"]
+            if 'payment_pending' in inputs:
+                params['payment_pending'] = inputs['payment_pending']
 
             response = await context.fetch(url, method="PUT", params=params, headers=headers)
 
-            return success_response(draft_order=response.get("draft_order", {}))
+            return success_response(draft_order=response.get('draft_order', {}))
         except Exception as e:
             return error_response(e, draft_order=None)
 
@@ -1113,7 +1089,7 @@ class DeleteDraftOrderHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            draft_order_id = inputs["draft_order_id"]
+            draft_order_id = inputs['draft_order_id']
             url = get_api_url(context, f"/draft_orders/{draft_order_id}.json")
             headers = build_headers(context)
 
@@ -1128,20 +1104,19 @@ class DeleteDraftOrderHandler(ActionHandler):
 # Fulfillment Actions
 # ============================================================================
 
-
 @shopify_admin.action("list_fulfillments")
 class ListFulfillmentsHandler(ActionHandler):
     """List fulfillments for an order."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            order_id = inputs["order_id"]
+            order_id = inputs['order_id']
             url = get_api_url(context, f"/orders/{order_id}/fulfillments.json")
             headers = build_headers(context)
 
             response = await context.fetch(url, method="GET", headers=headers)
 
-            fulfillments = response.get("fulfillments", [])
+            fulfillments = response.get('fulfillments', [])
             return success_response(fulfillments=fulfillments, count=len(fulfillments))
         except Exception as e:
             return error_response(e, fulfillments=[], count=0)
@@ -1153,13 +1128,18 @@ class CreateFulfillmentHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            order_id = inputs["order_id"]
+            order_id = inputs['order_id']
             url = get_api_url(context, f"/orders/{order_id}/fulfillments.json")
             headers = build_headers(context)
 
-            fulfillment_data = {"location_id": inputs["location_id"]}
+            fulfillment_data = {
+                "location_id": inputs['location_id']
+            }
 
-            optional_fields = ["tracking_number", "tracking_company", "tracking_url", "notify_customer", "line_items"]
+            optional_fields = [
+                'tracking_number', 'tracking_company', 'tracking_url',
+                'notify_customer', 'line_items'
+            ]
 
             for field in optional_fields:
                 if field in inputs and inputs[field] is not None:
@@ -1168,7 +1148,7 @@ class CreateFulfillmentHandler(ActionHandler):
             payload = {"fulfillment": fulfillment_data}
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return success_response(fulfillment=response.get("fulfillment", {}))
+            return success_response(fulfillment=response.get('fulfillment', {}))
         except Exception as e:
             return error_response(e, fulfillment=None)
 
@@ -1179,24 +1159,27 @@ class UpdateFulfillmentTrackingHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            fulfillment_id = inputs["fulfillment_id"]
+            fulfillment_id = inputs['fulfillment_id']
             url = get_api_url(context, f"/fulfillments/{fulfillment_id}/update_tracking.json")
             headers = build_headers(context)
 
             tracking_data = {}
-            if "tracking_number" in inputs:
-                tracking_data["number"] = inputs["tracking_number"]
-            if "tracking_company" in inputs:
-                tracking_data["company"] = inputs["tracking_company"]
-            if "tracking_url" in inputs:
-                tracking_data["url"] = inputs["tracking_url"]
+            if 'tracking_number' in inputs:
+                tracking_data['number'] = inputs['tracking_number']
+            if 'tracking_company' in inputs:
+                tracking_data['company'] = inputs['tracking_company']
+            if 'tracking_url' in inputs:
+                tracking_data['url'] = inputs['tracking_url']
 
             payload = {
-                "fulfillment": {"tracking_info": tracking_data, "notify_customer": inputs.get("notify_customer", False)}
+                "fulfillment": {
+                    "tracking_info": tracking_data,
+                    "notify_customer": inputs.get('notify_customer', False)
+                }
             }
 
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return success_response(fulfillment=response.get("fulfillment", {}))
+            return success_response(fulfillment=response.get('fulfillment', {}))
         except Exception as e:
             return error_response(e, fulfillment=None)

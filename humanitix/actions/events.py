@@ -49,9 +49,12 @@ class GetEventsAction(ActionHandler):
 
         url = build_url("events", params)
 
-        response = await context.fetch(url, method="GET", headers=get_api_headers(context))
+        response = await context.fetch(
+            url,
+            method="GET",
+            headers=get_api_headers(context)
+        )
 
-        if error := build_error_result(response):
-            return error
+        if error := build_error_result(response): return error
 
         return build_paginated_result(response, "events", page, page_size)

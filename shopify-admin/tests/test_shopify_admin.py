@@ -30,7 +30,7 @@ async def execute_wrapper(action_name, inputs, context):
     """Helper to execute action and unwrap IntegrationResult if needed."""
     result = await shopify_admin.execute_action(action_name, inputs, context)
     # Support SDK 1.0.2 IntegrationResult
-    if hasattr(result, "result") and hasattr(result.result, "data"):
+    if hasattr(result, 'result') and hasattr(result.result, 'data'):
         return result.result.data
     return result
 
@@ -42,8 +42,8 @@ AUTH = {
     "auth_type": "PlatformOauth2",
     "credentials": {
         "access_token": os.getenv("SHOPIFY_ADMIN_TOKEN", "<your-admin-api-access-token>"),
-        "shop_url": os.getenv("SHOPIFY_STORE_URL", "your-store.myshopify.com"),
-    },
+        "shop_url": os.getenv("SHOPIFY_STORE_URL", "your-store.myshopify.com")
+    }
 }
 
 # Test IDs - Replace with actual IDs from your store
@@ -60,7 +60,6 @@ TEST_INVENTORY_ITEM_ID = os.getenv("TEST_INVENTORY_ITEM_ID", "<inventory-item-id
 # Customer Tests
 # -----------------------------------------------------------------------------
 
-
 async def test_list_customers():
     """Test listing customers."""
     inputs = {"limit": 10}
@@ -68,8 +67,8 @@ async def test_list_customers():
         try:
             result = await execute_wrapper("list_customers", inputs, context)
             print(f"List Customers Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
-            assert "customers" in result
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            assert 'customers' in result
             print(f"✓ test_list_customers passed - Found {result['count']} customers")
             return result
         except Exception as e:
@@ -84,8 +83,8 @@ async def test_get_customer():
         try:
             result = await execute_wrapper("get_customer", inputs, context)
             print(f"Get Customer Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
-            print("✓ test_get_customer passed")
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            print(f"✓ test_get_customer passed")
             return result
         except Exception as e:
             print(f"✗ Error: {e}")
@@ -99,7 +98,7 @@ async def test_search_customers():
         try:
             result = await execute_wrapper("search_customers", inputs, context)
             print(f"Search Customers Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
             print(f"✓ test_search_customers passed - Found {result['count']} customers")
             return result
         except Exception as e:
@@ -117,14 +116,14 @@ async def test_create_customer():
         "verified_email": True,
         "send_email_welcome": False,
         "tags": "test,automated",
-        "note": "Created by automated test",
+        "note": "Created by automated test"
     }
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("create_customer", inputs, context)
             print(f"Create Customer Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
-            assert result["customer"].get("id")
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            assert result['customer'].get('id')
             print(f"✓ test_create_customer passed - ID: {result['customer']['id']}")
             return result
         except Exception as e:
@@ -134,13 +133,17 @@ async def test_create_customer():
 
 async def test_update_customer():
     """Test updating a customer."""
-    inputs = {"customer_id": TEST_CUSTOMER_ID, "note": f"Updated by test at {int(time.time())}", "tags": "test,updated"}
+    inputs = {
+        "customer_id": TEST_CUSTOMER_ID,
+        "note": f"Updated by test at {int(time.time())}",
+        "tags": "test,updated"
+    }
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("update_customer", inputs, context)
             print(f"Update Customer Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
-            print("✓ test_update_customer passed")
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            print(f"✓ test_update_customer passed")
             return result
         except Exception as e:
             print(f"✗ Error: {e}")
@@ -151,7 +154,6 @@ async def test_update_customer():
 # Order Tests
 # -----------------------------------------------------------------------------
 
-
 async def test_list_orders():
     """Test listing orders."""
     inputs = {"limit": 10, "status": "any"}
@@ -159,7 +161,7 @@ async def test_list_orders():
         try:
             result = await execute_wrapper("list_orders", inputs, context)
             print(f"List Orders Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
             print(f"✓ test_list_orders passed - Found {result['count']} orders")
             return result
         except Exception as e:
@@ -174,8 +176,8 @@ async def test_get_order():
         try:
             result = await execute_wrapper("get_order", inputs, context)
             print(f"Get Order Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
-            print("✓ test_get_order passed")
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            print(f"✓ test_get_order passed")
             return result
         except Exception as e:
             print(f"✗ Error: {e}")
@@ -189,14 +191,14 @@ async def test_create_order():
         "financial_status": "pending",
         "send_receipt": False,
         "note": "Test order via API",
-        "tags": "test,automated",
+        "tags": "test,automated"
     }
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("create_order", inputs, context)
             print(f"Create Order Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
-            assert result["order"].get("id")
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            assert result['order'].get('id')
             print(f"✓ test_create_order passed - ID: {result['order']['id']}")
             return result
         except Exception as e:
@@ -208,7 +210,6 @@ async def test_create_order():
 # Product Tests (GraphQL API)
 # -----------------------------------------------------------------------------
 
-
 async def test_list_products():
     """Test listing products using GraphQL API."""
     inputs = {"limit": 10}
@@ -216,7 +217,7 @@ async def test_list_products():
         try:
             result = await execute_wrapper("list_products", inputs, context)
             print(f"List Products Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
             # GraphQL returns pagination info
             print(f"  hasNextPage: {result.get('hasNextPage')}")
             print(f"  endCursor: {result.get('endCursor')}")
@@ -234,7 +235,7 @@ async def test_list_products_with_filter():
         try:
             result = await execute_wrapper("list_products", inputs, context)
             print(f"List Products (filtered) Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
             print(f"✓ test_list_products_with_filter passed - Found {result['count']} active products")
             return result
         except Exception as e:
@@ -249,13 +250,13 @@ async def test_get_product():
         try:
             result = await execute_wrapper("get_product", inputs, context)
             print(f"Get Product Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
             # Verify GraphQL response fields are transformed correctly
-            product = result.get("product", {})
+            product = result.get('product', {})
             print(f"  Product ID: {product.get('id')}")
             print(f"  Title: {product.get('title')}")
             print(f"  Variants: {len(product.get('variants', []))}")
-            print("✓ test_get_product passed")
+            print(f"✓ test_get_product passed")
             return result
         except Exception as e:
             print(f"✗ Error: {e}")
@@ -272,16 +273,16 @@ async def test_create_product():
         "product_type": "Test",
         "tags": "test,automated,graphql",
         "status": "draft",
-        "variants": [{"price": "19.99", "sku": f"TEST-{timestamp}"}],
+        "variants": [{"price": "19.99", "sku": f"TEST-{timestamp}"}]
     }
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("create_product", inputs, context)
             print(f"Create Product Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
-            assert result["product"].get("id")
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            assert result['product'].get('id')
             # Verify ID is numeric (transformed from GID)
-            product_id = result["product"]["id"]
+            product_id = result['product']['id']
             print(f"  Product ID: {product_id}")
             print(f"✓ test_create_product passed - ID: {product_id}")
             return result
@@ -295,14 +296,14 @@ async def test_update_product():
     inputs = {
         "product_id": TEST_PRODUCT_ID,
         "title": f"Updated Product {int(time.time())}",
-        "tags": "test,updated,graphql",
+        "tags": "test,updated,graphql"
     }
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("update_product", inputs, context)
             print(f"Update Product Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
-            print("✓ test_update_product passed")
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            print(f"✓ test_update_product passed")
             return result
         except Exception as e:
             print(f"✗ Error: {e}")
@@ -313,14 +314,13 @@ async def test_update_product():
 # Inventory & Location Tests
 # -----------------------------------------------------------------------------
 
-
 async def test_list_locations():
     """Test listing locations."""
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("list_locations", {}, context)
             print(f"List Locations Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
             print(f"✓ test_list_locations passed - Found {result['count']} locations")
             return result
         except Exception as e:
@@ -335,7 +335,7 @@ async def test_get_inventory_levels():
         try:
             result = await execute_wrapper("get_inventory_levels", inputs, context)
             print(f"Get Inventory Levels Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
             print(f"✓ test_get_inventory_levels passed - Found {result['count']} levels")
             return result
         except Exception as e:
@@ -345,13 +345,17 @@ async def test_get_inventory_levels():
 
 async def test_set_inventory_level():
     """Test setting inventory level."""
-    inputs = {"inventory_item_id": TEST_INVENTORY_ITEM_ID, "location_id": TEST_LOCATION_ID, "available": 50}
+    inputs = {
+        "inventory_item_id": TEST_INVENTORY_ITEM_ID,
+        "location_id": TEST_LOCATION_ID,
+        "available": 50
+    }
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("set_inventory_level", inputs, context)
             print(f"Set Inventory Level Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
-            print("✓ test_set_inventory_level passed")
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            print(f"✓ test_set_inventory_level passed")
             return result
         except Exception as e:
             print(f"✗ Error: {e}")
@@ -362,14 +366,13 @@ async def test_set_inventory_level():
 # Shop Tests
 # -----------------------------------------------------------------------------
 
-
 async def test_get_shop():
     """Test getting shop info."""
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("get_shop", {}, context)
             print(f"Get Shop Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
             print(f"✓ test_get_shop passed - Shop: {result['shop'].get('name')}")
             return result
         except Exception as e:
@@ -381,7 +384,6 @@ async def test_get_shop():
 # Draft Order Tests
 # -----------------------------------------------------------------------------
 
-
 async def test_list_draft_orders():
     """Test listing draft orders."""
     inputs = {"limit": 10}
@@ -389,7 +391,7 @@ async def test_list_draft_orders():
         try:
             result = await execute_wrapper("list_draft_orders", inputs, context)
             print(f"List Draft Orders Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
             print(f"✓ test_list_draft_orders passed - Found {result['count']} draft orders")
             return result
         except Exception as e:
@@ -402,14 +404,14 @@ async def test_create_draft_order():
     inputs = {
         "line_items": [{"title": "Draft Test Item", "price": "15.00", "quantity": 1}],
         "note": "Test draft order",
-        "tags": "test,automated",
+        "tags": "test,automated"
     }
     async with ExecutionContext(auth=AUTH) as context:
         try:
             result = await execute_wrapper("create_draft_order", inputs, context)
             print(f"Create Draft Order Result: {result}")
-            assert result.get("success"), f"Failed: {result.get('message')}"
-            assert result["draft_order"].get("id")
+            assert result.get('success') == True, f"Failed: {result.get('message')}"
+            assert result['draft_order'].get('id')
             print(f"✓ test_create_draft_order passed - ID: {result['draft_order']['id']}")
             return result
         except Exception as e:
@@ -420,7 +422,6 @@ async def test_create_draft_order():
 # =============================================================================
 # Test Runners
 # =============================================================================
-
 
 async def run_safe_tests():
     """Run read-only tests (safe for any store)."""
@@ -444,7 +445,7 @@ async def run_safe_tests():
         print(f"\n--- Testing: {name} ---")
         try:
             result = await test_func()
-            if result and result.get("success"):
+            if result and result.get('success'):
                 results["passed"] += 1
             else:
                 results["failed"] += 1
@@ -476,7 +477,7 @@ async def run_get_tests():
         print(f"\n--- Testing: {name} ---")
         try:
             result = await test_func()
-            if result and result.get("success"):
+            if result and result.get('success'):
                 results["passed"] += 1
             else:
                 results["failed"] += 1
@@ -508,7 +509,7 @@ async def run_write_tests():
         print(f"\n--- Testing: {name} ---")
         try:
             result = await test_func()
-            if result and result.get("success"):
+            if result and result.get('success'):
                 results["passed"] += 1
             else:
                 results["failed"] += 1
@@ -539,7 +540,7 @@ async def run_update_tests():
         print(f"\n--- Testing: {name} ---")
         try:
             result = await test_func()
-            if result and result.get("success"):
+            if result and result.get('success'):
                 results["passed"] += 1
             else:
                 results["failed"] += 1
@@ -604,7 +605,7 @@ if __name__ == "__main__":
         "get": run_get_tests,
         "write": run_write_tests,
         "update": run_update_tests,
-        "all": run_all_tests,
+        "all": run_all_tests
     }
 
     if option in runners:

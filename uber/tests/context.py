@@ -1,31 +1,27 @@
 # -*- coding: utf-8 -*-
 """Test context for Uber integration tests."""
-
 import sys
 import os
 from unittest.mock import patch
 
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, parent_dir)
 
 
 class MockIntegration:
     """Mock Integration that returns the class unchanged from action decorator."""
-
+    
     def action(self, name):
         """Return decorator that just returns the class unchanged."""
-
         def decorator(cls):
             return cls
-
         return decorator
 
 
 mock_integration = MockIntegration()
 
-with patch("autohive_integrations_sdk.Integration.load", return_value=mock_integration):
+with patch('autohive_integrations_sdk.Integration.load', return_value=mock_integration):
     import importlib.util
-
     spec = importlib.util.spec_from_file_location("uber_module", os.path.join(parent_dir, "uber.py"))
     uber_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(uber_module)

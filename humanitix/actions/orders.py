@@ -54,9 +54,12 @@ class GetOrdersAction(ActionHandler):
 
         url = build_url(f"events/{event_id}/orders", params)
 
-        response = await context.fetch(url, method="GET", headers=get_api_headers(context))
+        response = await context.fetch(
+            url,
+            method="GET",
+            headers=get_api_headers(context)
+        )
 
-        if error := build_error_result(response):
-            return error
+        if error := build_error_result(response): return error
 
         return build_paginated_result(response, "orders", page, page_size)

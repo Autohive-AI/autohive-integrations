@@ -1,9 +1,9 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 import sys
 import os
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from linkedin_ads import (
     extract_id_from_urn,
@@ -103,9 +103,9 @@ class TestMakeRequest:
     @pytest.mark.asyncio
     async def test_make_request_get_success(self, mock_context):
         mock_context.fetch.return_value = {"elements": [{"id": "123"}]}
-
+        
         result = await make_request(mock_context, "GET", "/adAccounts")
-
+        
         assert result["success"] is True
         assert result["data"]["elements"][0]["id"] == "123"
         mock_context.fetch.assert_called_once()
@@ -113,18 +113,28 @@ class TestMakeRequest:
     @pytest.mark.asyncio
     async def test_make_request_post_success(self, mock_context):
         mock_context.fetch.return_value = {"id": "new-campaign-123"}
-
-        result = await make_request(mock_context, "POST", "/adCampaigns", json_body={"name": "Test Campaign"})
-
+        
+        result = await make_request(
+            mock_context, 
+            "POST", 
+            "/adCampaigns",
+            json_body={"name": "Test Campaign"}
+        )
+        
         assert result["success"] is True
         assert result["data"]["id"] == "new-campaign-123"
 
     @pytest.mark.asyncio
     async def test_make_request_with_params(self, mock_context):
         mock_context.fetch.return_value = {"elements": []}
-
-        await make_request(mock_context, "GET", "/adCampaigns", params={"q": "search", "count": 25})
-
+        
+        await make_request(
+            mock_context,
+            "GET",
+            "/adCampaigns",
+            params={"q": "search", "count": 25}
+        )
+        
         call_kwargs = mock_context.fetch.call_args
         assert "params" in call_kwargs.kwargs
         assert call_kwargs.kwargs["params"]["q"] == "search"
@@ -132,20 +142,23 @@ class TestMakeRequest:
     @pytest.mark.asyncio
     async def test_make_request_with_extra_headers(self, mock_context):
         mock_context.fetch.return_value = {}
-
+        
         await make_request(
-            mock_context, "POST", "/adCampaigns/123", extra_headers={"X-RestLi-Method": "PARTIAL_UPDATE"}
+            mock_context,
+            "POST",
+            "/adCampaigns/123",
+            extra_headers={"X-RestLi-Method": "PARTIAL_UPDATE"}
         )
-
+        
         call_kwargs = mock_context.fetch.call_args
         assert "X-RestLi-Method" in call_kwargs.kwargs["headers"]
 
     @pytest.mark.asyncio
     async def test_make_request_handles_generic_exception(self, mock_context):
         mock_context.fetch.side_effect = Exception("Connection timeout")
-
+        
         result = await make_request(mock_context, "GET", "/adAccounts")
-
+        
         assert result["success"] is False
         assert "Connection timeout" in result["error"]
         assert "details" in result
@@ -155,23 +168,23 @@ class TestMakeRequest:
         error = Exception("API Error")
         error.status_code = 401
         mock_context.fetch.side_effect = error
-
+        
         result = await make_request(mock_context, "GET", "/adAccounts")
-
+        
         assert result["success"] is False
         assert "Unauthorized" in result["error"]
 
     @pytest.mark.asyncio
     async def test_make_request_unsupported_method(self, mock_context):
         result = await make_request(mock_context, "PUT", "/adAccounts")
-
+        
         assert result["success"] is False
         assert "Unsupported HTTP method" in result["error"]
 
     @pytest.mark.asyncio
     async def test_make_request_unsupported_patch_method(self, mock_context):
         result = await make_request(mock_context, "PATCH", "/adAccounts")
-
+        
         assert result["success"] is False
         assert "Unsupported HTTP method" in result["error"]
 
@@ -189,12 +202,12 @@ class TestGetAdAccountsAction:
     async def test_get_ad_accounts_success(self, mock_context):
         mock_context.fetch.side_effect = [
             {"elements": [{"account": "urn:li:sponsoredAccount:123"}]},
-            {"id": "123", "name": "Test Account", "status": "ACTIVE"},
+            {"id": "123", "name": "Test Account", "status": "ACTIVE"}
         ]
-
+        
         action = GetAdAccountsAction()
         result = await action.execute({}, mock_context)
-
+        
         assert result.data["result"] is True
         assert len(result.data["accounts"]) == 1
         assert result.cost_usd == 0.0
@@ -202,10 +215,10 @@ class TestGetAdAccountsAction:
     @pytest.mark.asyncio
     async def test_get_ad_accounts_with_page_size(self, mock_context):
         mock_context.fetch.return_value = {"elements": []}
-
+        
         action = GetAdAccountsAction()
         await action.execute({"page_size": 50}, mock_context)
-
+        
         call_kwargs = mock_context.fetch.call_args
         assert call_kwargs.kwargs["params"]["count"] == 50
 
@@ -223,7 +236,7 @@ class TestGetCampaignsAction:
     async def test_get_campaigns_requires_account_id(self, mock_context):
         action = GetCampaignsAction()
         result = await action.execute({}, mock_context)
-
+        
         assert result.data["result"] is False
         assert "account_id is required" in result.data["error"]
 
@@ -232,13 +245,13 @@ class TestGetCampaignsAction:
         mock_context.fetch.return_value = {
             "elements": [
                 {"id": "campaign1", "name": "Campaign 1", "status": "ACTIVE"},
-                {"id": "campaign2", "name": "Campaign 2", "status": "PAUSED"},
+                {"id": "campaign2", "name": "Campaign 2", "status": "PAUSED"}
             ]
         }
-
+        
         action = GetCampaignsAction()
         result = await action.execute({"account_id": "123456789"}, mock_context)
-
+        
         assert result.data["result"] is True
         assert len(result.data["campaigns"]) == 2
         assert result.data["total"] == 2
@@ -246,10 +259,10 @@ class TestGetCampaignsAction:
     @pytest.mark.asyncio
     async def test_get_campaigns_with_status_filter(self, mock_context):
         mock_context.fetch.return_value = {"elements": []}
-
+        
         action = GetCampaignsAction()
         await action.execute({"account_id": "123", "status": "ACTIVE"}, mock_context)
-
+        
         call_kwargs = mock_context.fetch.call_args
         assert "search.status.values[0]" in call_kwargs.kwargs["params"]
 
@@ -267,7 +280,7 @@ class TestGetCampaignAction:
     async def test_get_campaign_requires_campaign_id(self, mock_context):
         action = GetCampaignAction()
         result = await action.execute({}, mock_context)
-
+        
         assert result.data["result"] is False
         assert "campaign_id is required" in result.data["error"]
 
@@ -277,22 +290,22 @@ class TestGetCampaignAction:
             "id": "123",
             "name": "Test Campaign",
             "status": "ACTIVE",
-            "objectiveType": "WEBSITE_VISITS",
+            "objectiveType": "WEBSITE_VISITS"
         }
-
+        
         action = GetCampaignAction()
         result = await action.execute({"campaign_id": "123"}, mock_context)
-
+        
         assert result.data["result"] is True
         assert result.data["campaign"]["name"] == "Test Campaign"
 
     @pytest.mark.asyncio
     async def test_get_campaign_with_urn_input(self, mock_context):
         mock_context.fetch.return_value = {"id": "123", "name": "Test"}
-
+        
         action = GetCampaignAction()
         await action.execute({"campaign_id": "urn:li:sponsoredCampaign:123"}, mock_context)
-
+        
         call_args = mock_context.fetch.call_args
         assert "/adCampaigns/123" in call_args.args[0]
 
@@ -310,27 +323,24 @@ class TestCreateCampaignAction:
     async def test_create_campaign_requires_all_fields(self, mock_context):
         action = CreateCampaignAction()
         result = await action.execute({"account_id": "123"}, mock_context)
-
+        
         assert result.data["result"] is False
         assert "Missing required fields" in result.data["error"]
 
     @pytest.mark.asyncio
     async def test_create_campaign_success(self, mock_context):
         mock_context.fetch.return_value = {"id": "new-campaign-123"}
-
+        
         action = CreateCampaignAction()
-        result = await action.execute(
-            {
-                "account_id": "123456789",
-                "campaign_group_id": "111222333",
-                "name": "New Test Campaign",
-                "objective_type": "WEBSITE_VISITS",
-                "type": "SPONSORED_UPDATES",
-                "daily_budget_amount": 100.00,
-            },
-            mock_context,
-        )
-
+        result = await action.execute({
+            "account_id": "123456789",
+            "campaign_group_id": "111222333",
+            "name": "New Test Campaign",
+            "objective_type": "WEBSITE_VISITS",
+            "type": "SPONSORED_UPDATES",
+            "daily_budget_amount": 100.00
+        }, mock_context)
+        
         assert result.data["result"] is True
         assert "campaign_id" in result.data
 
@@ -348,27 +358,27 @@ class TestPauseCampaignAction:
     async def test_pause_campaign_requires_campaign_id(self, mock_context):
         action = PauseCampaignAction()
         result = await action.execute({}, mock_context)
-
+        
         assert result.data["result"] is False
         assert "campaign_id is required" in result.data["error"]
 
     @pytest.mark.asyncio
     async def test_pause_campaign_success(self, mock_context):
         mock_context.fetch.return_value = {}
-
+        
         action = PauseCampaignAction()
         result = await action.execute({"campaign_id": "123"}, mock_context)
-
+        
         assert result.data["result"] is True
         assert "paused successfully" in result.data["message"]
 
     @pytest.mark.asyncio
     async def test_pause_campaign_sends_correct_payload(self, mock_context):
         mock_context.fetch.return_value = {}
-
+        
         action = PauseCampaignAction()
         await action.execute({"campaign_id": "123"}, mock_context)
-
+        
         call_kwargs = mock_context.fetch.call_args
         assert call_kwargs.kwargs["json"]["patch"]["$set"]["status"] == "PAUSED"
 
@@ -386,27 +396,27 @@ class TestActivateCampaignAction:
     async def test_activate_campaign_requires_campaign_id(self, mock_context):
         action = ActivateCampaignAction()
         result = await action.execute({}, mock_context)
-
+        
         assert result.data["result"] is False
         assert "campaign_id is required" in result.data["error"]
 
     @pytest.mark.asyncio
     async def test_activate_campaign_success(self, mock_context):
         mock_context.fetch.return_value = {}
-
+        
         action = ActivateCampaignAction()
         result = await action.execute({"campaign_id": "123"}, mock_context)
-
+        
         assert result.data["result"] is True
         assert "activated successfully" in result.data["message"]
 
     @pytest.mark.asyncio
     async def test_activate_campaign_sends_correct_payload(self, mock_context):
         mock_context.fetch.return_value = {}
-
+        
         action = ActivateCampaignAction()
         await action.execute({"campaign_id": "123"}, mock_context)
-
+        
         call_kwargs = mock_context.fetch.call_args
         assert call_kwargs.kwargs["json"]["patch"]["$set"]["status"] == "ACTIVE"
 
@@ -424,31 +434,37 @@ class TestGetAdAnalyticsAction:
     async def test_get_analytics_requires_all_params(self, mock_context):
         action = GetAdAnalyticsAction()
         result = await action.execute({"account_id": "123"}, mock_context)
-
+        
         assert result.data["result"] is False
         assert "required" in result.data["error"]
 
     @pytest.mark.asyncio
     async def test_get_analytics_validates_date_format(self, mock_context):
         action = GetAdAnalyticsAction()
-        result = await action.execute(
-            {"account_id": "123", "start_date": "invalid-date", "end_date": "2025-01-20"}, mock_context
-        )
-
+        result = await action.execute({
+            "account_id": "123",
+            "start_date": "invalid-date",
+            "end_date": "2025-01-20"
+        }, mock_context)
+        
         assert result.data["result"] is False
         assert "Invalid date format" in result.data["error"]
 
     @pytest.mark.asyncio
     async def test_get_analytics_success(self, mock_context):
         mock_context.fetch.return_value = {
-            "elements": [{"impressions": 1000, "clicks": 50, "costInLocalCurrency": "100.00"}]
+            "elements": [
+                {"impressions": 1000, "clicks": 50, "costInLocalCurrency": "100.00"}
+            ]
         }
-
+        
         action = GetAdAnalyticsAction()
-        result = await action.execute(
-            {"account_id": "123456789", "start_date": "2025-01-01", "end_date": "2025-01-20"}, mock_context
-        )
-
+        result = await action.execute({
+            "account_id": "123456789",
+            "start_date": "2025-01-01",
+            "end_date": "2025-01-20"
+        }, mock_context)
+        
         assert result.data["result"] is True
         assert len(result.data["analytics"]) == 1
 
@@ -466,17 +482,21 @@ class TestGetAdAccountUsersAction:
     async def test_get_users_requires_account_id(self, mock_context):
         action = GetAdAccountUsersAction()
         result = await action.execute({}, mock_context)
-
+        
         assert result.data["result"] is False
         assert "account_id is required" in result.data["error"]
 
     @pytest.mark.asyncio
     async def test_get_users_success(self, mock_context):
-        mock_context.fetch.return_value = {"elements": [{"user": "urn:li:person:abc123", "role": "ACCOUNT_MANAGER"}]}
-
+        mock_context.fetch.return_value = {
+            "elements": [
+                {"user": "urn:li:person:abc123", "role": "ACCOUNT_MANAGER"}
+            ]
+        }
+        
         action = GetAdAccountUsersAction()
         result = await action.execute({"account_id": "123"}, mock_context)
-
+        
         assert result.data["result"] is True
         assert len(result.data["users"]) == 1
 

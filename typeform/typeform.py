@@ -1,4 +1,6 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration, ExecutionContext, ActionHandler, ActionResult
+)
 from autohive_integrations_sdk.integration import RateLimitError
 from typing import Dict, Any
 
@@ -31,7 +33,10 @@ MAX_RATE_LIMIT_RETRIES = 3  # Maximum recommended retries for rate limit errors
 
 
 def create_rate_limit_response(
-    retry_after_seconds: int, retry_attempt: int = 0, action_name: str = "", empty_data: Dict[str, Any] = None
+    retry_after_seconds: int,
+    retry_attempt: int = 0,
+    action_name: str = "",
+    empty_data: Dict[str, Any] = None
 ) -> ActionResult:
     """
     Create a structured rate limit response for the LLM.
@@ -100,7 +105,7 @@ def is_rate_limit_error(error: Exception) -> tuple[bool, int]:
     """
     # Check for SDK RateLimitError - this has retry_after from the Retry-After header
     if isinstance(error, RateLimitError):
-        return True, getattr(error, "retry_after", 60)
+        return True, getattr(error, 'retry_after', 60)
 
     # Check error message for 429 indicators
     # Note: For generic exceptions, we can only detect rate limits from the message text.
@@ -108,14 +113,13 @@ def is_rate_limit_error(error: Exception) -> tuple[bool, int]:
     # so we default to 60s (Typeform's typical rate limit window).
     error_str = str(error)
     error_lower = error_str.lower()
-    if "429" in error_str or "rate limit" in error_lower or "too many requests" in error_lower:
+    if '429' in error_str or 'rate limit' in error_lower or 'too many requests' in error_lower:
         return True, 60
 
     return False, 0
 
 
 # ---- User/Account Handlers ----
-
 
 @typeform.action("get_current_user")
 class GetCurrentUserAction(ActionHandler):
@@ -125,9 +129,15 @@ class GetCurrentUserAction(ActionHandler):
         retry_attempt = inputs.get("_retry_attempt", 0)
 
         try:
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/me", method="GET")
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/me",
+                method="GET"
+            )
 
-            return ActionResult(data={"user": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"user": response, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -136,14 +146,16 @@ class GetCurrentUserAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="get_current_user",
-                    empty_data={"user": {}},
+                    empty_data={"user": {}}
                 )
 
-            return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"user": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 # ---- Form Handlers ----
-
 
 @typeform.action("list_forms")
 class ListFormsAction(ActionHandler):
@@ -164,13 +176,18 @@ class ListFormsAction(ActionHandler):
                 params["page_size"] = inputs["page_size"]
 
             response = await context.fetch(
-                f"{TYPEFORM_API_BASE_URL}/forms", method="GET", params=params if params else None
+                f"{TYPEFORM_API_BASE_URL}/forms",
+                method="GET",
+                params=params if params else None
             )
 
             forms = response.get("items", []) if isinstance(response, dict) else []
             total_items = response.get("total_items", len(forms)) if isinstance(response, dict) else len(forms)
 
-            return ActionResult(data={"forms": forms, "total_items": total_items, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"forms": forms, "total_items": total_items, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -179,10 +196,13 @@ class ListFormsAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="list_forms",
-                    empty_data={"forms": [], "total_items": 0},
+                    empty_data={"forms": [], "total_items": 0}
                 )
 
-            return ActionResult(data={"forms": [], "total_items": 0, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"forms": [], "total_items": 0, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("get_form")
@@ -195,9 +215,15 @@ class GetFormAction(ActionHandler):
         try:
             form_id = inputs["form_id"]
 
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms/{form_id}", method="GET")
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/forms/{form_id}",
+                method="GET"
+            )
 
-            return ActionResult(data={"form": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"form": response, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -206,10 +232,13 @@ class GetFormAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="get_form",
-                    empty_data={"form": {}},
+                    empty_data={"form": {}}
                 )
 
-            return ActionResult(data={"form": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"form": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("create_form")
@@ -235,9 +264,16 @@ class CreateFormAction(ActionHandler):
             if inputs.get("thankyou_screens"):
                 body["thankyou_screens"] = inputs["thankyou_screens"]
 
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms", method="POST", json=body)
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/forms",
+                method="POST",
+                json=body
+            )
 
-            return ActionResult(data={"form": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"form": response, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -246,10 +282,13 @@ class CreateFormAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="create_form",
-                    empty_data={"form": {}},
+                    empty_data={"form": {}}
                 )
 
-            return ActionResult(data={"form": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"form": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("update_form")
@@ -269,7 +308,10 @@ class UpdateFormAction(ActionHandler):
             form_id = inputs["form_id"]
 
             # First get the existing form - PUT requires full form definition
-            existing_form = await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms/{form_id}", method="GET")
+            existing_form = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/forms/{form_id}",
+                method="GET"
+            )
 
             # Start with full existing form and remove only read-only fields
             # This prevents data loss when updating specific fields
@@ -290,9 +332,16 @@ class UpdateFormAction(ActionHandler):
                 body["thankyou_screens"] = inputs["thankyou_screens"]
 
             # Use PUT to replace the entire form
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms/{form_id}", method="PUT", json=body)
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/forms/{form_id}",
+                method="PUT",
+                json=body
+            )
 
-            return ActionResult(data={"form": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"form": response, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -301,10 +350,13 @@ class UpdateFormAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="update_form",
-                    empty_data={"form": {}},
+                    empty_data={"form": {}}
                 )
 
-            return ActionResult(data={"form": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"form": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("delete_form")
@@ -317,9 +369,15 @@ class DeleteFormAction(ActionHandler):
         try:
             form_id = inputs["form_id"]
 
-            await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms/{form_id}", method="DELETE")
+            await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/forms/{form_id}",
+                method="DELETE"
+            )
 
-            return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": True, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -328,14 +386,16 @@ class DeleteFormAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="delete_form",
-                    empty_data={"deleted": False},
+                    empty_data={"deleted": False}
                 )
 
-            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": False, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 # ---- Response Handlers ----
-
 
 @typeform.action("list_responses")
 class ListResponsesAction(ActionHandler):
@@ -357,7 +417,9 @@ class ListResponsesAction(ActionHandler):
                 params["completed"] = str(inputs["completed"]).lower()
 
             response = await context.fetch(
-                f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/responses", method="GET", params=params if params else None
+                f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/responses",
+                method="GET",
+                params=params if params else None
             )
 
             responses = response.get("items", []) if isinstance(response, dict) else []
@@ -365,8 +427,13 @@ class ListResponsesAction(ActionHandler):
             page_count = response.get("page_count", 1) if isinstance(response, dict) else 1
 
             return ActionResult(
-                data={"responses": responses, "total_items": total_items, "page_count": page_count, "result": True},
-                cost_usd=0.0,
+                data={
+                    "responses": responses,
+                    "total_items": total_items,
+                    "page_count": page_count,
+                    "result": True
+                },
+                cost_usd=0.0
             )
 
         except Exception as e:
@@ -376,12 +443,12 @@ class ListResponsesAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="list_responses",
-                    empty_data={"responses": [], "total_items": 0, "page_count": 0},
+                    empty_data={"responses": [], "total_items": 0, "page_count": 0}
                 )
 
             return ActionResult(
                 data={"responses": [], "total_items": 0, "page_count": 0, "result": False, "error": str(e)},
-                cost_usd=0.0,
+                cost_usd=0.0
             )
 
 
@@ -399,10 +466,13 @@ class DeleteResponsesAction(ActionHandler):
             await context.fetch(
                 f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/responses",
                 method="DELETE",
-                params={"included_response_ids": included_response_ids},
+                params={"included_response_ids": included_response_ids}
             )
 
-            return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": True, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -411,14 +481,16 @@ class DeleteResponsesAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="delete_responses",
-                    empty_data={"deleted": False},
+                    empty_data={"deleted": False}
                 )
 
-            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": False, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 # ---- Workspace Handlers ----
-
 
 @typeform.action("list_workspaces")
 class ListWorkspacesAction(ActionHandler):
@@ -437,16 +509,17 @@ class ListWorkspacesAction(ActionHandler):
                 params["page_size"] = inputs["page_size"]
 
             response = await context.fetch(
-                f"{TYPEFORM_API_BASE_URL}/workspaces", method="GET", params=params if params else None
+                f"{TYPEFORM_API_BASE_URL}/workspaces",
+                method="GET",
+                params=params if params else None
             )
 
             workspaces = response.get("items", []) if isinstance(response, dict) else []
-            total_items = (
-                response.get("total_items", len(workspaces)) if isinstance(response, dict) else len(workspaces)
-            )
+            total_items = response.get("total_items", len(workspaces)) if isinstance(response, dict) else len(workspaces)
 
             return ActionResult(
-                data={"workspaces": workspaces, "total_items": total_items, "result": True}, cost_usd=0.0
+                data={"workspaces": workspaces, "total_items": total_items, "result": True},
+                cost_usd=0.0
             )
 
         except Exception as e:
@@ -456,11 +529,12 @@ class ListWorkspacesAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="list_workspaces",
-                    empty_data={"workspaces": [], "total_items": 0},
+                    empty_data={"workspaces": [], "total_items": 0}
                 )
 
             return ActionResult(
-                data={"workspaces": [], "total_items": 0, "result": False, "error": str(e)}, cost_usd=0.0
+                data={"workspaces": [], "total_items": 0, "result": False, "error": str(e)},
+                cost_usd=0.0
             )
 
 
@@ -474,9 +548,15 @@ class GetWorkspaceAction(ActionHandler):
         try:
             workspace_id = inputs["workspace_id"]
 
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/workspaces/{workspace_id}", method="GET")
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/workspaces/{workspace_id}",
+                method="GET"
+            )
 
-            return ActionResult(data={"workspace": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"workspace": response, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -485,10 +565,13 @@ class GetWorkspaceAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="get_workspace",
-                    empty_data={"workspace": {}},
+                    empty_data={"workspace": {}}
                 )
 
-            return ActionResult(data={"workspace": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"workspace": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("create_workspace")
@@ -501,9 +584,16 @@ class CreateWorkspaceAction(ActionHandler):
         try:
             body = {"name": inputs["name"]}
 
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/workspaces", method="POST", json=body)
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/workspaces",
+                method="POST",
+                json=body
+            )
 
-            return ActionResult(data={"workspace": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"workspace": response, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -512,10 +602,13 @@ class CreateWorkspaceAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="create_workspace",
-                    empty_data={"workspace": {}},
+                    empty_data={"workspace": {}}
                 )
 
-            return ActionResult(data={"workspace": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"workspace": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("update_workspace")
@@ -530,15 +623,31 @@ class UpdateWorkspaceAction(ActionHandler):
 
             # Typeform uses JSON Patch format for workspace updates
             # Format: array of operations with op, path, value
-            body = [{"op": "replace", "path": "/name", "value": inputs["name"]}]
+            body = [
+                {
+                    "op": "replace",
+                    "path": "/name",
+                    "value": inputs["name"]
+                }
+            ]
 
             # PATCH returns 204 No Content on success
-            await context.fetch(f"{TYPEFORM_API_BASE_URL}/workspaces/{workspace_id}", method="PATCH", json=body)
+            await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/workspaces/{workspace_id}",
+                method="PATCH",
+                json=body
+            )
 
             # Fetch the updated workspace to return
-            updated_workspace = await context.fetch(f"{TYPEFORM_API_BASE_URL}/workspaces/{workspace_id}", method="GET")
+            updated_workspace = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/workspaces/{workspace_id}",
+                method="GET"
+            )
 
-            return ActionResult(data={"workspace": updated_workspace, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"workspace": updated_workspace, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -547,10 +656,13 @@ class UpdateWorkspaceAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="update_workspace",
-                    empty_data={"workspace": {}},
+                    empty_data={"workspace": {}}
                 )
 
-            return ActionResult(data={"workspace": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"workspace": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("delete_workspace")
@@ -563,9 +675,15 @@ class DeleteWorkspaceAction(ActionHandler):
         try:
             workspace_id = inputs["workspace_id"]
 
-            await context.fetch(f"{TYPEFORM_API_BASE_URL}/workspaces/{workspace_id}", method="DELETE")
+            await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/workspaces/{workspace_id}",
+                method="DELETE"
+            )
 
-            return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": True, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -574,14 +692,16 @@ class DeleteWorkspaceAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="delete_workspace",
-                    empty_data={"deleted": False},
+                    empty_data={"deleted": False}
                 )
 
-            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": False, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 # ---- Theme Handlers ----
-
 
 @typeform.action("list_themes")
 class ListThemesAction(ActionHandler):
@@ -598,13 +718,18 @@ class ListThemesAction(ActionHandler):
                 params["page_size"] = inputs["page_size"]
 
             response = await context.fetch(
-                f"{TYPEFORM_API_BASE_URL}/themes", method="GET", params=params if params else None
+                f"{TYPEFORM_API_BASE_URL}/themes",
+                method="GET",
+                params=params if params else None
             )
 
             themes = response.get("items", []) if isinstance(response, dict) else []
             total_items = response.get("total_items", len(themes)) if isinstance(response, dict) else len(themes)
 
-            return ActionResult(data={"themes": themes, "total_items": total_items, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"themes": themes, "total_items": total_items, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -613,10 +738,13 @@ class ListThemesAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="list_themes",
-                    empty_data={"themes": [], "total_items": 0},
+                    empty_data={"themes": [], "total_items": 0}
                 )
 
-            return ActionResult(data={"themes": [], "total_items": 0, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"themes": [], "total_items": 0, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("get_theme")
@@ -629,9 +757,15 @@ class GetThemeAction(ActionHandler):
         try:
             theme_id = inputs["theme_id"]
 
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/themes/{theme_id}", method="GET")
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/themes/{theme_id}",
+                method="GET"
+            )
 
-            return ActionResult(data={"theme": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"theme": response, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -640,10 +774,13 @@ class GetThemeAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="get_theme",
-                    empty_data={"theme": {}},
+                    empty_data={"theme": {}}
                 )
 
-            return ActionResult(data={"theme": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"theme": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("create_theme")
@@ -665,9 +802,16 @@ class CreateThemeAction(ActionHandler):
             if inputs.get("background"):
                 body["background"] = inputs["background"]
 
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/themes", method="POST", json=body)
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/themes",
+                method="POST",
+                json=body
+            )
 
-            return ActionResult(data={"theme": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"theme": response, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -676,10 +820,13 @@ class CreateThemeAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="create_theme",
-                    empty_data={"theme": {}},
+                    empty_data={"theme": {}}
                 )
 
-            return ActionResult(data={"theme": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"theme": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("delete_theme")
@@ -692,9 +839,15 @@ class DeleteThemeAction(ActionHandler):
         try:
             theme_id = inputs["theme_id"]
 
-            await context.fetch(f"{TYPEFORM_API_BASE_URL}/themes/{theme_id}", method="DELETE")
+            await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/themes/{theme_id}",
+                method="DELETE"
+            )
 
-            return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": True, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -703,14 +856,16 @@ class DeleteThemeAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="delete_theme",
-                    empty_data={"deleted": False},
+                    empty_data={"deleted": False}
                 )
 
-            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": False, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 # ---- Image Handlers ----
-
 
 @typeform.action("list_images")
 class ListImagesAction(ActionHandler):
@@ -727,13 +882,18 @@ class ListImagesAction(ActionHandler):
                 params["page_size"] = inputs["page_size"]
 
             response = await context.fetch(
-                f"{TYPEFORM_API_BASE_URL}/images", method="GET", params=params if params else None
+                f"{TYPEFORM_API_BASE_URL}/images",
+                method="GET",
+                params=params if params else None
             )
 
             images = response.get("items", []) if isinstance(response, dict) else []
             total_items = response.get("total_items", len(images)) if isinstance(response, dict) else len(images)
 
-            return ActionResult(data={"images": images, "total_items": total_items, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"images": images, "total_items": total_items, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -742,10 +902,13 @@ class ListImagesAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="list_images",
-                    empty_data={"images": [], "total_items": 0},
+                    empty_data={"images": [], "total_items": 0}
                 )
 
-            return ActionResult(data={"images": [], "total_items": 0, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"images": [], "total_items": 0, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("get_image")
@@ -758,9 +921,15 @@ class GetImageAction(ActionHandler):
         try:
             image_id = inputs["image_id"]
 
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/images/{image_id}", method="GET")
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/images/{image_id}",
+                method="GET"
+            )
 
-            return ActionResult(data={"image": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"image": response, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -769,10 +938,13 @@ class GetImageAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="get_image",
-                    empty_data={"image": {}},
+                    empty_data={"image": {}}
                 )
 
-            return ActionResult(data={"image": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"image": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("delete_image")
@@ -785,9 +957,15 @@ class DeleteImageAction(ActionHandler):
         try:
             image_id = inputs["image_id"]
 
-            await context.fetch(f"{TYPEFORM_API_BASE_URL}/images/{image_id}", method="DELETE")
+            await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/images/{image_id}",
+                method="DELETE"
+            )
 
-            return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": True, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -796,14 +974,16 @@ class DeleteImageAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="delete_image",
-                    empty_data={"deleted": False},
+                    empty_data={"deleted": False}
                 )
 
-            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": False, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 # ---- Webhook Handlers ----
-
 
 @typeform.action("list_webhooks")
 class ListWebhooksAction(ActionHandler):
@@ -815,11 +995,17 @@ class ListWebhooksAction(ActionHandler):
         try:
             form_id = inputs["form_id"]
 
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/webhooks", method="GET")
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/webhooks",
+                method="GET"
+            )
 
             webhooks = response.get("items", []) if isinstance(response, dict) else []
 
-            return ActionResult(data={"webhooks": webhooks, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"webhooks": webhooks, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -828,10 +1014,13 @@ class ListWebhooksAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="list_webhooks",
-                    empty_data={"webhooks": []},
+                    empty_data={"webhooks": []}
                 )
 
-            return ActionResult(data={"webhooks": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"webhooks": [], "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("get_webhook")
@@ -845,9 +1034,15 @@ class GetWebhookAction(ActionHandler):
             form_id = inputs["form_id"]
             tag = inputs["tag"]
 
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/webhooks/{tag}", method="GET")
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/webhooks/{tag}",
+                method="GET"
+            )
 
-            return ActionResult(data={"webhook": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"webhook": response, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -856,10 +1051,13 @@ class GetWebhookAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="get_webhook",
-                    empty_data={"webhook": {}},
+                    empty_data={"webhook": {}}
                 )
 
-            return ActionResult(data={"webhook": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"webhook": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("create_webhook")
@@ -881,10 +1079,15 @@ class CreateWebhookAction(ActionHandler):
                 body["secret"] = inputs["secret"]
 
             response = await context.fetch(
-                f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/webhooks/{tag}", method="PUT", json=body
+                f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/webhooks/{tag}",
+                method="PUT",
+                json=body
             )
 
-            return ActionResult(data={"webhook": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"webhook": response, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -893,10 +1096,13 @@ class CreateWebhookAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="create_webhook",
-                    empty_data={"webhook": {}},
+                    empty_data={"webhook": {}}
                 )
 
-            return ActionResult(data={"webhook": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"webhook": {}, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )
 
 
 @typeform.action("delete_webhook")
@@ -910,9 +1116,15 @@ class DeleteWebhookAction(ActionHandler):
             form_id = inputs["form_id"]
             tag = inputs["tag"]
 
-            await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/webhooks/{tag}", method="DELETE")
+            await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/webhooks/{tag}",
+                method="DELETE"
+            )
 
-            return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": True, "result": True},
+                cost_usd=0.0
+            )
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -921,7 +1133,10 @@ class DeleteWebhookAction(ActionHandler):
                     retry_after_seconds=retry_after,
                     retry_attempt=retry_attempt,
                     action_name="delete_webhook",
-                    empty_data={"deleted": False},
+                    empty_data={"deleted": False}
                 )
 
-            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"deleted": False, "result": False, "error": str(e)},
+                cost_usd=0.0
+            )

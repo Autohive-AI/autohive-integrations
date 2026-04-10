@@ -11,10 +11,9 @@ PROPERTY_ID = "your_property_id_here"  # Replace with actual Google Analytics 4 
 auth = {
     "auth_type": "custom",
     "credentials": {
-        "access_token": "your_access_token_here"  # Replace with actual access token  # nosec B105
-    },
+        "access_token": "your_access_token_here"  # Replace with actual access token
+    }
 }
-
 
 async def test_run_report():
     """Test running a standard Google Analytics report."""
@@ -23,19 +22,30 @@ async def test_run_report():
     try:
         inputs = {
             "property_id": PROPERTY_ID,
-            "date_ranges": [{"start_date": "7daysAgo", "end_date": "today"}],
-            "dimensions": [{"name": "country"}, {"name": "city"}],
-            "metrics": [{"name": "activeUsers"}, {"name": "sessions"}],
-            "limit": 10,
+            "date_ranges": [
+                {
+                    "start_date": "7daysAgo",
+                    "end_date": "today"
+                }
+            ],
+            "dimensions": [
+                {"name": "country"},
+                {"name": "city"}
+            ],
+            "metrics": [
+                {"name": "activeUsers"},
+                {"name": "sessions"}
+            ],
+            "limit": 10
         }
 
         async with ExecutionContext(auth=auth) as context:
             result = await google_analytics.execute_action("run_report", inputs, context)
 
-            if result.get("result"):
-                print("   ✓ Report generated successfully")
+            if result.get('result'):
+                print(f"   ✓ Report generated successfully")
                 print(f"   Rows returned: {result.get('row_count')}")
-                if result.get("rows"):
+                if result.get('rows'):
                     print(f"   Sample row: {result.get('rows')[0]}")
             else:
                 print(f"   ✗ Failed to run report: {result.get('error')}")
@@ -45,7 +55,6 @@ async def test_run_report():
 
     print("=== RUN REPORT TEST COMPLETED ===\n")
 
-
 async def test_run_realtime_report():
     """Test running a realtime Google Analytics report."""
     print("=== TESTING RUN REALTIME REPORT ===")
@@ -53,18 +62,22 @@ async def test_run_realtime_report():
     try:
         inputs = {
             "property_id": PROPERTY_ID,
-            "dimensions": [{"name": "country"}],
-            "metrics": [{"name": "activeUsers"}],
-            "limit": 10,
+            "dimensions": [
+                {"name": "country"}
+            ],
+            "metrics": [
+                {"name": "activeUsers"}
+            ],
+            "limit": 10
         }
 
         async with ExecutionContext(auth=auth) as context:
             result = await google_analytics.execute_action("run_realtime_report", inputs, context)
 
-            if result.get("result"):
-                print("   ✓ Realtime report generated successfully")
+            if result.get('result'):
+                print(f"   ✓ Realtime report generated successfully")
                 print(f"   Rows returned: {result.get('row_count')}")
-                if result.get("rows"):
+                if result.get('rows'):
                     print(f"   Sample row: {result.get('rows')[0]}")
             else:
                 print(f"   ✗ Failed to run realtime report: {result.get('error')}")
@@ -74,19 +87,20 @@ async def test_run_realtime_report():
 
     print("=== RUN REALTIME REPORT TEST COMPLETED ===\n")
 
-
 async def test_get_metadata():
     """Test retrieving metadata for available dimensions and metrics."""
     print("=== TESTING GET METADATA ===")
 
     try:
-        inputs = {"property_id": PROPERTY_ID}
+        inputs = {
+            "property_id": PROPERTY_ID
+        }
 
         async with ExecutionContext(auth=auth) as context:
             result = await google_analytics.execute_action("get_metadata", inputs, context)
 
-            if result.get("result"):
-                print("   ✓ Metadata retrieved successfully")
+            if result.get('result'):
+                print(f"   ✓ Metadata retrieved successfully")
                 print(f"   Dimensions: {result.get('dimension_count')}")
                 print(f"   Metrics: {result.get('metric_count')}")
             else:
@@ -97,7 +111,6 @@ async def test_get_metadata():
 
     print("=== GET METADATA TEST COMPLETED ===\n")
 
-
 async def test_batch_run_reports():
     """Test running multiple reports in a single batch request."""
     print("=== TESTING BATCH RUN REPORTS ===")
@@ -107,28 +120,38 @@ async def test_batch_run_reports():
             "property_id": PROPERTY_ID,
             "report_requests": [
                 {
-                    "date_ranges": [{"start_date": "7daysAgo", "end_date": "today"}],
+                    "date_ranges": [
+                        {
+                            "start_date": "7daysAgo",
+                            "end_date": "today"
+                        }
+                    ],
                     "dimensions": [{"name": "country"}],
                     "metrics": [{"name": "activeUsers"}],
-                    "limit": 5,
+                    "limit": 5
                 },
                 {
-                    "date_ranges": [{"start_date": "30daysAgo", "end_date": "today"}],
+                    "date_ranges": [
+                        {
+                            "start_date": "30daysAgo",
+                            "end_date": "today"
+                        }
+                    ],
                     "dimensions": [{"name": "deviceCategory"}],
                     "metrics": [{"name": "sessions"}],
-                    "limit": 5,
-                },
-            ],
+                    "limit": 5
+                }
+            ]
         }
 
         async with ExecutionContext(auth=auth) as context:
             result = await google_analytics.execute_action("batch_run_reports", inputs, context)
 
-            if result.get("result"):
-                print("   ✓ Batch reports generated successfully")
+            if result.get('result'):
+                print(f"   ✓ Batch reports generated successfully")
                 print(f"   Reports returned: {result.get('report_count')}")
-                for i, report in enumerate(result.get("reports", [])):
-                    print(f"   Report {i + 1}: {report.get('row_count')} rows")
+                for i, report in enumerate(result.get('reports', [])):
+                    print(f"   Report {i+1}: {report.get('row_count')} rows")
             else:
                 print(f"   ✗ Failed to run batch reports: {result.get('error')}")
 
@@ -137,12 +160,11 @@ async def test_batch_run_reports():
 
     print("=== BATCH RUN REPORTS TEST COMPLETED ===\n")
 
-
 async def main():
     """Run all tests."""
-    print("\n" + "=" * 60)
+    print("\n" + "="*60)
     print("GOOGLE ANALYTICS INTEGRATION TEST SUITE")
-    print("=" * 60 + "\n")
+    print("="*60 + "\n")
 
     print("NOTE: Update PROPERTY_ID and access_token before running tests\n")
 
@@ -151,10 +173,9 @@ async def main():
     await test_get_metadata()
     await test_batch_run_reports()
 
-    print("=" * 60)
+    print("="*60)
     print("ALL TESTS COMPLETED")
-    print("=" * 60 + "\n")
-
+    print("="*60 + "\n")
 
 if __name__ == "__main__":
     asyncio.run(main())
