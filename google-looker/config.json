@@ -56,7 +56,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["dashboards", "result"]
+                "required": [
+                    "dashboards",
+                    "result"
+                ]
             }
         },
         "get_dashboard": {
@@ -74,7 +77,9 @@
                         "description": "Comma-separated list of fields to return"
                     }
                 },
-                "required": ["dashboard_id"]
+                "required": [
+                    "dashboard_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -92,7 +97,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["dashboard", "result"]
+                "required": [
+                    "dashboard",
+                    "result"
+                ]
             }
         },
         "execute_lookml_query": {
@@ -152,7 +160,10 @@
                         "description": "Apply visualization"
                     }
                 },
-                "required": ["model", "explore"]
+                "required": [
+                    "model",
+                    "explore"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -170,7 +181,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["query_results", "result"]
+                "required": [
+                    "query_results",
+                    "result"
+                ]
             }
         },
         "list_models": {
@@ -205,7 +219,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["models", "result"]
+                "required": [
+                    "models",
+                    "result"
+                ]
             }
         },
         "get_model": {
@@ -223,7 +240,9 @@
                         "description": "Comma-separated list of fields to return"
                     }
                 },
-                "required": ["model_name"]
+                "required": [
+                    "model_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -241,7 +260,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["model", "result"]
+                "required": [
+                    "model",
+                    "result"
+                ]
             }
         },
         "execute_sql_query": {
@@ -280,7 +302,9 @@
                         "description": "Set to true to make HTTP response behave as downloadable attachment instead of inline content"
                     }
                 },
-                "required": ["sql"]
+                "required": [
+                    "sql"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -302,7 +326,11 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["slug", "query_results", "result"]
+                "required": [
+                    "slug",
+                    "query_results",
+                    "result"
+                ]
             }
         },
         "list_connections": {
@@ -337,8 +365,12 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["connections", "result"]
+                "required": [
+                    "connections",
+                    "result"
+                ]
             }
         }
-    }
+    },
+    "display_name": "Google Looker"
 }

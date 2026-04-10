@@ -1,14 +1,13 @@
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
 from typing import Dict, Any, Optional
-import os
+
 import json
 import logging
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-config_path = os.path.join(os.path.dirname(__file__), "config.json")
-google_looker = Integration.load(config_path)
+google_looker = Integration.load()
 
 
 class LookerAPIHelper:
