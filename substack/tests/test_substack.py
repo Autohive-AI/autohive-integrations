@@ -5,9 +5,7 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies")))
 
 from substack import substack  # noqa: E402
 
@@ -37,34 +35,19 @@ class TestNormaliseUrl(unittest.TestCase):
         return _normalise_url(url)
 
     def test_strips_trailing_slash(self):
-        assert (
-            self._normalise("https://example.substack.com/")
-            == "https://example.substack.com"
-        )
+        assert self._normalise("https://example.substack.com/") == "https://example.substack.com"
 
     def test_upgrades_http_to_https(self):
-        assert (
-            self._normalise("http://example.substack.com")
-            == "https://example.substack.com"
-        )
+        assert self._normalise("http://example.substack.com") == "https://example.substack.com"
 
     def test_strips_path(self):
-        assert (
-            self._normalise("https://example.substack.com/p/some-post")
-            == "https://example.substack.com"
-        )
+        assert self._normalise("https://example.substack.com/p/some-post") == "https://example.substack.com"
 
     def test_custom_domain_unchanged(self):
-        assert (
-            self._normalise("https://newsletter.example.com")
-            == "https://newsletter.example.com"
-        )
+        assert self._normalise("https://newsletter.example.com") == "https://newsletter.example.com"
 
     def test_no_change_needed(self):
-        assert (
-            self._normalise("https://example.substack.com")
-            == "https://example.substack.com"
-        )
+        assert self._normalise("https://example.substack.com") == "https://example.substack.com"
 
     def test_bare_hostname_no_scheme(self):
         assert self._normalise("example.substack.com") == "https://example.substack.com"
