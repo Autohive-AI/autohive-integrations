@@ -6,7 +6,7 @@ from autohive_integrations_sdk import (
     ConnectedAccountHandler,
     ConnectedAccountInfo,
 )
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 import base64
 
 # Create the integration using the config.json
@@ -166,7 +166,7 @@ class UpdateAsset(ActionHandler):
             if "tags" in inputs:
                 update_data["tags"] = inputs["tags"]
 
-            response = await context.fetch(f"{service_endpoint}/v1/assets/{asset_id}", method="PATCH", json=update_data)
+            await context.fetch(f"{service_endpoint}/v1/assets/{asset_id}", method="PATCH", json=update_data)
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:
@@ -179,7 +179,7 @@ class DeleteAsset(ActionHandler):
         try:
             asset_id = inputs["asset_id"]
 
-            response = await context.fetch(f"{service_endpoint}/v1/assets/{asset_id}", method="DELETE")
+            await context.fetch(f"{service_endpoint}/v1/assets/{asset_id}", method="DELETE")
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:
@@ -556,7 +556,7 @@ class UpdateFolder(ActionHandler):
             # Build update payload
             update_data = {"name": inputs["name"]}
 
-            response = await context.fetch(
+            await context.fetch(
                 f"{service_endpoint}/v1/folders/{folder_id}", method="PATCH", json=update_data
             )
 
@@ -571,7 +571,7 @@ class DeleteFolder(ActionHandler):
         try:
             folder_id = inputs["folder_id"]
 
-            response = await context.fetch(f"{service_endpoint}/v1/folders/{folder_id}", method="DELETE")
+            await context.fetch(f"{service_endpoint}/v1/folders/{folder_id}", method="DELETE")
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:
@@ -585,7 +585,7 @@ class MoveItemToFolder(ActionHandler):
             # Build move payload - flat structure per Canva API
             move_data = {"to_folder_id": inputs["destination_folder_id"], "item_id": inputs["item_id"]}
 
-            response = await context.fetch(f"{service_endpoint}/v1/folders/move", method="POST", json=move_data)
+            await context.fetch(f"{service_endpoint}/v1/folders/move", method="POST", json=move_data)
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:

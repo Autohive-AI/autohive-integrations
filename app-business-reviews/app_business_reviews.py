@@ -1,5 +1,5 @@
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 # Create the integration using the config.json
 app_business_reviews = Integration.load()
@@ -372,7 +372,11 @@ class GetReviewsGoogleMaps(ActionHandler):
             local_results = search_response.get("local_results", [])
             if not local_results:
                 # Provide helpful error message
-                suggestion = f"No businesses found for search query: '{search_query}'. Use place_id instead. Visit: https://developers.google.com/maps/documentation/places/web-service/place-id to find Place ID manually."
+                suggestion = (
+                    f"No businesses found for search query: '{search_query}'. Use place_id instead. "
+                    "Visit: https://developers.google.com/maps/documentation/places/web-service/"
+                    "place-id to find Place ID manually."
+                )
                 raise ValueError(suggestion)
 
             # Get the first result's place_id and data_id
@@ -382,7 +386,8 @@ class GetReviewsGoogleMaps(ActionHandler):
 
             if not place_id and not data_id:
                 raise ValueError(
-                    f"Could not extract place_id or data_id for business: {search_query}. The search returned results but they don't contain required identifiers."
+                    f"Could not extract place_id or data_id for business: {search_query}. "
+                    "The search returned results but they don't contain required identifiers."
                 )
 
         # Build SerpApi request parameters for reviews
