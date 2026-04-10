@@ -5,6 +5,7 @@ from autohive_integrations_sdk import (
     ActionHandler,
     ActionResult,
     HTTPError,
+    RateLimitError,
 )
 
 fergus = Integration.load()
@@ -24,6 +25,16 @@ def _success(data: Dict[str, Any]) -> ActionResult:
 
 
 def _error(e: Exception) -> ActionResult:
+    if isinstance(e, RateLimitError):
+        return ActionResult(
+            data={
+                "result": False,
+                "error": e.message,
+                "error_type": "RateLimitError",
+                "status_code": e.status,
+                "response": e.response_data,
+            }
+        )
     if isinstance(e, HTTPError):
         return ActionResult(
             data={
