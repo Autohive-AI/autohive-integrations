@@ -6,6 +6,7 @@ import base64
 from context import doc_maker
 from autohive_integrations_sdk import ExecutionContext
 
+
 async def test_create_document_with_markdown():
     """Test creating a document with comprehensive markdown content"""
     print("\n[TEST] Testing create_document with comprehensive markdown...")
@@ -15,7 +16,8 @@ async def test_create_document_with_markdown():
     # Comprehensive markdown content showcasing all features
     markdown_content = """# Project Report: Q4 2024 Analysis
 
-This is the **executive summary** of our Q4 performance analysis. The document contains *important insights* and `technical specifications` for stakeholders.
+This is the **executive summary** of our Q4 performance analysis. The document contains
+*important insights* and `technical specifications` for stakeholders.
 
 ## Key Performance Indicators
 
@@ -90,7 +92,8 @@ Based on our analysis, we recommend:
 
 ## Conclusion
 
-Q4 2024 demonstrated strong performance across all key metrics. The team's dedication to excellence and customer focus has positioned us well for continued growth in 2025.
+Q4 2024 demonstrated strong performance across all key metrics. The team's dedication to excellence
+and customer focus has positioned us well for continued growth in 2025.
 
 ### Next Steps
 
@@ -99,16 +102,13 @@ Q4 2024 demonstrated strong performance across all key metrics. The team's dedic
 - [ ] Prepare Q1 2025 planning session
 """
 
-    inputs = {
-        "markdown_content": markdown_content,
-        "custom_filename": "Q4_2024_Report.docx"
-    }
+    inputs = {"markdown_content": markdown_content, "custom_filename": "Q4_2024_Report.docx"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await doc_maker.execute_action("create_document", inputs, context)
 
-            print(f"[SUCCESS] Document created successfully!")
+            print("[SUCCESS] Document created successfully!")
             print(f"   Document ID: {result['document_id']}")
             print(f"   Paragraphs: {result['paragraph_count']}")
             print(f"   Markdown processed: {result['markdown_processed']}")
@@ -116,20 +116,21 @@ Q4 2024 demonstrated strong performance across all key metrics. The team's dedic
             print(f"   Filename: {result['file']['name']}")
 
             # Save the file locally for inspection
-            file_content = base64.b64decode(result['file']['content'])
+            file_content = base64.b64decode(result["file"]["content"])
             output_path = os.path.join(os.path.dirname(__file__), "output_test_document.docx")
 
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 f.write(file_content)
 
             print(f"   [FILE] Document saved to: {output_path}")
-            print(f"   You can open this file in Microsoft Word to verify the output!")
+            print("   You can open this file in Microsoft Word to verify the output!")
 
             return result
 
         except Exception as e:
             print(f"[ERROR] Error testing create_document: {e}")
             return None
+
 
 async def test_add_markdown_content():
     """Test adding additional markdown content to existing document"""
@@ -142,16 +143,13 @@ async def test_add_markdown_content():
 
 This is the initial content."""
 
-    inputs = {
-        "markdown_content": initial_content,
-        "custom_filename": "test_append.docx"
-    }
+    inputs = {"markdown_content": initial_content, "custom_filename": "test_append.docx"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create initial document
             result = await doc_maker.execute_action("create_document", inputs, context)
-            document_id = result['document_id']
+            document_id = result["document_id"]
 
             # Additional content to append
             additional_content = """
@@ -175,20 +173,20 @@ This content was added using the `add_markdown_content` action.
             append_inputs = {
                 "document_id": document_id,
                 "markdown_content": additional_content,
-                "files": [result['file']]  # Pass the current document
+                "files": [result["file"]],  # Pass the current document
             }
 
             append_result = await doc_maker.execute_action("add_markdown_content", append_inputs, context)
 
-            print(f"[SUCCESS] Content added successfully!")
+            print("[SUCCESS] Content added successfully!")
             print(f"   Elements added: {append_result['elements_added']}")
             print(f"   Markdown processed: {append_result['markdown_processed']}")
 
             # Save the updated document
-            file_content = base64.b64decode(append_result['file']['content'])
+            file_content = base64.b64decode(append_result["file"]["content"])
             output_path = os.path.join(os.path.dirname(__file__), "output_test_append.docx")
 
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 f.write(file_content)
 
             print(f"   [FILE] Updated document saved to: {output_path}")
@@ -198,6 +196,7 @@ This content was added using the `add_markdown_content` action.
             print(f"[ERROR] Error testing add_markdown_content: {e}")
             return None
 
+
 async def test_add_image():
     """Test adding an image to a document"""
     print("\n[TEST] Testing add_image...")
@@ -206,7 +205,9 @@ async def test_add_image():
 
     # Create a simple test image (1x1 pixel PNG)
     # This is a minimal PNG file in base64
-    test_image_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77ywAAAABJRU5ErkJggg=="
+    test_image_base64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77ywAAAABJRU5ErkJggg=="
+    )
 
     # First create a document
     initial_content = """# Document with Image
@@ -217,42 +218,35 @@ This document will contain an embedded image below:
 
 The image appears here:"""
 
-    create_inputs = {
-        "markdown_content": initial_content,
-        "custom_filename": "test_with_image.docx"
-    }
+    create_inputs = {"markdown_content": initial_content, "custom_filename": "test_with_image.docx"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create initial document
             result = await doc_maker.execute_action("create_document", create_inputs, context)
-            document_id = result['document_id']
+            document_id = result["document_id"]
 
             # Add image to the document
             image_inputs = {
                 "document_id": document_id,
                 "width": 2.0,  # 2 inches wide
-                "height": 1.5, # 1.5 inches tall
+                "height": 1.5,  # 1.5 inches tall
                 "files": [
-                    result['file'],  # Current document
-                    {
-                        "name": "test_image.png",
-                        "contentType": "image/png",
-                        "content": test_image_base64
-                    }
-                ]
+                    result["file"],  # Current document
+                    {"name": "test_image.png", "contentType": "image/png", "content": test_image_base64},
+                ],
             }
 
             image_result = await doc_maker.execute_action("add_image", image_inputs, context)
 
-            print(f"[SUCCESS] Image added successfully!")
+            print("[SUCCESS] Image added successfully!")
             print(f"   Image added: {image_result['image_added']}")
 
             # Save the document with image
-            file_content = base64.b64decode(image_result['file']['content'])
+            file_content = base64.b64decode(image_result["file"]["content"])
             output_path = os.path.join(os.path.dirname(__file__), "output_test_with_image.docx")
 
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 f.write(file_content)
 
             print(f"   [FILE] Document with image saved to: {output_path}")
@@ -261,6 +255,7 @@ The image appears here:"""
         except Exception as e:
             print(f"[ERROR] Error testing add_image: {e}")
             return None
+
 
 async def test_add_table():
     """Test adding a structured table to a document"""
@@ -273,16 +268,13 @@ async def test_add_table():
 
 The following table shows our quarterly sales data:"""
 
-    create_inputs = {
-        "markdown_content": initial_content,
-        "custom_filename": "test_with_table.docx"
-    }
+    create_inputs = {"markdown_content": initial_content, "custom_filename": "test_with_table.docx"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create initial document
             result = await doc_maker.execute_action("create_document", create_inputs, context)
-            document_id = result['document_id']
+            document_id = result["document_id"]
 
             # Add structured table
             table_data = [
@@ -290,7 +282,7 @@ The following table shows our quarterly sales data:"""
                 ["Q1 2024", "$1.2M", "1,250", "12%"],
                 ["Q2 2024", "$1.5M", "1,580", "25%"],
                 ["Q3 2024", "$1.8M", "1,920", "20%"],
-                ["Q4 2024", "$2.1M", "2,340", "17%"]
+                ["Q4 2024", "$2.1M", "2,340", "17%"],
             ]
 
             table_inputs = {
@@ -298,19 +290,19 @@ The following table shows our quarterly sales data:"""
                 "rows": 5,
                 "cols": 4,
                 "data": table_data,
-                "files": [result['file']]
+                "files": [result["file"]],
             }
 
             table_result = await doc_maker.execute_action("add_table", table_inputs, context)
 
-            print(f"[SUCCESS] Table added successfully!")
+            print("[SUCCESS] Table added successfully!")
             print(f"   Table dimensions: {table_result['table_rows']}x{table_result['table_cols']}")
 
             # Save the document with table
-            file_content = base64.b64decode(table_result['file']['content'])
+            file_content = base64.b64decode(table_result["file"]["content"])
             output_path = os.path.join(os.path.dirname(__file__), "output_test_with_table.docx")
 
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 f.write(file_content)
 
             print(f"   [FILE] Document with table saved to: {output_path}")
@@ -319,6 +311,7 @@ The following table shows our quarterly sales data:"""
         except Exception as e:
             print(f"[ERROR] Error testing add_table: {e}")
             return None
+
 
 async def test_add_page_break():
     """Test adding page breaks to a document"""
@@ -335,22 +328,16 @@ This is the content on the first page of the document.
 
 Some content here that will be on page 1."""
 
-    create_inputs = {
-        "markdown_content": content,
-        "custom_filename": "test_page_break.docx"
-    }
+    create_inputs = {"markdown_content": content, "custom_filename": "test_page_break.docx"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create initial document
             result = await doc_maker.execute_action("create_document", create_inputs, context)
-            document_id = result['document_id']
+            document_id = result["document_id"]
 
             # Add page break
-            page_break_inputs = {
-                "document_id": document_id,
-                "files": [result['file']]
-            }
+            page_break_inputs = {"document_id": document_id, "files": [result["file"]]}
 
             page_break_result = await doc_maker.execute_action("add_page_break", page_break_inputs, context)
 
@@ -366,19 +353,19 @@ This demonstrates that the page break functionality works correctly."""
             append_inputs = {
                 "document_id": document_id,
                 "markdown_content": page2_content,
-                "files": [page_break_result['file']]
+                "files": [page_break_result["file"]],
             }
 
             final_result = await doc_maker.execute_action("add_markdown_content", append_inputs, context)
 
-            print(f"[SUCCESS] Page break added successfully!")
+            print("[SUCCESS] Page break added successfully!")
             print(f"   Page break added: {page_break_result['page_break_added']}")
 
             # Save the document with page break
-            file_content = base64.b64decode(final_result['file']['content'])
+            file_content = base64.b64decode(final_result["file"]["content"])
             output_path = os.path.join(os.path.dirname(__file__), "output_test_page_break.docx")
 
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 f.write(file_content)
 
             print(f"   [FILE] Document with page break saved to: {output_path}")
@@ -387,6 +374,7 @@ This demonstrates that the page break functionality works correctly."""
         except Exception as e:
             print(f"[ERROR] Error testing add_page_break: {e}")
             return None
+
 
 async def test_comprehensive_document():
     """Create one comprehensive document showcasing all features"""
@@ -401,7 +389,8 @@ This document demonstrates all the markdown-to-Word conversion capabilities of t
 
 ## Executive Summary
 
-This integration allows **AI agents** to create professional Word documents using *familiar markdown syntax*. The system automatically converts markdown elements to properly formatted Word document components.
+This integration allows **AI agents** to create professional Word documents using *familiar markdown syntax*.
+The system automatically converts markdown elements to properly formatted Word document components.
 
 ### Key Features Demonstrated
 
@@ -416,7 +405,8 @@ This integration allows **AI agents** to create professional Word documents usin
 
 ### Text Styling
 
-Here are examples of **bold text**, *italic text*, and `inline code snippets`. You can also combine ***bold and italic*** formatting.
+Here are examples of **bold text**, *italic text*, and `inline code snippets`.
+You can also combine ***bold and italic*** formatting.
 
 ### Lists and Organization
 
@@ -477,9 +467,11 @@ The doc-maker integration uses the following technology stack:
 
 ### Important Notes and Quotes
 
-> **Performance Note**: The integration processes markdown content efficiently, converting a typical business document (2-3 pages) in under 100ms.
+> **Performance Note**: The integration processes markdown content efficiently,
+> converting a typical business document (2-3 pages) in under 100ms.
 
-> **Compatibility**: Generated documents are fully compatible with Microsoft Word 2016+ and other Office suites that support .docx format.
+> **Compatibility**: Generated documents are fully compatible with Microsoft Word 2016+
+> and other Office suites that support .docx format.
 
 ## Advanced Features
 
@@ -533,7 +525,9 @@ This document itself serves as a comprehensive test of the integration's capabil
 
 ## Conclusion
 
-The Doc Maker integration successfully bridges the gap between markdown simplicity and Word document professionalism. AI agents can now generate sophisticated business documents using familiar markdown syntax, dramatically simplifying the document creation process.
+The Doc Maker integration successfully bridges the gap between markdown simplicity and Word document
+professionalism. AI agents can now generate sophisticated business documents using familiar markdown
+syntax, dramatically simplifying the document creation process.
 
 ### Next Steps
 
@@ -546,28 +540,23 @@ After reviewing this document, you can:
 
 ---
 
-*This document was generated automatically by the Doc Maker integration test suite to demonstrate markdown-to-Word conversion capabilities.*"""
+*This document was generated automatically by the Doc Maker integration test suite
+to demonstrate markdown-to-Word conversion capabilities.*"""
 
     # Test creating comprehensive document
-    inputs = {
-        "markdown_content": comprehensive_content,
-        "custom_filename": "Complete_Feature_Showcase.docx"
-    }
+    inputs = {"markdown_content": comprehensive_content, "custom_filename": "Complete_Feature_Showcase.docx"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await doc_maker.execute_action("create_document", inputs, context)
-            document_id = result['document_id']
+            document_id = result["document_id"]
 
-            print(f"[SUCCESS] Comprehensive document created!")
+            print("[SUCCESS] Comprehensive document created!")
             print(f"   Document ID: {result['document_id']}")
             print(f"   Paragraphs: {result['paragraph_count']}")
 
             # Add a page break before additional content
-            page_break_inputs = {
-                "document_id": document_id,
-                "files": [result['file']]
-            }
+            page_break_inputs = {"document_id": document_id, "files": [result["file"]]}
 
             page_break_result = await doc_maker.execute_action("add_page_break", page_break_inputs, context)
 
@@ -575,12 +564,13 @@ After reviewing this document, you can:
             additional_content = """
 # Appendix A: Additional Data
 
-The following section was added using the `add_markdown_content` action to demonstrate document modification capabilities."""
+The following section was added using the `add_markdown_content` action
+to demonstrate document modification capabilities."""
 
             append_inputs = {
                 "document_id": document_id,
                 "markdown_content": additional_content,
-                "files": [page_break_result['file']]
+                "files": [page_break_result["file"]],
             }
 
             append_result = await doc_maker.execute_action("add_markdown_content", append_inputs, context)
@@ -592,7 +582,7 @@ The following section was added using the `add_markdown_content` action to demon
                 ["Europe", "$380K", "$420K", "$480K", "$550K", "$1.83M", "45%"],
                 ["Asia Pacific", "$290K", "$350K", "$430K", "$510K", "$1.58M", "76%"],
                 ["Latin America", "$180K", "$210K", "$260K", "$320K", "$970K", "78%"],
-                ["Total", "$1.3M", "$1.5M", "$1.78M", "$2.1M", "$6.68M", "62%"]
+                ["Total", "$1.3M", "$1.5M", "$1.78M", "$2.1M", "$6.68M", "62%"],
             ]
 
             table_inputs = {
@@ -600,39 +590,37 @@ The following section was added using the `add_markdown_content` action to demon
                 "rows": 6,
                 "cols": 7,
                 "data": detailed_table_data,
-                "files": [append_result['file']]
+                "files": [append_result["file"]],
             }
 
             table_result = await doc_maker.execute_action("add_table", table_inputs, context)
 
             # Add a test image
-            test_image_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77ywAAAABJRU5ErkJggg=="
+            test_image_base64 = (
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77ywAAAABJRU5ErkJggg=="
+            )
 
             image_inputs = {
                 "document_id": document_id,
                 "width": 1.5,
                 "height": 1.0,
                 "files": [
-                    table_result['file'],
-                    {
-                        "name": "test_chart.png",
-                        "contentType": "image/png",
-                        "content": test_image_base64
-                    }
-                ]
+                    table_result["file"],
+                    {"name": "test_chart.png", "contentType": "image/png", "content": test_image_base64},
+                ],
             }
 
             final_result = await doc_maker.execute_action("add_image", image_inputs, context)
 
             # Save the comprehensive document
-            file_content = base64.b64decode(final_result['file']['content'])
+            file_content = base64.b64decode(final_result["file"]["content"])
             output_path = os.path.join(os.path.dirname(__file__), "COMPREHENSIVE_SHOWCASE.docx")
 
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 f.write(file_content)
 
             print(f"   [FILE] Comprehensive showcase saved to: {output_path}")
-            print(f"   [INFO] This file demonstrates ALL integration features in one document!")
+            print("   [INFO] This file demonstrates ALL integration features in one document!")
 
             return final_result
 
@@ -640,10 +628,11 @@ The following section was added using the `add_markdown_content` action to demon
             print(f"[ERROR] Error creating comprehensive document: {e}")
             return None
 
+
 async def main():
     """Run all tests"""
     print("[STARTING] Testing Doc Maker Integration")
-    print("="*50)
+    print("=" * 50)
 
     # First create the comprehensive showcase document
     comprehensive_result = await test_comprehensive_document()
@@ -670,7 +659,7 @@ async def main():
 
     # Print test summary
     print("\n[SUMMARY] Test Summary:")
-    print("="*30)
+    print("=" * 30)
 
     passed = 0
     total = len(test_results)
@@ -693,6 +682,7 @@ async def main():
     for filename in os.listdir(test_dir):
         if filename.startswith("output_test_") and filename.endswith(".docx"):
             print(f"   - {os.path.join(test_dir, filename)}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

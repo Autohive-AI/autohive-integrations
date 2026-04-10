@@ -11,7 +11,7 @@
     "actions": {
         "get_company_details": {
             "display_name": "Get Company Details",
-            "description": "COMP_03: Get full details of a company by UUID or NZBN. For registered companies (status 50) use the NZBN. Returns company status, contacts, annual return info and an ETag. Store the ETag — it is required when filing an annual return.",
+            "description": "COMP_03: Get full details of a company by UUID or NZBN. For registered companies (status 50) use the NZBN. Returns company status, contacts, annual return info and an ETag. Store the ETag \u00e2\u20ac\u201d it is required when filing an annual return.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -28,39 +28,131 @@
                         "description": "Optional UUID for request tracking."
                     }
                 },
-                "required": ["companyUuid"]
+                "required": [
+                    "companyUuid"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "companyUuid": { "type": ["string", "null"] },
-                    "companyName": { "type": ["string", "null"] },
-                    "nzbn": { "type": ["string", "null"] },
-                    "entityType": { "type": ["string", "null"] },
-                    "companyStatusCode": { "type": ["string", "null"] },
-                    "companyStatusDescription": { "type": ["string", "null"] },
-                    "companyStatusExpiryDate": { "type": ["string", "null"] },
-                    "registrationDate": { "type": ["string", "null"] },
-                    "isUltimateHoldingCompany": { "type": ["boolean", "null"] },
-                    "annualReturnFilingMonth": { "type": ["integer", "null"] },
-                    "annualReturnLastFiled": { "type": ["string", "null"] },
-                    "isConstitutionFiled": { "type": ["boolean", "null"] },
-                    "website": { "type": ["string", "null"] },
-                    "contacts": { "type": ["object", "null"] },
-                    "link": { "type": ["object", "null"] },
+                    "companyUuid": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "companyName": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "nzbn": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "entityType": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "companyStatusCode": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "companyStatusDescription": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "companyStatusExpiryDate": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "registrationDate": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "isUltimateHoldingCompany": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
+                    },
+                    "annualReturnFilingMonth": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "annualReturnLastFiled": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "isConstitutionFiled": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
+                    },
+                    "website": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "contacts": {
+                        "type": [
+                            "object",
+                            "null"
+                        ]
+                    },
+                    "link": {
+                        "type": [
+                            "object",
+                            "null"
+                        ]
+                    },
                     "etag": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "ETag of this company snapshot. Required as companyDetailsConfirmedCorrectAsOfETag when filing an annual return."
                     },
-                    "result": { "type": "boolean" },
-                    "notModified": { "type": ["boolean", "null"] },
-                    "message": { "type": ["string", "null"] }
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "notModified": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
+                    },
+                    "message": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
                 }
             }
         },
         "get_company_contacts": {
             "display_name": "Get Company Contacts",
-            "description": "Get all contacts for a company — addresses, phone numbers and email addresses. Contacts are returned as part of the company record. For registered companies (status 50) use the NZBN. Each contact includes an ID (addressId, phoneContactId, emailAddressId) needed to update it. The returned ETag is required by update_company_contact.",
+            "description": "Get all contacts for a company \u00e2\u20ac\u201d addresses, phone numbers and email addresses. Contacts are returned as part of the company record. For registered companies (status 50) use the NZBN. Each contact includes an ID (addressId, phoneContactId, emailAddressId) needed to update it. The returned ETag is required by update_company_contact.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -73,23 +165,48 @@
                         "description": "Optional UUID for request tracking."
                     }
                 },
-                "required": ["companyUuid"]
+                "required": [
+                    "companyUuid"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "contacts": { "type": ["object", "null"], "description": "Full contacts object" },
-                    "physicalOrPostalAddresses": { "type": "array", "description": "List of physical and postal addresses. Each includes addressId and addressPurpose." },
-                    "phoneContacts": { "type": "array", "description": "List of phone contacts. Each includes phoneContactId." },
-                    "emailAddresses": { "type": "array", "description": "List of email addresses. Each includes emailAddressId." },
-                    "etag": { "type": ["string", "null"], "description": "ETag for the contacts resource. Required by update_company_contact." },
-                    "result": { "type": "boolean" }
+                    "contacts": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Full contacts object"
+                    },
+                    "physicalOrPostalAddresses": {
+                        "type": "array",
+                        "description": "List of physical and postal addresses. Each includes addressId and addressPurpose."
+                    },
+                    "phoneContacts": {
+                        "type": "array",
+                        "description": "List of phone contacts. Each includes phoneContactId."
+                    },
+                    "emailAddresses": {
+                        "type": "array",
+                        "description": "List of email addresses. Each includes emailAddressId."
+                    },
+                    "etag": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ETag for the contacts resource. Required by update_company_contact."
+                    },
+                    "result": {
+                        "type": "boolean"
+                    }
                 }
             }
         },
         "update_company_contact": {
             "display_name": "Update Company Contact",
-            "description": "COMP_21: Update an existing contact (address, phone or email) for a company. For registered companies (status 50) use the NZBN. Requires the contactId and etag from get_company_contacts. IMPORTANT for address updates: (1) Do NOT use dpid — provide address lines (address1, address3, postCode) directly. (2) effectiveDate is required for all address updates — use a future date e.g. today + 7 days in ISO 8601 format '2026-03-05T00:00:00Z'. Workflow: call get_company_contacts to get contactId and etag, then call this action.",
+            "description": "COMP_21: Update an existing contact (address, phone or email) for a company. For registered companies (status 50) use the NZBN. Requires the contactId and etag from get_company_contacts. IMPORTANT for address updates: (1) Do NOT use dpid \u00e2\u20ac\u201d provide address lines (address1, address3, postCode) directly. (2) effectiveDate is required for all address updates \u00e2\u20ac\u201d use a future date e.g. today + 7 days in ISO 8601 format '2026-03-05T00:00:00Z'. Workflow: call get_company_contacts to get contactId and etag, then call this action.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -107,45 +224,101 @@
                     },
                     "contactType": {
                         "type": "string",
-                        "enum": ["address", "phone", "email"],
+                        "enum": [
+                            "address",
+                            "phone",
+                            "email"
+                        ],
                         "description": "Type of contact being updated."
                     },
                     "physicalOrPostalAddress": {
                         "type": "object",
-                        "description": "Address details. Required when contactType is 'address'. Use address lines only — do NOT include dpid. Include addressId of the address being updated.",
+                        "description": "Address details. Required when contactType is 'address'. Use address lines only \u00e2\u20ac\u201d do NOT include dpid. Include addressId of the address being updated.",
                         "properties": {
-                            "addressId": { "type": "string", "description": "ID of the address being updated. Get this from get_company_contacts." },
-                            "addressType": { "type": "string", "description": "'Physical' or 'Postal'" },
-                            "addressPurpose": { "type": "string", "description": "Must match exactly what get_company_contacts returned e.g. 'Registered office address', 'Address for service', 'Address for communication'" },
-                            "address1": { "type": "string", "description": "Street address line 1. Required." },
-                            "address2": { "type": "string", "description": "Suburb" },
-                            "address3": { "type": "string", "description": "Town or city. Required." },
-                            "address4": { "type": "string" },
-                            "postCode": { "type": "string" },
-                            "countryCode": { "type": "string", "description": "ISO country code. Defaults to NZ if absent." },
-                            "careOf": { "type": "string" },
-                            "description": { "type": "string" },
-                            "effectiveDate": { "type": "string", "description": "Required. Future date in ISO 8601 format e.g. '2026-03-05T00:00:00Z'. Use at least today + 7 days for Registered Office Address and Address for Service." }
+                            "addressId": {
+                                "type": "string",
+                                "description": "ID of the address being updated. Get this from get_company_contacts."
+                            },
+                            "addressType": {
+                                "type": "string",
+                                "description": "'Physical' or 'Postal'"
+                            },
+                            "addressPurpose": {
+                                "type": "string",
+                                "description": "Must match exactly what get_company_contacts returned e.g. 'Registered office address', 'Address for service', 'Address for communication'"
+                            },
+                            "address1": {
+                                "type": "string",
+                                "description": "Street address line 1. Required."
+                            },
+                            "address2": {
+                                "type": "string",
+                                "description": "Suburb"
+                            },
+                            "address3": {
+                                "type": "string",
+                                "description": "Town or city. Required."
+                            },
+                            "address4": {
+                                "type": "string"
+                            },
+                            "postCode": {
+                                "type": "string"
+                            },
+                            "countryCode": {
+                                "type": "string",
+                                "description": "ISO country code. Defaults to NZ if absent."
+                            },
+                            "careOf": {
+                                "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
+                            },
+                            "effectiveDate": {
+                                "type": "string",
+                                "description": "Required. Future date in ISO 8601 format e.g. '2026-03-05T00:00:00Z'. Use at least today + 7 days for Registered Office Address and Address for Service."
+                            }
                         }
                     },
                     "phoneContact": {
                         "type": "object",
                         "description": "Phone details. Required when contactType is 'phone'.",
                         "properties": {
-                            "phoneContactId": { "type": "string", "description": "ID of the phone contact being updated." },
-                            "phoneNumber": { "type": "string" },
-                            "areaCode": { "type": "string" },
-                            "countryCode": { "type": "string" },
-                            "phonePurpose": { "type": "string", "description": "e.g. 'Phone', 'Mobile', 'Fax'" }
+                            "phoneContactId": {
+                                "type": "string",
+                                "description": "ID of the phone contact being updated."
+                            },
+                            "phoneNumber": {
+                                "type": "string"
+                            },
+                            "areaCode": {
+                                "type": "string"
+                            },
+                            "countryCode": {
+                                "type": "string"
+                            },
+                            "phonePurpose": {
+                                "type": "string",
+                                "description": "e.g. 'Phone', 'Mobile', 'Fax'"
+                            }
                         }
                     },
                     "emailAddress": {
                         "type": "object",
                         "description": "Email details. Required when contactType is 'email'.",
                         "properties": {
-                            "emailAddressId": { "type": "string", "description": "ID of the email address being updated." },
-                            "emailAddress": { "type": "string" },
-                            "emailPurpose": { "type": "string", "description": "e.g. 'Email'" }
+                            "emailAddressId": {
+                                "type": "string",
+                                "description": "ID of the email address being updated."
+                            },
+                            "emailAddress": {
+                                "type": "string"
+                            },
+                            "emailPurpose": {
+                                "type": "string",
+                                "description": "e.g. 'Email'"
+                            }
                         }
                     },
                     "requestId": {
@@ -153,21 +326,45 @@
                         "description": "Optional UUID for request tracking."
                     }
                 },
-                "required": ["companyUuid", "contactId", "etag", "contactType"]
+                "required": [
+                    "companyUuid",
+                    "contactId",
+                    "etag",
+                    "contactType"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "contact": { "type": ["object", "null"], "description": "Updated contact object" },
-                    "etag": { "type": ["string", "null"], "description": "New ETag for the updated contact" },
-                    "result": { "type": "boolean" },
-                    "message": { "type": ["string", "null"] }
+                    "contact": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Updated contact object"
+                    },
+                    "etag": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "New ETag for the updated contact"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
                 }
             }
         },
         "add_company_contact": {
             "display_name": "Add Company Contact",
-            "description": "COMP_19: Add a new contact (address, phone or email) to a company. IMPORTANT: Each address purpose (Registered Office Address, Address for Service, Address for Communication) can only exist once. If the address already exists, you must use update_company_contact instead — call get_company_contacts to get the addressId and etag, then call update_company_contact. Only one contact can be added at a time. Use search_nz_address first to get a valid dpid for NZ addresses.",
+            "description": "COMP_19: Add a new contact (address, phone or email) to a company. IMPORTANT: Each address purpose (Registered Office Address, Address for Service, Address for Communication) can only exist once. If the address already exists, you must use update_company_contact instead \u00e2\u20ac\u201d call get_company_contacts to get the addressId and etag, then call update_company_contact. Only one contact can be added at a time. Use search_nz_address first to get a valid dpid for NZ addresses.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -177,43 +374,92 @@
                     },
                     "contactType": {
                         "type": "string",
-                        "enum": ["address", "phone", "email"],
+                        "enum": [
+                            "address",
+                            "phone",
+                            "email"
+                        ],
                         "description": "Type of contact to add."
                     },
                     "physicalOrPostalAddress": {
                         "type": "object",
                         "description": "Address details. Required when contactType is 'address'. For NZ addresses provide either dpid OR (address1 + address3).",
                         "properties": {
-                            "addressType": { "type": "string", "description": "'Physical' or 'Postal'" },
-                            "addressPurpose": { "type": "string", "description": "e.g. 'Registered Office Address', 'Address for Service', 'Address for Communication'" },
-                            "dpid": { "type": "string", "description": "NZ Post Delivery Point ID. Use search_nz_address to find this." },
-                            "address1": { "type": "string", "description": "Street address line 1" },
-                            "address2": { "type": "string", "description": "Suburb" },
-                            "address3": { "type": "string", "description": "Town or city" },
-                            "address4": { "type": "string" },
-                            "postCode": { "type": "string" },
-                            "countryCode": { "type": "string", "description": "ISO country code. Defaults to NZ if absent." },
-                            "careOf": { "type": "string" },
-                            "description": { "type": "string" },
-                            "effectiveDate": { "type": "string" }
+                            "addressType": {
+                                "type": "string",
+                                "description": "'Physical' or 'Postal'"
+                            },
+                            "addressPurpose": {
+                                "type": "string",
+                                "description": "e.g. 'Registered Office Address', 'Address for Service', 'Address for Communication'"
+                            },
+                            "dpid": {
+                                "type": "string",
+                                "description": "NZ Post Delivery Point ID. Use search_nz_address to find this."
+                            },
+                            "address1": {
+                                "type": "string",
+                                "description": "Street address line 1"
+                            },
+                            "address2": {
+                                "type": "string",
+                                "description": "Suburb"
+                            },
+                            "address3": {
+                                "type": "string",
+                                "description": "Town or city"
+                            },
+                            "address4": {
+                                "type": "string"
+                            },
+                            "postCode": {
+                                "type": "string"
+                            },
+                            "countryCode": {
+                                "type": "string",
+                                "description": "ISO country code. Defaults to NZ if absent."
+                            },
+                            "careOf": {
+                                "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
+                            },
+                            "effectiveDate": {
+                                "type": "string"
+                            }
                         }
                     },
                     "phoneContact": {
                         "type": "object",
                         "description": "Phone details. Required when contactType is 'phone'.",
                         "properties": {
-                            "phoneNumber": { "type": "string" },
-                            "areaCode": { "type": "string" },
-                            "countryCode": { "type": "string" },
-                            "phonePurpose": { "type": "string", "description": "e.g. 'Phone', 'Mobile', 'Fax'" }
+                            "phoneNumber": {
+                                "type": "string"
+                            },
+                            "areaCode": {
+                                "type": "string"
+                            },
+                            "countryCode": {
+                                "type": "string"
+                            },
+                            "phonePurpose": {
+                                "type": "string",
+                                "description": "e.g. 'Phone', 'Mobile', 'Fax'"
+                            }
                         }
                     },
                     "emailAddress": {
                         "type": "object",
                         "description": "Email details. Required when contactType is 'email'.",
                         "properties": {
-                            "emailAddress": { "type": "string" },
-                            "emailPurpose": { "type": "string", "description": "e.g. 'Email'" }
+                            "emailAddress": {
+                                "type": "string"
+                            },
+                            "emailPurpose": {
+                                "type": "string",
+                                "description": "e.g. 'Email'"
+                            }
                         }
                     },
                     "requestId": {
@@ -221,14 +467,30 @@
                         "description": "Optional UUID for request tracking."
                     }
                 },
-                "required": ["companyUuid", "contactType"]
+                "required": [
+                    "companyUuid",
+                    "contactType"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "contact": { "type": ["object", "null"], "description": "Created contact object with assigned ID" },
-                    "result": { "type": "boolean" },
-                    "message": { "type": ["string", "null"] }
+                    "contact": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Created contact object with assigned ID"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
                 }
             }
         },
@@ -265,16 +527,26 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "addresses": { "type": "array", "description": "List of matching addresses. Each includes dpid, address lines and postCode." },
-                    "count": { "type": "integer" },
-                    "searchType": { "type": "string", "description": "'dpid' or 'query'" },
-                    "result": { "type": "boolean" }
+                    "addresses": {
+                        "type": "array",
+                        "description": "List of matching addresses. Each includes dpid, address lines and postCode."
+                    },
+                    "count": {
+                        "type": "integer"
+                    },
+                    "searchType": {
+                        "type": "string",
+                        "description": "'dpid' or 'query'"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    }
                 }
             }
         },
         "file_annual_return": {
             "display_name": "File Annual Return",
-            "description": "COMP_23: File an annual return for a registered company. Use NZBN as companyUuid. Requires the ETag from a recent get_company_details call — this acts as confirmation that you have reviewed and the company details are correct as of that snapshot. Phone contact must be Mobile type (used for next year's SMS reminders). Payment defaults to directDebit; use creditCard with a redirectUrl to pay online.",
+            "description": "COMP_23: File an annual return for a registered company. Use NZBN as companyUuid. Requires the ETag from a recent get_company_details call \u00e2\u20ac\u201d this acts as confirmation that you have reviewed and the company details are correct as of that snapshot. Phone contact must be Mobile type (used for next year's SMS reminders). Payment defaults to directDebit; use creditCard with a redirectUrl to pay online.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -290,20 +562,36 @@
                         "type": "object",
                         "description": "Name of the person filing the return.",
                         "properties": {
-                            "firstName": { "type": "string" },
-                            "lastName": { "type": "string" },
-                            "middleNames": { "type": "string" }
+                            "firstName": {
+                                "type": "string"
+                            },
+                            "lastName": {
+                                "type": "string"
+                            },
+                            "middleNames": {
+                                "type": "string"
+                            }
                         },
-                        "required": ["firstName", "lastName"]
+                        "required": [
+                            "firstName",
+                            "lastName"
+                        ]
                     },
                     "emailAddress": {
                         "type": "object",
                         "description": "Email address of the person filing.",
                         "properties": {
-                            "emailAddress": { "type": "string" },
-                            "emailPurpose": { "type": "string", "default": "Email" }
+                            "emailAddress": {
+                                "type": "string"
+                            },
+                            "emailPurpose": {
+                                "type": "string",
+                                "default": "Email"
+                            }
                         },
-                        "required": ["emailAddress"]
+                        "required": [
+                            "emailAddress"
+                        ]
                     },
                     "designation": {
                         "type": "string",
@@ -317,15 +605,27 @@
                         "type": "object",
                         "description": "Optional mobile phone contact for next year's SMS reminders. Must be phonePurpose: 'Mobile'.",
                         "properties": {
-                            "phoneNumber": { "type": "string" },
-                            "areaCode": { "type": "string" },
-                            "countryCode": { "type": "string" },
-                            "phonePurpose": { "type": "string", "default": "Mobile" }
+                            "phoneNumber": {
+                                "type": "string"
+                            },
+                            "areaCode": {
+                                "type": "string"
+                            },
+                            "countryCode": {
+                                "type": "string"
+                            },
+                            "phonePurpose": {
+                                "type": "string",
+                                "default": "Mobile"
+                            }
                         }
                     },
                     "paymentMethod": {
                         "type": "string",
-                        "enum": ["directDebit", "creditCard"],
+                        "enum": [
+                            "directDebit",
+                            "creditCard"
+                        ],
                         "default": "directDebit",
                         "description": "Payment method. directDebit (default) or creditCard."
                     },
@@ -370,17 +670,59 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "documentId": { "type": ["string", "null"], "description": "Document ID of the filed return (directDebit only)" },
-                    "documentType": { "type": ["string", "null"] },
-                    "status": { "type": ["string", "null"] },
-                    "startDate": { "type": ["string", "null"] },
-                    "paymentUrl": { "type": ["string", "null"], "description": "URL to complete payment (creditCard only)" },
-                    "billingReference": { "type": ["string", "null"] },
-                    "paymentMethod": { "type": "string" },
-                    "result": { "type": "boolean" },
-                    "message": { "type": ["string", "null"] }
+                    "documentId": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Document ID of the filed return (directDebit only)"
+                    },
+                    "documentType": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "status": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "startDate": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "paymentUrl": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "URL to complete payment (creditCard only)"
+                    },
+                    "billingReference": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "paymentMethod": {
+                        "type": "string"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
                 }
             }
         }
-    }
+    },
+    "display_name": "companies-register"
 }
