@@ -27,7 +27,11 @@
                     "calendar_invitees_domains_type": {
                         "type": "string",
                         "description": "Filter by whether calendar invitee list includes external email domains.",
-                        "enum": ["all", "only_internal", "one_or_more_external"],
+                        "enum": [
+                            "all",
+                            "only_internal",
+                            "one_or_more_external"
+                        ],
                         "default": "all"
                     },
                     "created_after": {
@@ -55,7 +59,11 @@
                     "meeting_type": {
                         "type": "string",
                         "description": "Filter by meeting type.",
-                        "enum": ["all", "internal", "external"]
+                        "enum": [
+                            "all",
+                            "internal",
+                            "external"
+                        ]
                     },
                     "recorded_by": {
                         "type": "array",
@@ -79,15 +87,23 @@
                     "limit": {
                         "description": "Number of items per page",
                         "anyOf": [
-                            {"type": "integer"},
-                            {"type": "null"}
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
                         ]
                     },
                     "next_cursor": {
                         "description": "Cursor for retrieving the next page of results",
                         "anyOf": [
-                            {"type": "string"},
-                            {"type": "null"}
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
                         ]
                     },
                     "items": {
@@ -108,8 +124,12 @@
                                 "meeting_title": {
                                     "description": "The scheduled meeting title",
                                     "anyOf": [
-                                        {"type": "string"},
-                                        {"type": "null"}
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
                                     ]
                                 },
                                 "url": {
@@ -173,8 +193,12 @@
                                             "matched_speaker_display_name": {
                                                 "description": "Matched speaker name from transcript",
                                                 "anyOf": [
-                                                    {"type": "string"},
-                                                    {"type": "null"}
+                                                    {
+                                                        "type": "string"
+                                                    },
+                                                    {
+                                                        "type": "null"
+                                                    }
                                                 ]
                                             }
                                         }
@@ -199,8 +223,12 @@
                                         "team": {
                                             "description": "Recorder's team",
                                             "anyOf": [
-                                                {"type": "string"},
-                                                {"type": "null"}
+                                                {
+                                                    "type": "string"
+                                                },
+                                                {
+                                                    "type": "null"
+                                                }
                                             ]
                                         }
                                     }
@@ -222,7 +250,9 @@
                         "description": "The ID of the recording to get transcript for."
                     }
                 },
-                "required": ["recording_id"]
+                "required": [
+                    "recording_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -272,15 +302,23 @@
                     "limit": {
                         "description": "Number of items per page",
                         "anyOf": [
-                            {"type": "integer"},
-                            {"type": "null"}
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
                         ]
                     },
                     "next_cursor": {
                         "description": "Cursor for retrieving the next page of results",
                         "anyOf": [
-                            {"type": "string"},
-                            {"type": "null"}
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
                         ]
                     },
                     "teams": {
@@ -324,15 +362,23 @@
                     "limit": {
                         "description": "Number of items per page",
                         "anyOf": [
-                            {"type": "integer"},
-                            {"type": "null"}
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
                         ]
                     },
                     "next_cursor": {
                         "description": "Cursor for retrieving the next page of results",
                         "anyOf": [
-                            {"type": "string"},
-                            {"type": "null"}
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
                         ]
                     },
                     "team_members": {
@@ -358,5 +404,6 @@
                 }
             }
         }
-    }
+    },
+    "display_name": "fathom_v1"
 }

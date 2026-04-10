@@ -86,7 +86,10 @@
                             "description": "Person name"
                         },
                         "email": {
-                            "type": ["string", "null"],
+                            "type": [
+                                "string",
+                                "null"
+                            ],
                             "description": "Email address"
                         },
                         "active": {
@@ -113,7 +116,9 @@
                         "description": "Comma-separated list of related resources to expand (e.g., 'contracts')"
                     }
                 },
-                "required": ["people_id"]
+                "required": [
+                    "people_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -127,19 +132,31 @@
                         "description": "Person name"
                     },
                     "email": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Email address"
                     },
                     "job_title": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Job title"
                     },
                     "department_id": {
-                        "type": ["integer", "null"],
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "description": "Department ID"
                     },
                     "role_id": {
-                        "type": ["integer", "null"],
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "description": "Role ID"
                     },
                     "active": {
@@ -165,15 +182,24 @@
                         "description": "Email address"
                     },
                     "job_title": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Job title"
                     },
                     "department_id": {
-                        "type": ["integer", "null"],
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "description": "Department ID"
                     },
                     "role_id": {
-                        "type": ["integer", "null"],
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "description": "Role ID"
                     },
                     "people_type_id": {
@@ -183,7 +209,10 @@
                     "active": {
                         "type": "integer",
                         "description": "Whether the person is active (1 = active, 0 = inactive, default: 1)",
-                        "enum": [0, 1]
+                        "enum": [
+                            0,
+                            1
+                        ]
                     },
                     "employee_type": {
                         "type": "integer",
@@ -221,7 +250,9 @@
                         "description": "Default hourly rate"
                     }
                 },
-                "required": ["name"]
+                "required": [
+                    "name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -235,7 +266,10 @@
                         "description": "Person name"
                     },
                     "email": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Email address"
                     },
                     "active": {
@@ -265,21 +299,33 @@
                         "description": "Email address"
                     },
                     "job_title": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Job title"
                     },
                     "department_id": {
-                        "type": ["integer", "null"],
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "description": "Department ID"
                     },
                     "role_id": {
-                        "type": ["integer", "null"],
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "description": "Role ID"
                     },
                     "active": {
                         "type": "integer",
                         "description": "Whether the person is active (1 = active, 0 = inactive)",
-                        "enum": [0, 1]
+                        "enum": [
+                            0,
+                            1
+                        ]
                     },
                     "cost_rate": {
                         "type": "number",
@@ -309,7 +355,9 @@
                         "description": "Comma-separated list of related resources to expand in response"
                     }
                 },
-                "required": ["people_id"]
+                "required": [
+                    "people_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -323,7 +371,10 @@
                         "description": "Person name"
                     },
                     "email": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Email address"
                     },
                     "active": {
@@ -344,7 +395,9 @@
                         "description": "The ID of the person to delete"
                     }
                 },
-                "required": ["people_id"]
+                "required": [
+                    "people_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -425,7 +478,10 @@
                             "description": "Project name"
                         },
                         "client_id": {
-                            "type": ["integer", "null"],
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
                             "description": "Client ID"
                         },
                         "active": {
@@ -448,7 +504,9 @@
                         "description": "The ID of the project to retrieve"
                     }
                 },
-                "required": ["project_id"]
+                "required": [
+                    "project_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -551,14 +609,19 @@
                     "active": {
                         "type": "integer",
                         "description": "Whether project is active (1 = active, 0 = inactive)",
-                        "enum": [0, 1]
+                        "enum": [
+                            0,
+                            1
+                        ]
                     },
                     "notes": {
                         "type": "string",
                         "description": "Project notes"
                     }
                 },
-                "required": ["name"]
+                "required": [
+                    "name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -607,7 +670,10 @@
                     "active": {
                         "type": "integer",
                         "description": "Active status (1 = active, 0 = inactive)",
-                        "enum": [0, 1]
+                        "enum": [
+                            0,
+                            1
+                        ]
                     },
                     "tags": {
                         "type": "array",
@@ -621,7 +687,9 @@
                         "description": "Project notes"
                     }
                 },
-                "required": ["project_id"]
+                "required": [
+                    "project_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -656,7 +724,9 @@
                         "description": "The ID of the project to delete"
                     }
                 },
-                "required": ["project_id"]
+                "required": [
+                    "project_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -740,7 +810,9 @@
                         "description": "The ID of the task to retrieve"
                     }
                 },
-                "required": ["task_id"]
+                "required": [
+                    "task_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -823,7 +895,13 @@
                         "description": "Repeat end date"
                     }
                 },
-                "required": ["people_id", "project_id", "start_date", "end_date", "hours"]
+                "required": [
+                    "people_id",
+                    "project_id",
+                    "start_date",
+                    "end_date",
+                    "hours"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -894,7 +972,9 @@
                         "description": "Task status"
                     }
                 },
-                "required": ["task_id"]
+                "required": [
+                    "task_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -937,7 +1017,9 @@
                         "description": "The ID of the task to delete"
                     }
                 },
-                "required": ["task_id"]
+                "required": [
+                    "task_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1017,7 +1099,9 @@
                         "description": "The ID of the time off entry"
                     }
                 },
-                "required": ["timeoff_id"]
+                "required": [
+                    "timeoff_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1084,7 +1168,13 @@
                         "description": "Notes about the time off"
                     }
                 },
-                "required": ["people_id", "timeoff_type_id", "start_date", "end_date", "hours"]
+                "required": [
+                    "people_id",
+                    "timeoff_type_id",
+                    "start_date",
+                    "end_date",
+                    "hours"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1147,7 +1237,9 @@
                         "description": "Notes"
                     }
                 },
-                "required": ["timeoff_id"]
+                "required": [
+                    "timeoff_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1190,7 +1282,9 @@
                         "description": "The ID of the time off entry to delete"
                     }
                 },
-                "required": ["timeoff_id"]
+                "required": [
+                    "timeoff_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1270,7 +1364,9 @@
                         "description": "The ID of the logged time entry (hexadecimal)"
                     }
                 },
-                "required": ["logged_time_id"]
+                "required": [
+                    "logged_time_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1337,7 +1433,12 @@
                         "description": "Whether the time is billable"
                     }
                 },
-                "required": ["people_id", "project_id", "date", "hours"]
+                "required": [
+                    "people_id",
+                    "project_id",
+                    "date",
+                    "hours"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1388,7 +1489,9 @@
                         "description": "Billable flag"
                     }
                 },
-                "required": ["logged_time_id"]
+                "required": [
+                    "logged_time_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1427,7 +1530,9 @@
                         "description": "The ID of the logged time entry to delete"
                     }
                 },
-                "required": ["logged_time_id"]
+                "required": [
+                    "logged_time_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1472,7 +1577,10 @@
                     "type": "object",
                     "properties": {
                         "client_id": {
-                            "type": ["integer", "null"],
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
                             "description": "Client ID"
                         },
                         "name": {
@@ -1499,7 +1607,9 @@
                         "description": "The ID of the client"
                     }
                 },
-                "required": ["client_id"]
+                "required": [
+                    "client_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1536,14 +1646,19 @@
                     "active": {
                         "type": "integer",
                         "description": "Whether client is active (1 = active, 0 = inactive)",
-                        "enum": [0, 1]
+                        "enum": [
+                            0,
+                            1
+                        ]
                     },
                     "notes": {
                         "type": "string",
                         "description": "Notes about the client"
                     }
                 },
-                "required": ["name"]
+                "required": [
+                    "name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1580,14 +1695,19 @@
                     "active": {
                         "type": "integer",
                         "description": "Active status (1 = active, 0 = inactive)",
-                        "enum": [0, 1]
+                        "enum": [
+                            0,
+                            1
+                        ]
                     },
                     "notes": {
                         "type": "string",
                         "description": "Notes"
                     }
                 },
-                "required": ["client_id"]
+                "required": [
+                    "client_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1618,7 +1738,9 @@
                         "description": "The ID of the client to delete"
                     }
                 },
-                "required": ["client_id"]
+                "required": [
+                    "client_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1678,13 +1800,18 @@
                         "description": "The ID of the department"
                     }
                 },
-                "required": ["department_id"]
+                "required": [
+                    "department_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
                     "department_id": {
-                        "type": ["integer", "null"],
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "description": "Department ID"
                     },
                     "name": {
@@ -1740,13 +1867,18 @@
                         "description": "The ID of the role"
                     }
                 },
-                "required": ["role_id"]
+                "required": [
+                    "role_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
                     "role_id": {
-                        "type": ["integer", "null"],
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "description": "Role ID"
                     },
                     "name": {
@@ -1802,7 +1934,9 @@
                         "description": "The ID of the time off type"
                     }
                 },
-                "required": ["timeoff_type_id"]
+                "required": [
+                    "timeoff_type_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1854,7 +1988,9 @@
                         "description": "The ID of the account"
                     }
                 },
-                "required": ["account_id"]
+                "required": [
+                    "account_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1906,7 +2042,9 @@
                         "description": "The ID of the status"
                     }
                 },
-                "required": ["status_id"]
+                "required": [
+                    "status_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1958,7 +2096,9 @@
                         "description": "The ID of the public holiday"
                     }
                 },
-                "required": ["public_holiday_id"]
+                "required": [
+                    "public_holiday_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2014,7 +2154,9 @@
                         "description": "The ID of the team holiday"
                     }
                 },
-                "required": ["holiday_id"]
+                "required": [
+                    "holiday_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2070,7 +2212,9 @@
                         "description": "The ID of the project stage"
                     }
                 },
-                "required": ["project_stage_id"]
+                "required": [
+                    "project_stage_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2126,7 +2270,9 @@
                         "description": "The ID of the project expense"
                     }
                 },
-                "required": ["project_expense_id"]
+                "required": [
+                    "project_expense_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2186,7 +2332,9 @@
                         "description": "The ID of the phase"
                     }
                 },
-                "required": ["phase_id"]
+                "required": [
+                    "phase_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2246,7 +2394,9 @@
                         "description": "The ID of the project task"
                     }
                 },
-                "required": ["project_task_id"]
+                "required": [
+                    "project_task_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2280,7 +2430,10 @@
                         "description": "Target project task ID to merge into"
                     }
                 },
-                "required": ["source_ids", "target_id"]
+                "required": [
+                    "source_ids",
+                    "target_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2332,7 +2485,9 @@
                         "description": "The ID of the milestone"
                     }
                 },
-                "required": ["milestone_id"]
+                "required": [
+                    "milestone_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -2468,5 +2623,6 @@
                 "description": "Projects report data"
             }
         }
-    }
+    },
+    "display_name": "Float"
 }
