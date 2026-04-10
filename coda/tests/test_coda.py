@@ -107,7 +107,7 @@ async def test_get_doc():
                 print(f"ERROR: {result.get('error')}")
             else:
                 doc = result.get("data", {})
-                print(f"SUCCESS: Retrieved doc")
+                print("SUCCESS: Retrieved doc")
                 print(f"Name: {doc.get('name')}")
                 print(f"ID: {doc.get('id')}")
                 print(f"Owner: {doc.get('owner')}")
@@ -136,7 +136,7 @@ async def test_create_doc():
                 print(f"ERROR: {result.get('error')}")
             else:
                 doc = result.get("data", {})
-                print(f"SUCCESS: Doc created (HTTP 202 - Processing)")
+                print("SUCCESS: Doc created (HTTP 202 - Processing)")
                 print(f"Name: {doc.get('name')}")
                 print(f"ID: {doc.get('id')}")
                 print(f"Request ID: {doc.get('requestId', 'N/A')}")
@@ -173,7 +173,7 @@ async def test_create_doc_from_source():
                 print(f"ERROR: {result.get('error')}")
             else:
                 doc = result.get("data", {})
-                print(f"SUCCESS: Doc created from source (HTTP 202 - Processing)")
+                print("SUCCESS: Doc created from source (HTTP 202 - Processing)")
                 print(f"Name: {doc.get('name')}")
                 print(f"ID: {doc.get('id')}")
                 print(f"Source Doc: {source_doc_id}")
@@ -258,7 +258,7 @@ async def test_update_doc():
                 print(f"ERROR: {result.get('error')}")
             else:
                 doc = result.get("data", {})
-                print(f"SUCCESS: Doc updated")
+                print("SUCCESS: Doc updated")
                 print(f"ID: {doc.get('id', doc_id)}")
 
             return result
@@ -302,7 +302,7 @@ async def test_delete_doc():
             if not result.get("result"):
                 print(f"ERROR: {result.get('error')}")
             else:
-                print(f"SUCCESS: Doc deleted (HTTP 202 - Processing)")
+                print("SUCCESS: Doc deleted (HTTP 202 - Processing)")
                 print(f"Deleted doc ID: {doc_id}")
 
             return result
@@ -383,7 +383,7 @@ async def test_get_page():
                 print(f"ERROR: {result.get('error')}")
             else:
                 page = result.get("data", {})
-                print(f"SUCCESS: Retrieved page")
+                print("SUCCESS: Retrieved page")
                 print(f"Name: {page.get('name')}")
                 print(f"ID: {page.get('id')}")
                 print(f"Subtitle: {page.get('subtitle', 'None')}")
@@ -426,7 +426,7 @@ async def test_create_page():
                 print(f"ERROR: {result.get('error')}")
             else:
                 page = result.get("data", {})
-                print(f"SUCCESS: Page created (HTTP 202 - Processing)")
+                print("SUCCESS: Page created (HTTP 202 - Processing)")
                 print(f"ID: {page.get('id')}")
                 print(f"Request ID: {page.get('requestId', 'N/A')}")
 
@@ -467,7 +467,7 @@ async def test_create_page_with_content():
                 print(f"ERROR: {result.get('error')}")
             else:
                 page = result.get("data", {})
-                print(f"SUCCESS: Page with content created (HTTP 202 - Processing)")
+                print("SUCCESS: Page with content created (HTTP 202 - Processing)")
                 print(f"ID: {page.get('id')}")
 
             return result
@@ -516,7 +516,7 @@ async def test_update_page():
                 print(f"ERROR: {result.get('error')}")
             else:
                 page = result.get("data", {})
-                print(f"SUCCESS: Page updated (HTTP 202 - Processing)")
+                print("SUCCESS: Page updated (HTTP 202 - Processing)")
                 print(f"ID: {page.get('id')}")
                 print(f"Request ID: {page.get('requestId', 'N/A')}")
 
@@ -580,7 +580,7 @@ async def test_delete_page():
                 print(f"ERROR: {result.get('error')}")
             else:
                 page = result.get("data", {})
-                print(f"SUCCESS: Page deleted (HTTP 202 - Processing)")
+                print("SUCCESS: Page deleted (HTTP 202 - Processing)")
                 print(f"ID: {page.get('id')}")
                 print(f"Request ID: {page.get('requestId', 'N/A')}")
 
@@ -664,7 +664,7 @@ async def test_get_table():
                 print(f"ERROR: {result.get('error')}")
             else:
                 table = result.get("data", {})
-                print(f"SUCCESS: Retrieved table")
+                print("SUCCESS: Retrieved table")
                 print(f"Name: {table.get('name')}")
                 print(f"ID: {table.get('id')}")
                 print(f"Type: {table.get('type')}")
@@ -771,7 +771,7 @@ async def test_get_column():
                 print(f"ERROR: {result.get('error')}")
             else:
                 column = result.get("data", {})
-                print(f"SUCCESS: Retrieved column")
+                print("SUCCESS: Retrieved column")
                 print(f"Name: {column.get('name')}")
                 print(f"ID: {column.get('id')}")
                 print(f"Value Type: {column.get('valueType')}")
@@ -864,7 +864,7 @@ async def test_get_row():
                 print(f"ERROR: {result.get('error')}")
             else:
                 row = result.get("data", {})
-                print(f"SUCCESS: Retrieved row")
+                print("SUCCESS: Retrieved row")
                 print(f"ID: {row.get('id')}")
                 print(f"Created: {row.get('createdAt')}")
 
@@ -920,7 +920,7 @@ async def test_upsert_rows():
                 print(f"ERROR: {result.get('error')}")
             else:
                 data = result.get("data", {})
-                print(f"SUCCESS: Rows upserted (HTTP 202 - Processing)")
+                print("SUCCESS: Rows upserted (HTTP 202 - Processing)")
                 print(f"Request ID: {data.get('requestId', 'N/A')}")
 
             return result
@@ -981,7 +981,7 @@ async def test_update_row():
             if not result.get("result"):
                 print(f"ERROR: {result.get('error')}")
             else:
-                print(f"SUCCESS: Row updated (HTTP 202 - Processing)")
+                print("SUCCESS: Row updated (HTTP 202 - Processing)")
 
             return result
         except Exception as e:
@@ -1065,7 +1065,7 @@ async def test_delete_row():
             if not result.get("result"):
                 print(f"ERROR: {result.get('error')}")
             else:
-                print(f"SUCCESS: Row deleted (HTTP 202 - Processing)")
+                print("SUCCESS: Row deleted (HTTP 202 - Processing)")
 
             return result
         except Exception as e:
