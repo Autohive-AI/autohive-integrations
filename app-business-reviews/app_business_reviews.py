@@ -1,6 +1,4 @@
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler
-)
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
 from typing import Dict, Any, List, Optional
 
 # Create the integration using the config.json
@@ -8,17 +6,14 @@ app_business_reviews = Integration.load()
 
 # ---- Apple App Store Actions ----
 
+
 @app_business_reviews.action("search_apps_ios")
 class SearchAppsIOS(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         api_key = context.auth.get("credentials", {}).get("api_key", {})
 
         # Build SerpApi request parameters for app search
-        params = {
-            "api_key": api_key,
-            "engine": "apple_app_store",
-            "term": inputs["term"]
-        }
+        params = {"api_key": api_key, "engine": "apple_app_store", "term": inputs["term"]}
 
         # Add optional parameters
         if inputs.get("country"):
@@ -31,11 +26,7 @@ class SearchAppsIOS(ActionHandler):
             params["property"] = inputs["property"]
 
         # Make API request to SerpApi
-        response = await context.fetch(
-            "https://serpapi.com/search",
-            method="GET",
-            params=params
-        )
+        response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
 
         # Extract apps from organic results
         organic_results = response.get("organic_results", [])
@@ -49,18 +40,16 @@ class SearchAppsIOS(ActionHandler):
                 "bundle_id": result.get("bundle_id", ""),
                 "developer": {
                     "name": result.get("developer", {}).get("name", ""),
-                    "id": result.get("developer", {}).get("id", 0)
+                    "id": result.get("developer", {}).get("id", 0),
                 },
                 "rating": result.get("rating", []),
                 "price": result.get("price", {}),
-                "link": result.get("link", "")
+                "link": result.get("link", ""),
             }
             apps.append(app)
 
-        return {
-            "apps": apps,
-            "total_results": len(apps)
-        }
+        return {"apps": apps, "total_results": len(apps)}
+
 
 @app_business_reviews.action("get_reviews_app_store")
 class GetReviewsAppStore(ActionHandler):
@@ -76,22 +65,13 @@ class GetReviewsAppStore(ActionHandler):
 
         # If app_name is provided but no product_id, search for the app first
         if app_name and not product_id:
-            search_params = {
-                "api_key": api_key,
-                "engine": "apple_app_store",
-                "term": app_name,
-                "num": 1
-            }
+            search_params = {"api_key": api_key, "engine": "apple_app_store", "term": app_name, "num": 1}
 
             # Add country if provided
             if inputs.get("country"):
                 search_params["country"] = inputs["country"]
 
-            search_response = await context.fetch(
-                "https://serpapi.com/search",
-                method="GET",
-                params=search_params
-            )
+            search_response = await context.fetch("https://serpapi.com/search", method="GET", params=search_params)
 
             organic_results = search_response.get("organic_results", [])
             if not organic_results:
@@ -105,11 +85,7 @@ class GetReviewsAppStore(ActionHandler):
                 raise ValueError(f"Could not extract product ID for app: {app_name}")
 
         # Build SerpApi request parameters for reviews
-        params = {
-            "api_key": api_key,
-            "engine": "apple_reviews",
-            "product_id": product_id
-        }
+        params = {"api_key": api_key, "engine": "apple_reviews", "product_id": product_id}
 
         # Add optional filters
         if inputs.get("country"):
@@ -131,11 +107,7 @@ class GetReviewsAppStore(ActionHandler):
                 params["page"] = current_page
 
             # Make API request to SerpApi
-            response = await context.fetch(
-                "https://serpapi.com/search",
-                method="GET",
-                params=params
-            )
+            response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
 
             # Extract reviews data from current page
             page_reviews = response.get("reviews", [])
@@ -156,11 +128,11 @@ class GetReviewsAppStore(ActionHandler):
                     "rating": review.get("rating", 0),
                     "author": {
                         "name": review.get("author", {}).get("name", ""),
-                        "author_id": review.get("author", {}).get("author_id", "")
+                        "author_id": review.get("author", {}).get("author_id", ""),
                     },
                     "review_date": review.get("review_date", ""),
                     "reviewed_version": review.get("reviewed_version", ""),
-                    "helpfulness_vote_information": review.get("helpfulness_vote_information", "")
+                    "helpfulness_vote_information": review.get("helpfulness_vote_information", ""),
                 }
                 all_reviews.append(formatted_review)
 
@@ -175,10 +147,12 @@ class GetReviewsAppStore(ActionHandler):
             "reviews": all_reviews,
             "total_reviews": len(all_reviews),
             "app_name": app_title,
-            "product_id": product_id
+            "product_id": product_id,
         }
 
+
 # ---- Google Play Store Actions ----
+
 
 @app_business_reviews.action("search_apps_android")
 class SearchAppsAndroid(ActionHandler):
@@ -186,19 +160,10 @@ class SearchAppsAndroid(ActionHandler):
         api_key = context.auth.get("credentials", {}).get("api_key", {})
 
         # Build SerpApi request parameters for app search
-        params = {
-            "api_key": api_key,
-            "engine": "google_play",
-            "store": "apps",
-            "q": inputs["query"]
-        }
+        params = {"api_key": api_key, "engine": "google_play", "store": "apps", "q": inputs["query"]}
 
         # Make API request to SerpApi
-        response = await context.fetch(
-            "https://serpapi.com/search",
-            method="GET",
-            params=params
-        )
+        response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
 
         # Extract apps from organic results
         organic_results = response.get("organic_results", [])
@@ -216,7 +181,7 @@ class SearchAppsAndroid(ActionHandler):
                     "rating": result.get("rating"),
                     "price": result.get("price", "Free"),
                     "thumbnail": result.get("thumbnail", ""),
-                    "link": result.get("link", "")
+                    "link": result.get("link", ""),
                 }
                 apps.append(app)
                 if len(apps) >= limit:
@@ -224,10 +189,8 @@ class SearchAppsAndroid(ActionHandler):
             if len(apps) >= limit:
                 break
 
-        return {
-            "apps": apps,
-            "total_results": len(apps)
-        }
+        return {"apps": apps, "total_results": len(apps)}
+
 
 @app_business_reviews.action("get_reviews_google_play")
 class GetReviewsGooglePlay(ActionHandler):
@@ -243,18 +206,9 @@ class GetReviewsGooglePlay(ActionHandler):
 
         # If app_name is provided but no product_id, search for the app first
         if app_name and not product_id:
-            search_params = {
-                "api_key": api_key,
-                "engine": "google_play",
-                "store": "apps",
-                "q": app_name
-            }
+            search_params = {"api_key": api_key, "engine": "google_play", "store": "apps", "q": app_name}
 
-            search_response = await context.fetch(
-                "https://serpapi.com/search",
-                method="GET",
-                params=search_params
-            )
+            search_response = await context.fetch("https://serpapi.com/search", method="GET", params=search_params)
 
             organic_results = search_response.get("organic_results", [])
             if not organic_results:
@@ -278,7 +232,7 @@ class GetReviewsGooglePlay(ActionHandler):
             "engine": "google_play_product",
             "store": "apps",
             "product_id": product_id,
-            "all_reviews": "true"  # Required to get reviews
+            "all_reviews": "true",  # Required to get reviews
         }
 
         # Add optional filters
@@ -308,11 +262,7 @@ class GetReviewsGooglePlay(ActionHandler):
             params["num"] = reviews_per_page
 
             # Make API request to SerpApi
-            response = await context.fetch(
-                "https://serpapi.com/search",
-                method="GET",
-                params=params
-            )
+            response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
 
             # Extract reviews data from current page
             page_reviews = response.get("reviews", [])
@@ -328,7 +278,7 @@ class GetReviewsGooglePlay(ActionHandler):
                     "author": review.get("user", {}).get("name", ""),
                     "date": review.get("date", ""),
                     "likes": review.get("likes", 0),
-                    "avatar": review.get("user", {}).get("avatar", "")
+                    "avatar": review.get("user", {}).get("avatar", ""),
                 }
                 all_reviews.append(formatted_review)
 
@@ -348,10 +298,12 @@ class GetReviewsGooglePlay(ActionHandler):
             "total_reviews": len(all_reviews),
             "app_name": app_info.get("title", ""),
             "app_rating": app_info.get("rating") or 0.0,
-            "product_id": product_id
+            "product_id": product_id,
         }
 
+
 # ---- Google Maps Actions ----
+
 
 @app_business_reviews.action("search_places_google_maps")
 class SearchPlacesGoogleMaps(ActionHandler):
@@ -365,19 +317,10 @@ class SearchPlacesGoogleMaps(ActionHandler):
         if inputs.get("location"):
             query_string = f"{query_string} in {inputs['location']}"
 
-        params = {
-            "api_key": api_key,
-            "engine": "google_maps",
-            "type": "search",
-            "q": query_string
-        }
+        params = {"api_key": api_key, "engine": "google_maps", "type": "search", "q": query_string}
 
         # Make API request to SerpApi
-        response = await context.fetch(
-            "https://serpapi.com/search",
-            method="GET",
-            params=params
-        )
+        response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
 
         # Extract places from local results
         local_results = response.get("local_results", [])
@@ -393,14 +336,12 @@ class SearchPlacesGoogleMaps(ActionHandler):
                 "rating": result.get("rating", 0.0),
                 "reviews": result.get("reviews", 0),
                 "type": result.get("type", ""),
-                "phone": result.get("phone", "")
+                "phone": result.get("phone", ""),
             }
             places.append(place)
 
-        return {
-            "places": places,
-            "total_results": len(places)
-        }
+        return {"places": places, "total_results": len(places)}
+
 
 @app_business_reviews.action("get_reviews_google_maps")
 class GetReviewsGoogleMaps(ActionHandler):
@@ -423,19 +364,10 @@ class GetReviewsGoogleMaps(ActionHandler):
             if inputs.get("location"):
                 search_query = f"{query} in {inputs['location']}"
 
-            search_params = {
-                "api_key": api_key,
-                "engine": "google_maps",
-                "type": "search",
-                "q": search_query
-            }
+            search_params = {"api_key": api_key, "engine": "google_maps", "type": "search", "q": search_query}
 
             # Search for the place to get place_id and data_id
-            search_response = await context.fetch(
-                "https://serpapi.com/search",
-                method="GET",
-                params=search_params
-            )
+            search_response = await context.fetch("https://serpapi.com/search", method="GET", params=search_params)
 
             local_results = search_response.get("local_results", [])
             if not local_results:
@@ -449,13 +381,12 @@ class GetReviewsGoogleMaps(ActionHandler):
             data_id = first_result.get("data_id")
 
             if not place_id and not data_id:
-                raise ValueError(f"Could not extract place_id or data_id for business: {search_query}. The search returned results but they don't contain required identifiers.")
+                raise ValueError(
+                    f"Could not extract place_id or data_id for business: {search_query}. The search returned results but they don't contain required identifiers."
+                )
 
         # Build SerpApi request parameters for reviews
-        params = {
-            "api_key": api_key,
-            "engine": "google_maps_reviews"
-        }
+        params = {"api_key": api_key, "engine": "google_maps_reviews"}
 
         # Use place_id or data_id (prefer place_id if both available)
         if place_id:
@@ -487,11 +418,7 @@ class GetReviewsGoogleMaps(ActionHandler):
                 params["num"] = reviews_per_page
 
             # Make API request to SerpApi
-            response = await context.fetch(
-                "https://serpapi.com/search",
-                method="GET",
-                params=params
-            )
+            response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
 
             # Extract reviews data from current page
             page_reviews = response.get("reviews", [])
@@ -505,7 +432,7 @@ class GetReviewsGoogleMaps(ActionHandler):
                     "text": review.get("snippet", ""),
                     "author": review.get("user", {}).get("name", ""),
                     "date": review.get("date", ""),
-                    "likes": review.get("likes", 0)
+                    "likes": review.get("likes", 0),
                 }
                 all_reviews.append(formatted_review)
 
@@ -531,5 +458,5 @@ class GetReviewsGoogleMaps(ActionHandler):
             "total_reviews": len(all_reviews),
             "average_rating": place_info.get("rating") or 0.0,
             "business_name": business_name,
-            "place_id": place_id or place_info.get("place_id", inputs.get("place_id", ""))
+            "place_id": place_id or place_info.get("place_id", inputs.get("place_id", "")),
         }
