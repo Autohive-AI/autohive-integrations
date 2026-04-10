@@ -75,7 +75,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["docs", "result"]
+                "required": [
+                    "docs",
+                    "result"
+                ]
             }
         },
         "get_doc": {
@@ -89,7 +92,9 @@
                         "description": "ID of the doc (e.g., 'AbCDeFGH')"
                     }
                 },
-                "required": ["doc_id"]
+                "required": [
+                    "doc_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -107,7 +112,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "create_doc": {
@@ -133,7 +141,9 @@
                         "description": "Optional: Folder ID where the doc should be created"
                     }
                 },
-                "required": ["title"]
+                "required": [
+                    "title"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -151,7 +161,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "update_doc": {
@@ -173,7 +186,9 @@
                         "description": "Optional: New icon name (e.g., 'rocket', 'star', 'heart')"
                     }
                 },
-                "required": ["doc_id"]
+                "required": [
+                    "doc_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -191,7 +206,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "delete_doc": {
@@ -205,7 +223,9 @@
                         "description": "ID of the doc to delete (e.g., 'AbCDeFGH')"
                     }
                 },
-                "required": ["doc_id"]
+                "required": [
+                    "doc_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -223,7 +243,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "list_pages": {
@@ -248,7 +271,9 @@
                         "description": "Token for fetching the next page of results"
                     }
                 },
-                "required": ["doc_id"]
+                "required": [
+                    "doc_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -273,7 +298,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["pages", "result"]
+                "required": [
+                    "pages",
+                    "result"
+                ]
             }
         },
         "get_page": {
@@ -291,7 +319,10 @@
                         "description": "Page ID or name (e.g., 'canvas-abc123')"
                     }
                 },
-                "required": ["doc_id", "page_id_or_name"]
+                "required": [
+                    "doc_id",
+                    "page_id_or_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -309,7 +340,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "create_page": {
@@ -344,7 +378,10 @@
                     },
                     "content_format": {
                         "type": "string",
-                        "enum": ["html", "markdown"],
+                        "enum": [
+                            "html",
+                            "markdown"
+                        ],
                         "description": "Optional: Format of page content (html or markdown)",
                         "default": "html"
                     },
@@ -353,7 +390,10 @@
                         "description": "Optional: Page content in HTML or Markdown format"
                     }
                 },
-                "required": ["doc_id", "name"]
+                "required": [
+                    "doc_id",
+                    "name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -371,7 +411,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "update_page": {
@@ -405,7 +448,10 @@
                         "description": "Optional: New cover image URL"
                     }
                 },
-                "required": ["doc_id", "page_id_or_name"]
+                "required": [
+                    "doc_id",
+                    "page_id_or_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -423,7 +469,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "delete_page": {
@@ -441,7 +490,10 @@
                         "description": "Page ID or name to delete. Names are discouraged as they can be changed by users. If multiple pages have the same name, an arbitrary one will be selected."
                     }
                 },
-                "required": ["doc_id", "page_id_or_name"]
+                "required": [
+                    "doc_id",
+                    "page_id_or_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -459,7 +511,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "list_tables": {
@@ -493,7 +548,9 @@
                         "default": "table,view"
                     }
                 },
-                "required": ["doc_id"]
+                "required": [
+                    "doc_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -518,7 +575,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["tables", "result"]
+                "required": [
+                    "tables",
+                    "result"
+                ]
             }
         },
         "get_table": {
@@ -536,7 +596,10 @@
                         "description": "Table ID or name. IDs recommended over names (e.g., 'grid-xyz123')"
                     }
                 },
-                "required": ["doc_id", "table_id_or_name"]
+                "required": [
+                    "doc_id",
+                    "table_id_or_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -554,7 +617,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "list_columns": {
@@ -588,7 +654,10 @@
                         "default": false
                     }
                 },
-                "required": ["doc_id", "table_id_or_name"]
+                "required": [
+                    "doc_id",
+                    "table_id_or_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -613,7 +682,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["columns", "result"]
+                "required": [
+                    "columns",
+                    "result"
+                ]
             }
         },
         "get_column": {
@@ -635,7 +707,11 @@
                         "description": "Column ID or name. IDs recommended (e.g., 'c-column123')"
                     }
                 },
-                "required": ["doc_id", "table_id_or_name", "column_id_or_name"]
+                "required": [
+                    "doc_id",
+                    "table_id_or_name",
+                    "column_id_or_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -653,7 +729,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "list_rows": {
@@ -696,7 +775,11 @@
                     },
                     "value_format": {
                         "type": "string",
-                        "enum": ["simple", "simpleWithArrays", "rich"],
+                        "enum": [
+                            "simple",
+                            "simpleWithArrays",
+                            "rich"
+                        ],
                         "description": "Format for cell values (simple, simpleWithArrays, or rich)",
                         "default": "simple"
                     },
@@ -706,7 +789,10 @@
                         "default": false
                     }
                 },
-                "required": ["doc_id", "table_id_or_name"]
+                "required": [
+                    "doc_id",
+                    "table_id_or_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -731,7 +817,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["rows", "result"]
+                "required": [
+                    "rows",
+                    "result"
+                ]
             }
         },
         "get_row": {
@@ -759,12 +848,20 @@
                     },
                     "value_format": {
                         "type": "string",
-                        "enum": ["simple", "simpleWithArrays", "rich"],
+                        "enum": [
+                            "simple",
+                            "simpleWithArrays",
+                            "rich"
+                        ],
                         "description": "Format for cell values",
                         "default": "simple"
                     }
                 },
-                "required": ["doc_id", "table_id_or_name", "row_id_or_name"]
+                "required": [
+                    "doc_id",
+                    "table_id_or_name",
+                    "row_id_or_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -782,7 +879,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "upsert_rows": {
@@ -819,11 +919,16 @@
                                                 "description": "Cell value (type depends on column)"
                                             }
                                         },
-                                        "required": ["column", "value"]
+                                        "required": [
+                                            "column",
+                                            "value"
+                                        ]
                                     }
                                 }
                             },
-                            "required": ["cells"]
+                            "required": [
+                                "cells"
+                            ]
                         }
                     },
                     "key_columns": {
@@ -839,7 +944,11 @@
                         "default": false
                     }
                 },
-                "required": ["doc_id", "table_id_or_name", "rows"]
+                "required": [
+                    "doc_id",
+                    "table_id_or_name",
+                    "rows"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -857,7 +966,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "update_row": {
@@ -892,7 +1004,10 @@
                                     "description": "New cell value (type depends on column)"
                                 }
                             },
-                            "required": ["column", "value"]
+                            "required": [
+                                "column",
+                                "value"
+                            ]
                         }
                     },
                     "disable_parsing": {
@@ -901,7 +1016,12 @@
                         "default": false
                     }
                 },
-                "required": ["doc_id", "table_id_or_name", "row_id_or_name", "cells"]
+                "required": [
+                    "doc_id",
+                    "table_id_or_name",
+                    "row_id_or_name",
+                    "cells"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -919,7 +1039,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "delete_row": {
@@ -941,7 +1064,11 @@
                         "description": "Row ID or name to delete. IDs recommended (e.g., 'i-rowId123')"
                     }
                 },
-                "required": ["doc_id", "table_id_or_name", "row_id_or_name"]
+                "required": [
+                    "doc_id",
+                    "table_id_or_name",
+                    "row_id_or_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -959,7 +1086,10 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         },
         "delete_rows": {
@@ -984,7 +1114,11 @@
                         }
                     }
                 },
-                "required": ["doc_id", "table_id_or_name", "row_ids"]
+                "required": [
+                    "doc_id",
+                    "table_id_or_name",
+                    "row_ids"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1002,8 +1136,12 @@
                         "description": "Error message if operation failed"
                     }
                 },
-                "required": ["data", "result"]
+                "required": [
+                    "data",
+                    "result"
+                ]
             }
         }
-    }
+    },
+    "display_name": "coda"
 }
