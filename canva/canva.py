@@ -556,9 +556,7 @@ class UpdateFolder(ActionHandler):
             # Build update payload
             update_data = {"name": inputs["name"]}
 
-            await context.fetch(
-                f"{service_endpoint}/v1/folders/{folder_id}", method="PATCH", json=update_data
-            )
+            await context.fetch(f"{service_endpoint}/v1/folders/{folder_id}", method="PATCH", json=update_data)
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:

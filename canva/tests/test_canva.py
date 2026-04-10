@@ -142,7 +142,6 @@ async def test_upload_asset():
     print("  NOTE: This will create an asset in your Canva account")
 
     # Simple 1x1 red pixel PNG
-    import base64
 
     png_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
 
@@ -156,7 +155,7 @@ async def test_upload_asset():
                 global test_upload_job_id
                 test_upload_job_id = result.data.get("job_id")
 
-                print(f"✓ Upload initiated")
+                print("✓ Upload initiated")
                 print(f"  Job ID: {test_upload_job_id}")
                 print(f"  Status: {result.data.get('status')}")
 
@@ -283,7 +282,7 @@ async def test_export_design():
                 global test_export_job_id
                 test_export_job_id = result.data.get("job_id")
 
-                print(f"✓ Export initiated")
+                print("✓ Export initiated")
                 print(f"  Job ID: {test_export_job_id}")
 
                 return result
