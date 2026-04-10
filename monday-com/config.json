@@ -11,8 +11,7 @@
             "boards:read",
             "boards:write",
             "users:read",
-            "updates:write",
-            "account:read"
+            "updates:write"
         ]
     },
     "actions": {

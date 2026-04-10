@@ -1,9 +1,7 @@
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
-import os
 
-_config_path = os.path.join(os.path.dirname(__file__), "config.json")
-monday_com = Integration.load(_config_path)
+monday_com = Integration.load()
 
 
 def build_headers(context: ExecutionContext):
