@@ -6,12 +6,10 @@ from autohive_integrations_sdk import (
 )
 from typing import Dict, Any, Optional
 import aiohttp
-import os
+
 
 # Create the integration using the config.json from the same directory as this file
-config_dir = os.path.dirname(os.path.abspath(__file__))
-config_path = os.path.join(config_dir, "config.json")
-grammarly = Integration.load(config_path)
+grammarly = Integration.load()
 
 # Base URLs for Grammarly API
 GRAMMARLY_TOKEN_URL = "https://auth.grammarly.com/v4/api/oauth2/token"  # nosec B105
