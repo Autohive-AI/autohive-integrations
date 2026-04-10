@@ -39,9 +39,7 @@ async def test_get_best_stories():
 
     async with ExecutionContext(auth={}) as context:
         try:
-            result = await hackernews.execute_action(
-                "get_best_stories", inputs, context
-            )
+            result = await hackernews.execute_action("get_best_stories", inputs, context)
             assert "stories" in result
             assert len(result["stories"]) <= 3
             print(f"   [OK] Got {result['count']} best stories")
@@ -74,9 +72,7 @@ async def test_get_ask_hn_stories():
 
     async with ExecutionContext(auth={}) as context:
         try:
-            result = await hackernews.execute_action(
-                "get_ask_hn_stories", inputs, context
-            )
+            result = await hackernews.execute_action("get_ask_hn_stories", inputs, context)
             assert "stories" in result
             print(f"   [OK] Got {result['count']} Ask HN stories")
         except Exception as e:
@@ -92,9 +88,7 @@ async def test_get_show_hn_stories():
 
     async with ExecutionContext(auth={}) as context:
         try:
-            result = await hackernews.execute_action(
-                "get_show_hn_stories", inputs, context
-            )
+            result = await hackernews.execute_action("get_show_hn_stories", inputs, context)
             assert "stories" in result
             print(f"   [OK] Got {result['count']} Show HN stories")
         except Exception as e:
@@ -124,9 +118,7 @@ async def test_get_story_with_comments():
 
     async with ExecutionContext(auth={}) as context:
         try:
-            top_result = await hackernews.execute_action(
-                "get_top_stories", {"limit": 1}, context
-            )
+            top_result = await hackernews.execute_action("get_top_stories", {"limit": 1}, context)
 
             if not top_result["stories"]:
                 print("   [WARN] No stories to test with")
@@ -136,16 +128,12 @@ async def test_get_story_with_comments():
 
             inputs = {"story_id": story_id, "comment_limit": 5, "comment_depth": 2}
 
-            result = await hackernews.execute_action(
-                "get_story_with_comments", inputs, context
-            )
+            result = await hackernews.execute_action("get_story_with_comments", inputs, context)
             assert "story" in result
             assert "comments" in result
             assert result["story"]["id"] == story_id
 
-            print(
-                f"   [OK] Got story with {len(result['comments'])} top-level comments"
-            )
+            print(f"   [OK] Got story with {len(result['comments'])} top-level comments")
         except Exception as e:
             print(f"   [FAIL] Error: {e}")
             raise
@@ -159,9 +147,7 @@ async def test_get_user_profile():
 
     async with ExecutionContext(auth={}) as context:
         try:
-            result = await hackernews.execute_action(
-                "get_user_profile", inputs, context
-            )
+            result = await hackernews.execute_action("get_user_profile", inputs, context)
             assert "id" in result
             assert "karma" in result
             assert result["id"] == "dang"
