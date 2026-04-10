@@ -31,6 +31,8 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Google Ads
 
+| google-ads | Google Ads integration for managing campaigns, ad groups, ads, keywords, and reporting | OAuth2 |
+
 [google-ads](google-ads): Comprehensive Google Ads integration with full CRUD operations for campaigns, ad groups, ads, keywords, and Keyword Planner functionality. Supports account discovery (list accessible accounts with details), campaign management (create, update, remove campaigns with budget and bidding strategy configuration), ad group operations (create, update, remove ad groups with CPC bid control), responsive search ad creation with multiple headlines and descriptions, keyword management (add, update, remove keywords with match type support), and negative keyword management at both campaign and ad group levels. Includes extensive reporting capabilities: campaign metrics, ad group metrics, ad metrics, keyword metrics, search terms report, and active ad URLs retrieval. Features Keyword Planner integration for generating keyword ideas, retrieving historical metrics with monthly search volumes, and forecasting keyword performance with budget projections. Supports OAuth2 platform authentication with Google Ads API scopes, Manager Account (MCC) support via login_customer_id, flexible date range filtering (YYYY-MM-DD_YYYY-MM-DD, 'last 7 days', DD/MM/YYYY), and billing cost tracking with ActionResult. Includes 24 actions covering account access, campaign CRUD, ad group CRUD, ad CRUD, keyword CRUD, negative keywords, metrics retrieval, and keyword planning. Ideal for advertising automation, campaign management, performance monitoring, and keyword research workflows.
 
 ### Google Analytics

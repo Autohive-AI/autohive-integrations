@@ -28,10 +28,18 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "resource_name": {"type": "string"},
-                                "customer_id": {"type": "string"},
-                                "descriptive_name": {"type": "string"},
-                                "currency_code": {"type": "string"}
+                                "resource_name": {
+                                    "type": "string"
+                                },
+                                "customer_id": {
+                                    "type": "string"
+                                },
+                                "descriptive_name": {
+                                    "type": "string"
+                                },
+                                "currency_code": {
+                                    "type": "string"
+                                }
                             }
                         }
                     }
@@ -61,11 +69,20 @@
                     },
                     "campaign_type": {
                         "type": "string",
-                        "enum": ["SEARCH", "VIDEO", "DISPLAY", "PERFORMANCE_MAX", "ALL"],
+                        "enum": [
+                            "SEARCH",
+                            "VIDEO",
+                            "DISPLAY",
+                            "PERFORMANCE_MAX",
+                            "ALL"
+                        ],
                         "description": "Filter by campaign type. VIDEO includes video-specific metrics (average_cpv). SEARCH, DISPLAY, PERFORMANCE_MAX filter to that type. ALL (default) uses universal metrics safe for mixed campaign types."
                     }
                 },
-                "required": ["login_customer_id", "customer_id"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -75,8 +92,16 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "date_range": {"type": "string"},
-                                "data": {"type": "array", "items": {"type": "object", "additionalProperties": true}}
+                                "date_range": {
+                                    "type": "string"
+                                },
+                                "data": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": true
+                                    }
+                                }
                             }
                         }
                     }
@@ -99,21 +124,32 @@
                     },
                     "ad_group_ids": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of ad group IDs to filter by."
                     },
                     "campaign_ids": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of campaign IDs to filter by."
                     },
                     "date_ranges": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of date ranges."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "ad_group_ids", "campaign_ids"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "ad_group_ids",
+                    "campaign_ids"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -123,8 +159,16 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "date_range": {"type": "string"},
-                                "data": {"type": "array", "items": {"type": "object", "additionalProperties": true}}
+                                "date_range": {
+                                    "type": "string"
+                                },
+                                "data": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": true
+                                    }
+                                }
                             }
                         }
                     }
@@ -167,7 +211,12 @@
                     },
                     "bidding_strategy": {
                         "type": "string",
-                        "enum": ["MANUAL_CPC", "TARGET_SPEND", "MAXIMIZE_CONVERSIONS", "MAXIMIZE_CLICKS"],
+                        "enum": [
+                            "MANUAL_CPC",
+                            "TARGET_SPEND",
+                            "MAXIMIZE_CONVERSIONS",
+                            "MAXIMIZE_CLICKS"
+                        ],
                         "description": "Bidding strategy for the campaign. Defaults to MANUAL_CPC."
                     },
                     "enhanced_cpc_enabled": {
@@ -193,15 +242,28 @@
                         "default": false
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "campaign_name", "budget_amount_micros"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "campaign_name",
+                    "budget_amount_micros"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "campaign_resource_name": {"type": "string"},
-                    "budget_resource_name": {"type": "string"},
-                    "campaign_id": {"type": "string"},
-                    "status": {"type": "string"}
+                    "campaign_resource_name": {
+                        "type": "string"
+                    },
+                    "budget_resource_name": {
+                        "type": "string"
+                    },
+                    "campaign_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -225,7 +287,10 @@
                     },
                     "status": {
                         "type": "string",
-                        "enum": ["ENABLED", "PAUSED"],
+                        "enum": [
+                            "ENABLED",
+                            "PAUSED"
+                        ],
                         "description": "New status for the campaign."
                     },
                     "name": {
@@ -233,13 +298,21 @@
                         "description": "New name for the campaign (optional)."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "campaign_id"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "campaign_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "campaign_resource_name": {"type": "string"},
-                    "status": {"type": "string"}
+                    "campaign_resource_name": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -262,13 +335,21 @@
                         "description": "The ID of the campaign to remove."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "campaign_id"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "campaign_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "removed_campaign_resource_name": {"type": "string"},
-                    "status": {"type": "string"}
+                    "removed_campaign_resource_name": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -300,18 +381,32 @@
                     },
                     "status": {
                         "type": "string",
-                        "enum": ["ENABLED", "PAUSED"],
+                        "enum": [
+                            "ENABLED",
+                            "PAUSED"
+                        ],
                         "description": "Status for the ad group. Defaults to PAUSED."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "campaign_id", "ad_group_name"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "campaign_id",
+                    "ad_group_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "ad_group_resource_name": {"type": "string"},
-                    "ad_group_id": {"type": "string"},
-                    "status": {"type": "string"}
+                    "ad_group_resource_name": {
+                        "type": "string"
+                    },
+                    "ad_group_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -335,12 +430,16 @@
                     },
                     "headlines": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of headlines (3-15 required, each max 30 characters)."
                     },
                     "descriptions": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of descriptions (2-4 required, each max 90 characters)."
                     },
                     "final_url": {
@@ -357,18 +456,34 @@
                     },
                     "status": {
                         "type": "string",
-                        "enum": ["ENABLED", "PAUSED"],
+                        "enum": [
+                            "ENABLED",
+                            "PAUSED"
+                        ],
                         "description": "Status for the ad. Defaults to PAUSED."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "ad_group_id", "headlines", "descriptions", "final_url"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "ad_group_id",
+                    "headlines",
+                    "descriptions",
+                    "final_url"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "ad_resource_name": {"type": "string"},
-                    "ad_id": {"type": "string"},
-                    "status": {"type": "string"}
+                    "ad_resource_name": {
+                        "type": "string"
+                    },
+                    "ad_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -395,19 +510,33 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "text": {"type": "string", "description": "The keyword text."},
+                                "text": {
+                                    "type": "string",
+                                    "description": "The keyword text."
+                                },
                                 "match_type": {
                                     "type": "string",
-                                    "enum": ["BROAD", "PHRASE", "EXACT"],
+                                    "enum": [
+                                        "BROAD",
+                                        "PHRASE",
+                                        "EXACT"
+                                    ],
                                     "description": "Match type for the keyword. Defaults to BROAD."
                                 }
                             },
-                            "required": ["text"]
+                            "required": [
+                                "text"
+                            ]
                         },
                         "description": "List of keywords with their match types."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "ad_group_id", "keywords"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "ad_group_id",
+                    "keywords"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -417,13 +546,21 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "resource_name": {"type": "string"},
-                                "keyword_text": {"type": "string"},
-                                "match_type": {"type": "string"}
+                                "resource_name": {
+                                    "type": "string"
+                                },
+                                "keyword_text": {
+                                    "type": "string"
+                                },
+                                "match_type": {
+                                    "type": "string"
+                                }
                             }
                         }
                     },
-                    "status": {"type": "string"}
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -443,7 +580,9 @@
                     },
                     "seed_keywords": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of seed keywords to generate ideas from."
                     },
                     "page_url": {
@@ -456,7 +595,9 @@
                     },
                     "location_ids": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of geo target location IDs (e.g., ['2840'] for USA). Defaults to USA."
                     },
                     "include_adult_keywords": {
@@ -464,7 +605,10 @@
                         "description": "Whether to include adult keywords. Defaults to false."
                     }
                 },
-                "required": ["login_customer_id", "customer_id"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -474,16 +618,30 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "keyword": {"type": "string"},
-                                "avg_monthly_searches": {"type": "integer"},
-                                "competition": {"type": "string"},
-                                "competition_index": {"type": "number"},
-                                "low_top_of_page_bid_micros": {"type": "integer"},
-                                "high_top_of_page_bid_micros": {"type": "integer"}
+                                "keyword": {
+                                    "type": "string"
+                                },
+                                "avg_monthly_searches": {
+                                    "type": "integer"
+                                },
+                                "competition": {
+                                    "type": "string"
+                                },
+                                "competition_index": {
+                                    "type": "number"
+                                },
+                                "low_top_of_page_bid_micros": {
+                                    "type": "integer"
+                                },
+                                "high_top_of_page_bid_micros": {
+                                    "type": "integer"
+                                }
                             }
                         }
                     },
-                    "total_results": {"type": "integer"}
+                    "total_results": {
+                        "type": "integer"
+                    }
                 }
             }
         },
@@ -503,7 +661,9 @@
                     },
                     "keywords": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of keywords to get historical metrics for."
                     },
                     "language_id": {
@@ -512,11 +672,17 @@
                     },
                     "location_ids": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of geo target location IDs. Defaults to USA."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "keywords"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "keywords"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -526,20 +692,38 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "keyword": {"type": "string"},
-                                "avg_monthly_searches": {"type": "integer"},
-                                "competition": {"type": "string"},
-                                "competition_index": {"type": "number"},
-                                "low_top_of_page_bid_micros": {"type": "integer"},
-                                "high_top_of_page_bid_micros": {"type": "integer"},
+                                "keyword": {
+                                    "type": "string"
+                                },
+                                "avg_monthly_searches": {
+                                    "type": "integer"
+                                },
+                                "competition": {
+                                    "type": "string"
+                                },
+                                "competition_index": {
+                                    "type": "number"
+                                },
+                                "low_top_of_page_bid_micros": {
+                                    "type": "integer"
+                                },
+                                "high_top_of_page_bid_micros": {
+                                    "type": "integer"
+                                },
                                 "monthly_search_volumes": {
                                     "type": "array",
                                     "items": {
                                         "type": "object",
                                         "properties": {
-                                            "month": {"type": "string"},
-                                            "year": {"type": "integer"},
-                                            "monthly_searches": {"type": "integer"}
+                                            "month": {
+                                                "type": "string"
+                                            },
+                                            "year": {
+                                                "type": "integer"
+                                            },
+                                            "monthly_searches": {
+                                                "type": "integer"
+                                            }
                                         }
                                     }
                                 }
@@ -565,23 +749,34 @@
                     },
                     "date_ranges": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of date ranges."
                     },
                     "campaign_ids": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "Optional: Filter by specific campaign IDs."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "date_ranges"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "date_ranges"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
                     "results": {
                         "type": "array",
-                        "items": {"type": "object", "additionalProperties": true}
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     }
                 }
             }
@@ -602,28 +797,41 @@
                     },
                     "date_ranges": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of date ranges."
                     },
                     "campaign_ids": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "Optional: Filter by specific campaign IDs."
                     },
                     "ad_group_ids": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "Optional: Filter by specific ad group IDs."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "date_ranges"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "date_ranges"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
                     "results": {
                         "type": "array",
-                        "items": {"type": "object", "additionalProperties": true}
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     }
                 }
             }
@@ -644,28 +852,41 @@
                     },
                     "date_ranges": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of date ranges."
                     },
                     "campaign_ids": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "Optional: Filter by specific campaign IDs."
                     },
                     "ad_group_ids": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "Optional: Filter by specific ad group IDs."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "date_ranges"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "date_ranges"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
                     "results": {
                         "type": "array",
-                        "items": {"type": "object", "additionalProperties": true}
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     }
                 }
             }
@@ -689,16 +910,24 @@
                         "description": "Optional: Filter to only return ads containing this URL substring."
                     }
                 },
-                "required": ["login_customer_id", "customer_id"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
                     "active_ads": {
                         "type": "array",
-                        "items": {"type": "object", "additionalProperties": true}
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     },
-                    "total_count": {"type": "integer"}
+                    "total_count": {
+                        "type": "integer"
+                    }
                 }
             }
         },
@@ -725,29 +954,50 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "text": {"type": "string", "description": "The negative keyword text."},
+                                "text": {
+                                    "type": "string",
+                                    "description": "The negative keyword text."
+                                },
                                 "match_type": {
                                     "type": "string",
-                                    "enum": ["BROAD", "PHRASE", "EXACT"],
+                                    "enum": [
+                                        "BROAD",
+                                        "PHRASE",
+                                        "EXACT"
+                                    ],
                                     "description": "Match type for the negative keyword. Defaults to BROAD."
                                 }
                             },
-                            "required": ["text"]
+                            "required": [
+                                "text"
+                            ]
                         },
                         "description": "List of negative keywords with their match types."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "campaign_id", "keywords"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "campaign_id",
+                    "keywords"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
                     "added_negative_keywords": {
                         "type": "array",
-                        "items": {"type": "object", "additionalProperties": true}
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     },
-                    "campaign_id": {"type": "string"},
-                    "status": {"type": "string"}
+                    "campaign_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -774,29 +1024,50 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "text": {"type": "string", "description": "The negative keyword text."},
+                                "text": {
+                                    "type": "string",
+                                    "description": "The negative keyword text."
+                                },
                                 "match_type": {
                                     "type": "string",
-                                    "enum": ["BROAD", "PHRASE", "EXACT"],
+                                    "enum": [
+                                        "BROAD",
+                                        "PHRASE",
+                                        "EXACT"
+                                    ],
                                     "description": "Match type for the negative keyword. Defaults to BROAD."
                                 }
                             },
-                            "required": ["text"]
+                            "required": [
+                                "text"
+                            ]
                         },
                         "description": "List of negative keywords with their match types."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "ad_group_id", "keywords"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "ad_group_id",
+                    "keywords"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
                     "added_negative_keywords": {
                         "type": "array",
-                        "items": {"type": "object", "additionalProperties": true}
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     },
-                    "ad_group_id": {"type": "string"},
-                    "status": {"type": "string"}
+                    "ad_group_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -820,7 +1091,10 @@
                     },
                     "status": {
                         "type": "string",
-                        "enum": ["ENABLED", "PAUSED"],
+                        "enum": [
+                            "ENABLED",
+                            "PAUSED"
+                        ],
                         "description": "New status for the ad group."
                     },
                     "name": {
@@ -832,14 +1106,24 @@
                         "description": "New CPC bid in micros (optional)."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "ad_group_id"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "ad_group_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "ad_group_resource_name": {"type": "string"},
-                    "ad_group_id": {"type": "string"},
-                    "status": {"type": "string"}
+                    "ad_group_resource_name": {
+                        "type": "string"
+                    },
+                    "ad_group_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -862,14 +1146,24 @@
                         "description": "The ID of the ad group to remove."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "ad_group_id"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "ad_group_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "removed_ad_group_resource_name": {"type": "string"},
-                    "ad_group_id": {"type": "string"},
-                    "status": {"type": "string"}
+                    "removed_ad_group_resource_name": {
+                        "type": "string"
+                    },
+                    "ad_group_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -897,7 +1191,10 @@
                     },
                     "status": {
                         "type": "string",
-                        "enum": ["ENABLED", "PAUSED"],
+                        "enum": [
+                            "ENABLED",
+                            "PAUSED"
+                        ],
                         "description": "New status for the keyword."
                     },
                     "cpc_bid_micros": {
@@ -905,14 +1202,25 @@
                         "description": "New CPC bid in micros (optional)."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "ad_group_id", "criterion_id"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "ad_group_id",
+                    "criterion_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "keyword_resource_name": {"type": "string"},
-                    "criterion_id": {"type": "string"},
-                    "status": {"type": "string"}
+                    "keyword_resource_name": {
+                        "type": "string"
+                    },
+                    "criterion_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -939,14 +1247,25 @@
                         "description": "The criterion ID of the keyword to remove."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "ad_group_id", "criterion_id"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "ad_group_id",
+                    "criterion_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "removed_keyword_resource_name": {"type": "string"},
-                    "criterion_id": {"type": "string"},
-                    "status": {"type": "string"}
+                    "removed_keyword_resource_name": {
+                        "type": "string"
+                    },
+                    "criterion_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -974,18 +1293,32 @@
                     },
                     "status": {
                         "type": "string",
-                        "enum": ["ENABLED", "PAUSED"],
+                        "enum": [
+                            "ENABLED",
+                            "PAUSED"
+                        ],
                         "description": "New status for the ad."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "ad_group_id", "ad_id"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "ad_group_id",
+                    "ad_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "ad_resource_name": {"type": "string"},
-                    "ad_id": {"type": "string"},
-                    "status": {"type": "string"}
+                    "ad_resource_name": {
+                        "type": "string"
+                    },
+                    "ad_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -1012,14 +1345,25 @@
                         "description": "The ID of the ad to remove."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "ad_group_id", "ad_id"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "ad_group_id",
+                    "ad_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "removed_ad_resource_name": {"type": "string"},
-                    "ad_id": {"type": "string"},
-                    "status": {"type": "string"}
+                    "removed_ad_resource_name": {
+                        "type": "string"
+                    },
+                    "ad_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -1042,10 +1386,17 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "text": {"type": "string", "description": "The keyword text."},
+                                "text": {
+                                    "type": "string",
+                                    "description": "The keyword text."
+                                },
                                 "match_type": {
                                     "type": "string",
-                                    "enum": ["BROAD", "PHRASE", "EXACT"],
+                                    "enum": [
+                                        "BROAD",
+                                        "PHRASE",
+                                        "EXACT"
+                                    ],
                                     "description": "Match type. Defaults to BROAD."
                                 },
                                 "cpc_bid_micros": {
@@ -1053,7 +1404,9 @@
                                     "description": "CPC bid for this keyword in micros."
                                 }
                             },
-                            "required": ["text"]
+                            "required": [
+                                "text"
+                            ]
                         },
                         "description": "List of keywords to forecast."
                     },
@@ -1071,7 +1424,9 @@
                     },
                     "location_ids": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "List of geo target location IDs. Defaults to USA ['2840']."
                     },
                     "forecast_days": {
@@ -1079,7 +1434,11 @@
                         "description": "Number of days to forecast. Defaults to 30."
                     }
                 },
-                "required": ["login_customer_id", "customer_id", "keywords"]
+                "required": [
+                    "login_customer_id",
+                    "customer_id",
+                    "keywords"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1087,25 +1446,46 @@
                     "forecast_period": {
                         "type": "object",
                         "properties": {
-                            "start_date": {"type": "string"},
-                            "end_date": {"type": "string"},
-                            "days": {"type": "integer"}
+                            "start_date": {
+                                "type": "string"
+                            },
+                            "end_date": {
+                                "type": "string"
+                            },
+                            "days": {
+                                "type": "integer"
+                            }
                         }
                     },
                     "campaign_metrics": {
                         "type": "object",
                         "properties": {
-                            "impressions": {"type": "number"},
-                            "clicks": {"type": "number"},
-                            "cost_micros": {"type": "integer"},
-                            "cost": {"type": "number"},
-                            "average_cpc_micros": {"type": "integer"},
-                            "average_cpc": {"type": "number"}
+                            "impressions": {
+                                "type": "number"
+                            },
+                            "clicks": {
+                                "type": "number"
+                            },
+                            "cost_micros": {
+                                "type": "integer"
+                            },
+                            "cost": {
+                                "type": "number"
+                            },
+                            "average_cpc_micros": {
+                                "type": "integer"
+                            },
+                            "average_cpc": {
+                                "type": "number"
+                            }
                         }
                     },
-                    "keywords_count": {"type": "integer"}
+                    "keywords_count": {
+                        "type": "integer"
+                    }
                 }
             }
         }
-    }
+    },
+    "display_name": "Google Ads"
 }
