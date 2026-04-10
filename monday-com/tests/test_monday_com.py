@@ -21,7 +21,7 @@ class TestBuildHeaders(unittest.TestCase):
         from monday_com import build_headers
 
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token_12345"}}  # nosec B105
+        mock_context.auth = {"credentials": {"access_token": "test_token_12345"}}  # nosec B105  # nosec B105
 
         headers = build_headers(mock_context)
 
@@ -34,7 +34,7 @@ class TestBuildHeaders(unittest.TestCase):
         from monday_com import build_headers
 
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "another_test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "another_test_token"}}  # nosec B105
 
         headers = build_headers(mock_context)
 
@@ -51,7 +51,7 @@ class TestExecuteGraphQLQuery(unittest.IsolatedAsyncioTestCase):
         from monday_com import execute_graphql_query
 
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
         mock_context.fetch = AsyncMock(return_value={"data": {"boards": []}})
 
         query = "query { boards { id } }"
@@ -73,7 +73,7 @@ class TestExecuteGraphQLQuery(unittest.IsolatedAsyncioTestCase):
         from monday_com import execute_graphql_query
 
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
         mock_context.fetch = AsyncMock(return_value={"data": {}})
 
         await execute_graphql_query("query {}", {}, mock_context)
@@ -101,7 +101,7 @@ class TestGetBoards(unittest.IsolatedAsyncioTestCase):
 
         handler = GetBoards()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         result = await handler.execute({}, mock_context)
 
@@ -118,7 +118,7 @@ class TestGetBoards(unittest.IsolatedAsyncioTestCase):
 
         handler = GetBoards()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         inputs = {"limit": 10, "page": 2, "board_kind": "public"}
         result = await handler.execute(inputs, mock_context)
@@ -135,7 +135,7 @@ class TestGetBoards(unittest.IsolatedAsyncioTestCase):
 
         handler = GetBoards()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         result = await handler.execute({}, mock_context)
 
@@ -152,7 +152,7 @@ class TestGetBoards(unittest.IsolatedAsyncioTestCase):
 
         handler = GetBoards()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         result = await handler.execute({}, mock_context)
 
@@ -184,7 +184,7 @@ class TestGetItems(unittest.IsolatedAsyncioTestCase):
 
         handler = GetItems()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         result = await handler.execute({"board_id": "123"}, mock_context)
 
@@ -203,7 +203,7 @@ class TestGetItems(unittest.IsolatedAsyncioTestCase):
 
         handler = GetItems()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         inputs = {"board_id": "123", "cursor": "previous_cursor", "limit": 50}
         result = await handler.execute(inputs, mock_context)
@@ -220,7 +220,7 @@ class TestGetItems(unittest.IsolatedAsyncioTestCase):
 
         handler = GetItems()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         result = await handler.execute({"board_id": "123"}, mock_context)
 
@@ -236,7 +236,7 @@ class TestGetItems(unittest.IsolatedAsyncioTestCase):
 
         handler = GetItems()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         result = await handler.execute({"board_id": "999"}, mock_context)
 
@@ -256,7 +256,7 @@ class TestCreateItem(unittest.IsolatedAsyncioTestCase):
 
         handler = CreateItem()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         inputs = {"board_id": "123", "item_name": "New Item", "group_id": "group1"}
         result = await handler.execute(inputs, mock_context)
@@ -282,7 +282,7 @@ class TestCreateItem(unittest.IsolatedAsyncioTestCase):
 
         handler = CreateItem()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         inputs = {"board_id": "123", "item_name": "Item with values", "column_values": json.dumps({"status": "Done"})}
         result = await handler.execute(inputs, mock_context)
@@ -298,7 +298,7 @@ class TestCreateItem(unittest.IsolatedAsyncioTestCase):
 
         handler = CreateItem()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         inputs = {"board_id": "invalid", "item_name": "Test"}
         result = await handler.execute(inputs, mock_context)
@@ -327,7 +327,7 @@ class TestUpdateItem(unittest.IsolatedAsyncioTestCase):
 
         handler = UpdateItem()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         inputs = {"board_id": "123", "item_id": "456", "column_values": json.dumps({"status": "Done"})}
         result = await handler.execute(inputs, mock_context)
@@ -344,7 +344,7 @@ class TestUpdateItem(unittest.IsolatedAsyncioTestCase):
 
         handler = UpdateItem()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         inputs = {"board_id": "123", "item_id": "999", "column_values": "{}"}
         result = await handler.execute(inputs, mock_context)
@@ -361,7 +361,7 @@ class TestUpdateItem(unittest.IsolatedAsyncioTestCase):
 
         handler = UpdateItem()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         inputs = {"board_id": "123", "item_id": "456", "column_values": "{}"}
         result = await handler.execute(inputs, mock_context)
@@ -391,7 +391,7 @@ class TestCreateUpdate(unittest.IsolatedAsyncioTestCase):
 
         handler = CreateUpdate()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         inputs = {"item_id": "456", "body": "This is a comment"}
         result = await handler.execute(inputs, mock_context)
@@ -408,7 +408,7 @@ class TestCreateUpdate(unittest.IsolatedAsyncioTestCase):
 
         handler = CreateUpdate()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         inputs = {"item_id": "999", "body": "Comment"}
         result = await handler.execute(inputs, mock_context)
@@ -436,7 +436,7 @@ class TestGetUsers(unittest.IsolatedAsyncioTestCase):
 
         handler = GetUsers()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         result = await handler.execute({}, mock_context)
 
@@ -453,7 +453,7 @@ class TestGetUsers(unittest.IsolatedAsyncioTestCase):
 
         handler = GetUsers()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         inputs = {"limit": 50, "page": 3}
         result = await handler.execute(inputs, mock_context)
@@ -469,7 +469,7 @@ class TestGetUsers(unittest.IsolatedAsyncioTestCase):
 
         handler = GetUsers()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "invalid_token"}}
+        mock_context.auth = {"credentials": {"access_token": "invalid_token"}}  # nosec B105
 
         result = await handler.execute({}, mock_context)
 
@@ -485,7 +485,7 @@ class TestGetUsers(unittest.IsolatedAsyncioTestCase):
 
         handler = GetUsers()
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token"}}
+        mock_context.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
 
         result = await handler.execute({}, mock_context)
 
