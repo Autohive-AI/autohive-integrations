@@ -9,12 +9,11 @@ from autohive_integrations_sdk import (
 from typing import Dict, Any
 import asyncio
 import base64
-import os
+
 import aiohttp
 
 # Create the integration using the config.json
-config_path = os.path.join(os.path.dirname(__file__), "config.json")
-xero = Integration.load(config_path)
+xero = Integration.load()
 
 
 # ---- Connected Account Handler ----
