@@ -39,9 +39,7 @@ class GetMetricDataAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             client = create_boto3_client(context, "cloudwatch")
-            start_time = datetime.fromisoformat(
-                inputs["start_time"].replace("Z", "+00:00")
-            )
+            start_time = datetime.fromisoformat(inputs["start_time"].replace("Z", "+00:00"))
             end_time = datetime.fromisoformat(inputs["end_time"].replace("Z", "+00:00"))
             kwargs = {
                 "MetricDataQueries": inputs["metric_data_queries"],
@@ -49,9 +47,7 @@ class GetMetricDataAction(ActionHandler):
                 "EndTime": end_time,
             }
             response = await run_sync(client.get_metric_data, **kwargs)
-            return success_result(
-                {"metric_data_results": response.get("MetricDataResults", [])}
-            )
+            return success_result({"metric_data_results": response.get("MetricDataResults", [])})
         except Exception as e:
             return error_result(e)
 
@@ -99,13 +95,9 @@ class GetAlarmHistoryAction(ActionHandler):
             if inputs.get("history_item_type"):
                 kwargs["HistoryItemType"] = inputs["history_item_type"]
             if inputs.get("start_date"):
-                kwargs["StartDate"] = datetime.fromisoformat(
-                    inputs["start_date"].replace("Z", "+00:00")
-                )
+                kwargs["StartDate"] = datetime.fromisoformat(inputs["start_date"].replace("Z", "+00:00"))
             if inputs.get("end_date"):
-                kwargs["EndDate"] = datetime.fromisoformat(
-                    inputs["end_date"].replace("Z", "+00:00")
-                )
+                kwargs["EndDate"] = datetime.fromisoformat(inputs["end_date"].replace("Z", "+00:00"))
             if inputs.get("next_token"):
                 kwargs["NextToken"] = inputs["next_token"]
             response = await run_sync(client.describe_alarm_history, **kwargs)

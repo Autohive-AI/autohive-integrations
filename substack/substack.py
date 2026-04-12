@@ -71,9 +71,7 @@ def _format_post(post: Dict[str, Any]) -> Dict[str, Any]:
 
 @substack.action("get_publication_posts")
 class GetPublicationPostsAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         base_url = _normalise_url(inputs["publication_url"])
         headers = _build_headers()
         params: Dict[str, Any] = {
@@ -96,9 +94,7 @@ class GetPublicationPostsAction(ActionHandler):
 
 @substack.action("get_post")
 class GetPostAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         base_url = _normalise_url(inputs["publication_url"])
         slug = inputs["slug"]
         headers = _build_headers()
@@ -132,9 +128,7 @@ class GetPostAction(ActionHandler):
 
 @substack.action("search_publications")
 class SearchPublicationsAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         headers = _build_headers()
         params = {
             "query": inputs["query"],
@@ -150,9 +144,7 @@ class SearchPublicationsAction(ActionHandler):
             params=params,
             headers=headers,
         )
-        pubs_raw = (
-            response.get("publications", []) if isinstance(response, dict) else response
-        )
+        pubs_raw = response.get("publications", []) if isinstance(response, dict) else response
         pubs = [
             _drop_none(
                 {
@@ -173,9 +165,7 @@ class SearchPublicationsAction(ActionHandler):
 
 @substack.action("search_posts")
 class SearchPostsAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         base_url = _normalise_url(inputs["publication_url"])
         headers = _build_headers()
         # /api/v1/posts/search does not exist — Substack treats "search" as a slug
@@ -200,9 +190,7 @@ class SearchPostsAction(ActionHandler):
 
 @substack.action("get_post_comments")
 class GetPostCommentsAction(ActionHandler):
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         base_url = _normalise_url(inputs["publication_url"])
         post_id = inputs["post_id"]
         headers = _build_headers()
@@ -220,6 +208,4 @@ class GetPostCommentsAction(ActionHandler):
             headers=headers,
         )
         comments = response.get("comments", []) if isinstance(response, dict) else []
-        return ActionResult(
-            data={"comments": comments, "count": len(comments)}, cost_usd=0.0
-        )
+        return ActionResult(data={"comments": comments, "count": len(comments)}, cost_usd=0.0)

@@ -319,6 +319,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [companies-register](companies-register): Integration with the New Zealand Companies Register API v2 (MBIE) for managing registered NZ companies. Supports retrieving full company details and ETag snapshots, listing and updating company contacts (addresses, phone, email) with concurrency control via If-Match headers, adding new contacts for pre-incorporated companies, searching the NZ Post address file for valid delivery point identifiers, and filing annual returns with direct debit or credit card payment. Implements the UUID vs NZBN lifecycle rule — UUID for pre-incorporated companies, NZBN for registered companies (status 50). Address updates require a future effectiveDate (minimum 5 working days for Registered Office and Address for Service). Annual return declaration must be the exact certified statement string. Features dual authentication via Azure API Management subscription key and RealMe OAuth 2.0. Comprises 6 actions covering company details, contacts, address search, and annual return filing. Ideal for NZ business compliance automation, company maintenance workflows, and annual return management.
 
+### Toggl Track
+
+[toggl](toggl): Time tracking integration with Toggl Track API for managing time entries and workspace data. Supports creating time entries with start/stop times, descriptions, project assignments, billable flags, and tags. Features API token authentication via HTTP Basic Auth. Ideal for automating time tracking workflows and logging billable hours.
+
 ## Template
 
 Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) in the SDK repo as the starting point for new integrations.
