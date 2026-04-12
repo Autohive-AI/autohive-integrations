@@ -20,9 +20,7 @@ import re
 FONT_SIZE_DEBUG = os.environ.get("FONT_SIZE_DEBUG", "false").lower() == "true"
 
 # Load integration from config.json in the same directory as this file
-_current_dir = os.path.dirname(os.path.abspath(__file__))
-_config_path = os.path.join(_current_dir, "config.json")
-slide_maker = Integration.load(_config_path)
+slide_maker = Integration.load()
 
 presentations = {}
 uploaded_images = {}
