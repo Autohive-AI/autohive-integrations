@@ -19,12 +19,11 @@ from autohive_integrations_sdk import (
 )
 from typing import Dict, Any, Tuple, List
 from urllib.parse import quote
-import os
+
 import base64
 import aiohttp
 
-config_path = os.path.join(os.path.dirname(__file__), "config.json")
-linkedin = Integration.load(config_path)
+linkedin = Integration.load()
 
 # LinkedIn API version - January 2026
 LINKEDIN_VERSION = "202601"
