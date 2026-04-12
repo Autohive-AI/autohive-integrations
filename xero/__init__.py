@@ -1,3 +1,3 @@
-from xero.xero import xero
+from .xero import xero
 
 __all__ = ["xero"]

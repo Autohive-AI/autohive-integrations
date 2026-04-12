@@ -1,3 +1,3 @@
-from x import x
+from .x import x
 
 __all__ = ["x"]
