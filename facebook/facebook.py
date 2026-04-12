@@ -17,4 +17,4 @@ from autohive_integrations_sdk import Integration
 facebook = Integration.load()
 
 # Import actions to register handlers
-from facebook import comments, insights, pages, posts  # noqa: F401
+from facebook import comments, insights, pages, posts  # noqa: F401, E402
