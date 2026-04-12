@@ -30,12 +30,11 @@ from typing import Dict, Any, List
 import secrets
 import hashlib
 import base64
-import os
+
 from urllib.parse import urlencode
 
 # Load integration using config.json in the same directory as this file
-_config_path = os.path.join(os.path.dirname(__file__), "config.json")
-shopify_customer = Integration.load(_config_path)
+shopify_customer = Integration.load()
 
 # Shopify API version
 API_VERSION = "2024-10"

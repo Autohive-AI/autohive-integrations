@@ -25,11 +25,10 @@ from autohive_integrations_sdk import (
     ActionResult,
 )
 from typing import Dict, Any, List
-import os
+
 
 # Create the integration using the config.json
-_config_path = os.path.join(os.path.dirname(__file__), "config.json")
-shopify_storefront = Integration.load(_config_path)
+shopify_storefront = Integration.load()
 
 # Shopify API version
 API_VERSION = "2024-10"
