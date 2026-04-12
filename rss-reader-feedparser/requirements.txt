@@ -1,2 +1,1 @@
-feedparser
-autohive-integrations-sdk>=0.1.2
+autohive-integrations-sdk~=1.0.2
