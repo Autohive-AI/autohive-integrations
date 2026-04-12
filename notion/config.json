@@ -25,12 +25,17 @@
                         "properties": {
                             "value": {
                                 "type": "string",
-                                "enum": ["page", "data_source"],
+                                "enum": [
+                                    "page",
+                                    "data_source"
+                                ],
                                 "description": "Type of object to search for"
                             },
                             "property": {
                                 "type": "string",
-                                "enum": ["object"],
+                                "enum": [
+                                    "object"
+                                ],
                                 "description": "Property to filter on"
                             }
                         }
@@ -41,12 +46,17 @@
                         "properties": {
                             "direction": {
                                 "type": "string",
-                                "enum": ["ascending", "descending"],
+                                "enum": [
+                                    "ascending",
+                                    "descending"
+                                ],
                                 "description": "Sort direction"
                             },
                             "timestamp": {
                                 "type": "string",
-                                "enum": ["last_edited_time"],
+                                "enum": [
+                                    "last_edited_time"
+                                ],
                                 "description": "Timestamp to sort by"
                             }
                         }
@@ -62,7 +72,9 @@
                         "description": "Pagination cursor for retrieving next page of results"
                     }
                 },
-                "required": ["query"]
+                "required": [
+                    "query"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -105,7 +117,10 @@
                         }
                     },
                     "next_cursor": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Cursor for pagination (null if no more results available)"
                     },
                     "has_more": {
@@ -125,7 +140,11 @@
                         "description": "Unique identifier for this API request"
                     }
                 },
-                "required": ["object", "results", "has_more"]
+                "required": [
+                    "object",
+                    "results",
+                    "has_more"
+                ]
             }
         },
         "get_notion_page": {
@@ -139,7 +158,9 @@
                         "description": "The unique identifier of the page to retrieve"
                     }
                 },
-                "required": ["page_id"]
+                "required": [
+                    "page_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -183,7 +204,10 @@
                         "properties": {
                             "type": {
                                 "type": "string",
-                                "enum": ["page_id", "data_source_id"],
+                                "enum": [
+                                    "page_id",
+                                    "data_source_id"
+                                ],
                                 "description": "Type of parent"
                             },
                             "page_id": {
@@ -195,7 +219,9 @@
                                 "description": "ID of parent data source (if type is data_source_id)"
                             }
                         },
-                        "required": ["type"]
+                        "required": [
+                            "type"
+                        ]
                     },
                     "properties": {
                         "type": "object",
@@ -228,7 +254,10 @@
                         }
                     }
                 },
-                "required": ["parent", "properties"]
+                "required": [
+                    "parent",
+                    "properties"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -263,7 +292,9 @@
                                 "description": "ID of the page to comment on"
                             }
                         },
-                        "required": ["page_id"]
+                        "required": [
+                            "page_id"
+                        ]
                     },
                     "rich_text": {
                         "type": "array",
@@ -284,7 +315,10 @@
                         }
                     }
                 },
-                "required": ["parent", "rich_text"]
+                "required": [
+                    "parent",
+                    "rich_text"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -330,7 +364,9 @@
                         "description": "Pagination cursor for retrieving next page of comments"
                     }
                 },
-                "required": ["block_id"]
+                "required": [
+                    "block_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -345,13 +381,27 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string"},
-                                "discussion_id": {"type": "string"},
-                                "created_time": {"type": "string"},
-                                "last_edited_time": {"type": "string"},
-                                "created_by": {"type": "object"},
-                                "rich_text": {"type": "array"},
-                                "parent": {"type": "object"}
+                                "id": {
+                                    "type": "string"
+                                },
+                                "discussion_id": {
+                                    "type": "string"
+                                },
+                                "created_time": {
+                                    "type": "string"
+                                },
+                                "last_edited_time": {
+                                    "type": "string"
+                                },
+                                "created_by": {
+                                    "type": "object"
+                                },
+                                "rich_text": {
+                                    "type": "array"
+                                },
+                                "parent": {
+                                    "type": "object"
+                                }
                             }
                         }
                     },
@@ -377,7 +427,10 @@
                         }
                     },
                     "next_cursor": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Cursor for next page (null if no more results)"
                     },
                     "has_more": {
@@ -408,7 +461,9 @@
                         "description": "Pagination cursor for retrieving next page of data sources"
                     }
                 },
-                "required": ["database_id"]
+                "required": [
+                    "database_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -439,7 +494,10 @@
                         }
                     },
                     "next_cursor": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Cursor for next page (null if no more results)"
                     },
                     "has_more": {
@@ -460,7 +518,9 @@
                         "description": "The unique identifier of the data source to retrieve"
                     }
                 },
-                "required": ["data_source_id"]
+                "required": [
+                    "data_source_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -515,11 +575,17 @@
                                 },
                                 "direction": {
                                     "type": "string",
-                                    "enum": ["ascending", "descending"],
+                                    "enum": [
+                                        "ascending",
+                                        "descending"
+                                    ],
                                     "description": "Sort direction"
                                 }
                             },
-                            "required": ["property", "direction"]
+                            "required": [
+                                "property",
+                                "direction"
+                            ]
                         }
                     },
                     "page_size": {
@@ -533,7 +599,9 @@
                         "description": "Pagination cursor for retrieving next page of results"
                     }
                 },
-                "required": ["data_source_id"]
+                "required": [
+                    "data_source_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -551,7 +619,10 @@
                         }
                     },
                     "next_cursor": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Cursor for next page of results"
                     },
                     "has_more": {
@@ -582,7 +653,9 @@
                         "description": "Pagination cursor for retrieving next page of children"
                     }
                 },
-                "required": ["block_id"]
+                "required": [
+                    "block_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -600,7 +673,10 @@
                         }
                     },
                     "next_cursor": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Cursor for next page of children"
                     },
                     "has_more": {
@@ -628,7 +704,19 @@
                             "properties": {
                                 "type": {
                                     "type": "string",
-                                    "enum": ["paragraph", "heading_1", "heading_2", "heading_3", "bulleted_list_item", "numbered_list_item", "to_do", "toggle", "code", "quote", "divider"],
+                                    "enum": [
+                                        "paragraph",
+                                        "heading_1",
+                                        "heading_2",
+                                        "heading_3",
+                                        "bulleted_list_item",
+                                        "numbered_list_item",
+                                        "to_do",
+                                        "toggle",
+                                        "code",
+                                        "quote",
+                                        "divider"
+                                    ],
                                     "description": "Type of block to create"
                                 },
                                 "paragraph": {
@@ -642,7 +730,9 @@
                                                 "properties": {
                                                     "type": {
                                                         "type": "string",
-                                                        "enum": ["text"]
+                                                        "enum": [
+                                                            "text"
+                                                        ]
                                                     },
                                                     "text": {
                                                         "type": "object",
@@ -668,7 +758,9 @@
                                                 "properties": {
                                                     "type": {
                                                         "type": "string",
-                                                        "enum": ["text"]
+                                                        "enum": [
+                                                            "text"
+                                                        ]
                                                     },
                                                     "text": {
                                                         "type": "object",
@@ -691,7 +783,10 @@
                         "description": "Block ID to insert new blocks after (optional)"
                     }
                 },
-                "required": ["block_id", "children"]
+                "required": [
+                    "block_id",
+                    "children"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -732,7 +827,10 @@
                         "description": "Pagination cursor for retrieving next page of property items"
                     }
                 },
-                "required": ["page_id", "property_id"]
+                "required": [
+                    "page_id",
+                    "property_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -754,7 +852,10 @@
                         "description": "Property value items (for paginated properties)"
                     },
                     "next_cursor": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Cursor for next page of property items"
                     },
                     "has_more": {
@@ -785,7 +886,9 @@
                                     "properties": {
                                         "type": {
                                             "type": "string",
-                                            "enum": ["text"]
+                                            "enum": [
+                                                "text"
+                                            ]
                                         },
                                         "text": {
                                             "type": "object",
@@ -811,7 +914,9 @@
                                     "properties": {
                                         "type": {
                                             "type": "string",
-                                            "enum": ["text"]
+                                            "enum": [
+                                                "text"
+                                            ]
                                         },
                                         "text": {
                                             "type": "object",
@@ -841,7 +946,9 @@
                                     "properties": {
                                         "type": {
                                             "type": "string",
-                                            "enum": ["text"]
+                                            "enum": [
+                                                "text"
+                                            ]
                                         },
                                         "text": {
                                             "type": "object",
@@ -871,7 +978,9 @@
                                     "properties": {
                                         "type": {
                                             "type": "string",
-                                            "enum": ["text"]
+                                            "enum": [
+                                                "text"
+                                            ]
                                         },
                                         "text": {
                                             "type": "object",
@@ -901,7 +1010,9 @@
                                     "properties": {
                                         "type": {
                                             "type": "string",
-                                            "enum": ["text"]
+                                            "enum": [
+                                                "text"
+                                            ]
                                         },
                                         "text": {
                                             "type": "object",
@@ -927,7 +1038,9 @@
                                     "properties": {
                                         "type": {
                                             "type": "string",
-                                            "enum": ["text"]
+                                            "enum": [
+                                                "text"
+                                            ]
                                         },
                                         "text": {
                                             "type": "object",
@@ -953,7 +1066,9 @@
                                     "properties": {
                                         "type": {
                                             "type": "string",
-                                            "enum": ["text"]
+                                            "enum": [
+                                                "text"
+                                            ]
                                         },
                                         "text": {
                                             "type": "object",
@@ -983,7 +1098,9 @@
                                     "properties": {
                                         "type": {
                                             "type": "string",
-                                            "enum": ["text"]
+                                            "enum": [
+                                                "text"
+                                            ]
                                         },
                                         "text": {
                                             "type": "object",
@@ -1013,7 +1130,9 @@
                                     "properties": {
                                         "type": {
                                             "type": "string",
-                                            "enum": ["text"]
+                                            "enum": [
+                                                "text"
+                                            ]
                                         },
                                         "text": {
                                             "type": "object",
@@ -1029,7 +1148,9 @@
                         }
                     }
                 },
-                "required": ["block_id"]
+                "required": [
+                    "block_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1064,7 +1185,9 @@
                         "description": "The unique identifier of the block to delete"
                     }
                 },
-                "required": ["block_id"]
+                "required": [
+                    "block_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1109,7 +1232,10 @@
                         "properties": {
                             "type": {
                                 "type": "string",
-                                "enum": ["emoji", "external"]
+                                "enum": [
+                                    "emoji",
+                                    "external"
+                                ]
                             },
                             "emoji": {
                                 "type": "string",
@@ -1134,7 +1260,9 @@
                         "properties": {
                             "type": {
                                 "type": "string",
-                                "enum": ["external"]
+                                "enum": [
+                                    "external"
+                                ]
                             },
                             "external": {
                                 "type": "object",
@@ -1153,7 +1281,9 @@
                         "description": "Whether to archive/restore the page"
                     }
                 },
-                "required": ["page_id"]
+                "required": [
+                    "page_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1181,5 +1311,6 @@
                 }
             }
         }
-    }
+    },
+    "display_name": "Notion"
 }
