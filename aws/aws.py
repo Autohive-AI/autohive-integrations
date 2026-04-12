@@ -1,8 +1,7 @@
 from autohive_integrations_sdk import Integration
-import os
 
-config_path = os.path.join(os.path.dirname(__file__), "config.json")
-aws = Integration.load(config_path)
+
+aws = Integration.load()
 
 # Import actions to register handlers
 import actions  # noqa: F401, E402
