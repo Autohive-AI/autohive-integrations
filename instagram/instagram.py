@@ -14,12 +14,11 @@ All actions use the Instagram Graph API v24.0.
 """
 
 from autohive_integrations_sdk import Integration, ExecutionContext, ConnectedAccountHandler, ConnectedAccountInfo
-import os
+
 
 from helpers import INSTAGRAM_GRAPH_API_BASE
 
-config_path = os.path.join(os.path.dirname(__file__), "config.json")
-instagram = Integration.load(config_path)
+instagram = Integration.load()
 
 # Import actions to register handlers
 import actions  # noqa: F401, E402 - registers action handlers
