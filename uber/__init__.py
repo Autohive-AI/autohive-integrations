@@ -1,1 +1,3 @@
-"""Uber Ride Requests Integration for Autohive."""
+from uber.uber import uber
+
+__all__ = ["uber"]
