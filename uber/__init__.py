@@ -1,3 +1,3 @@
-from uber.uber import uber
+from .uber import uber
 
 __all__ = ["uber"]
