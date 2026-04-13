@@ -8,7 +8,7 @@
         "provider": "gong",
         "scopes": [
             "api:calls:read:basic",
-            "api:calls:read:extensive", 
+            "api:calls:read:extensive",
             "api:calls:read:transcript",
             "api:users:read"
         ]
@@ -99,7 +99,10 @@
                         "description": "Whether there are more calls to retrieve"
                     },
                     "next_cursor": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Cursor for retrieving the next page of results"
                     }
                 }
@@ -116,7 +119,9 @@
                         "description": "The ID of the call to get transcript for."
                     }
                 },
-                "required": ["call_id"]
+                "required": [
+                    "call_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -167,7 +172,9 @@
                         "description": "The ID of the call to get details for."
                     }
                 },
-                "required": ["call_id"]
+                "required": [
+                    "call_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -240,7 +247,9 @@
                         "default": 50
                     }
                 },
-                "required": ["query"]
+                "required": [
+                    "query"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -343,11 +352,15 @@
                         "description": "Whether there are more users to retrieve"
                     },
                     "next_cursor": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Cursor for retrieving the next page of results"
                     }
                 }
             }
         }
-    }
+    },
+    "display_name": "Gong"
 }
