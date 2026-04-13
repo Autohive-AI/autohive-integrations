@@ -1,5 +1,8 @@
 from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler, ActionResult
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
 )
 from typing import Dict, Any
 import io
@@ -11,7 +14,7 @@ GRAPH_API_BASE_URL = "https://graph.microsoft.com/v1.0"
 THUMBNAIL_SIZES = {
     "small": {"width": 176, "height": 144},
     "medium": {"width": 800, "height": 600},
-    "large": {"width": 1600, "height": 1200}
+    "large": {"width": 1600, "height": 1200},
 }
 
 MAX_SIMPLE_UPLOAD_SIZE = 4 * 1024 * 1024
@@ -26,7 +29,7 @@ async def download_file_content(context: ExecutionContext, item_id: str) -> byte
     response = await context.fetch(
         f"{GRAPH_API_BASE_URL}/me/drive/items/{item_id}/content",
         method="GET",
-        raw_response=True
+        raw_response=True,
     )
     return response
 
@@ -34,36 +37,40 @@ async def download_file_content(context: ExecutionContext, item_id: str) -> byte
 async def overwrite_file_content(context: ExecutionContext, item_id: str, content: bytes) -> Dict[str, Any]:
     """Overwrite file content by item ID (simpler and more reliable than path-based upload)."""
     if len(content) > MAX_SIMPLE_UPLOAD_SIZE:
-        raise ValueError(f"File size ({len(content)} bytes) exceeds simple upload limit ({MAX_SIMPLE_UPLOAD_SIZE} bytes). Large file upload not yet supported.")
-    
+        raise ValueError(
+            f"File size ({len(content)} bytes) exceeds simple upload limit "
+            f"({MAX_SIMPLE_UPLOAD_SIZE} bytes). Large file upload not yet supported."
+        )
+
     response = await context.fetch(
         f"{GRAPH_API_BASE_URL}/me/drive/items/{item_id}/content",
         method="PUT",
-        headers={
-            "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        },
-        data=content
+        headers={"Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+        data=content,
     )
     return response
 
 
-async def upload_file_content(context: ExecutionContext, folder_path: str, file_name: str, content: bytes) -> Dict[str, Any]:
+async def upload_file_content(
+    context: ExecutionContext, folder_path: str, file_name: str, content: bytes
+) -> Dict[str, Any]:
     """Upload new file content to a folder path."""
     if len(content) > MAX_SIMPLE_UPLOAD_SIZE:
-        raise ValueError(f"File size ({len(content)} bytes) exceeds simple upload limit ({MAX_SIMPLE_UPLOAD_SIZE} bytes). Large file upload not yet supported.")
-    
+        raise ValueError(
+            f"File size ({len(content)} bytes) exceeds simple upload limit "
+            f"({MAX_SIMPLE_UPLOAD_SIZE} bytes). Large file upload not yet supported."
+        )
+
     if folder_path and folder_path != "/":
         upload_url = f"{GRAPH_API_BASE_URL}/me/drive/root:/{folder_path.strip('/')}/{file_name}:/content"
     else:
         upload_url = f"{GRAPH_API_BASE_URL}/me/drive/root:/{file_name}:/content"
-    
+
     response = await context.fetch(
         upload_url,
         method="PUT",
-        headers={
-            "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        },
-        data=content
+        headers={"Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+        data=content,
     )
     return response
 
@@ -71,13 +78,16 @@ async def upload_file_content(context: ExecutionContext, folder_path: str, file_
 def create_blank_pptx() -> bytes:
     try:
         from pptx import Presentation
+
         prs = Presentation()
         buffer = io.BytesIO()
         prs.save(buffer)
         buffer.seek(0)
         return buffer.read()
     except ImportError:
-        raise ImportError("python-pptx library is required for creating presentations. Install with: pip install python-pptx")
+        raise ImportError(
+            "python-pptx library is required for creating presentations. Install with: pip install python-pptx"
+        )
 
 
 @microsoft_powerpoint.action("powerpoint_list_presentations")
@@ -86,10 +96,10 @@ class ListPresentationsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            folder_path = inputs.get('folder_path', '')
-            name_contains = inputs.get('name_contains', '')
-            page_size = min(inputs.get('page_size', 25), 100)
-            page_token = inputs.get('page_token')
+            folder_path = inputs.get("folder_path", "")
+            name_contains = inputs.get("name_contains", "")
+            page_size = min(inputs.get("page_size", 25), 100)
+            page_token = inputs.get("page_token")
 
             if folder_path and folder_path != "/":
                 base_url = f"{GRAPH_API_BASE_URL}/me/drive/root:/{folder_path.strip('/')}:/children"
@@ -103,7 +113,7 @@ class ListPresentationsAction(ActionHandler):
             params = {
                 "$filter": " and ".join(filter_parts),
                 "$top": page_size,
-                "$select": "id,name,webUrl,lastModifiedDateTime,size,createdDateTime"
+                "$select": "id,name,webUrl,lastModifiedDateTime,size,createdDateTime",
             }
 
             if page_token:
@@ -111,33 +121,33 @@ class ListPresentationsAction(ActionHandler):
             else:
                 response = await context.fetch(base_url, method="GET", params=params)
 
-            items = response.get('value', [])
+            items = response.get("value", [])
             presentations = [
                 {
-                    "id": item.get('id'),
-                    "name": item.get('name'),
-                    "webUrl": item.get('webUrl'),
-                    "lastModifiedDateTime": item.get('lastModifiedDateTime'),
-                    "size": item.get('size')
+                    "id": item.get("id"),
+                    "name": item.get("name"),
+                    "webUrl": item.get("webUrl"),
+                    "lastModifiedDateTime": item.get("lastModifiedDateTime"),
+                    "size": item.get("size"),
                 }
                 for item in items
             ]
 
-            next_page_token = response.get('@odata.nextLink')
+            next_page_token = response.get("@odata.nextLink")
 
             return ActionResult(
                 data={
                     "presentations": presentations,
                     "next_page_token": next_page_token,
-                    "result": True
+                    "result": True,
                 },
-                cost_usd=0.0
+                cost_usd=0.0,
             )
 
         except Exception as e:
             return ActionResult(
                 data={"presentations": [], "result": False, "error": str(e)},
-                cost_usd=0.0
+                cost_usd=0.0,
             )
 
 
@@ -147,37 +157,37 @@ class GetPresentationAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            presentation_id = inputs['presentation_id']
+            presentation_id = inputs["presentation_id"]
 
             response = await context.fetch(
                 f"{GRAPH_API_BASE_URL}/me/drive/items/{presentation_id}",
                 method="GET",
                 params={
-                    "$select": "id,name,size,webUrl,createdDateTime,lastModifiedDateTime,createdBy,lastModifiedBy,parentReference"
-                }
+                    "$select": (
+                        "id,name,size,webUrl,createdDateTime,lastModifiedDateTime,"
+                        "createdBy,lastModifiedBy,parentReference"
+                    )
+                },
             )
 
             return ActionResult(
                 data={
-                    "id": response.get('id'),
-                    "name": response.get('name'),
-                    "size": response.get('size'),
-                    "webUrl": response.get('webUrl'),
-                    "createdDateTime": response.get('createdDateTime'),
-                    "lastModifiedDateTime": response.get('lastModifiedDateTime'),
-                    "createdBy": response.get('createdBy'),
-                    "lastModifiedBy": response.get('lastModifiedBy'),
-                    "parentReference": response.get('parentReference'),
-                    "result": True
+                    "id": response.get("id"),
+                    "name": response.get("name"),
+                    "size": response.get("size"),
+                    "webUrl": response.get("webUrl"),
+                    "createdDateTime": response.get("createdDateTime"),
+                    "lastModifiedDateTime": response.get("lastModifiedDateTime"),
+                    "createdBy": response.get("createdBy"),
+                    "lastModifiedBy": response.get("lastModifiedBy"),
+                    "parentReference": response.get("parentReference"),
+                    "result": True,
                 },
-                cost_usd=0.0
+                cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_powerpoint.action("powerpoint_get_slides")
@@ -188,9 +198,9 @@ class GetSlidesAction(ActionHandler):
         try:
             from pptx import Presentation
 
-            presentation_id = inputs['presentation_id']
-            include_thumbnails = inputs.get('include_thumbnails', True)
-            thumbnail_size = inputs.get('thumbnail_size', 'medium')
+            presentation_id = inputs["presentation_id"]
+            include_thumbnails = inputs.get("include_thumbnails", True)
+            thumbnail_size = inputs.get("thumbnail_size", "medium")
 
             content_bytes = await download_file_content(context, presentation_id)
             prs = Presentation(io.BytesIO(content_bytes))
@@ -202,51 +212,49 @@ class GetSlidesAction(ActionHandler):
                 try:
                     thumbnails_response = await context.fetch(
                         f"{GRAPH_API_BASE_URL}/me/drive/items/{presentation_id}/thumbnails",
-                        method="GET"
+                        method="GET",
                     )
-                    thumbnail_sets = thumbnails_response.get('value', [])
+                    thumbnail_sets = thumbnails_response.get("value", [])
                     if thumbnail_sets:
-                        size_data = thumbnail_sets[0].get(thumbnail_size, thumbnail_sets[0].get('medium', {}))
+                        size_data = thumbnail_sets[0].get(thumbnail_size, thumbnail_sets[0].get("medium", {}))
                         thumbnail_data = {
-                            "url": size_data.get('url'),
-                            "width": size_data.get('width'),
-                            "height": size_data.get('height')
+                            "url": size_data.get("url"),
+                            "width": size_data.get("width"),
+                            "height": size_data.get("height"),
                         }
-                except Exception:
+                except Exception:  # nosec B110
                     pass  # Thumbnail fetch is non-critical - continue without thumbnails
 
             for i, slide in enumerate(prs.slides):
-                slide_info = {
-                    "index": i + 1,
-                    "id": str(slide.slide_id)
-                }
+                slide_info = {"index": i + 1, "id": str(slide.slide_id)}
 
-                if include_thumbnails and thumbnail_data.get('url'):
-                    slide_info["thumbnailUrl"] = thumbnail_data.get('url')
-                    slide_info["thumbnailWidth"] = thumbnail_data.get('width')
-                    slide_info["thumbnailHeight"] = thumbnail_data.get('height')
+                if include_thumbnails and thumbnail_data.get("url"):
+                    slide_info["thumbnailUrl"] = thumbnail_data.get("url")
+                    slide_info["thumbnailWidth"] = thumbnail_data.get("width")
+                    slide_info["thumbnailHeight"] = thumbnail_data.get("height")
                     slide_info["thumbnailNote"] = "Thumbnail is for entire presentation, not individual slide"
 
                 slides.append(slide_info)
 
             return ActionResult(
-                data={
-                    "slides": slides,
-                    "slide_count": len(slides),
-                    "result": True
-                },
-                cost_usd=0.0
+                data={"slides": slides, "slide_count": len(slides), "result": True},
+                cost_usd=0.0,
             )
 
         except ImportError:
             return ActionResult(
-                data={"slides": [], "slide_count": 0, "result": False, "error": "python-pptx library is required. Install with: pip install python-pptx"},
-                cost_usd=0.0
+                data={
+                    "slides": [],
+                    "slide_count": 0,
+                    "result": False,
+                    "error": "python-pptx library is required. Install with: pip install python-pptx",
+                },
+                cost_usd=0.0,
             )
         except Exception as e:
             return ActionResult(
                 data={"slides": [], "slide_count": 0, "result": False, "error": str(e)},
-                cost_usd=0.0
+                cost_usd=0.0,
             )
 
 
@@ -258,65 +266,67 @@ class GetSlideAction(ActionHandler):
         try:
             from pptx import Presentation
 
-            presentation_id = inputs['presentation_id']
-            slide_index = inputs['slide_index']
-            include_thumbnail = inputs.get('include_thumbnail', True)
-            thumbnail_size = inputs.get('thumbnail_size', 'large')
+            presentation_id = inputs["presentation_id"]
+            slide_index = inputs["slide_index"]
+            include_thumbnail = inputs.get("include_thumbnail", True)
+            thumbnail_size = inputs.get("thumbnail_size", "large")
 
             if slide_index < 1:
                 return ActionResult(
                     data={"result": False, "error": "Slide index must be 1 or greater"},
-                    cost_usd=0.0
+                    cost_usd=0.0,
                 )
 
             content_bytes = await download_file_content(context, presentation_id)
             prs = Presentation(io.BytesIO(content_bytes))
-            
+
             if slide_index > len(prs.slides):
                 return ActionResult(
-                    data={"result": False, "error": f"Slide index {slide_index} is out of range. Presentation has {len(prs.slides)} slides."},
-                    cost_usd=0.0
+                    data={
+                        "result": False,
+                        "error": (
+                            f"Slide index {slide_index} is out of range. Presentation has {len(prs.slides)} slides."
+                        ),
+                    },
+                    cost_usd=0.0,
                 )
 
             slide = prs.slides[slide_index - 1]
-            
+
             result_data = {
                 "index": slide_index,
                 "id": str(slide.slide_id),
-                "result": True
+                "result": True,
             }
 
             if include_thumbnail:
                 try:
                     thumbnails_response = await context.fetch(
                         f"{GRAPH_API_BASE_URL}/me/drive/items/{presentation_id}/thumbnails",
-                        method="GET"
+                        method="GET",
                     )
-                    thumbnail_sets = thumbnails_response.get('value', [])
+                    thumbnail_sets = thumbnails_response.get("value", [])
                     if thumbnail_sets:
-                        size_data = thumbnail_sets[0].get(thumbnail_size, thumbnail_sets[0].get('large', {}))
-                        result_data["thumbnailUrl"] = size_data.get('url')
-                        result_data["thumbnailWidth"] = size_data.get('width')
-                        result_data["thumbnailHeight"] = size_data.get('height')
+                        size_data = thumbnail_sets[0].get(thumbnail_size, thumbnail_sets[0].get("large", {}))
+                        result_data["thumbnailUrl"] = size_data.get("url")
+                        result_data["thumbnailWidth"] = size_data.get("width")
+                        result_data["thumbnailHeight"] = size_data.get("height")
                         result_data["thumbnailNote"] = "Thumbnail is for entire presentation, not individual slide"
-                except Exception:
+                except Exception:  # nosec B110
                     pass  # Thumbnail fetch is non-critical - continue without thumbnail
 
-            return ActionResult(
-                data=result_data,
-                cost_usd=0.0
-            )
+            return ActionResult(data=result_data, cost_usd=0.0)
 
         except ImportError:
             return ActionResult(
-                data={"result": False, "error": "python-pptx library is required. Install with: pip install python-pptx"},
-                cost_usd=0.0
+                data={
+                    "result": False,
+                    "error": "python-pptx library is required. Install with: pip install python-pptx",
+                },
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_powerpoint.action("powerpoint_create_presentation")
@@ -325,11 +335,11 @@ class CreatePresentationAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            name = inputs['name']
-            folder_path = inputs.get('folder_path', '')
-            template_id = inputs.get('template_id')
+            name = inputs["name"]
+            folder_path = inputs.get("folder_path", "")
+            template_id = inputs.get("template_id")
 
-            if not name.endswith('.pptx'):
+            if not name.endswith(".pptx"):
                 file_name = f"{name}.pptx"
             else:
                 file_name = name
@@ -342,36 +352,34 @@ class CreatePresentationAction(ActionHandler):
 
                 copy_body = {
                     "name": file_name,
-                    "parentReference": {
-                        "path": f"/drive/root:{dest_path}" if dest_path != "/" else "/drive/root:"
-                    }
+                    "parentReference": {"path": f"/drive/root:{dest_path}" if dest_path != "/" else "/drive/root:"},
                 }
 
                 response = await context.fetch(
                     f"{GRAPH_API_BASE_URL}/me/drive/items/{template_id}/copy",
                     method="POST",
-                    json=copy_body
+                    json=copy_body,
                 )
 
-                if response.get('id'):
+                if response.get("id"):
                     return ActionResult(
                         data={
-                            "id": response.get('id'),
-                            "name": response.get('name'),
-                            "webUrl": response.get('webUrl'),
-                            "createdDateTime": response.get('createdDateTime'),
-                            "result": True
+                            "id": response.get("id"),
+                            "name": response.get("name"),
+                            "webUrl": response.get("webUrl"),
+                            "createdDateTime": response.get("createdDateTime"),
+                            "result": True,
                         },
-                        cost_usd=0.0
+                        cost_usd=0.0,
                     )
                 else:
                     return ActionResult(
                         data={
                             "result": True,
                             "message": "Copy operation initiated. The file will be available shortly.",
-                            "name": file_name
+                            "name": file_name,
                         },
-                        cost_usd=0.0
+                        cost_usd=0.0,
                     )
             else:
                 pptx_content = create_blank_pptx()
@@ -379,20 +387,17 @@ class CreatePresentationAction(ActionHandler):
 
                 return ActionResult(
                     data={
-                        "id": response.get('id'),
-                        "name": response.get('name'),
-                        "webUrl": response.get('webUrl'),
-                        "createdDateTime": response.get('createdDateTime'),
-                        "result": True
+                        "id": response.get("id"),
+                        "name": response.get("name"),
+                        "webUrl": response.get("webUrl"),
+                        "createdDateTime": response.get("createdDateTime"),
+                        "result": True,
                     },
-                    cost_usd=0.0
+                    cost_usd=0.0,
                 )
 
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_powerpoint.action("powerpoint_add_slide")
@@ -402,39 +407,38 @@ class AddSlideAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             from pptx import Presentation
-            from pptx.util import Inches, Pt
+            from pptx.util import Inches, Pt  # noqa: F401
 
-            presentation_id = inputs['presentation_id']
-            position = inputs.get('position')
-            layout = inputs.get('layout', 'blank')
-            title = inputs.get('title')
-            content = inputs.get('content')
+            presentation_id = inputs["presentation_id"]
+            position = inputs.get("position")
+            layout = inputs.get("layout", "blank")
+            title = inputs.get("title")
+            content = inputs.get("content")
 
             content_bytes = await download_file_content(context, presentation_id)
-            
+
             prs = Presentation(io.BytesIO(content_bytes))
 
             layout_mapping = {
-                'blank': 6,
-                'title': 0,
-                'titleContent': 1,
-                'twoContent': 3,
-                'comparison': 4,
-                'titleOnly': 5,
-                'contentCaption': 7,
-                'pictureCaption': 8
+                "blank": 6,
+                "title": 0,
+                "titleContent": 1,
+                "twoContent": 3,
+                "comparison": 4,
+                "titleOnly": 5,
+                "contentCaption": 7,
+                "pictureCaption": 8,
             }
-            
+
             layout_index = layout_mapping.get(layout, 6)
             if layout_index >= len(prs.slide_layouts):
                 layout_index = 6 if 6 < len(prs.slide_layouts) else 0
 
             slide_layout = prs.slide_layouts[layout_index]
-            
+
             if position and position <= len(prs.slides):
                 new_slide = prs.slides.add_slide(slide_layout)
-                slide_id = new_slide.slide_id
-                
+
                 xml_slides = prs.slides._sldIdLst
                 slides_list = list(xml_slides)
                 last_slide = slides_list[-1]
@@ -447,6 +451,7 @@ class AddSlideAction(ActionHandler):
 
             if title:
                 from pptx.enum.shapes import PP_PLACEHOLDER
+
                 title_types = {PP_PLACEHOLDER.TITLE, PP_PLACEHOLDER.CENTER_TITLE}
                 for shape in new_slide.shapes:
                     if shape.has_text_frame and shape.is_placeholder:
@@ -456,6 +461,7 @@ class AddSlideAction(ActionHandler):
 
             if content:
                 from pptx.enum.shapes import PP_PLACEHOLDER
+
                 body_types = {PP_PLACEHOLDER.BODY, PP_PLACEHOLDER.OBJECT}
                 for shape in new_slide.shapes:
                     if shape.has_text_frame and shape.is_placeholder:
@@ -473,21 +479,21 @@ class AddSlideAction(ActionHandler):
                 data={
                     "slide_index": slide_index,
                     "slide_count": len(prs.slides),
-                    "result": True
+                    "result": True,
                 },
-                cost_usd=0.0
+                cost_usd=0.0,
             )
 
         except ImportError:
             return ActionResult(
-                data={"result": False, "error": "python-pptx library is required. Install with: pip install python-pptx"},
-                cost_usd=0.0
+                data={
+                    "result": False,
+                    "error": "python-pptx library is required. Install with: pip install python-pptx",
+                },
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_powerpoint.action("powerpoint_update_slide")
@@ -498,16 +504,16 @@ class UpdateSlideAction(ActionHandler):
         try:
             from pptx import Presentation
 
-            presentation_id = inputs['presentation_id']
-            slide_index = inputs['slide_index']
-            title = inputs.get('title')
-            content = inputs.get('content')
-            notes = inputs.get('notes')
+            presentation_id = inputs["presentation_id"]
+            slide_index = inputs["slide_index"]
+            title = inputs.get("title")
+            content = inputs.get("content")
+            notes = inputs.get("notes")
 
             if slide_index < 1:
                 return ActionResult(
                     data={"result": False, "error": "Slide index must be 1 or greater"},
-                    cost_usd=0.0
+                    cost_usd=0.0,
                 )
 
             content_bytes = await download_file_content(context, presentation_id)
@@ -515,8 +521,13 @@ class UpdateSlideAction(ActionHandler):
 
             if slide_index > len(prs.slides):
                 return ActionResult(
-                    data={"result": False, "error": f"Slide index {slide_index} is out of range. Presentation has {len(prs.slides)} slides."},
-                    cost_usd=0.0
+                    data={
+                        "result": False,
+                        "error": (
+                            f"Slide index {slide_index} is out of range. Presentation has {len(prs.slides)} slides."
+                        ),
+                    },
+                    cost_usd=0.0,
                 )
 
             slide = prs.slides[slide_index - 1]
@@ -524,20 +535,22 @@ class UpdateSlideAction(ActionHandler):
 
             if title is not None:
                 from pptx.enum.shapes import PP_PLACEHOLDER
+
                 title_types = {PP_PLACEHOLDER.TITLE, PP_PLACEHOLDER.CENTER_TITLE}
                 for shape in slide.shapes:
                     if shape.has_text_frame and shape.is_placeholder:
-                        if hasattr(shape, 'placeholder_format') and shape.placeholder_format.type in title_types:
+                        if hasattr(shape, "placeholder_format") and shape.placeholder_format.type in title_types:
                             shape.text = title
                             updated = True
                             break
 
             if content is not None:
                 from pptx.enum.shapes import PP_PLACEHOLDER
+
                 body_types = {PP_PLACEHOLDER.BODY, PP_PLACEHOLDER.OBJECT}
                 for shape in slide.shapes:
                     if shape.has_text_frame and shape.is_placeholder:
-                        if hasattr(shape, 'placeholder_format') and shape.placeholder_format.type in body_types:
+                        if hasattr(shape, "placeholder_format") and shape.placeholder_format.type in body_types:
                             shape.text = content
                             updated = True
                             break
@@ -555,24 +568,20 @@ class UpdateSlideAction(ActionHandler):
                 await overwrite_file_content(context, presentation_id, buffer.read())
 
             return ActionResult(
-                data={
-                    "updated": updated,
-                    "slide_index": slide_index,
-                    "result": True
-                },
-                cost_usd=0.0
+                data={"updated": updated, "slide_index": slide_index, "result": True},
+                cost_usd=0.0,
             )
 
         except ImportError:
             return ActionResult(
-                data={"result": False, "error": "python-pptx library is required. Install with: pip install python-pptx"},
-                cost_usd=0.0
+                data={
+                    "result": False,
+                    "error": "python-pptx library is required. Install with: pip install python-pptx",
+                },
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_powerpoint.action("powerpoint_delete_slide")
@@ -583,13 +592,13 @@ class DeleteSlideAction(ActionHandler):
         try:
             from pptx import Presentation
 
-            presentation_id = inputs['presentation_id']
-            slide_index = inputs['slide_index']
+            presentation_id = inputs["presentation_id"]
+            slide_index = inputs["slide_index"]
 
             if slide_index < 1:
                 return ActionResult(
                     data={"result": False, "error": "Slide index must be 1 or greater"},
-                    cost_usd=0.0
+                    cost_usd=0.0,
                 )
 
             content_bytes = await download_file_content(context, presentation_id)
@@ -597,14 +606,22 @@ class DeleteSlideAction(ActionHandler):
 
             if slide_index > len(prs.slides):
                 return ActionResult(
-                    data={"result": False, "error": f"Slide index {slide_index} is out of range. Presentation has {len(prs.slides)} slides."},
-                    cost_usd=0.0
+                    data={
+                        "result": False,
+                        "error": (
+                            f"Slide index {slide_index} is out of range. Presentation has {len(prs.slides)} slides."
+                        ),
+                    },
+                    cost_usd=0.0,
                 )
 
             if len(prs.slides) == 1:
                 return ActionResult(
-                    data={"result": False, "error": "Cannot delete the last slide. Presentation must have at least one slide."},
-                    cost_usd=0.0
+                    data={
+                        "result": False,
+                        "error": "Cannot delete the last slide. Presentation must have at least one slide.",
+                    },
+                    cost_usd=0.0,
                 )
 
             sldIdLst = prs.slides._sldIdLst
@@ -622,24 +639,20 @@ class DeleteSlideAction(ActionHandler):
             await overwrite_file_content(context, presentation_id, buffer.read())
 
             return ActionResult(
-                data={
-                    "deleted": True,
-                    "slide_count": remaining_count,
-                    "result": True
-                },
-                cost_usd=0.0
+                data={"deleted": True, "slide_count": remaining_count, "result": True},
+                cost_usd=0.0,
             )
 
         except ImportError:
             return ActionResult(
-                data={"result": False, "error": "python-pptx library is required. Install with: pip install python-pptx"},
-                cost_usd=0.0
+                data={
+                    "result": False,
+                    "error": "python-pptx library is required. Install with: pip install python-pptx",
+                },
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_powerpoint.action("powerpoint_export_pdf")
@@ -648,30 +661,30 @@ class ExportPdfAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            presentation_id = inputs['presentation_id']
-            output_folder = inputs.get('output_folder')
-            output_name = inputs.get('output_name')
+            presentation_id = inputs["presentation_id"]
+            output_folder = inputs.get("output_folder")
+            output_name = inputs.get("output_name")
 
             file_info = await context.fetch(
                 f"{GRAPH_API_BASE_URL}/me/drive/items/{presentation_id}",
                 method="GET",
-                params={"$select": "name,parentReference"}
+                params={"$select": "name,parentReference"},
             )
 
-            original_name = file_info.get('name', 'presentation.pptx')
-            parent_path = file_info.get('parentReference', {}).get('path', '/drive/root:').replace('/drive/root:', '')
+            original_name = file_info.get("name", "presentation.pptx")
+            parent_path = file_info.get("parentReference", {}).get("path", "/drive/root:").replace("/drive/root:", "")
 
             if output_name:
-                pdf_name = output_name if output_name.endswith('.pdf') else f"{output_name}.pdf"
+                pdf_name = output_name if output_name.endswith(".pdf") else f"{output_name}.pdf"
             else:
-                pdf_name = original_name.replace('.pptx', '.pdf')
+                pdf_name = original_name.replace(".pptx", ".pdf")
 
             dest_folder = output_folder if output_folder else parent_path
 
             pdf_content = await context.fetch(
                 f"{GRAPH_API_BASE_URL}/me/drive/items/{presentation_id}/content?format=pdf",
                 method="GET",
-                raw_response=True
+                raw_response=True,
             )
 
             if dest_folder and dest_folder != "/":
@@ -683,97 +696,103 @@ class ExportPdfAction(ActionHandler):
                 upload_url,
                 method="PUT",
                 headers={"Content-Type": "application/pdf"},
-                data=pdf_content
+                data=pdf_content,
             )
 
             download_response = await context.fetch(
                 f"{GRAPH_API_BASE_URL}/me/drive/items/{response.get('id')}",
-                method="GET"
+                method="GET",
             )
 
             return ActionResult(
                 data={
-                    "pdf_id": response.get('id'),
-                    "pdf_name": response.get('name'),
-                    "pdf_webUrl": response.get('webUrl'),
-                    "pdf_size": response.get('size'),
-                    "download_url": download_response.get('@microsoft.graph.downloadUrl'),
-                    "result": True
+                    "pdf_id": response.get("id"),
+                    "pdf_name": response.get("name"),
+                    "pdf_webUrl": response.get("webUrl"),
+                    "pdf_size": response.get("size"),
+                    "download_url": download_response.get("@microsoft.graph.downloadUrl"),
+                    "result": True,
                 },
-                cost_usd=0.0
+                cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_powerpoint.action("powerpoint_get_slide_image")
 class GetSlideImageAction(ActionHandler):
-    """Get a presentation thumbnail image. Note: Microsoft Graph returns a single thumbnail for the entire presentation, not per-slide images."""
+    """Get a presentation thumbnail image. Note: Microsoft Graph returns a single thumbnail for the entire
+    presentation, not per-slide images."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             from pptx import Presentation
 
-            presentation_id = inputs['presentation_id']
-            slide_index = inputs['slide_index']
-            size = inputs.get('size', 'large')
-            image_format = inputs.get('format', 'png')
+            presentation_id = inputs["presentation_id"]
+            slide_index = inputs["slide_index"]
+            size = inputs.get("size", "large")
+            image_format = inputs.get("format", "png")
 
             if slide_index < 1:
                 return ActionResult(
                     data={"result": False, "error": "Slide index must be 1 or greater"},
-                    cost_usd=0.0
+                    cost_usd=0.0,
                 )
 
             content_bytes = await download_file_content(context, presentation_id)
             prs = Presentation(io.BytesIO(content_bytes))
-            
+
             if slide_index > len(prs.slides):
                 return ActionResult(
-                    data={"result": False, "error": f"Slide index {slide_index} is out of range. Presentation has {len(prs.slides)} slides."},
-                    cost_usd=0.0
+                    data={
+                        "result": False,
+                        "error": (
+                            f"Slide index {slide_index} is out of range. Presentation has {len(prs.slides)} slides."
+                        ),
+                    },
+                    cost_usd=0.0,
                 )
 
-            size_info = THUMBNAIL_SIZES.get(size, THUMBNAIL_SIZES['large'])
+            size_info = THUMBNAIL_SIZES.get(size, THUMBNAIL_SIZES["large"])
 
             thumbnails_response = await context.fetch(
                 f"{GRAPH_API_BASE_URL}/me/drive/items/{presentation_id}/thumbnails",
-                method="GET"
+                method="GET",
             )
 
-            thumbnail_sets = thumbnails_response.get('value', [])
-            
+            thumbnail_sets = thumbnails_response.get("value", [])
+
             if not thumbnail_sets:
                 return ActionResult(
-                    data={"result": False, "error": "No thumbnail available for this presentation"},
-                    cost_usd=0.0
+                    data={
+                        "result": False,
+                        "error": "No thumbnail available for this presentation",
+                    },
+                    cost_usd=0.0,
                 )
 
-            size_data = thumbnail_sets[0].get(size, thumbnail_sets[0].get('large', {}))
+            size_data = thumbnail_sets[0].get(size, thumbnail_sets[0].get("large", {}))
 
             return ActionResult(
                 data={
-                    "image_url": size_data.get('url'),
-                    "width": size_data.get('width', size_info['width']),
-                    "height": size_data.get('height', size_info['height']),
+                    "image_url": size_data.get("url"),
+                    "width": size_data.get("width", size_info["width"]),
+                    "height": size_data.get("height", size_info["height"]),
                     "format": image_format,
                     "note": "Microsoft Graph provides a single presentation thumbnail, not per-slide images",
-                    "result": True
+                    "result": True,
                 },
-                cost_usd=0.0
+                cost_usd=0.0,
             )
 
         except ImportError:
             return ActionResult(
-                data={"result": False, "error": "python-pptx library is required. Install with: pip install python-pptx"},
-                cost_usd=0.0
+                data={
+                    "result": False,
+                    "error": "python-pptx library is required. Install with: pip install python-pptx",
+                },
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)

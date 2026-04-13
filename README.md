@@ -19,7 +19,7 @@ This repository hosts Autohive integrations made and maintained by the Autohive 
 
 ### RSS Reader 
 
-[rss-reader-feedparser](rss-reader-feedparser): Reads RSS feeds using the `feedparser` library.
+[rss-reader-feedparser](rss-reader-feedparser): Reads RSS feeds using the `feedparser` library. Includes 1 action.
 
 [rss-reader-feedparser-ah-fetch](rss-reader-feedparser-ah-fetch): Reads RSS feeds using `feedparser` and the `autohive-integration-sdk`'s `fetch()` method for HTTP requests. 
 
@@ -105,7 +105,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Google Looker
 
-[google-looker](google-looker): Business intelligence integration with Looker API for accessing dashboards, executing queries, and managing data models. Supports listing and retrieving dashboards with full metadata, executing LookML queries against explores with dimensions and measures, running raw SQL queries against database connections, and browsing available models and connections. Features custom authentication and comprehensive error handling for enterprise analytics workflows.
+[google-looker](google-looker): Looker business intelligence integration with Looker API for accessing dashboards, executing queries, and managing data models. Supports listing and retrieving dashboards with full metadata, executing LookML queries against explores with dimensions and measures, running raw SQL queries against database connections, and browsing available models and connections. Features custom authentication and comprehensive error handling for enterprise analytics workflows.
 
 ### Xero
 
@@ -128,7 +128,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### App and Business Reviews
 
-[app-business-reviews](app-business-reviews): Unified review aggregation integration powered by SerpAPI. Access reviews from Apple App Store (iOS apps), Google Play Store (Android apps), and Google Maps (business locations) through a single integration. Supports searching for apps and places, fetching reviews with advanced sorting and filtering, pagination for large datasets, and automatic ID resolution from names. Features customizable sort orders (newest, most helpful, rating-based), platform filtering for Android apps, and flexible location-based searches. Includes comprehensive error handling with helpful Place ID guidance and single API key authentication for all three review sources.
+[app-business-reviews](app-business-reviews): Review aggregation integration powered by SerpAPI. Access reviews from Apple App Store (iOS apps), Google Play Store (Android apps), and Google Maps (business locations) through a single integration. Supports searching for apps and places, fetching reviews with advanced sorting and filtering, pagination for large datasets, and automatic ID resolution from names. Features customizable sort orders (newest, most helpful, rating-based), platform filtering for Android apps, and flexible location-based searches. Includes comprehensive error handling with helpful Place ID guidance and single API key authentication for all three review sources.
 
 ### Supadata
 
@@ -188,7 +188,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Microsoft PowerPoint
 
-[microsoft-powerpoint](microsoft-powerpoint): Comprehensive PowerPoint integration for reading, creating, and manipulating presentations in OneDrive/SharePoint via Microsoft Graph API. Supports listing and searching .pptx files with filtering, retrieving presentation metadata including author and timestamps, accessing slide thumbnails in multiple sizes, creating new presentations from scratch or templates, full slide CRUD operations (add, update, delete slides with layout and content control), exporting presentations to PDF format, and generating slide images. Features the python-pptx library for slide content manipulation (title, body text, speaker notes), automatic file download/upload for modifications, thumbnail API integration, and OAuth2 authentication with Files.Read, Files.ReadWrite, and User.Read scopes. Includes 10 actions covering presentation discovery, metadata access, slide management, content editing, and export operations. Ideal for marketing automation, sales deck generation, training content management, and programmatic presentation workflows.
+[microsoft-powerpoint](microsoft-powerpoint): Comprehensive PowerPoint integration (via Microsoft Graph API) for reading, creating, and manipulating presentations in OneDrive/SharePoint via Microsoft Graph API. Supports listing and searching .pptx files with filtering, retrieving presentation metadata including author and timestamps, accessing slide thumbnails in multiple sizes, creating new presentations from scratch or templates, full slide CRUD operations (add, update, delete slides with layout and content control), exporting presentations to PDF format, and generating slide images. Features the python-pptx library for slide content manipulation (title, body text, speaker notes), automatic file download/upload for modifications, thumbnail API integration, and OAuth2 authentication with Files.Read, Files.ReadWrite, and User.Read scopes. Includes 10 actions covering presentation discovery, metadata access, slide management, content editing, and export operations. Ideal for marketing automation, sales deck generation, training content management, and programmatic presentation workflows.
 
 
 ### Spreadsheet Tools
@@ -322,6 +322,9 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 ### YouTube
 
 [youtube](youtube): YouTube Data API v3 integration for managing videos, channels, playlists, and comments. Supports video search and retrieval, channel information, playlist management, and comment operations. Features OAuth2 authentication with YouTube scopes. Ideal for content automation, analytics, and video workflow management.
+### Toggl Track
+
+[toggl](toggl): Time tracking integration with Toggl Track API for managing time entries and workspace data. Supports creating time entries with start/stop times, descriptions, project assignments, billable flags, and tags. Features API token authentication via HTTP Basic Auth. Ideal for automating time tracking workflows and logging billable hours.
 
 ## Template
 

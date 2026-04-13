@@ -6,17 +6,9 @@ from autohive_integrations_sdk import ExecutionContext
 
 async def test_list_products():
     """Test listing products."""
-    auth = {
-        "auth_type": "Custom",
-        "credentials": {
-            "api_key": "your_api_key_here"
-        }
-    }
+    auth = {"auth_type": "Custom", "credentials": {"api_key": "your_api_key_here"}}
 
-    inputs = {
-        "page_number": 1,
-        "page_size": 10
-    }
+    inputs = {"page_number": 1, "page_size": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -30,16 +22,9 @@ async def test_list_products():
 
 async def test_get_product():
     """Test getting a specific product."""
-    auth = {
-        "auth_type": "Custom",
-        "credentials": {
-            "api_key": "your_api_key_here"
-        }
-    }
+    auth = {"auth_type": "Custom", "credentials": {"api_key": "your_api_key_here"}}
 
-    inputs = {
-        "product_id": "test_product_id_here"
-    }
+    inputs = {"product_id": "test_product_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -53,17 +38,9 @@ async def test_get_product():
 
 async def test_list_customers():
     """Test listing customers."""
-    auth = {
-        "auth_type": "Custom",
-        "credentials": {
-            "api_key": "your_api_key_here"
-        }
-    }
+    auth = {"auth_type": "Custom", "credentials": {"api_key": "your_api_key_here"}}
 
-    inputs = {
-        "page_number": 1,
-        "page_size": 10
-    }
+    inputs = {"page_number": 1, "page_size": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -77,16 +54,9 @@ async def test_list_customers():
 
 async def test_get_customer():
     """Test getting a specific customer."""
-    auth = {
-        "auth_type": "Custom",
-        "credentials": {
-            "api_key": "your_api_key_here"
-        }
-    }
+    auth = {"auth_type": "Custom", "credentials": {"api_key": "your_api_key_here"}}
 
-    inputs = {
-        "customer_id": "test_customer_id_here"
-    }
+    inputs = {"customer_id": "test_customer_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -100,18 +70,13 @@ async def test_get_customer():
 
 async def test_create_customer():
     """Test creating a new customer."""
-    auth = {
-        "auth_type": "Custom",
-        "credentials": {
-            "api_key": "your_api_key_here"
-        }
-    }
+    auth = {"auth_type": "Custom", "credentials": {"api_key": "your_api_key_here"}}
 
     inputs = {
         "first_name": "Test",
         "last_name": "Customer",
         "email": "test.customer@example.com",
-        "phone": "0412345678"
+        "phone": "0412345678",
     }
 
     async with ExecutionContext(auth=auth) as context:
@@ -126,18 +91,9 @@ async def test_create_customer():
 
 async def test_update_customer():
     """Test updating a customer."""
-    auth = {
-        "auth_type": "Custom",
-        "credentials": {
-            "api_key": "your_api_key_here"
-        }
-    }
+    auth = {"auth_type": "Custom", "credentials": {"api_key": "your_api_key_here"}}
 
-    inputs = {
-        "customer_id": "test_customer_id_here",
-        "first_name": "Updated",
-        "last_name": "Customer"
-    }
+    inputs = {"customer_id": "test_customer_id_here", "first_name": "Updated", "last_name": "Customer"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -151,17 +107,9 @@ async def test_update_customer():
 
 async def test_list_orders():
     """Test listing orders."""
-    auth = {
-        "auth_type": "Custom",
-        "credentials": {
-            "api_key": "your_api_key_here"
-        }
-    }
+    auth = {"auth_type": "Custom", "credentials": {"api_key": "your_api_key_here"}}
 
-    inputs = {
-        "page_number": 1,
-        "page_size": 10
-    }
+    inputs = {"page_number": 1, "page_size": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -175,16 +123,9 @@ async def test_list_orders():
 
 async def test_get_order():
     """Test getting a specific order."""
-    auth = {
-        "auth_type": "Custom",
-        "credentials": {
-            "api_key": "your_api_key_here"
-        }
-    }
+    auth = {"auth_type": "Custom", "credentials": {"api_key": "your_api_key_here"}}
 
-    inputs = {
-        "order_id": "test_order_id_here"
-    }
+    inputs = {"order_id": "test_order_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -198,17 +139,9 @@ async def test_get_order():
 
 async def test_list_outlets():
     """Test listing outlets."""
-    auth = {
-        "auth_type": "Custom",
-        "credentials": {
-            "api_key": "your_api_key_here"
-        }
-    }
+    auth = {"auth_type": "Custom", "credentials": {"api_key": "your_api_key_here"}}
 
-    inputs = {
-        "page_number": 1,
-        "page_size": 10
-    }
+    inputs = {"page_number": 1, "page_size": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -222,16 +155,9 @@ async def test_list_outlets():
 
 async def test_get_outlet():
     """Test getting a specific outlet."""
-    auth = {
-        "auth_type": "Custom",
-        "credentials": {
-            "api_key": "your_api_key_here"
-        }
-    }
+    auth = {"auth_type": "Custom", "credentials": {"api_key": "your_api_key_here"}}
 
-    inputs = {
-        "outlet_id": "test_outlet_id_here"
-    }
+    inputs = {"outlet_id": "test_outlet_id_here"}
 
     async with ExecutionContext(auth=auth) as context:
         try:

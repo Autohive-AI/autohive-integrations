@@ -174,9 +174,7 @@ async def test_update_post(post):
         )
         data = get_data(result)
         assert data.get("result") is True, f"Expected result=True, got: {data}"
-        assert data["post"]["title"] == "Test Post from Autohive (updated)", (
-            "Title not updated"
-        )
+        assert data["post"]["title"] == "Test Post from Autohive (updated)", "Title not updated"
         print(f"OK — updated post {data['post']['id']}")
         return data["post"]
 

@@ -7,7 +7,7 @@
         "identifier": "rss_authentication",
         "type": "custom",
         "fields": {
-            "type":"object",
+            "type": "object",
             "properties": {
                 "user_name": {
                     "type": "string",
@@ -22,8 +22,7 @@
                     "help_text": "You'll get this from the RSS feed provider."
                 }
             },
-            "required": [
-            ]
+            "required": []
         }
     },
     "actions": {
@@ -87,7 +86,9 @@
                         }
                     }
                 }
-            }
+            },
+            "display_name": "Get Feed"
         }
-    }
+    },
+    "display_name": "RSS Reader using Feedseeker"
 }
