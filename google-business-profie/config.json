@@ -51,7 +51,10 @@
                         "description": "Error message if failed"
                     }
                 },
-                "required": ["accounts", "result"]
+                "required": [
+                    "accounts",
+                    "result"
+                ]
             }
         },
         "list_locations": {
@@ -65,7 +68,9 @@
                         "description": "Account resource name from list_accounts (e.g., 'accounts/12345')"
                     }
                 },
-                "required": ["account_name"]
+                "required": [
+                    "account_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -103,7 +108,10 @@
                         "description": "Error message if failed"
                     }
                 },
-                "required": ["locations", "result"]
+                "required": [
+                    "locations",
+                    "result"
+                ]
             }
         },
         "list_reviews": {
@@ -117,7 +125,9 @@
                         "description": "Location resource name from list_locations (e.g., 'accounts/12345/locations/67890')"
                     }
                 },
-                "required": ["location_name"]
+                "required": [
+                    "location_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -146,7 +156,13 @@
                                 },
                                 "starRating": {
                                     "type": "string",
-                                    "enum": ["ONE", "TWO", "THREE", "FOUR", "FIVE"],
+                                    "enum": [
+                                        "ONE",
+                                        "TWO",
+                                        "THREE",
+                                        "FOUR",
+                                        "FIVE"
+                                    ],
                                     "description": "Star rating value"
                                 },
                                 "comment": {
@@ -182,7 +198,10 @@
                         "description": "Error message if failed"
                     }
                 },
-                "required": ["reviews", "result"]
+                "required": [
+                    "reviews",
+                    "result"
+                ]
             }
         },
         "reply_to_review": {
@@ -200,7 +219,10 @@
                         "description": "The reply message to post"
                     }
                 },
-                "required": ["review_name", "reply_comment"]
+                "required": [
+                    "review_name",
+                    "reply_comment"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -227,7 +249,9 @@
                         "description": "Error message if failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         },
         "delete_review_reply": {
@@ -241,7 +265,9 @@
                         "description": "Full review resource name (e.g., 'accounts/12345/locations/67890/reviews/abc123')"
                     }
                 },
-                "required": ["review_name"]
+                "required": [
+                    "review_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -255,8 +281,11 @@
                         "description": "Error message if failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         }
-    }
+    },
+    "display_name": "Google Business Profile"
 }
