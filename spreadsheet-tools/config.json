@@ -27,10 +27,16 @@
                                 "description": "The content type of the file"
                             }
                         },
-                        "required": ["content", "name", "contentType"]
+                        "required": [
+                            "content",
+                            "name",
+                            "contentType"
+                        ]
                     }
                 },
-                "required": ["file"]
+                "required": [
+                    "file"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -52,11 +58,18 @@
                                 "description": "The content type of the file (application/json)"
                             }
                         },
-                        "required": ["content", "name", "contentType"]
+                        "required": [
+                            "content",
+                            "name",
+                            "contentType"
+                        ]
                     }
                 },
-                "required": ["file"]
+                "required": [
+                    "file"
+                ]
             }
         }
-    }
+    },
+    "display_name": "Spreadsheet Tools"
 }

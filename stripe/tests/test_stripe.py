@@ -12,7 +12,6 @@ Usage:
 
 import asyncio
 import os
-import sys
 
 from context import stripe_integration
 from autohive_integrations_sdk import ExecutionContext
@@ -29,19 +28,15 @@ async def test_list_customers():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "list_customers",
-                {"limit": 5},
-                context
-            )
+            result = await stripe_integration.execute_action("list_customers", {"limit": 5}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
             print(f"Customers found: {len(data.get('customers', []))}")
             print(f"Has more: {data.get('has_more')}")
 
-            if data.get('customers'):
-                customer = data['customers'][0]
+            if data.get("customers"):
+                customer = data["customers"][0]
                 print(f"First customer ID: {customer.get('id')}")
                 print(f"First customer email: {customer.get('email')}")
         except Exception as e:
@@ -61,18 +56,18 @@ async def test_create_customer():
                     "email": "test@example.com",
                     "name": "Test Customer",
                     "description": "Created by integration test",
-                    "metadata": {"test": "true"}
+                    "metadata": {"test": "true"},
                 },
-                context
+                context,
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            customer = data.get('customer', {})
+            customer = data.get("customer", {})
             print(f"Customer ID: {customer.get('id')}")
             print(f"Customer email: {customer.get('email')}")
 
-            return customer.get('id')
+            return customer.get("id")
         except Exception as e:
             print(f"Error: {e}")
             return None
@@ -85,15 +80,11 @@ async def test_get_customer(customer_id: str):
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "get_customer",
-                {"customer_id": customer_id},
-                context
-            )
+            result = await stripe_integration.execute_action("get_customer", {"customer_id": customer_id}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            customer = data.get('customer', {})
+            customer = data.get("customer", {})
             print(f"Customer ID: {customer.get('id')}")
             print(f"Customer name: {customer.get('name')}")
         except Exception as e:
@@ -112,14 +103,14 @@ async def test_update_customer(customer_id: str):
                 {
                     "customer_id": customer_id,
                     "name": "Updated Test Customer",
-                    "description": "Updated by integration test"
+                    "description": "Updated by integration test",
                 },
-                context
+                context,
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            customer = data.get('customer', {})
+            customer = data.get("customer", {})
             print(f"Updated name: {customer.get('name')}")
         except Exception as e:
             print(f"Error: {e}")
@@ -140,18 +131,18 @@ async def test_create_invoice(customer_id: str):
                     "description": "Test Invoice - RUC Purchase",
                     "auto_advance": False,
                     "collection_method": "send_invoice",
-                    "days_until_due": 30
+                    "days_until_due": 30,
                 },
-                context
+                context,
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            invoice = data.get('invoice', {})
+            invoice = data.get("invoice", {})
             print(f"Invoice ID: {invoice.get('id')}")
             print(f"Invoice status: {invoice.get('status')}")
 
-            return invoice.get('id')
+            return invoice.get("id")
         except Exception as e:
             print(f"Error: {e}")
             return None
@@ -172,18 +163,18 @@ async def test_create_invoice_item(customer_id: str, invoice_id: str):
                     "unit_amount": 6609,  # $66.09 in cents
                     "currency": "nzd",
                     "quantity": 5,
-                    "description": "RUC - 5 units (5,000km)"
+                    "description": "RUC - 5 units (5,000km)",
                 },
-                context
+                context,
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            item = data.get('invoice_item', {})
+            item = data.get("invoice_item", {})
             print(f"Invoice Item ID: {item.get('id')}")
             print(f"Amount: {item.get('amount')}")
 
-            return item.get('id')
+            return item.get("id")
         except Exception as e:
             print(f"Error: {e}")
             return None
@@ -196,11 +187,7 @@ async def test_list_invoices():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "list_invoices",
-                {"limit": 5, "status": "draft"},
-                context
-            )
+            result = await stripe_integration.execute_action("list_invoices", {"limit": 5, "status": "draft"}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -216,15 +203,11 @@ async def test_get_invoice(invoice_id: str):
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "get_invoice",
-                {"invoice_id": invoice_id},
-                context
-            )
+            result = await stripe_integration.execute_action("get_invoice", {"invoice_id": invoice_id}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            invoice = data.get('invoice', {})
+            invoice = data.get("invoice", {})
             print(f"Invoice ID: {invoice.get('id')}")
             print(f"Invoice total: {invoice.get('total')}")
             print(f"Invoice status: {invoice.get('status')}")
@@ -243,14 +226,14 @@ async def test_update_invoice(invoice_id: str):
                 "update_invoice",
                 {
                     "invoice_id": invoice_id,
-                    "description": "Updated: RUC Purchase - GTR680 (Test Vehicle)\n5 units (5,000km)"
+                    "description": "Updated: RUC Purchase - GTR680 (Test Vehicle)\n5 units (5,000km)",
                 },
-                context
+                context,
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            invoice = data.get('invoice', {})
+            invoice = data.get("invoice", {})
             print(f"Updated description: {invoice.get('description')}")
         except Exception as e:
             print(f"Error: {e}")
@@ -263,11 +246,7 @@ async def test_delete_invoice(invoice_id: str):
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "delete_invoice",
-                {"invoice_id": invoice_id},
-                context
-            )
+            result = await stripe_integration.execute_action("delete_invoice", {"invoice_id": invoice_id}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -283,11 +262,7 @@ async def test_delete_customer(customer_id: str):
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "delete_customer",
-                {"customer_id": customer_id},
-                context
-            )
+            result = await stripe_integration.execute_action("delete_customer", {"customer_id": customer_id}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -298,6 +273,7 @@ async def test_delete_customer(customer_id: str):
 
 # ---- Product Tests ----
 
+
 async def test_list_products():
     """Test listing products."""
     print("\n=== Test: List Products ===")
@@ -305,11 +281,7 @@ async def test_list_products():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "list_products",
-                {"limit": 5, "active": True},
-                context
-            )
+            result = await stripe_integration.execute_action("list_products", {"limit": 5, "active": True}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -332,18 +304,18 @@ async def test_create_product():
                     "name": "Test Product",
                     "description": "Created by integration test",
                     "active": True,
-                    "metadata": {"test": "true"}
+                    "metadata": {"test": "true"},
                 },
-                context
+                context,
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            product = data.get('product', {})
+            product = data.get("product", {})
             print(f"Product ID: {product.get('id')}")
             print(f"Product name: {product.get('name')}")
 
-            return product.get('id')
+            return product.get("id")
         except Exception as e:
             print(f"Error: {e}")
             return None
@@ -356,15 +328,11 @@ async def test_get_product(product_id: str):
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "get_product",
-                {"product_id": product_id},
-                context
-            )
+            result = await stripe_integration.execute_action("get_product", {"product_id": product_id}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            product = data.get('product', {})
+            product = data.get("product", {})
             print(f"Product ID: {product.get('id')}")
             print(f"Product name: {product.get('name')}")
         except Exception as e:
@@ -383,20 +351,21 @@ async def test_update_product(product_id: str):
                 {
                     "product_id": product_id,
                     "name": "Updated Test Product",
-                    "description": "Updated by integration test"
+                    "description": "Updated by integration test",
                 },
-                context
+                context,
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            product = data.get('product', {})
+            product = data.get("product", {})
             print(f"Updated name: {product.get('name')}")
         except Exception as e:
             print(f"Error: {e}")
 
 
 # ---- Price Tests ----
+
 
 async def test_list_prices():
     """Test listing prices."""
@@ -405,11 +374,7 @@ async def test_list_prices():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "list_prices",
-                {"limit": 5, "active": True},
-                context
-            )
+            result = await stripe_integration.execute_action("list_prices", {"limit": 5, "active": True}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -432,21 +397,18 @@ async def test_create_price(product_id: str):
                     "product": product_id,
                     "currency": "usd",
                     "unit_amount": 1999,  # $19.99
-                    "recurring": {
-                        "interval": "month",
-                        "interval_count": 1
-                    }
+                    "recurring": {"interval": "month", "interval_count": 1},
                 },
-                context
+                context,
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            price = data.get('price', {})
+            price = data.get("price", {})
             print(f"Price ID: {price.get('id')}")
             print(f"Unit amount: {price.get('unit_amount')}")
 
-            return price.get('id')
+            return price.get("id")
         except Exception as e:
             print(f"Error: {e}")
             return None
@@ -459,15 +421,11 @@ async def test_get_price(price_id: str):
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "get_price",
-                {"price_id": price_id},
-                context
-            )
+            result = await stripe_integration.execute_action("get_price", {"price_id": price_id}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            price = data.get('price', {})
+            price = data.get("price", {})
             print(f"Price ID: {price.get('id')}")
             print(f"Unit amount: {price.get('unit_amount')}")
         except Exception as e:
@@ -482,24 +440,19 @@ async def test_update_price(price_id: str):
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await stripe_integration.execute_action(
-                "update_price",
-                {
-                    "price_id": price_id,
-                    "active": True,
-                    "metadata": {"updated": "true"}
-                },
-                context
+                "update_price", {"price_id": price_id, "active": True, "metadata": {"updated": "true"}}, context
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            price = data.get('price', {})
+            price = data.get("price", {})
             print(f"Price active: {price.get('active')}")
         except Exception as e:
             print(f"Error: {e}")
 
 
 # ---- Subscription Tests ----
+
 
 async def test_list_subscriptions():
     """Test listing subscriptions."""
@@ -508,11 +461,7 @@ async def test_list_subscriptions():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "list_subscriptions",
-                {"limit": 5},
-                context
-            )
+            result = await stripe_integration.execute_action("list_subscriptions", {"limit": 5}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -535,18 +484,18 @@ async def test_create_subscription(customer_id: str, price_id: str):
                     "customer": customer_id,
                     "items": [{"price": price_id}],
                     "payment_behavior": "default_incomplete",
-                    "metadata": {"test": "true"}
+                    "metadata": {"test": "true"},
                 },
-                context
+                context,
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            subscription = data.get('subscription', {})
+            subscription = data.get("subscription", {})
             print(f"Subscription ID: {subscription.get('id')}")
             print(f"Subscription status: {subscription.get('status')}")
 
-            return subscription.get('id')
+            return subscription.get("id")
         except Exception as e:
             print(f"Error: {e}")
             return None
@@ -560,14 +509,12 @@ async def test_get_subscription(subscription_id: str):
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await stripe_integration.execute_action(
-                "get_subscription",
-                {"subscription_id": subscription_id},
-                context
+                "get_subscription", {"subscription_id": subscription_id}, context
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            subscription = data.get('subscription', {})
+            subscription = data.get("subscription", {})
             print(f"Subscription ID: {subscription.get('id')}")
             print(f"Subscription status: {subscription.get('status')}")
         except Exception as e:
@@ -582,17 +529,12 @@ async def test_update_subscription(subscription_id: str):
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await stripe_integration.execute_action(
-                "update_subscription",
-                {
-                    "subscription_id": subscription_id,
-                    "metadata": {"updated": "true"}
-                },
-                context
+                "update_subscription", {"subscription_id": subscription_id, "metadata": {"updated": "true"}}, context
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            subscription = data.get('subscription', {})
+            subscription = data.get("subscription", {})
             print(f"Subscription ID: {subscription.get('id')}")
         except Exception as e:
             print(f"Error: {e}")
@@ -607,23 +549,20 @@ async def test_cancel_subscription(subscription_id: str):
         try:
             result = await stripe_integration.execute_action(
                 "cancel_subscription",
-                {
-                    "subscription_id": subscription_id,
-                    "invoice_now": False,
-                    "prorate": False
-                },
-                context
+                {"subscription_id": subscription_id, "invoice_now": False, "prorate": False},
+                context,
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            subscription = data.get('subscription', {})
+            subscription = data.get("subscription", {})
             print(f"Subscription status: {subscription.get('status')}")
         except Exception as e:
             print(f"Error: {e}")
 
 
 # ---- Payment Method Tests ----
+
 
 async def test_list_payment_methods(customer_id: str):
     """Test listing payment methods for a customer."""
@@ -633,9 +572,7 @@ async def test_list_payment_methods(customer_id: str):
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await stripe_integration.execute_action(
-                "list_payment_methods",
-                {"customer": customer_id, "type": "card", "limit": 5},
-                context
+                "list_payment_methods", {"customer": customer_id, "type": "card", "limit": 5}, context
             )
 
             data = result.result.data
@@ -654,14 +591,12 @@ async def test_get_payment_method(payment_method_id: str):
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await stripe_integration.execute_action(
-                "get_payment_method",
-                {"payment_method_id": payment_method_id},
-                context
+                "get_payment_method", {"payment_method_id": payment_method_id}, context
             )
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
-            pm = data.get('payment_method', {})
+            pm = data.get("payment_method", {})
             print(f"Payment Method ID: {pm.get('id')}")
             print(f"Type: {pm.get('type')}")
         except Exception as e:
@@ -777,6 +712,7 @@ async def run_quick_tests():
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Stripe Integration Tests")
     parser.add_argument("api_key", nargs="?", help="Stripe test API key")
     parser.add_argument("--quick", action="store_true", help="Run quick read-only tests")
