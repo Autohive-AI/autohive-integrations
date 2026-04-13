@@ -45,12 +45,10 @@ class LookerAPIHelper:
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            if isinstance(response, dict):
-                token_data = response
-            else:
-                if response.status_code != 200:
-                    raise Exception(f"Authentication failed with status {response.status_code}: {response.text}")
-                token_data = response.json()
+            if response.status != 200:
+                raise Exception(f"Authentication failed with status {response.status}")
+
+            token_data = response.data
 
             self.access_token = token_data.get("access_token")
             expires_in = token_data.get("expires_in", 3600)
@@ -87,13 +85,10 @@ class LookerAPIHelper:
                 headers=headers,
             )
 
-            if isinstance(response, (dict, list)):
-                return response
-            else:
-                if response.status_code not in [200, 201, 202, 204]:
-                    raise Exception(f"API request failed: {response.status_code} - {response.text}")
+            if response.status not in [200, 201, 202, 204]:
+                raise Exception(f"API request failed: {response.status}")
 
-                return response.json() if response.text else {}
+            return response.data or {}
 
         except Exception:
             raise
@@ -132,12 +127,12 @@ class ListDashboards(ActionHandler):
             helper = build_looker_helper(context)
 
             params = {}
-            if "fields" in inputs:
-                params["fields"] = inputs["fields"]
-            if "page" in inputs:
-                params["page"] = inputs["page"]
-            if "per_page" in inputs:
-                params["per_page"] = inputs["per_page"]
+            if inputs.get("fields") is not None:
+                params["fields"] = inputs.get("fields")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
 
             dashboards = await helper.make_request("GET", "/dashboards", params=params)
 
@@ -155,8 +150,8 @@ class GetDashboard(ActionHandler):
             dashboard_id = inputs["dashboard_id"]
 
             params = {}
-            if "fields" in inputs:
-                params["fields"] = inputs["fields"]
+            if inputs.get("fields") is not None:
+                params["fields"] = inputs.get("fields")
 
             dashboard = await helper.make_request("GET", f"/dashboards/{dashboard_id}", params=params)
 
@@ -174,16 +169,16 @@ class ExecuteLookMLQuery(ActionHandler):
 
             query_data = {"model": inputs["model"], "explore": inputs["explore"]}
 
-            if "dimensions" in inputs:
-                query_data["dimensions"] = inputs["dimensions"]
-            if "measures" in inputs:
-                query_data["measures"] = inputs["measures"]
-            if "filters" in inputs:
-                query_data["filters"] = inputs["filters"]
-            if "sorts" in inputs:
-                query_data["sorts"] = inputs["sorts"]
-            if "limit" in inputs:
-                query_data["limit"] = inputs["limit"]
+            if inputs.get("dimensions") is not None:
+                query_data["dimensions"] = inputs.get("dimensions")
+            if inputs.get("measures") is not None:
+                query_data["measures"] = inputs.get("measures")
+            if inputs.get("filters") is not None:
+                query_data["filters"] = inputs.get("filters")
+            if inputs.get("sorts") is not None:
+                query_data["sorts"] = inputs.get("sorts")
+            if inputs.get("limit") is not None:
+                query_data["limit"] = inputs.get("limit")
 
             query = await helper.make_request("POST", "/queries", data=query_data)
             query_id = query.get("id")
@@ -193,10 +188,10 @@ class ExecuteLookMLQuery(ActionHandler):
 
             result_format = inputs.get("result_format", "json")
             params = {"result_format": result_format}
-            if "apply_formatting" in inputs:
-                params["apply_formatting"] = inputs["apply_formatting"]
-            if "apply_vis" in inputs:
-                params["apply_vis"] = inputs["apply_vis"]
+            if inputs.get("apply_formatting") is not None:
+                params["apply_formatting"] = inputs.get("apply_formatting")
+            if inputs.get("apply_vis") is not None:
+                params["apply_vis"] = inputs.get("apply_vis")
 
             results = await helper.make_request("GET", f"/queries/{query_id}/run/{result_format}", params=params)
 
@@ -209,10 +204,7 @@ class ExecuteLookMLQuery(ActionHandler):
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"query_results": "[]", "result": False, "error": str(e)},
-                cost_usd=0,
-            )
+            return ActionResult(data={"query_results": "[]", "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_looker.action("list_models")
@@ -222,8 +214,8 @@ class ListModels(ActionHandler):
             helper = build_looker_helper(context)
 
             params = {}
-            if "fields" in inputs:
-                params["fields"] = inputs["fields"]
+            if inputs.get("fields") is not None:
+                params["fields"] = inputs.get("fields")
 
             models = await helper.make_request("GET", "/lookml_models", params=params)
 
@@ -241,8 +233,8 @@ class GetModel(ActionHandler):
             model_name = inputs["model_name"]
 
             params = {}
-            if "fields" in inputs:
-                params["fields"] = inputs["fields"]
+            if inputs.get("fields") is not None:
+                params["fields"] = inputs.get("fields")
 
             model = await helper.make_request("GET", f"/lookml_models/{model_name}", params=params)
 
@@ -260,17 +252,17 @@ class ExecuteSQLQuery(ActionHandler):
 
             sql_query_data = {"sql": inputs["sql"]}
 
-            if "connection_name" in inputs:
-                sql_query_data["connection_name"] = inputs["connection_name"]
-            elif "model_name" in inputs:
-                sql_query_data["model_name"] = inputs["model_name"]
+            if inputs.get("connection_name") is not None:
+                sql_query_data["connection_name"] = inputs.get("connection_name")
+            elif inputs.get("model_name") is not None:
+                sql_query_data["model_name"] = inputs.get("model_name")
             else:
                 raise ValueError("Either 'connection_name' or 'model_name' must be provided")
 
-            if "vis_config" in inputs:
-                sql_query_data["vis_config"] = inputs["vis_config"]
-            if "slug" in inputs:
-                sql_query_data["slug"] = inputs["slug"]
+            if inputs.get("vis_config") is not None:
+                sql_query_data["vis_config"] = inputs.get("vis_config")
+            if inputs.get("slug") is not None:
+                sql_query_data["slug"] = inputs.get("slug")
 
             sql_query = await helper.make_request("POST", "/sql_queries", data=sql_query_data)
 
@@ -280,8 +272,8 @@ class ExecuteSQLQuery(ActionHandler):
 
             result_format = inputs.get("result_format", "json")
             params = {}
-            if "download" in inputs:
-                params["download"] = inputs["download"]
+            if inputs.get("download") is not None:
+                params["download"] = inputs.get("download")
 
             results = await helper.make_request("POST", f"/sql_queries/{slug}/run/{result_format}", params=params)
 
@@ -295,15 +287,7 @@ class ExecuteSQLQuery(ActionHandler):
             )
 
         except Exception as e:
-            return ActionResult(
-                data={
-                    "slug": "",
-                    "query_results": "",
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0,
-            )
+            return ActionResult(data={"slug": "", "query_results": "", "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_looker.action("list_connections")
@@ -313,8 +297,8 @@ class ListConnections(ActionHandler):
             helper = build_looker_helper(context)
 
             params = {}
-            if "fields" in inputs:
-                params["fields"] = inputs["fields"]
+            if inputs.get("fields") is not None:
+                params["fields"] = inputs.get("fields")
 
             connections = await helper.make_request("GET", "/connections", params=params)
 

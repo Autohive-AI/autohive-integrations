@@ -24,7 +24,7 @@ class CreateDocument(ActionHandler):
             url = f"{DOCS_API_BASE}/documents"
             payload = {"title": title}
 
-            document = await context.fetch(url, method="POST", json=payload)
+            document = (await context.fetch(url, method="POST", json=payload)).data
 
             document_id = document.get("documentId")
             document_url = f"https://docs.google.com/document/d/{document_id}/edit"
@@ -57,7 +57,7 @@ class GetDocument(ActionHandler):
             if include_tabs:
                 params["includeTabsContent"] = "true"
 
-            document = await context.fetch(url, method="GET", params=params)
+            document = (await context.fetch(url, method="GET", params=params)).data
 
             return ActionResult(data={"document": document, "result": True}, cost_usd=0)
         except Exception as e:
@@ -110,7 +110,7 @@ class InsertParagraphs(ActionHandler):
                 else:
                     params["fields"] = "body/content(endIndex)"
 
-                document = await context.fetch(url, method="GET", params=params)
+                document = (await context.fetch(url, method="GET", params=params)).data
 
                 if tab_id:
                     index = None
@@ -231,7 +231,7 @@ class BatchUpdate(ActionHandler):
             url = f"{DOCS_API_BASE}/documents/{document_id}:batchUpdate"
             payload = {"requests": batch_requests}
 
-            result = await context.fetch(url, method="POST", json=payload)
+            result = (await context.fetch(url, method="POST", json=payload)).data
 
             return ActionResult(data={"replies": result.get("replies", []), "result": True}, cost_usd=0)
         except Exception as e:
@@ -255,7 +255,7 @@ class ParseStructure(ActionHandler):
             if tab_id:
                 params["includeTabsContent"] = "true"
 
-            document = await context.fetch(url, method="GET", params=params)
+            document = (await context.fetch(url, method="GET", params=params)).data
 
             # Get the body content
             if tab_id:
@@ -495,7 +495,7 @@ class InsertMarkdownContent(ActionHandler):
             params["fields"] = "body/content(endIndex)"
 
         try:
-            document = await context.fetch(url, method="GET", params=params)
+            document = (await context.fetch(url, method="GET", params=params)).data
         except Exception:
             return 1  # Default to beginning on error
 
