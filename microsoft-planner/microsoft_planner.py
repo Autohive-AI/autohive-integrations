@@ -48,9 +48,7 @@ async def get_etag(context: ExecutionContext, resource_url: str) -> Optional[str
 class ListGroupsAction(ActionHandler):
     """List all Microsoft 365 groups the authenticated user is a member of."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             limit = inputs.get("limit", 100)
 
@@ -69,9 +67,7 @@ class ListGroupsAction(ActionHandler):
             return ActionResult(data={"groups": groups, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"groups": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"groups": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- User Handlers ----
@@ -81,18 +77,14 @@ class ListGroupsAction(ActionHandler):
 class GetUserByEmailAction(ActionHandler):
     """Get user information by email address to retrieve their user ID."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             email = inputs["email"]
 
             # Use the users endpoint with a filter
             params = {"$filter": f"mail eq '{email}' or userPrincipalName eq '{email}'"}
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/users", method="GET", params=params
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/users", method="GET", params=params)
 
             users = response.get("value", [])
 
@@ -119,18 +111,14 @@ class GetUserByEmailAction(ActionHandler):
                 )
 
         except Exception as e:
-            return ActionResult(
-                data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("search_users")
 class SearchUsersAction(ActionHandler):
     """Search for users by display name or email to find their user IDs."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             search_query = inputs["query"]
             limit = inputs.get("limit", 10)
@@ -164,23 +152,17 @@ class SearchUsersAction(ActionHandler):
                 for user in users
             ]
 
-            return ActionResult(
-                data={"users": formatted_users, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"users": formatted_users, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"users": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"users": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("get_current_user")
 class GetCurrentUserAction(ActionHandler):
     """Get the currently authenticated user's information."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/me", method="GET")
 
@@ -196,55 +178,41 @@ class GetCurrentUserAction(ActionHandler):
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("list_user_tasks")
 class ListUserTasksAction(ActionHandler):
     """List all tasks assigned to a specific user."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             user_id = inputs.get("user_id", "me")  # Default to 'me' for current user
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/users/{user_id}/planner/tasks", method="GET"
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/users/{user_id}/planner/tasks", method="GET")
 
             tasks = response.get("value", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("list_user_plans")
 class ListUserPlansAction(ActionHandler):
     """List all plans shared with a specific user."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             user_id = inputs.get("user_id", "me")  # Default to 'me' for current user
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/users/{user_id}/planner/plans", method="GET"
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/users/{user_id}/planner/plans", method="GET")
 
             plans = response.get("value", [])
             return ActionResult(data={"plans": plans, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"plans": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"plans": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Plan Handlers ----
@@ -254,54 +222,40 @@ class ListUserPlansAction(ActionHandler):
 class ListPlansAction(ActionHandler):
     """List all plans owned by a specific group."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             group_id = inputs["group_id"]
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/groups/{group_id}/planner/plans", method="GET"
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/groups/{group_id}/planner/plans", method="GET")
 
             plans = response.get("value", [])
             return ActionResult(data={"plans": plans, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"plans": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"plans": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("get_plan")
 class GetPlanAction(ActionHandler):
     """Get details of a specific plan by its ID."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             plan_id = inputs["plan_id"]
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}", method="GET"
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}", method="GET")
 
             return ActionResult(data={"plan": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"plan": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"plan": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("create_plan")
 class CreatePlanAction(ActionHandler):
     """Create a new plan in a Microsoft 365 group."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             # Build request body with required fields
             body = {"title": inputs["title"]}
@@ -325,32 +279,24 @@ class CreatePlanAction(ActionHandler):
                         cost_usd=0.0,
                     )
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/plans", method="POST", json=body
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/plans", method="POST", json=body)
 
             return ActionResult(data={"plan": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"plan": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"plan": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("update_plan")
 class UpdatePlanAction(ActionHandler):
     """Update a plan's title."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             plan_id = inputs["plan_id"]
 
             # Get current ETag (required for updates)
-            etag = await get_etag(
-                context, f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}"
-            )
+            etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}")
 
             if not etag:
                 return ActionResult(
@@ -381,25 +327,19 @@ class UpdatePlanAction(ActionHandler):
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"plan": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"plan": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("delete_plan")
 class DeletePlanAction(ActionHandler):
     """Delete a plan."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             plan_id = inputs["plan_id"]
 
             # Get current ETag (required for deletes)
-            etag = await get_etag(
-                context, f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}"
-            )
+            etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}")
 
             if not etag:
                 return ActionResult(
@@ -429,19 +369,13 @@ class DeletePlanAction(ActionHandler):
 class GetPlanDetailsAction(ActionHandler):
     """Get plan details including category descriptions and sharing information."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             plan_id = inputs["plan_id"]
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}/details", method="GET"
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}/details", method="GET")
 
-            return ActionResult(
-                data={"plan_details": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"plan_details": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -454,16 +388,12 @@ class GetPlanDetailsAction(ActionHandler):
 class UpdatePlanDetailsAction(ActionHandler):
     """Update plan details including category descriptions and sharing information."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             plan_id = inputs["plan_id"]
 
             # Get current ETag (required for updates)
-            etag = await get_etag(
-                context, f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}/details"
-            )
+            etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}/details")
 
             if not etag:
                 return ActionResult(
@@ -516,57 +446,43 @@ class UpdatePlanDetailsAction(ActionHandler):
 class ListBucketsAction(ActionHandler):
     """List all buckets in a specific plan."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             plan_id = inputs["plan_id"]
 
             # Microsoft Graph requires planId filter for listing buckets
             params = {"$filter": f"planId eq '{plan_id}'"}
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/buckets", method="GET", params=params
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/buckets", method="GET", params=params)
 
             buckets = response.get("value", [])
             return ActionResult(data={"buckets": buckets, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"buckets": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"buckets": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("get_bucket")
 class GetBucketAction(ActionHandler):
     """Get details of a specific bucket by its ID."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             bucket_id = inputs["bucket_id"]
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}", method="GET"
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}", method="GET")
 
             return ActionResult(data={"bucket": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("create_bucket")
 class CreateBucketAction(ActionHandler):
     """Create a new bucket in a plan."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             # Build request body
             body = {
@@ -575,32 +491,24 @@ class CreateBucketAction(ActionHandler):
                 "orderHint": inputs.get("order_hint", " !"),
             }
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/buckets", method="POST", json=body
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/buckets", method="POST", json=body)
 
             return ActionResult(data={"bucket": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("update_bucket")
 class UpdateBucketAction(ActionHandler):
     """Update a bucket's name."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             bucket_id = inputs["bucket_id"]
 
             # Get current ETag (required for updates)
-            etag = await get_etag(
-                context, f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}"
-            )
+            etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}")
 
             if not etag:
                 return ActionResult(
@@ -631,25 +539,19 @@ class UpdateBucketAction(ActionHandler):
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("delete_bucket")
 class DeleteBucketAction(ActionHandler):
     """Delete a bucket from a plan."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             bucket_id = inputs["bucket_id"]
 
             # Get current ETag (required for deletes)
-            etag = await get_etag(
-                context, f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}"
-            )
+            etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}")
 
             if not etag:
                 return ActionResult(
@@ -676,23 +578,17 @@ class DeleteBucketAction(ActionHandler):
 class ListBucketTasksAction(ActionHandler):
     """List all tasks in a specific bucket."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             bucket_id = inputs["bucket_id"]
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}/tasks", method="GET"
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}/tasks", method="GET")
 
             tasks = response.get("value", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Task Handlers ----
@@ -702,54 +598,40 @@ class ListBucketTasksAction(ActionHandler):
 class ListTasksAction(ActionHandler):
     """List all tasks in a specific plan."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             plan_id = inputs["plan_id"]
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}/tasks", method="GET"
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}/tasks", method="GET")
 
             tasks = response.get("value", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("get_task")
 class GetTaskAction(ActionHandler):
     """Get details of a specific task by its ID."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}", method="GET"
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}", method="GET")
 
             return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("create_task")
 class CreateTaskAction(ActionHandler):
     """Create a new task in a plan."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             # Build request body with required fields
             body = {
@@ -771,19 +653,13 @@ class CreateTaskAction(ActionHandler):
                     else:
                         # Ensure @odata.type is present for proper type recognition
                         if isinstance(assignment, dict):
-                            processed_assignment = {
-                                "@odata.type": "#microsoft.graph.plannerAssignment"
-                            }
+                            processed_assignment = {"@odata.type": "#microsoft.graph.plannerAssignment"}
                             # Copy orderHint if provided
                             if "orderHint" in assignment and assignment["orderHint"]:
-                                processed_assignment["orderHint"] = assignment[
-                                    "orderHint"
-                                ]
+                                processed_assignment["orderHint"] = assignment["orderHint"]
                         else:
                             # If assignment is not a dict, create a minimal valid assignment
-                            processed_assignment = {
-                                "@odata.type": "#microsoft.graph.plannerAssignment"
-                            }
+                            processed_assignment = {"@odata.type": "#microsoft.graph.plannerAssignment"}
                         processed_assignments[user_id] = processed_assignment
                 body["assignments"] = processed_assignments
             if "due_date_time" in inputs and inputs["due_date_time"]:
@@ -799,32 +675,24 @@ class CreateTaskAction(ActionHandler):
                 # Example: {"category1": true, "category2": false}
                 body["appliedCategories"] = inputs["applied_categories"]
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/tasks", method="POST", json=body
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks", method="POST", json=body)
 
             return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("update_task")
 class UpdateTaskAction(ActionHandler):
     """Update an existing task."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
 
             # Get current ETag (required for updates)
-            etag = await get_etag(
-                context, f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}"
-            )
+            etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}")
 
             if not etag:
                 return ActionResult(
@@ -853,19 +721,13 @@ class UpdateTaskAction(ActionHandler):
                     else:
                         # Ensure @odata.type is present for proper type recognition
                         if isinstance(assignment, dict):
-                            processed_assignment = {
-                                "@odata.type": "#microsoft.graph.plannerAssignment"
-                            }
+                            processed_assignment = {"@odata.type": "#microsoft.graph.plannerAssignment"}
                             # Copy orderHint if provided
                             if "orderHint" in assignment and assignment["orderHint"]:
-                                processed_assignment["orderHint"] = assignment[
-                                    "orderHint"
-                                ]
+                                processed_assignment["orderHint"] = assignment["orderHint"]
                         else:
                             # If assignment is not a dict, create a minimal valid assignment
-                            processed_assignment = {
-                                "@odata.type": "#microsoft.graph.plannerAssignment"
-                            }
+                            processed_assignment = {"@odata.type": "#microsoft.graph.plannerAssignment"}
                         processed_assignments[user_id] = processed_assignment
 
                 # Only add assignments to body if we have any to process
@@ -918,25 +780,19 @@ class UpdateTaskAction(ActionHandler):
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @microsoft_planner.action("delete_task")
 class DeleteTaskAction(ActionHandler):
     """Delete a task from a plan."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
 
             # Get current ETag (required for deletes)
-            etag = await get_etag(
-                context, f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}"
-            )
+            etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}")
 
             if not etag:
                 return ActionResult(
@@ -966,19 +822,13 @@ class DeleteTaskAction(ActionHandler):
 class GetTaskDetailsAction(ActionHandler):
     """Get details of a task including description, checklist, and references."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
 
-            response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET"
-            )
+            response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET")
 
-            return ActionResult(
-                data={"task_details": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"task_details": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -991,16 +841,12 @@ class GetTaskDetailsAction(ActionHandler):
 class UpdateTaskDetailsAction(ActionHandler):
     """Update task details including description, checklist, references, and preview type."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
 
             # Get current ETag (required for updates)
-            etag = await get_etag(
-                context, f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details"
-            )
+            etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details")
 
             if not etag:
                 return ActionResult(
@@ -1021,11 +867,13 @@ class UpdateTaskDetailsAction(ActionHandler):
                 body["previewType"] = inputs["preview_type"]
             if "checklist" in inputs:
                 # Checklist is an object mapping item IDs to checklist item objects
-                # Example: {"item-id": {"@odata.type": "microsoft.graph.plannerChecklistItem", "title": "Item title", "isChecked": false}}
+                # Example: {"item-id": {"@odata.type": "microsoft.graph.plannerChecklistItem",
+                #           "title": "Item title", "isChecked": false}}
                 body["checklist"] = inputs["checklist"]
             if "references" in inputs:
                 # References is an object mapping reference keys to reference objects
-                # Example: {"https://example.com": {"@odata.type": "microsoft.graph.plannerExternalReference", "alias": "Example"}}
+                # Example: {"https://example.com": {"@odata.type": "microsoft.graph.plannerExternalReference",
+                #           "alias": "Example"}}
                 body["references"] = inputs["references"]
 
             # Update requires If-Match header with ETag
@@ -1054,9 +902,7 @@ class UpdateTaskDetailsAction(ActionHandler):
 class AddChecklistItemAction(ActionHandler):
     """Add a new item to a task's checklist."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
             title = inputs["title"]
@@ -1064,9 +910,7 @@ class AddChecklistItemAction(ActionHandler):
             order_hint = inputs.get("order_hint", " !")
 
             # Get current task details to retrieve existing checklist
-            current_details = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET"
-            )
+            current_details = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET")
 
             # Get current ETag (required for updates)
             etag = current_details.get("@odata.etag")
@@ -1132,17 +976,13 @@ class AddChecklistItemAction(ActionHandler):
 class UpdateChecklistItemAction(ActionHandler):
     """Update an existing checklist item."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
             item_id = inputs["item_id"]
 
             # Get current task details
-            current_details = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET"
-            )
+            current_details = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET")
 
             # Get current ETag (required for updates)
             etag = current_details.get("@odata.etag")
@@ -1208,17 +1048,13 @@ class UpdateChecklistItemAction(ActionHandler):
 class RemoveChecklistItemAction(ActionHandler):
     """Remove an item from a task's checklist."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
             item_id = inputs["item_id"]
 
             # Get current task details
-            current_details = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET"
-            )
+            current_details = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET")
 
             # Get current ETag (required for updates)
             etag = current_details.get("@odata.etag")
@@ -1282,9 +1118,7 @@ class RemoveChecklistItemAction(ActionHandler):
 class GetTaskAssignedToBoardFormatAction(ActionHandler):
     """Get the assigned-to task board format for a task (ordering by assignee)."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
 
@@ -1293,9 +1127,7 @@ class GetTaskAssignedToBoardFormatAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(
-                data={"board_format": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"board_format": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1308,9 +1140,7 @@ class GetTaskAssignedToBoardFormatAction(ActionHandler):
 class UpdateTaskAssignedToBoardFormatAction(ActionHandler):
     """Update the assigned-to task board format for a task."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
 
@@ -1366,9 +1196,7 @@ class UpdateTaskAssignedToBoardFormatAction(ActionHandler):
 class GetTaskBucketBoardFormatAction(ActionHandler):
     """Get the bucket task board format for a task (ordering within buckets)."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
 
@@ -1377,9 +1205,7 @@ class GetTaskBucketBoardFormatAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(
-                data={"board_format": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"board_format": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1392,9 +1218,7 @@ class GetTaskBucketBoardFormatAction(ActionHandler):
 class UpdateTaskBucketBoardFormatAction(ActionHandler):
     """Update the bucket task board format for a task."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
 
@@ -1446,9 +1270,7 @@ class UpdateTaskBucketBoardFormatAction(ActionHandler):
 class GetTaskProgressBoardFormatAction(ActionHandler):
     """Get the progress task board format for a task (ordering by progress state)."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
 
@@ -1457,9 +1279,7 @@ class GetTaskProgressBoardFormatAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(
-                data={"board_format": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"board_format": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1472,9 +1292,7 @@ class GetTaskProgressBoardFormatAction(ActionHandler):
 class UpdateTaskProgressBoardFormatAction(ActionHandler):
     """Update the progress task board format for a task."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             task_id = inputs["task_id"]
 
