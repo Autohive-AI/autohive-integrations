@@ -21,7 +21,7 @@ class TestBuildHeaders(unittest.TestCase):
         from monday_com import build_headers
 
         mock_context = Mock()
-        mock_context.auth = {"credentials": {"access_token": "test_token_12345"}}  # nosec B105  # nosec B105
+        mock_context.auth = {"credentials": {"access_token": "test_token_12345"}}  # nosec B105
 
         headers = build_headers(mock_context)
 
