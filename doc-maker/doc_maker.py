@@ -521,15 +521,15 @@ def parse_markdown_to_docx(doc: Document, markdown_text: str) -> None:
                 text = li.get_text().strip()
                 if text:
                     if is_numbered:
-                        paragraph = doc.add_paragraph(text, style="List Number")
+                        doc.add_paragraph(text, style="List Number")
                     else:
-                        paragraph = doc.add_paragraph(text, style="List Bullet")
+                        doc.add_paragraph(text, style="List Bullet")
 
         elif element.name == "blockquote":
             # Handle blockquotes
             text = element.get_text().strip()
             if text:
-                paragraph = doc.add_paragraph(text, style="Quote")
+                doc.add_paragraph(text, style="Quote")
 
         elif element.name == "table":
             # Handle tables
