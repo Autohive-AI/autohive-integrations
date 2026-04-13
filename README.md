@@ -140,7 +140,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Humanitix
 
-[humanitix](humanitix): Event management integration with Humanitix Public API v1 for retrieving events, orders, tickets, and attendee check-ins. Supports event retrieval (single event by ID or paginated list with date filtering), order retrieval with buyer details and payment status, ticket access with attendee information and check-in status filtering, attendee check-in and check-out operations with scanning message support, and tag retrieval for event categorization. Features API key authentication, location override with ISO 3166-1 alpha-2 country codes, pagination support (up to 100 results per page), and date-time filtering with ISO 8601. Includes 6 actions covering events, orders, tickets, check-in/check-out, and tags. Ideal for event operations, attendee tracking, and ticketing workflows.
+[humanitix](humanitix): Event management integration with Humanitix Public API v1 for retrieving events, orders, tickets, and attendee check-ins. Supports API key authentication. Supports event retrieval (single event by ID or paginated list with date filtering), order retrieval with buyer details and payment status, ticket access with attendee information and check-in status filtering, attendee check-in and check-out operations with scanning message support, and tag retrieval for event categorization. Features API key authentication, location override with ISO 3166-1 alpha-2 country codes, pagination support (up to 100 results per page), and date-time filtering with ISO 8601. Includes 6 actions covering events, orders, tickets, check-in/check-out, and tags. Ideal for event operations, attendee tracking, and ticketing workflows.
 
 ### HeyGen
 
