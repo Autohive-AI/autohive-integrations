@@ -5,6 +5,7 @@ import base64
 from context import doc_maker
 from autohive_integrations_sdk import ExecutionContext
 
+
 async def create_original_templates():
     """Create the original template files for comparison"""
     print("[CREATING] Original template files for comparison...")
@@ -79,29 +80,31 @@ Add recommendations here.
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create comprehensive template
-            result1 = await doc_maker.execute_action("create_document", {
-                "markdown_content": comprehensive_template,
-                "custom_filename": "comprehensive_template.docx"
-            }, context)
+            result1 = await doc_maker.execute_action(
+                "create_document",
+                {"markdown_content": comprehensive_template, "custom_filename": "comprehensive_template.docx"},
+                context,
+            )
 
-            file_content1 = base64.b64decode(result1['file']['content'])
+            file_content1 = base64.b64decode(result1["file"]["content"])
             output_path1 = os.path.join(os.path.dirname(__file__), "ORIGINAL_COMPREHENSIVE_TEMPLATE.docx")
 
-            with open(output_path1, 'wb') as f:
+            with open(output_path1, "wb") as f:
                 f.write(file_content1)
 
             print(f"[SUCCESS] Comprehensive template saved to: {output_path1}")
 
             # Create natural language template
-            result2 = await doc_maker.execute_action("create_document", {
-                "markdown_content": natural_template,
-                "custom_filename": "natural_template.docx"
-            }, context)
+            result2 = await doc_maker.execute_action(
+                "create_document",
+                {"markdown_content": natural_template, "custom_filename": "natural_template.docx"},
+                context,
+            )
 
-            file_content2 = base64.b64decode(result2['file']['content'])
+            file_content2 = base64.b64decode(result2["file"]["content"])
             output_path2 = os.path.join(os.path.dirname(__file__), "ORIGINAL_NATURAL_TEMPLATE.docx")
 
-            with open(output_path2, 'wb') as f:
+            with open(output_path2, "wb") as f:
                 f.write(file_content2)
 
             print(f"[SUCCESS] Natural template saved to: {output_path2}")
@@ -152,15 +155,16 @@ Additional notes here.
 ---
 *Thank you for your business!*"""
 
-            result3 = await doc_maker.execute_action("create_document", {
-                "markdown_content": invoice_template,
-                "custom_filename": "invoice_template.docx"
-            }, context)
+            result3 = await doc_maker.execute_action(
+                "create_document",
+                {"markdown_content": invoice_template, "custom_filename": "invoice_template.docx"},
+                context,
+            )
 
-            file_content3 = base64.b64decode(result3['file']['content'])
+            file_content3 = base64.b64decode(result3["file"]["content"])
             output_path3 = os.path.join(os.path.dirname(__file__), "ORIGINAL_INVOICE_TEMPLATE.docx")
 
-            with open(output_path3, 'wb') as f:
+            with open(output_path3, "wb") as f:
                 f.write(file_content3)
 
             print(f"[SUCCESS] Invoice template saved to: {output_path3}")
@@ -173,6 +177,7 @@ Additional notes here.
 
         except Exception as e:
             print(f"[ERROR] Error creating templates: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(create_original_templates())

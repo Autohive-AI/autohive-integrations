@@ -12,16 +12,16 @@ Usage:
 
 import asyncio
 import sys
-import os
 import argparse
 from typing import List, Tuple
 
 # Test imports
 import importlib
-test_unit = importlib.import_module('test_unit')
-test_doc_maker = importlib.import_module('test_doc-maker')
-test_template_filling = importlib.import_module('test_template_filling')
-test_spacing_fix = importlib.import_module('test_spacing_fix')
+
+test_unit = importlib.import_module("test_unit")
+test_doc_maker = importlib.import_module("test_doc-maker")
+test_template_filling = importlib.import_module("test_template_filling")
+test_spacing_fix = importlib.import_module("test_spacing_fix")
 
 run_unit_tests = test_unit.run_unit_tests
 run_integration_tests = test_doc_maker.main
@@ -39,15 +39,15 @@ class TestRunner:
 
     def print_header(self, text: str):
         """Print formatted header"""
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"  {text}")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
 
     def print_section(self, text: str):
         """Print section header"""
-        print(f"\n{'-'*70}")
+        print(f"\n{'-' * 70}")
         print(f"  {text}")
-        print(f"{'-'*70}")
+        print(f"{'-' * 70}")
 
     async def run_test_suite(self, name: str, test_func) -> Tuple[str, bool, int, int]:
         """Run a test suite and capture results"""
@@ -58,8 +58,8 @@ class TestRunner:
 
             if isinstance(result, dict):
                 # Unit test results
-                passed = result.get('passed', 0)
-                total = result.get('total', 0)
+                passed = result.get("passed", 0)
+                total = result.get("total", 0)
                 success = passed == total
             elif isinstance(result, tuple):
                 # Integration test results
@@ -80,28 +80,29 @@ class TestRunner:
     async def run_all(self, test_types: List[str]):
         """Run all selected test types"""
         import time
+
         self.start_time = time.time()
 
         self.print_header("DOC MAKER INTEGRATION - TEST SUITE")
         print(f"Test Types: {', '.join(test_types)}")
 
         # Run unit tests
-        if 'unit' in test_types:
+        if "unit" in test_types:
             result = await self.run_test_suite("Unit Tests", run_unit_tests)
             self.results.append(result)
 
         # Run integration tests
-        if 'integration' in test_types:
+        if "integration" in test_types:
             result = await self.run_test_suite("Integration Tests", run_integration_tests_wrapper)
             self.results.append(result)
 
         # Run template filling tests
-        if 'template' in test_types:
+        if "template" in test_types:
             result = await self.run_test_suite("Template Filling Tests", run_template_tests_wrapper)
             self.results.append(result)
 
         # Run spacing tests
-        if 'spacing' in test_types:
+        if "spacing" in test_types:
             result = await self.run_test_suite("Spacing Tests", run_spacing_tests_wrapper)
             self.results.append(result)
 
@@ -111,6 +112,7 @@ class TestRunner:
     def print_summary(self):
         """Print final test summary"""
         import time
+
         elapsed = time.time() - self.start_time
 
         self.print_header("TEST SUMMARY")
@@ -198,31 +200,31 @@ Examples:
   python run_all_tests.py --unit           # Run only unit tests
   python run_all_tests.py --integration    # Run only integration tests
   python run_all_tests.py --verbose        # Detailed output
-        """
+        """,
     )
 
-    parser.add_argument('--unit', action='store_true', help='Run only unit tests')
-    parser.add_argument('--integration', action='store_true', help='Run only integration tests')
-    parser.add_argument('--template', action='store_true', help='Run only template tests')
-    parser.add_argument('--spacing', action='store_true', help='Run only spacing tests')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')
+    parser.add_argument("--unit", action="store_true", help="Run only unit tests")
+    parser.add_argument("--integration", action="store_true", help="Run only integration tests")
+    parser.add_argument("--template", action="store_true", help="Run only template tests")
+    parser.add_argument("--spacing", action="store_true", help="Run only spacing tests")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
 
     # Determine which tests to run
     test_types = []
     if args.unit:
-        test_types.append('unit')
+        test_types.append("unit")
     if args.integration:
-        test_types.append('integration')
+        test_types.append("integration")
     if args.template:
-        test_types.append('template')
+        test_types.append("template")
     if args.spacing:
-        test_types.append('spacing')
+        test_types.append("spacing")
 
     # If no specific tests selected, run all
     if not test_types:
-        test_types = ['unit', 'integration', 'template', 'spacing']
+        test_types = ["unit", "integration", "template", "spacing"]
 
     # Run tests
     runner = TestRunner(verbose=args.verbose)
