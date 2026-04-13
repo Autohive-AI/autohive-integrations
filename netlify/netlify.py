@@ -1,6 +1,4 @@
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler, ActionResult
-)
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 import hashlib
 
@@ -16,29 +14,21 @@ NETLIFY_API_BASE_URL = "https://api.netlify.com/api/v1"
 
 # ---- Site Handlers ----
 
+
 @netlify.action("list_sites")
 class ListSitesAction(ActionHandler):
     """List all sites for the authenticated user."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            response = await context.fetch(
-                f"{NETLIFY_API_BASE_URL}/sites",
-                method="GET"
-            )
+            response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites", method="GET")
 
             sites = response if isinstance(response, list) else []
 
-            return ActionResult(
-                data={"sites": sites, "result": True},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"sites": sites, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"sites": [], "result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"sites": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @netlify.action("create_site")
@@ -54,22 +44,12 @@ class CreateSiteAction(ActionHandler):
             if inputs.get("custom_domain"):
                 payload["custom_domain"] = inputs["custom_domain"]
 
-            response = await context.fetch(
-                f"{NETLIFY_API_BASE_URL}/sites",
-                method="POST",
-                json=payload
-            )
+            response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites", method="POST", json=payload)
 
-            return ActionResult(
-                data={"site": response, "result": True},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"site": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"site": {}, "result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"site": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @netlify.action("get_site")
@@ -80,21 +60,12 @@ class GetSiteAction(ActionHandler):
         try:
             site_id = inputs["site_id"]
 
-            response = await context.fetch(
-                f"{NETLIFY_API_BASE_URL}/sites/{site_id}",
-                method="GET"
-            )
+            response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites/{site_id}", method="GET")
 
-            return ActionResult(
-                data={"site": response, "result": True},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"site": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"site": {}, "result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"site": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @netlify.action("update_site")
@@ -111,22 +82,12 @@ class UpdateSiteAction(ActionHandler):
             if inputs.get("custom_domain"):
                 payload["custom_domain"] = inputs["custom_domain"]
 
-            response = await context.fetch(
-                f"{NETLIFY_API_BASE_URL}/sites/{site_id}",
-                method="PATCH",
-                json=payload
-            )
+            response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites/{site_id}", method="PATCH", json=payload)
 
-            return ActionResult(
-                data={"site": response, "result": True},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"site": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"site": {}, "result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"site": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @netlify.action("delete_site")
@@ -137,24 +98,16 @@ class DeleteSiteAction(ActionHandler):
         try:
             site_id = inputs["site_id"]
 
-            await context.fetch(
-                f"{NETLIFY_API_BASE_URL}/sites/{site_id}",
-                method="DELETE"
-            )
+            await context.fetch(f"{NETLIFY_API_BASE_URL}/sites/{site_id}", method="DELETE")
 
-            return ActionResult(
-                data={"deleted": True, "result": True},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"deleted": False, "result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Deploy Handlers ----
+
 
 @netlify.action("list_deploys")
 class ListDeploysAction(ActionHandler):
@@ -164,23 +117,14 @@ class ListDeploysAction(ActionHandler):
         try:
             site_id = inputs["site_id"]
 
-            response = await context.fetch(
-                f"{NETLIFY_API_BASE_URL}/sites/{site_id}/deploys",
-                method="GET"
-            )
+            response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites/{site_id}/deploys", method="GET")
 
             deploys = response if isinstance(response, list) else []
 
-            return ActionResult(
-                data={"deploys": deploys, "result": True},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"deploys": deploys, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"deploys": [], "result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"deploys": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @netlify.action("create_deploy")
@@ -197,15 +141,13 @@ class CreateDeployAction(ActionHandler):
             hash_to_content = {}
 
             for path, content in files.items():
-                sha1 = hashlib.sha1(content.encode()).hexdigest()
+                sha1 = hashlib.sha1(content.encode(), usedforsecurity=False).hexdigest()  # nosec B324
                 files_dict[path] = sha1
                 hash_to_content[sha1] = content
 
             # Create deploy with file digests
             deploy = await context.fetch(
-                f"{NETLIFY_API_BASE_URL}/sites/{site_id}/deploys",
-                method="POST",
-                json={"files": files_dict}
+                f"{NETLIFY_API_BASE_URL}/sites/{site_id}/deploys", method="POST", json={"files": files_dict}
             )
 
             # Upload required files
@@ -220,35 +162,20 @@ class CreateDeployAction(ActionHandler):
                         f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}/files/{sha1_hash}",
                         method="PUT",
                         headers={"Content-Type": "application/octet-stream"},
-                        data=file_content.encode()
+                        data=file_content.encode(),
                     )
 
             # Get final deploy info
-            final_deploy = await context.fetch(
-                f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}",
-                method="GET"
-            )
+            final_deploy = await context.fetch(f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}", method="GET")
 
             deploy_url = (
-                final_deploy.get("deploy_ssl_url") or
-                final_deploy.get("ssl_url") or
-                final_deploy.get("url", "")
+                final_deploy.get("deploy_ssl_url") or final_deploy.get("ssl_url") or final_deploy.get("url", "")
             )
 
-            return ActionResult(
-                data={
-                    "deploy": final_deploy,
-                    "deploy_url": deploy_url,
-                    "result": True
-                },
-                cost_usd=0.0
-            )
+            return ActionResult(data={"deploy": final_deploy, "deploy_url": deploy_url, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"deploy": {}, "deploy_url": "", "result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"deploy": {}, "deploy_url": "", "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @netlify.action("get_deploy")
@@ -259,18 +186,9 @@ class GetDeployAction(ActionHandler):
         try:
             deploy_id = inputs["deploy_id"]
 
-            response = await context.fetch(
-                f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}",
-                method="GET"
-            )
+            response = await context.fetch(f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}", method="GET")
 
-            return ActionResult(
-                data={"deploy": response, "result": True},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"deploy": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"deploy": {}, "result": False, "error": str(e)},
-                cost_usd=0.0
-            )
+            return ActionResult(data={"deploy": {}, "result": False, "error": str(e)}, cost_usd=0.0)
