@@ -11,7 +11,7 @@
     "actions": {
         "get_company_details": {
             "display_name": "Get Company Details",
-            "description": "COMP_03: Get full details of a company by UUID or NZBN. For registered companies (status 50) use the NZBN. Returns company status, contacts, annual return info and an ETag. Store the ETag \u00e2\u20ac\u201d it is required when filing an annual return.",
+            "description": "COMP_03: Get full details of a company by UUID or NZBN. For registered companies (status 50) use the NZBN. Returns company status, contacts, annual return info and an ETag. Store the ETag — it is required when filing an annual return.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -152,7 +152,7 @@
         },
         "get_company_contacts": {
             "display_name": "Get Company Contacts",
-            "description": "Get all contacts for a company \u00e2\u20ac\u201d addresses, phone numbers and email addresses. Contacts are returned as part of the company record. For registered companies (status 50) use the NZBN. Each contact includes an ID (addressId, phoneContactId, emailAddressId) needed to update it. The returned ETag is required by update_company_contact.",
+            "description": "Get all contacts for a company — addresses, phone numbers and email addresses. Contacts are returned as part of the company record. For registered companies (status 50) use the NZBN. Each contact includes an ID (addressId, phoneContactId, emailAddressId) needed to update it. The returned ETag is required by update_company_contact.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -206,7 +206,7 @@
         },
         "update_company_contact": {
             "display_name": "Update Company Contact",
-            "description": "COMP_21: Update an existing contact (address, phone or email) for a company. For registered companies (status 50) use the NZBN. Requires the contactId and etag from get_company_contacts. IMPORTANT for address updates: (1) Do NOT use dpid \u00e2\u20ac\u201d provide address lines (address1, address3, postCode) directly. (2) effectiveDate is required for all address updates \u00e2\u20ac\u201d use a future date e.g. today + 7 days in ISO 8601 format '2026-03-05T00:00:00Z'. Workflow: call get_company_contacts to get contactId and etag, then call this action.",
+            "description": "COMP_21: Update an existing contact (address, phone or email) for a company. For registered companies (status 50) use the NZBN. Requires the contactId and etag from get_company_contacts. IMPORTANT for address updates: (1) Do NOT use dpid — provide address lines (address1, address3, postCode) directly. (2) effectiveDate is required for all address updates — use a future date e.g. today + 7 days in ISO 8601 format '2026-03-05T00:00:00Z'. Workflow: call get_company_contacts to get contactId and etag, then call this action.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -233,7 +233,7 @@
                     },
                     "physicalOrPostalAddress": {
                         "type": "object",
-                        "description": "Address details. Required when contactType is 'address'. Use address lines only \u00e2\u20ac\u201d do NOT include dpid. Include addressId of the address being updated.",
+                        "description": "Address details. Required when contactType is 'address'. Use address lines only — do NOT include dpid. Include addressId of the address being updated.",
                         "properties": {
                             "addressId": {
                                 "type": "string",
@@ -364,7 +364,7 @@
         },
         "add_company_contact": {
             "display_name": "Add Company Contact",
-            "description": "COMP_19: Add a new contact (address, phone or email) to a company. IMPORTANT: Each address purpose (Registered Office Address, Address for Service, Address for Communication) can only exist once. If the address already exists, you must use update_company_contact instead \u00e2\u20ac\u201d call get_company_contacts to get the addressId and etag, then call update_company_contact. Only one contact can be added at a time. Use search_nz_address first to get a valid dpid for NZ addresses.",
+            "description": "COMP_19: Add a new contact (address, phone or email) to a company. IMPORTANT: Each address purpose (Registered Office Address, Address for Service, Address for Communication) can only exist once. If the address already exists, you must use update_company_contact instead — call get_company_contacts to get the addressId and etag, then call update_company_contact. Only one contact can be added at a time. Use search_nz_address first to get a valid dpid for NZ addresses.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -546,7 +546,7 @@
         },
         "file_annual_return": {
             "display_name": "File Annual Return",
-            "description": "COMP_23: File an annual return for a registered company. Use NZBN as companyUuid. Requires the ETag from a recent get_company_details call \u00e2\u20ac\u201d this acts as confirmation that you have reviewed and the company details are correct as of that snapshot. Phone contact must be Mobile type (used for next year's SMS reminders). Payment defaults to directDebit; use creditCard with a redirectUrl to pay online.",
+            "description": "COMP_23: File an annual return for a registered company. Use NZBN as companyUuid. Requires the ETag from a recent get_company_details call — this acts as confirmation that you have reviewed and the company details are correct as of that snapshot. Phone contact must be Mobile type (used for next year's SMS reminders). Payment defaults to directDebit; use creditCard with a redirectUrl to pay online.",
             "input_schema": {
                 "type": "object",
                 "properties": {
