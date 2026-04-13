@@ -201,7 +201,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Mailchimp
 
-[mailchimp](mailchimp): Mailchimp email marketing integration Marketing API v3.0 for managing mailing lists, audience members, and email campaigns. Supports complete list management (create, get, list audiences), member operations (add, update, get members with merge fields and tags), and campaign management (create, get, list campaigns with status filtering). Features OAuth2 authentication with dynamic data center resolution, automatic rate limiting with retry logic (max 10 simultaneous connections), MD5 subscriber hash generation, and pagination support for large datasets. Includes 10 actions covering audience management, subscriber lifecycle, and email campaign workflows.
+[mailchimp](mailchimp): Mailchimp email marketing integration with Marketing API v3.0 for managing mailing lists, audience members, and email campaigns. Supports complete list management (create, get, list audiences), member operations (add, update, get members with merge fields and tags), and campaign management (create, get, list campaigns with status filtering). Features OAuth2 authentication with dynamic data center resolution, automatic rate limiting with retry logic (max 10 simultaneous connections), MD5 subscriber hash generation, and pagination support for large datasets. Includes 10 actions covering audience management, subscriber lifecycle, and email campaign workflows.
 
 ### Monday.com
 
@@ -257,7 +257,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### LinkedIn
 
-[linkedin](linkedin): LinkedIn integration for content sharing content and accessing user profile information. Supports posting text content to LinkedIn feed with PUBLIC or CONNECTIONS visibility, and retrieving authenticated user profile via OpenID Connect (sub, name, email, picture, locale). Features OAuth2 authentication with openid, profile, email, and w_member_social scopes, LinkedIn Posts API with versioned headers (202501), and comprehensive test suite. Includes 2 actions covering profile retrieval and content sharing. Ideal for social media automation, content publishing, and user identity workflows.
+[linkedin](linkedin): LinkedIn integration for content sharing and accessing user profile information. Supports posting text content to LinkedIn feed with PUBLIC or CONNECTIONS visibility, and retrieving authenticated user profile via OpenID Connect (sub, name, email, picture, locale). Features OAuth2 authentication with openid, profile, email, and w_member_social scopes, LinkedIn Posts API with versioned headers (202501), and comprehensive test suite. Includes 2 actions covering profile retrieval and content sharing. Ideal for social media automation, content publishing, and user identity workflows.
 
 ### LinkedIn Ads
 
