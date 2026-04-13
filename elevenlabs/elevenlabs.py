@@ -1,7 +1,5 @@
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler
-)
-from typing import Dict, Any, List, Optional
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from typing import Dict, Any
 import base64
 import aiohttp
 
@@ -13,6 +11,7 @@ ELEVENLABS_API_BASE_URL = "https://api.elevenlabs.io/v1"
 
 
 # ---- Helper Functions ----
+
 
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     """
@@ -28,13 +27,11 @@ def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     credentials = context.auth.get("credentials", {})
     api_key = credentials.get("api_key", "")
 
-    return {
-        "xi-api-key": api_key,
-        "Content-Type": "application/json"
-    }
+    return {"xi-api-key": api_key, "Content-Type": "application/json"}
 
 
 # ---- Action Handlers ----
+
 
 @elevenlabs.action("list_voices")
 class ListVoicesAction(ActionHandler):
@@ -44,25 +41,22 @@ class ListVoicesAction(ActionHandler):
         try:
             params = {}
 
-            if 'page_size' in inputs and inputs['page_size']:
-                params['page_size'] = inputs['page_size']
-            if 'category' in inputs and inputs['category']:
-                params['category'] = inputs['category']
-            if 'use_cases' in inputs and inputs['use_cases']:
-                params['use_cases'] = inputs['use_cases']
-            if 'search' in inputs and inputs['search']:
-                params['search'] = inputs['search']
+            if "page_size" in inputs and inputs["page_size"]:
+                params["page_size"] = inputs["page_size"]
+            if "category" in inputs and inputs["category"]:
+                params["category"] = inputs["category"]
+            if "use_cases" in inputs and inputs["use_cases"]:
+                params["use_cases"] = inputs["use_cases"]
+            if "search" in inputs and inputs["search"]:
+                params["search"] = inputs["search"]
 
             headers = get_auth_headers(context)
 
             response = await context.fetch(
-                f"{ELEVENLABS_API_BASE_URL}/voices",
-                method="GET",
-                headers=headers,
-                params=params if params else None
+                f"{ELEVENLABS_API_BASE_URL}/voices", method="GET", headers=headers, params=params if params else None
             )
 
-            voices = response.get('voices', [])
+            voices = response.get("voices", [])
             return {"voices": voices, "result": True}
 
         except Exception as e:
@@ -75,11 +69,11 @@ class GetVoiceAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            voice_id = inputs['voice_id']
+            voice_id = inputs["voice_id"]
 
             params = {}
-            if 'with_settings' in inputs and inputs['with_settings']:
-                params['with_settings'] = str(inputs['with_settings']).lower()
+            if "with_settings" in inputs and inputs["with_settings"]:
+                params["with_settings"] = str(inputs["with_settings"]).lower()
 
             headers = get_auth_headers(context)
 
@@ -87,7 +81,7 @@ class GetVoiceAction(ActionHandler):
                 f"{ELEVENLABS_API_BASE_URL}/voices/{voice_id}",
                 method="GET",
                 headers=headers,
-                params=params if params else None
+                params=params if params else None,
             )
 
             return {"voice": response, "result": True}
@@ -102,14 +96,12 @@ class GetVoiceSettingsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            voice_id = inputs['voice_id']
+            voice_id = inputs["voice_id"]
 
             headers = get_auth_headers(context)
 
             response = await context.fetch(
-                f"{ELEVENLABS_API_BASE_URL}/voices/{voice_id}/settings",
-                method="GET",
-                headers=headers
+                f"{ELEVENLABS_API_BASE_URL}/voices/{voice_id}/settings", method="GET", headers=headers
             )
 
             return {"settings": response, "result": True}
@@ -126,21 +118,18 @@ class ListHistoryAction(ActionHandler):
         try:
             params = {}
 
-            if 'page_size' in inputs and inputs['page_size']:
-                params['page_size'] = inputs['page_size']
-            if 'voice_id' in inputs and inputs['voice_id']:
-                params['voice_id'] = inputs['voice_id']
+            if "page_size" in inputs and inputs["page_size"]:
+                params["page_size"] = inputs["page_size"]
+            if "voice_id" in inputs and inputs["voice_id"]:
+                params["voice_id"] = inputs["voice_id"]
 
             headers = get_auth_headers(context)
 
             response = await context.fetch(
-                f"{ELEVENLABS_API_BASE_URL}/history",
-                method="GET",
-                headers=headers,
-                params=params if params else None
+                f"{ELEVENLABS_API_BASE_URL}/history", method="GET", headers=headers, params=params if params else None
             )
 
-            history = response.get('history', [])
+            history = response.get("history", [])
             return {"history": history, "result": True}
 
         except Exception as e:
@@ -153,7 +142,7 @@ class DownloadHistoryAudioAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            history_item_id = inputs['history_item_id']
+            history_item_id = inputs["history_item_id"]
 
             credentials = context.auth.get("credentials", {})
             api_key = credentials.get("api_key", "")
@@ -167,15 +156,15 @@ class DownloadHistoryAudioAction(ActionHandler):
                     if resp.status == 200:
                         audio_bytes = await resp.read()
                         # Encode as base64 following Autohive pattern (see Slider integration)
-                        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+                        audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
 
                         return {
                             "file": {
                                 "content": audio_base64,
                                 "name": "downloaded_audio.mp3",
-                                "contentType": "audio/mpeg"
+                                "contentType": "audio/mpeg",
                             },
-                            "result": True
+                            "result": True,
                         }
                     else:
                         error_text = await resp.text()
@@ -194,9 +183,7 @@ class GetUserSubscriptionAction(ActionHandler):
             headers = get_auth_headers(context)
 
             response = await context.fetch(
-                f"{ELEVENLABS_API_BASE_URL}/user/subscription",
-                method="GET",
-                headers=headers
+                f"{ELEVENLABS_API_BASE_URL}/user/subscription", method="GET", headers=headers
             )
 
             return {"subscription": response, "result": True}
@@ -211,8 +198,8 @@ class TextToSpeechAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            voice_id = inputs['voice_id']
-            text = inputs['text']
+            voice_id = inputs["voice_id"]
+            text = inputs["text"]
 
             credentials = context.auth.get("credentials", {})
             api_key = credentials.get("api_key", "")
@@ -220,14 +207,14 @@ class TextToSpeechAction(ActionHandler):
             # Build request body
             body = {"text": text}
 
-            if 'model_id' in inputs and inputs['model_id']:
-                body['model_id'] = inputs['model_id']
-            if 'voice_settings' in inputs and inputs['voice_settings']:
-                body['voice_settings'] = inputs['voice_settings']
+            if "model_id" in inputs and inputs["model_id"]:
+                body["model_id"] = inputs["model_id"]
+            if "voice_settings" in inputs and inputs["voice_settings"]:
+                body["voice_settings"] = inputs["voice_settings"]
 
             # Build URL with optional output_format
             url = f"{ELEVENLABS_API_BASE_URL}/text-to-speech/{voice_id}"
-            if 'output_format' in inputs and inputs['output_format']:
+            if "output_format" in inputs and inputs["output_format"]:
                 url += f"?output_format={inputs['output_format']}"
 
             headers = {"xi-api-key": api_key, "Content-Type": "application/json"}
@@ -238,15 +225,15 @@ class TextToSpeechAction(ActionHandler):
                     if resp.status == 200:
                         audio_bytes = await resp.read()
                         # Encode as base64 following Autohive pattern (see Slider integration)
-                        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+                        audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
 
                         return {
                             "file": {
                                 "content": audio_base64,
                                 "name": "generated_audio.mp3",
-                                "contentType": "audio/mpeg"
+                                "contentType": "audio/mpeg",
                             },
-                            "result": True
+                            "result": True,
                         }
                     else:
                         error_text = await resp.text()
