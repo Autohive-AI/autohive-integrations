@@ -2,20 +2,22 @@
 Standalone unit tests for Google Sheets integration that don't rely on external dependencies.
 These tests focus on testing the integration logic by mocking all external dependencies.
 """
+
 import asyncio
 import sys
 import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from typing import Any, Dict
 
 # Mock all Google API dependencies before any imports
-sys.modules['googleapiclient'] = Mock()
-sys.modules['googleapiclient.discovery'] = Mock()
-sys.modules['googleapiclient.http'] = Mock()
-sys.modules['googleapiclient.errors'] = Mock()
-sys.modules['google'] = Mock()
-sys.modules['google.oauth2'] = Mock()
-sys.modules['google.oauth2.credentials'] = Mock()
+sys.modules["googleapiclient"] = Mock()
+sys.modules["googleapiclient.discovery"] = Mock()
+sys.modules["googleapiclient.http"] = Mock()
+sys.modules["googleapiclient.errors"] = Mock()
+sys.modules["google"] = Mock()
+sys.modules["google.oauth2"] = Mock()
+sys.modules["google.oauth2.credentials"] = Mock()
+
 
 # Create mock HttpError class
 class MockHttpError(Exception):
@@ -24,20 +26,20 @@ class MockHttpError(Exception):
         self.content = content
         super().__init__(str(resp))
 
-sys.modules['googleapiclient.errors'].HttpError = MockHttpError
+
+sys.modules["googleapiclient.errors"].HttpError = MockHttpError
+
 
 # Mock the autohive integration SDK
 class MockExecutionContext:
-    def __init__(self, access_token: str = "test_token"):
-        self.auth = {
-            'credentials': {
-                'access_token': access_token
-            }
-        }
+    def __init__(self, access_token: str = "test_token"):  # nosec B107
+        self.auth = {"credentials": {"access_token": access_token}}
+
 
 class MockActionHandler:
     async def execute(self, inputs: Dict[str, Any], context: MockExecutionContext):
         pass
+
 
 class MockIntegration:
     def __init__(self):
@@ -52,6 +54,7 @@ class MockIntegration:
             # Store the handler class for testing
             self._actions[action_name] = handler_class
             return handler_class
+
         return decorator
 
     async def execute_action(self, action_name: str, inputs: Dict[str, Any], context: MockExecutionContext):
@@ -61,18 +64,19 @@ class MockIntegration:
         else:
             raise ValueError(f"Action {action_name} not found")
 
+
 # Mock the SDK modules
-sys.modules['autohive_integrations_sdk'] = Mock()
-sys.modules['autohive_integrations_sdk'].Integration = MockIntegration
-sys.modules['autohive_integrations_sdk'].ExecutionContext = MockExecutionContext
-sys.modules['autohive_integrations_sdk'].ActionHandler = MockActionHandler
+sys.modules["autohive_integrations_sdk"] = Mock()
+sys.modules["autohive_integrations_sdk"].Integration = MockIntegration
+sys.modules["autohive_integrations_sdk"].ExecutionContext = MockExecutionContext
+sys.modules["autohive_integrations_sdk"].ActionHandler = MockActionHandler
 
 # Change to the integration directory and add to path
-integration_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+integration_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, integration_root)
 
 # Import the google_sheets module now that everything is mocked
-import google_sheets
+import google_sheets  # noqa: E402
 
 # Replace the google_sheets instance with our mock after import
 google_sheets.google_sheets = MockIntegration()
@@ -86,7 +90,7 @@ class TestGoogleSheetsIntegration:
         self.context = MockExecutionContext()
         self.integration = google_sheets.google_sheets
 
-    @patch('google_sheets.build')
+    @patch("google_sheets.build")
     async def test_list_spreadsheets_success(self, mock_build):
         """Test successful listing of spreadsheets"""
         # Set up mocks
@@ -98,26 +102,26 @@ class TestGoogleSheetsIntegration:
         mock_drive_service.files.return_value = mock_files
         mock_files.list.return_value = mock_list
         mock_list.execute.return_value = {
-            'files': [
-                {'id': 'sheet1', 'name': 'Test Spreadsheet 1'},
-                {'id': 'sheet2', 'name': 'Test Spreadsheet 2'}
+            "files": [
+                {"id": "sheet1", "name": "Test Spreadsheet 1"},
+                {"id": "sheet2", "name": "Test Spreadsheet 2"},
             ],
-            'nextPageToken': 'next_token'
+            "nextPageToken": "next_token",
         }
 
         # Execute action
         result = await google_sheets.ListSpreadsheets().execute({}, self.context)
 
         # Verify results
-        assert result['result'] is True
-        assert len(result['files']) == 2
-        assert result['files'][0]['id'] == 'sheet1'
-        assert result['nextPageToken'] == 'next_token'
+        assert result["result"] is True
+        assert len(result["files"]) == 2
+        assert result["files"][0]["id"] == "sheet1"
+        assert result["nextPageToken"] == "next_token"
 
         # Verify API calls
-        mock_build.assert_called_once_with('drive', 'v3', credentials=mock_build.call_args[1]['credentials'])
+        mock_build.assert_called_once_with("drive", "v3", credentials=mock_build.call_args[1]["credentials"])
 
-    @patch('google_sheets.build')
+    @patch("google_sheets.build")
     async def test_list_spreadsheets_with_filters(self, mock_build):
         """Test listing spreadsheets with filters applied"""
         # Set up mocks
@@ -128,13 +132,13 @@ class TestGoogleSheetsIntegration:
         mock_build.return_value = mock_drive_service
         mock_drive_service.files.return_value = mock_files
         mock_files.list.return_value = mock_list
-        mock_list.execute.return_value = {'files': []}
+        mock_list.execute.return_value = {"files": []}
 
         inputs = {
-            'name_contains': 'Test',
-            'owner': 'me',
-            'pageSize': 10,
-            'pageToken': 'token123'
+            "name_contains": "Test",
+            "owner": "me",
+            "pageSize": 10,
+            "pageToken": "token123",
         }
 
         # Execute action
@@ -142,12 +146,12 @@ class TestGoogleSheetsIntegration:
 
         # Verify query parameters
         call_args = mock_files.list.call_args[1]
-        assert "name contains 'Test'" in call_args['q']
-        assert "'me' in owners" in call_args['q']
-        assert call_args['pageSize'] == 10
-        assert call_args['pageToken'] == 'token123'
+        assert "name contains 'Test'" in call_args["q"]
+        assert "'me' in owners" in call_args["q"]
+        assert call_args["pageSize"] == 10
+        assert call_args["pageToken"] == "token123"
 
-    @patch('google_sheets.build')
+    @patch("google_sheets.build")
     async def test_list_spreadsheets_quote_escaping(self, mock_build):
         """Test that quotes in search strings are properly escaped"""
         mock_drive_service = Mock()
@@ -157,16 +161,16 @@ class TestGoogleSheetsIntegration:
         mock_build.return_value = mock_drive_service
         mock_drive_service.files.return_value = mock_files
         mock_files.list.return_value = mock_list
-        mock_list.execute.return_value = {'files': []}
+        mock_list.execute.return_value = {"files": []}
 
-        inputs = {'name_contains': "Test's Sheet"}
+        inputs = {"name_contains": "Test's Sheet"}
 
         await google_sheets.ListSpreadsheets().execute(inputs, self.context)
 
         call_args = mock_files.list.call_args[1]
-        assert "name contains 'Test\\'s Sheet'" in call_args['q']
+        assert "name contains 'Test\\'s Sheet'" in call_args["q"]
 
-    @patch('google_sheets.build')
+    @patch("google_sheets.build")
     async def test_list_spreadsheets_http_error(self, mock_build):
         """Test error handling for HTTP errors"""
         mock_drive_service = Mock()
@@ -180,11 +184,11 @@ class TestGoogleSheetsIntegration:
 
         result = await google_sheets.ListSpreadsheets().execute({}, self.context)
 
-        assert result['result'] is False
-        assert 'Google Drive API error' in result['error']
-        assert result['files'] == []
+        assert result["result"] is False
+        assert "Google Drive API error" in result["error"]
+        assert result["files"] == []
 
-    @patch('google_sheets.build')
+    @patch("google_sheets.build")
     async def test_read_range_success(self, mock_build):
         """Test successful reading of a spreadsheet range"""
         mock_sheets_service = Mock()
@@ -197,24 +201,24 @@ class TestGoogleSheetsIntegration:
         mock_spreadsheets.values.return_value = mock_values
         mock_values.get.return_value = mock_get
         mock_get.execute.return_value = {
-            'range': 'Sheet1!A1:B2',
-            'values': [['Name', 'Age'], ['John', '30']]
+            "range": "Sheet1!A1:B2",
+            "values": [["Name", "Age"], ["John", "30"]],
         }
 
         inputs = {
-            'spreadsheet_id': 'test_id',
-            'range': 'Sheet1!A1:B2',
-            'valueRenderOption': 'FORMATTED_VALUE'
+            "spreadsheet_id": "test_id",
+            "range": "Sheet1!A1:B2",
+            "valueRenderOption": "FORMATTED_VALUE",
         }
 
         result = await google_sheets.ReadRange().execute(inputs, self.context)
 
-        assert result['result'] is True
-        assert result['range'] == 'Sheet1!A1:B2'
-        assert len(result['values']) == 2
-        assert result['values'][0] == ['Name', 'Age']
+        assert result["result"] is True
+        assert result["range"] == "Sheet1!A1:B2"
+        assert len(result["values"]) == 2
+        assert result["values"][0] == ["Name", "Age"]
 
-    @patch('google_sheets.build')
+    @patch("google_sheets.build")
     async def test_write_range_success(self, mock_build):
         """Test successful writing to a spreadsheet range"""
         mock_sheets_service = Mock()
@@ -227,28 +231,28 @@ class TestGoogleSheetsIntegration:
         mock_spreadsheets.values.return_value = mock_values
         mock_values.update.return_value = mock_update
         mock_update.execute.return_value = {
-            'updatedRange': 'Sheet1!A1:B2',
-            'updatedRows': 2,
-            'updatedColumns': 2,
-            'updatedCells': 4
+            "updatedRange": "Sheet1!A1:B2",
+            "updatedRows": 2,
+            "updatedColumns": 2,
+            "updatedCells": 4,
         }
 
         inputs = {
-            'spreadsheet_id': 'test_id',
-            'range': 'Sheet1!A1:B2',
-            'values': [['Name', 'Age'], ['John', '30']],
-            'inputOption': 'USER_ENTERED'
+            "spreadsheet_id": "test_id",
+            "range": "Sheet1!A1:B2",
+            "values": [["Name", "Age"], ["John", "30"]],
+            "inputOption": "USER_ENTERED",
         }
 
         result = await google_sheets.WriteRange().execute(inputs, self.context)
 
-        assert result['result'] is True
-        assert result['updatedRange'] == 'Sheet1!A1:B2'
-        assert result['updatedRows'] == 2
-        assert result['updatedCells'] == 4
-        assert result['dryRun'] is False
+        assert result["result"] is True
+        assert result["updatedRange"] == "Sheet1!A1:B2"
+        assert result["updatedRows"] == 2
+        assert result["updatedCells"] == 4
+        assert result["dryRun"] is False
 
-    @patch('google_sheets.build')
+    @patch("google_sheets.build")
     async def test_write_range_dry_run(self, mock_build):
         """Test dry run mode for write operations"""
         mock_sheets_service = Mock()
@@ -258,36 +262,36 @@ class TestGoogleSheetsIntegration:
         mock_build.return_value = mock_sheets_service
         mock_sheets_service.spreadsheets.return_value = mock_spreadsheets
         mock_spreadsheets.get.return_value = mock_get
-        mock_get.execute.return_value = {'spreadsheetId': 'test_id'}
+        mock_get.execute.return_value = {"spreadsheetId": "test_id"}
 
         inputs = {
-            'spreadsheet_id': 'test_id',
-            'range': 'Sheet1!A1:B2',
-            'values': [['Name', 'Age'], ['John', '30']],
-            'dry_run': True
+            "spreadsheet_id": "test_id",
+            "range": "Sheet1!A1:B2",
+            "values": [["Name", "Age"], ["John", "30"]],
+            "dry_run": True,
         }
 
         result = await google_sheets.WriteRange().execute(inputs, self.context)
 
-        assert result['result'] is True
-        assert result['dryRun'] is True
-        assert result['updatedRows'] == 2
-        assert result['updatedColumns'] == 2
-        assert result['updatedCells'] == 4
+        assert result["result"] is True
+        assert result["dryRun"] is True
+        assert result["updatedRows"] == 2
+        assert result["updatedColumns"] == 2
+        assert result["updatedCells"] == 4
 
     async def test_batch_update_invalid_requests(self):
         """Test validation of batch update requests"""
         inputs = {
-            'spreadsheet_id': 'test_id',
-            'requests': 'not_a_list'  # Should be a list
+            "spreadsheet_id": "test_id",
+            "requests": "not_a_list",  # Should be a list
         }
 
         result = await google_sheets.SheetsBatchUpdate().execute(inputs, self.context)
 
-        assert result['result'] is False
-        assert 'requests must be an array of objects' in result['error']
+        assert result["result"] is False
+        assert "requests must be an array of objects" in result["error"]
 
-    @patch('google_sheets.Credentials')
+    @patch("google_sheets.Credentials")
     def test_build_credentials(self, mock_credentials):
         """Test credential building from execution context"""
         # Set up mock
@@ -300,11 +304,11 @@ class TestGoogleSheetsIntegration:
         # Verify Credentials was called with correct parameters
         mock_credentials.assert_called_once_with(
             token="test_access_token",
-            token_uri="https://oauth2.googleapis.com/token"
+            token_uri="https://oauth2.googleapis.com/token",  # nosec B106
         )
         assert result == mock_creds_instance
 
-    @patch('google_sheets.build')
+    @patch("google_sheets.build")
     async def test_error_handling_generic_exception(self, mock_build):
         """Test handling of generic exceptions"""
         mock_sheets_service = Mock()
@@ -316,12 +320,12 @@ class TestGoogleSheetsIntegration:
         mock_spreadsheets.get.return_value = mock_get
         mock_get.execute.side_effect = Exception("Network error")
 
-        inputs = {'spreadsheet_id': 'test_id'}
+        inputs = {"spreadsheet_id": "test_id"}
         result = await google_sheets.GetSpreadsheet().execute(inputs, self.context)
 
-        assert result['result'] is False
-        assert result['error'] == "Network error"
-        assert result['spreadsheet'] == {}
+        assert result["result"] is False
+        assert result["error"] == "Network error"
+        assert result["spreadsheet"] == {}
 
 
 async def run_all_tests():
@@ -329,7 +333,7 @@ async def run_all_tests():
     test_instance = TestGoogleSheetsIntegration()
 
     # List all test methods
-    test_methods = [method for method in dir(test_instance) if method.startswith('test_')]
+    test_methods = [method for method in dir(test_instance) if method.startswith("test_")]
 
     print("Running Google Sheets integration tests...")
     print("=" * 50)

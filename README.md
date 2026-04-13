@@ -168,7 +168,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Google Tasks
 
-[google-tasks](google-tasks): Integrates with Google Tasks API for comprehensive task management within Autohive workflows. Supports listing and accessing task lists, and full CRUD operations for tasks including creating tasks with due dates and notes, managing subtasks with parent-child relationships, updating task status and properties, repositioning tasks, and filtering by completion status and date ranges. Features secure OAuth2 authentication, pagination support for large task collections (up to 2,000 lists and 20,000 tasks per list), and comprehensive error handling for productivity and workflow automation.
+[google-tasks](google-tasks): Google Tasks API integration for comprehensive task management within Autohive workflows. Supports listing and accessing task lists, and full CRUD operations for tasks including creating tasks with due dates and notes, managing subtasks with parent-child relationships, updating task status and properties, repositioning tasks, and filtering by completion status and date ranges. Features secure OAuth2 authentication, pagination support for large task collections (up to 2,000 lists and 20,000 tasks per list), and comprehensive error handling for productivity and workflow automation.
 
 ### Google Business Profile
 
