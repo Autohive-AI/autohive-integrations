@@ -225,7 +225,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Freshdesk
 
-[freshdesk](freshdesk): Comprehensive help desk integration with Freshdesk API v2 for complete customer support operations. Supports ticket management (create, list, get, update, delete tickets with priority and status control), contact management (full CRUD operations for customer contacts with company associations), company management (create and manage organizations with domain associations), and conversation tracking (list ticket conversations, add private notes for agents, create public replies to customers). Features custom API key authentication with automatic Basic Auth encoding, pagination support for all list operations, and robust error handling. Ideal for automating support workflows, ticket routing, customer communication, and help desk operations.
+[freshdesk](freshdesk): Help desk integration with Freshdesk API v2 for complete customer support operations. Supports ticket management (create, list, get, update, delete tickets with priority and status control), contact management (full CRUD operations for customer contacts with company associations), company management (create and manage organizations with domain associations), and conversation tracking (list ticket conversations, add private notes for agents, create public replies to customers). Features custom API key authentication with automatic Basic Auth encoding, pagination support for all list operations, and robust error handling. Ideal for automating support workflows, ticket routing, customer communication, and help desk operations.
 
 ### Doc Maker
 
