@@ -1,1 +1,2 @@
 autohive-integrations-sdk~=1.0.2
+aiohttp  # Required directly: SDK context.fetch() lacks binary download and multipart form upload support
