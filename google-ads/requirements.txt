@@ -1,4 +1,4 @@
 autohive-integrations-sdk~=1.0.2
-google-ads
+google-ads~=30.0
 python-dotenv
 proto-plus
