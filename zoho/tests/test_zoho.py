@@ -35,9 +35,10 @@ from autohive_integrations_sdk import ExecutionContext
 AUTH = {
     "auth_type": "PlatformOauth2",
     "credentials": {
-        "access_token": "<placeholder>",
-        "api_domain": "www.zohoapis.com.au"  # Options: www.zohoapis.com (US), www.zohoapis.eu (EU), www.zohoapis.com.au (AU)
-    }
+        "access_token": "<placeholder>",  # nosec B105
+        # Options: www.zohoapis.com (US), www.zohoapis.eu (EU), www.zohoapis.com.au (AU)
+        "api_domain": "www.zohoapis.com.au",
+    },
 }
 
 # Replace with an actual CONTACT ID from your Zoho CRM (use list_contacts to find one)
@@ -48,10 +49,7 @@ TEST_CONTACT_ID = "102732000000388354"  # Kris Marrier (Sample) from list_contac
 
 async def test_list_contacts():
     """Test listing contacts with pagination."""
-    inputs = {
-        "page": 1,
-        "per_page": 10
-    }
+    inputs = {"page": 1, "per_page": 10}
 
     async with ExecutionContext(auth=AUTH) as context:
         try:
@@ -60,9 +58,9 @@ async def test_list_contacts():
             result_data = result.result.data
             print(f"List Contacts Result: {result_data}")
 
-            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
-            assert 'contacts' in result_data, "Response missing 'contacts' field"
-            assert 'info' in result_data, "Response missing pagination 'info' field"
+            assert result_data.get("result"), f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert "contacts" in result_data, "Response missing 'contacts' field"
+            assert "info" in result_data, "Response missing pagination 'info' field"
             print("✓ test_list_contacts passed")
             return result_data
         except Exception as e:
@@ -78,7 +76,7 @@ async def test_create_contact():
         "Last_Name": "Smith",
         "First_Name": "John",
         "Email": f"john.smith.{timestamp}@example.com",
-        "Phone": "+1-555-0100"
+        "Phone": "+1-555-0100",
     }
 
     async with ExecutionContext(auth=AUTH) as context:
@@ -87,9 +85,9 @@ async def test_create_contact():
             result_data = result.result.data
             print(f"Create Contact Result: {result_data}")
 
-            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
-            assert 'contact' in result_data, "Response missing 'contact' field"
-            assert result_data['contact'].get('id'), "Contact ID not returned"
+            assert result_data.get("result"), f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert "contact" in result_data, "Response missing 'contact' field"
+            assert result_data["contact"].get("id"), "Contact ID not returned"
             print("✓ test_create_contact passed")
             return result_data
         except Exception as e:
@@ -99,9 +97,7 @@ async def test_create_contact():
 
 async def test_get_contact():
     """Test getting a specific contact by ID."""
-    inputs = {
-        "contact_id": TEST_CONTACT_ID
-    }
+    inputs = {"contact_id": TEST_CONTACT_ID}
 
     async with ExecutionContext(auth=AUTH) as context:
         try:
@@ -109,8 +105,8 @@ async def test_get_contact():
             result_data = result.result.data
             print(f"Get Contact Result: {result_data}")
 
-            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
-            assert 'contact' in result_data, "Response missing 'contact' field"
+            assert result_data.get("result"), f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert "contact" in result_data, "Response missing 'contact' field"
             print("✓ test_get_contact passed")
             return result_data
         except Exception as e:
@@ -120,11 +116,7 @@ async def test_get_contact():
 
 async def test_create_deal():
     """Test creating a new deal."""
-    inputs = {
-        "Deal_Name": "Enterprise Software Deal",
-        "Amount": 50000,
-        "Stage": "Proposal"
-    }
+    inputs = {"Deal_Name": "Enterprise Software Deal", "Amount": 50000, "Stage": "Proposal"}
 
     async with ExecutionContext(auth=AUTH) as context:
         try:
@@ -132,9 +124,9 @@ async def test_create_deal():
             result_data = result.result.data
             print(f"Create Deal Result: {result_data}")
 
-            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
-            assert 'deal' in result_data, "Response missing 'deal' field"
-            assert result_data['deal'].get('id'), "Deal ID not returned"
+            assert result_data.get("result"), f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert "deal" in result_data, "Response missing 'deal' field"
+            assert result_data["deal"].get("id"), "Deal ID not returned"
             print("✓ test_create_deal passed")
             return result_data
         except Exception as e:
@@ -144,10 +136,7 @@ async def test_create_deal():
 
 async def test_list_deals():
     """Test listing deals with pagination."""
-    inputs = {
-        "page": 1,
-        "per_page": 10
-    }
+    inputs = {"page": 1, "per_page": 10}
 
     async with ExecutionContext(auth=AUTH) as context:
         try:
@@ -155,9 +144,9 @@ async def test_list_deals():
             result_data = result.result.data
             print(f"List Deals Result: {result_data}")
 
-            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
-            assert 'deals' in result_data, "Response missing 'deals' field"
-            assert 'info' in result_data, "Response missing pagination 'info' field"
+            assert result_data.get("result"), f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert "deals" in result_data, "Response missing 'deals' field"
+            assert "info" in result_data, "Response missing pagination 'info' field"
             print("✓ test_list_deals passed")
             return result_data
         except Exception as e:
@@ -171,7 +160,7 @@ async def test_create_note():
         "module": "Contacts",
         "record_id": TEST_CONTACT_ID,
         "Note_Title": "Discussion Notes",
-        "Note_Content": "Q4 requirements discussed"
+        "Note_Content": "Q4 requirements discussed",
     }
 
     async with ExecutionContext(auth=AUTH) as context:
@@ -180,9 +169,9 @@ async def test_create_note():
             result_data = result.result.data
             print(f"Create Note Result: {result_data}")
 
-            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
-            assert 'note' in result_data, "Response missing 'note' field"
-            assert result_data['note'].get('id'), "Note ID not returned"
+            assert result_data.get("result"), f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert "note" in result_data, "Response missing 'note' field"
+            assert result_data["note"].get("id"), "Note ID not returned"
             print("✓ test_create_note passed")
             return result_data
         except Exception as e:
@@ -197,7 +186,7 @@ async def test_get_contact_notes():
         "record_id": TEST_CONTACT_ID,
         "page": 1,
         "per_page": 10,
-        "fields": ["Note_Title", "Note_Content", "Owner", "Created_Time"]
+        "fields": ["Note_Title", "Note_Content", "Owner", "Created_Time"],
     }
 
     async with ExecutionContext(auth=AUTH) as context:
@@ -206,9 +195,9 @@ async def test_get_contact_notes():
             result_data = result.result.data
             print(f"Get Contact Notes Result: {result_data}")
 
-            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
-            assert 'notes' in result_data, "Response missing 'notes' field"
-            assert 'info' in result_data, "Response missing pagination 'info' field"
+            assert result_data.get("result"), f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert "notes" in result_data, "Response missing 'notes' field"
+            assert "info" in result_data, "Response missing pagination 'info' field"
             print("✓ test_get_contact_notes passed")
             return result_data
         except Exception as e:
@@ -218,9 +207,7 @@ async def test_get_contact_notes():
 
 async def test_execute_coql_query():
     """Test executing a COQL query."""
-    inputs = {
-        "select_query": "SELECT First_Name, Last_Name, Email FROM Contacts WHERE Last_Name is not null LIMIT 10"
-    }
+    inputs = {"select_query": "SELECT First_Name, Last_Name, Email FROM Contacts WHERE Last_Name is not null LIMIT 10"}
 
     async with ExecutionContext(auth=AUTH) as context:
         try:
@@ -228,9 +215,9 @@ async def test_execute_coql_query():
             result_data = result.result.data
             print(f"Execute COQL Query Result: {result_data}")
 
-            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
-            assert 'data' in result_data, "Response missing 'data' field"
-            assert 'info' in result_data, "Response missing 'info' field"
+            assert result_data.get("result"), f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert "data" in result_data, "Response missing 'data' field"
+            assert "info" in result_data, "Response missing 'info' field"
             print("✓ test_execute_coql_query passed")
             return result_data
         except Exception as e:
@@ -240,10 +227,7 @@ async def test_execute_coql_query():
 
 async def test_list_leads():
     """Test listing leads with pagination."""
-    inputs = {
-        "page": 1,
-        "per_page": 10
-    }
+    inputs = {"page": 1, "per_page": 10}
 
     async with ExecutionContext(auth=AUTH) as context:
         try:
@@ -251,9 +235,9 @@ async def test_list_leads():
             result_data = result.result.data
             print(f"List Leads Result: {result_data}")
 
-            assert result_data.get('result') == True, f"Action failed: {result_data.get('error', 'Unknown error')}"
-            assert 'leads' in result_data, "Response missing 'leads' field"
-            assert 'info' in result_data, "Response missing pagination 'info' field"
+            assert result_data.get("result"), f"Action failed: {result_data.get('error', 'Unknown error')}"
+            assert "leads" in result_data, "Response missing 'leads' field"
+            assert "info" in result_data, "Response missing pagination 'info' field"
             print("✓ test_list_leads passed")
             return result_data
         except Exception as e:
