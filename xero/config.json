@@ -7,7 +7,15 @@
     "auth": {
         "type": "platform",
         "provider": "Xero",
-        "scopes": ["accounting.reports.read", "accounting.contacts.read", "accounting.settings.read", "accounting.transactions.read", "accounting.transactions", "accounting.attachments", "offline_access"]
+        "scopes": [
+            "accounting.reports.read",
+            "accounting.contacts.read",
+            "accounting.settings.read",
+            "accounting.transactions.read",
+            "accounting.transactions",
+            "accounting.attachments",
+            "offline_access"
+        ]
     },
     "actions": {
         "get_available_connections": {
@@ -39,7 +47,10 @@
                                     "description": "Xero tenant/company name"
                                 }
                             },
-                            "required": ["tenant_id", "company_name"]
+                            "required": [
+                                "tenant_id",
+                                "company_name"
+                            ]
                         }
                     },
                     "message": {
@@ -47,7 +58,10 @@
                         "description": "Error message if success is false"
                     }
                 },
-                "required": ["success", "companies"]
+                "required": [
+                    "success",
+                    "companies"
+                ]
             }
         },
         "find_contact_by_name": {
@@ -65,7 +79,10 @@
                         "description": "Contact/organization name to search for (will match against Name field)"
                     }
                 },
-                "required": ["tenant_id", "contact_name"]
+                "required": [
+                    "tenant_id",
+                    "contact_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -84,103 +101,177 @@
                                     "description": "Contact name from Name field"
                                 },
                                 "contact_number": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Contact number"
                                 },
                                 "account_number": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Account number"
                                 },
                                 "contact_status": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Contact status"
                                 },
                                 "first_name": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "First name"
                                 },
                                 "last_name": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Last name"
                                 },
                                 "email_address": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Email address"
                                 },
                                 "skype_user_name": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Skype username"
                                 },
                                 "bank_account_details": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Bank account details"
                                 },
                                 "tax_number": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Tax number"
                                 },
                                 "accounts_receivable_tax_type": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Accounts receivable tax type"
                                 },
                                 "accounts_payable_tax_type": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Accounts payable tax type"
                                 },
                                 "addresses": {
-                                    "type": ["array", "null"],
+                                    "type": [
+                                        "array",
+                                        "null"
+                                    ],
                                     "description": "Array of contact addresses"
                                 },
                                 "phones": {
-                                    "type": ["array", "null"],
+                                    "type": [
+                                        "array",
+                                        "null"
+                                    ],
                                     "description": "Array of contact phone numbers"
                                 },
                                 "updated_date_utc": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Last updated date in UTC"
                                 },
                                 "contact_groups": {
-                                    "type": ["array", "null"],
+                                    "type": [
+                                        "array",
+                                        "null"
+                                    ],
                                     "description": "Array of contact groups"
                                 },
                                 "website": {
-                                    "type": ["string", "null"],
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Website URL"
                                 },
                                 "branding_theme": {
-                                    "type": ["object", "null"],
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
                                     "description": "Branding theme information"
                                 },
                                 "batch_payments": {
-                                    "type": ["object", "null"],
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
                                     "description": "Batch payment information"
                                 },
                                 "discount": {
-                                    "type": ["number", "null"],
+                                    "type": [
+                                        "number",
+                                        "null"
+                                    ],
                                     "description": "Discount percentage"
                                 },
                                 "balances": {
-                                    "type": ["object", "null"],
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
                                     "description": "Account balances"
                                 },
                                 "attachments": {
-                                    "type": ["array", "null"],
+                                    "type": [
+                                        "array",
+                                        "null"
+                                    ],
                                     "description": "Array of attachments"
                                 },
                                 "has_attachments": {
-                                    "type": ["boolean", "null"],
+                                    "type": [
+                                        "boolean",
+                                        "null"
+                                    ],
                                     "description": "Whether contact has attachments"
                                 },
                                 "contact_persons": {
-                                    "type": ["array", "null"],
+                                    "type": [
+                                        "array",
+                                        "null"
+                                    ],
                                     "description": "Array of contact persons"
                                 }
                             },
-                            "required": ["contact_id", "name"]
+                            "required": [
+                                "contact_id",
+                                "name"
+                            ]
                         }
                     }
                 },
-                "required": ["contacts"]
+                "required": [
+                    "contacts"
+                ]
             }
         },
         "get_aged_payables": {
@@ -203,7 +294,10 @@
                         "description": "Report date (YYYY-MM-DD). Defaults to today if not specified"
                     }
                 },
-                "required": ["tenant_id", "contact_id"]
+                "required": [
+                    "tenant_id",
+                    "contact_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -256,7 +350,10 @@
                         "description": "Report date (YYYY-MM-DD). Defaults to today if not specified"
                     }
                 },
-                "required": ["tenant_id", "contact_id"]
+                "required": [
+                    "tenant_id",
+                    "contact_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -311,7 +408,9 @@
                         "maximum": 12
                     }
                 },
-                "required": ["tenant_id"]
+                "required": [
+                    "tenant_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -371,7 +470,11 @@
                     },
                     "timeframe": {
                         "type": "string",
-                        "enum": ["MONTH", "QUARTER", "YEAR"],
+                        "enum": [
+                            "MONTH",
+                            "QUARTER",
+                            "YEAR"
+                        ],
                         "description": "Timeframe for period comparisons (optional)"
                     },
                     "periods": {
@@ -381,7 +484,9 @@
                         "maximum": 12
                     }
                 },
-                "required": ["tenant_id"]
+                "required": [
+                    "tenant_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -434,7 +539,9 @@
                         "description": "Whether to include only payments (optional, defaults to false)"
                     }
                 },
-                "required": ["tenant_id"]
+                "required": [
+                    "tenant_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -486,7 +593,9 @@
                         "description": "Optional Xero orderby parameter. Order by any element returned. Examples: \"Code ASC\", \"Name DESC\", \"Type ASC\". Multi-field sorting: \"Type ASC, Code ASC\". Note: Some fields are optimized for better performance."
                     }
                 },
-                "required": ["tenant_id"]
+                "required": [
+                    "tenant_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -526,7 +635,9 @@
                         "description": "Optional page size for pagination (1-1000). Used with page parameter. Examples: page=1&pageSize=250."
                     }
                 },
-                "required": ["tenant_id"]
+                "required": [
+                    "tenant_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -582,7 +693,9 @@
                         "description": "Optional comma-separated list of contact IDs (GUIDs) to filter invoices by specific contacts"
                     }
                 },
-                "required": ["tenant_id"]
+                "required": [
+                    "tenant_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -610,7 +723,10 @@
                         "description": "Invoice ID (GUID) to retrieve as PDF. Example: 97c2dc5-cc47-4afd-8ec8-74990b8761e9"
                     }
                 },
-                "required": ["tenant_id", "invoice_id"]
+                "required": [
+                    "tenant_id",
+                    "invoice_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -631,7 +747,11 @@
                                 "description": "MIME type of the file (application/pdf)"
                             }
                         },
-                        "required": ["name", "content", "contentType"]
+                        "required": [
+                            "name",
+                            "content",
+                            "contentType"
+                        ]
                     },
                     "success": {
                         "type": "boolean",
@@ -642,7 +762,10 @@
                         "description": "Error message if download failed"
                     }
                 },
-                "required": ["file", "success"]
+                "required": [
+                    "file",
+                    "success"
+                ]
             }
         },
         "get_bank_transactions": {
@@ -668,7 +791,9 @@
                         "description": "Optional page number for pagination"
                     }
                 },
-                "required": ["tenant_id"]
+                "required": [
+                    "tenant_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -732,7 +857,11 @@
                                     "description": "Tax type (e.g., OUTPUT, EXEMPTOUTPUT)"
                                 }
                             },
-                            "required": ["Description", "UnitAmount", "AccountCode"]
+                            "required": [
+                                "Description",
+                                "UnitAmount",
+                                "AccountCode"
+                            ]
                         }
                     },
                     "date": {
@@ -763,16 +892,28 @@
                     },
                     "status": {
                         "type": "string",
-                        "enum": ["DRAFT", "SUBMITTED", "AUTHORISED"],
+                        "enum": [
+                            "DRAFT",
+                            "SUBMITTED",
+                            "AUTHORISED"
+                        ],
                         "description": "Invoice status. Defaults to DRAFT"
                     },
                     "line_amount_types": {
                         "type": "string",
-                        "enum": ["Exclusive", "Inclusive", "NoTax"],
+                        "enum": [
+                            "Exclusive",
+                            "Inclusive",
+                            "NoTax"
+                        ],
                         "description": "Line amount types for tax calculation"
                     }
                 },
-                "required": ["tenant_id", "contact", "line_items"]
+                "required": [
+                    "tenant_id",
+                    "contact",
+                    "line_items"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -836,7 +977,11 @@
                                     "description": "Tax type (e.g., INPUT, EXEMPTINPUT)"
                                 }
                             },
-                            "required": ["Description", "UnitAmount", "AccountCode"]
+                            "required": [
+                                "Description",
+                                "UnitAmount",
+                                "AccountCode"
+                            ]
                         }
                     },
                     "date": {
@@ -863,16 +1008,28 @@
                     },
                     "status": {
                         "type": "string",
-                        "enum": ["DRAFT", "SUBMITTED", "AUTHORISED"],
+                        "enum": [
+                            "DRAFT",
+                            "SUBMITTED",
+                            "AUTHORISED"
+                        ],
                         "description": "Bill status. Defaults to DRAFT"
                     },
                     "line_amount_types": {
                         "type": "string",
-                        "enum": ["Exclusive", "Inclusive", "NoTax"],
+                        "enum": [
+                            "Exclusive",
+                            "Inclusive",
+                            "NoTax"
+                        ],
                         "description": "Line amount types for tax calculation"
                     }
                 },
-                "required": ["tenant_id", "contact", "line_items"]
+                "required": [
+                    "tenant_id",
+                    "contact",
+                    "line_items"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -944,7 +1101,11 @@
                                     "description": "Tax type (e.g., OUTPUT, EXEMPTOUTPUT)"
                                 }
                             },
-                            "required": ["Description", "UnitAmount", "AccountCode"]
+                            "required": [
+                                "Description",
+                                "UnitAmount",
+                                "AccountCode"
+                            ]
                         }
                     },
                     "date": {
@@ -975,16 +1136,27 @@
                     },
                     "status": {
                         "type": "string",
-                        "enum": ["DRAFT", "SUBMITTED", "AUTHORISED"],
+                        "enum": [
+                            "DRAFT",
+                            "SUBMITTED",
+                            "AUTHORISED"
+                        ],
                         "description": "Invoice status"
                     },
                     "line_amount_types": {
                         "type": "string",
-                        "enum": ["Exclusive", "Inclusive", "NoTax"],
+                        "enum": [
+                            "Exclusive",
+                            "Inclusive",
+                            "NoTax"
+                        ],
                         "description": "Line amount types for tax calculation"
                     }
                 },
-                "required": ["tenant_id", "invoice_id"]
+                "required": [
+                    "tenant_id",
+                    "invoice_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1056,7 +1228,11 @@
                                     "description": "Tax type (e.g., INPUT, EXEMPTINPUT)"
                                 }
                             },
-                            "required": ["Description", "UnitAmount", "AccountCode"]
+                            "required": [
+                                "Description",
+                                "UnitAmount",
+                                "AccountCode"
+                            ]
                         }
                     },
                     "date": {
@@ -1083,16 +1259,27 @@
                     },
                     "status": {
                         "type": "string",
-                        "enum": ["DRAFT", "SUBMITTED", "AUTHORISED"],
+                        "enum": [
+                            "DRAFT",
+                            "SUBMITTED",
+                            "AUTHORISED"
+                        ],
                         "description": "Bill status"
                     },
                     "line_amount_types": {
                         "type": "string",
-                        "enum": ["Exclusive", "Inclusive", "NoTax"],
+                        "enum": [
+                            "Exclusive",
+                            "Inclusive",
+                            "NoTax"
+                        ],
                         "description": "Line amount types for tax calculation"
                     }
                 },
-                "required": ["tenant_id", "invoice_id"]
+                "required": [
+                    "tenant_id",
+                    "invoice_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1123,11 +1310,24 @@
                         "type": "object",
                         "description": "File object from chat: base64 content, name, contentType.",
                         "properties": {
-                            "content": {"type": "string", "description": "Base64 encoded file content"},
-                            "name": {"type": "string", "description": "File name including extension"},
-                            "contentType": {"type": "string", "description": "MIME type of the file"}
+                            "content": {
+                                "type": "string",
+                                "description": "Base64 encoded file content"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "File name including extension"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "MIME type of the file"
+                            }
                         },
-                        "required": ["content", "name", "contentType"]
+                        "required": [
+                            "content",
+                            "name",
+                            "contentType"
+                        ]
                     },
                     "files": {
                         "type": "array",
@@ -1135,11 +1335,24 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "content": {"type": "string", "description": "Base64 encoded file content"},
-                                "name": {"type": "string", "description": "File name including extension"},
-                                "contentType": {"type": "string", "description": "MIME type of the file"}
+                                "content": {
+                                    "type": "string",
+                                    "description": "Base64 encoded file content"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "File name including extension"
+                                },
+                                "contentType": {
+                                    "type": "string",
+                                    "description": "MIME type of the file"
+                                }
                             },
-                            "required": ["content", "name", "contentType"]
+                            "required": [
+                                "content",
+                                "name",
+                                "contentType"
+                            ]
                         }
                     },
                     "include_online": {
@@ -1147,7 +1360,10 @@
                         "description": "Whether to include the attachment in online invoice (default: true)"
                     }
                 },
-                "required": ["tenant_id", "invoice_id"]
+                "required": [
+                    "tenant_id",
+                    "invoice_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1178,11 +1394,24 @@
                         "type": "object",
                         "description": "File object from chat: base64 content, name, contentType.",
                         "properties": {
-                            "content": {"type": "string", "description": "Base64 encoded file content"},
-                            "name": {"type": "string", "description": "File name including extension"},
-                            "contentType": {"type": "string", "description": "MIME type of the file"}
+                            "content": {
+                                "type": "string",
+                                "description": "Base64 encoded file content"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "File name including extension"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "MIME type of the file"
+                            }
                         },
-                        "required": ["content", "name", "contentType"]
+                        "required": [
+                            "content",
+                            "name",
+                            "contentType"
+                        ]
                     },
                     "files": {
                         "type": "array",
@@ -1190,11 +1419,24 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "content": {"type": "string", "description": "Base64 encoded file content"},
-                                "name": {"type": "string", "description": "File name including extension"},
-                                "contentType": {"type": "string", "description": "MIME type of the file"}
+                                "content": {
+                                    "type": "string",
+                                    "description": "Base64 encoded file content"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "File name including extension"
+                                },
+                                "contentType": {
+                                    "type": "string",
+                                    "description": "MIME type of the file"
+                                }
                             },
-                            "required": ["content", "name", "contentType"]
+                            "required": [
+                                "content",
+                                "name",
+                                "contentType"
+                            ]
                         }
                     },
                     "include_online": {
@@ -1202,7 +1444,10 @@
                         "description": "Whether to include the attachment in online bill (default: true)"
                     }
                 },
-                "required": ["tenant_id", "bill_id"]
+                "required": [
+                    "tenant_id",
+                    "bill_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1228,14 +1473,22 @@
                     "endpoint": {
                         "type": "string",
                         "description": "The endpoint type (e.g., 'Invoices', 'Bills', 'BankTransactions')",
-                        "enum": ["Invoices", "Bills", "BankTransactions"]
+                        "enum": [
+                            "Invoices",
+                            "Bills",
+                            "BankTransactions"
+                        ]
                     },
                     "guid": {
                         "type": "string",
                         "description": "The GUID of the invoice/bill/transaction"
                     }
                 },
-                "required": ["tenant_id", "endpoint", "guid"]
+                "required": [
+                    "tenant_id",
+                    "endpoint",
+                    "guid"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1261,7 +1514,11 @@
                     "endpoint": {
                         "type": "string",
                         "description": "The endpoint type (e.g., 'Invoices', 'Bills', 'BankTransactions')",
-                        "enum": ["Invoices", "Bills", "BankTransactions"]
+                        "enum": [
+                            "Invoices",
+                            "Bills",
+                            "BankTransactions"
+                        ]
                     },
                     "guid": {
                         "type": "string",
@@ -1272,7 +1529,12 @@
                         "description": "The filename of the attachment to download"
                     }
                 },
-                "required": ["tenant_id", "endpoint", "guid", "file_name"]
+                "required": [
+                    "tenant_id",
+                    "endpoint",
+                    "guid",
+                    "file_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1293,7 +1555,11 @@
                                 "description": "MIME type of the file"
                             }
                         },
-                        "required": ["name", "content", "contentType"]
+                        "required": [
+                            "name",
+                            "content",
+                            "contentType"
+                        ]
                     },
                     "success": {
                         "type": "boolean",
@@ -1304,7 +1570,10 @@
                         "description": "Error message if download failed"
                     }
                 },
-                "required": ["file", "success"]
+                "required": [
+                    "file",
+                    "success"
+                ]
             }
         },
         "get_purchase_orders": {
@@ -1338,7 +1607,9 @@
                         "description": "Optional comma-separated list of statuses. Examples: \"DRAFT,SUBMITTED,AUTHORISED\". Valid statuses: DRAFT, SUBMITTED, AUTHORISED, BILLED, DELETED"
                     }
                 },
-                "required": ["tenant_id"]
+                "required": [
+                    "tenant_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1402,7 +1673,11 @@
                                     "description": "Tax type (e.g., INPUT, EXEMPTINPUT)"
                                 }
                             },
-                            "required": ["Description", "UnitAmount", "AccountCode"]
+                            "required": [
+                                "Description",
+                                "UnitAmount",
+                                "AccountCode"
+                            ]
                         }
                     },
                     "date": {
@@ -1429,12 +1704,22 @@
                     },
                     "status": {
                         "type": "string",
-                        "enum": ["DRAFT", "SUBMITTED", "AUTHORISED", "BILLED", "DELETED"],
+                        "enum": [
+                            "DRAFT",
+                            "SUBMITTED",
+                            "AUTHORISED",
+                            "BILLED",
+                            "DELETED"
+                        ],
                         "description": "Purchase order status. Defaults to DRAFT"
                     },
                     "line_amount_types": {
                         "type": "string",
-                        "enum": ["Exclusive", "Inclusive", "NoTax"],
+                        "enum": [
+                            "Exclusive",
+                            "Inclusive",
+                            "NoTax"
+                        ],
                         "description": "Line amount types for tax calculation"
                     },
                     "delivery_address": {
@@ -1454,7 +1739,11 @@
                         "description": "Delivery instructions"
                     }
                 },
-                "required": ["tenant_id", "contact", "line_items"]
+                "required": [
+                    "tenant_id",
+                    "contact",
+                    "line_items"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1526,7 +1815,11 @@
                                     "description": "Tax type (e.g., INPUT, EXEMPTINPUT)"
                                 }
                             },
-                            "required": ["Description", "UnitAmount", "AccountCode"]
+                            "required": [
+                                "Description",
+                                "UnitAmount",
+                                "AccountCode"
+                            ]
                         }
                     },
                     "date": {
@@ -1553,12 +1846,22 @@
                     },
                     "status": {
                         "type": "string",
-                        "enum": ["DRAFT", "SUBMITTED", "AUTHORISED", "BILLED", "DELETED"],
+                        "enum": [
+                            "DRAFT",
+                            "SUBMITTED",
+                            "AUTHORISED",
+                            "BILLED",
+                            "DELETED"
+                        ],
                         "description": "Purchase order status"
                     },
                     "line_amount_types": {
                         "type": "string",
-                        "enum": ["Exclusive", "Inclusive", "NoTax"],
+                        "enum": [
+                            "Exclusive",
+                            "Inclusive",
+                            "NoTax"
+                        ],
                         "description": "Line amount types for tax calculation"
                     },
                     "delivery_address": {
@@ -1578,7 +1881,10 @@
                         "description": "Delivery instructions"
                     }
                 },
-                "required": ["tenant_id", "purchase_order_id"]
+                "required": [
+                    "tenant_id",
+                    "purchase_order_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1606,7 +1912,10 @@
                         "description": "ID of the purchase order to delete (GUID)"
                     }
                 },
-                "required": ["tenant_id", "purchase_order_id"]
+                "required": [
+                    "tenant_id",
+                    "purchase_order_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1634,7 +1943,10 @@
                         "description": "ID of the purchase order to get history for (GUID)"
                     }
                 },
-                "required": ["tenant_id", "purchase_order_id"]
+                "required": [
+                    "tenant_id",
+                    "purchase_order_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1666,7 +1978,11 @@
                         "description": "The note text to add to the purchase order history"
                     }
                 },
-                "required": ["tenant_id", "purchase_order_id", "note"]
+                "required": [
+                    "tenant_id",
+                    "purchase_order_id",
+                    "note"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1679,5 +1995,6 @@
                 "description": "Raw Xero API response for added note"
             }
         }
-    }
+    },
+    "display_name": "Xero"
 }
