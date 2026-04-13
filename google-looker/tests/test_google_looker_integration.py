@@ -29,7 +29,10 @@ class MockExecutionContext:
     ):
         # Route by endpoint suffix for simplicity
         if "/api/4.0/login" in url and method == "POST":
-            return self._responses.get("POST /login", {"access_token": "mock_token_123", "expires_in": 3600})  # nosec B105
+            return self._responses.get(
+                "POST /login",
+                {"access_token": "mock_token_123", "expires_in": 3600},  # nosec B105
+            )
         if "/api/4.0/dashboards/" in url and method == "GET":
             return self._responses.get("GET /dashboard", {"dashboard": {}})
         if "/api/4.0/dashboards" in url and method == "GET":
@@ -82,11 +85,15 @@ async def test_get_dashboard():
             "id": "123",
             "title": "Test Dashboard",
             "description": "A test dashboard",
-            "dashboard_elements": [{"id": "elem1", "type": "looker_line", "query": {"id": "query1"}}],
+            "dashboard_elements": [
+                {"id": "elem1", "type": "looker_line", "query": {"id": "query1"}}
+            ],
         }
     }
     context = MockExecutionContext(responses)
-    result = await google_looker.execute_action("get_dashboard", {"dashboard_id": "123"}, context)
+    result = await google_looker.execute_action(
+        "get_dashboard", {"dashboard_id": "123"}, context
+    )
     assert result["result"] is True
     assert result["dashboard"]["id"] == "123"
     assert result["dashboard"]["title"] == "Test Dashboard"
@@ -95,7 +102,10 @@ async def test_get_dashboard():
 async def test_execute_lookml_query():
     responses = {
         "POST /queries": {"id": "query_456"},
-        "GET /query_results": [{"dimension1": "value1", "measure1": 100}, {"dimension1": "value2", "measure1": 200}],
+        "GET /query_results": [
+            {"dimension1": "value1", "measure1": 100},
+            {"dimension1": "value2", "measure1": 200},
+        ],
     }
     context = MockExecutionContext(responses)
     result = await google_looker.execute_action(
@@ -119,8 +129,16 @@ async def test_execute_lookml_query():
 async def test_list_models():
     responses = {
         "GET /models": [
-            {"name": "sales", "label": "Sales Model", "explores": ["orders", "customers"]},
-            {"name": "marketing", "label": "Marketing Model", "explores": ["campaigns"]},
+            {
+                "name": "sales",
+                "label": "Sales Model",
+                "explores": ["orders", "customers"],
+            },
+            {
+                "name": "marketing",
+                "label": "Marketing Model",
+                "explores": ["campaigns"],
+            },
         ]
     }
     context = MockExecutionContext(responses)
@@ -135,11 +153,16 @@ async def test_get_model():
         "GET /model": {
             "name": "sales",
             "label": "Sales Model",
-            "explores": [{"name": "orders", "label": "Orders"}, {"name": "customers", "label": "Customers"}],
+            "explores": [
+                {"name": "orders", "label": "Orders"},
+                {"name": "customers", "label": "Customers"},
+            ],
         }
     }
     context = MockExecutionContext(responses)
-    result = await google_looker.execute_action("get_model", {"model_name": "sales"}, context)
+    result = await google_looker.execute_action(
+        "get_model", {"model_name": "sales"}, context
+    )
     assert result["result"] is True
     assert result["model"]["name"] == "sales"
     assert len(result["model"]["explores"]) == 2
@@ -155,7 +178,9 @@ async def test_execute_sql_query():
     }
     context = MockExecutionContext(responses)
     result = await google_looker.execute_action(
-        "execute_sql_query", {"sql": "SELECT * FROM orders LIMIT 10", "connection_name": "warehouse"}, context
+        "execute_sql_query",
+        {"sql": "SELECT * FROM orders LIMIT 10", "connection_name": "warehouse"},
+        context,
     )
     assert result["result"] is True
     assert result["slug"] == "sql_789"
@@ -209,7 +234,9 @@ async def test_execute_lookml_query_missing_required_fields():
     context = MockExecutionContext({})
     # Missing required model and explore fields - should raise ValidationError
     try:
-        await google_looker.execute_action("execute_lookml_query", {"dimensions": ["orders.status"]}, context)
+        await google_looker.execute_action(
+            "execute_lookml_query", {"dimensions": ["orders.status"]}, context
+        )
         assert False, "Should have raised ValidationError"
     except Exception as e:
         assert "required" in str(e).lower()
@@ -219,7 +246,9 @@ async def test_execute_lookml_query_missing_required_fields():
 async def test_execute_sql_query_missing_connection():
     context = MockExecutionContext({})
     # Missing both connection_name and model_name
-    result = await google_looker.execute_action("execute_sql_query", {"sql": "SELECT * FROM orders"}, context)
+    result = await google_looker.execute_action(
+        "execute_sql_query", {"sql": "SELECT * FROM orders"}, context
+    )
     assert result["result"] is False
     assert "error" in result
     assert "connection_name" in result["error"] or "model_name" in result["error"]
