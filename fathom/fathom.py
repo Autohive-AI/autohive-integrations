@@ -1,10 +1,9 @@
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler, ActionResult
-)
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any, Optional
 from urllib.parse import quote
 
 fathom = Integration.load()
+
 
 class FathomAPIClient:
     """Client for interacting with the Fathom API"""
@@ -13,13 +12,13 @@ class FathomAPIClient:
         self.context = context
         self.base_url = "https://api.fathom.ai/external/v1"
 
-    async def _make_request(self, endpoint: str, method: str = "GET", params: Optional[Dict] = None, data: Optional[Dict] = None):
+    async def _make_request(
+        self, endpoint: str, method: str = "GET", params: Optional[Dict] = None, data: Optional[Dict] = None
+    ):
         """Make an authenticated request to the Fathom API"""
         url = f"{self.base_url}/{endpoint}"
 
-        headers = {
-            "Content-Type": "application/json"
-        }
+        headers = {"Content-Type": "application/json"}
 
         # Build query string manually for array parameters
         if params and method == "GET":
@@ -50,7 +49,9 @@ class FathomAPIClient:
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
+
 # ---- Action Handlers ----
+
 
 @fathom.action("list_meetings")
 class ListMeetingsAction(ActionHandler):
@@ -108,20 +109,13 @@ class ListMeetingsAction(ActionHandler):
                 data={
                     "limit": response.get("limit", 0),
                     "next_cursor": response.get("next_cursor"),
-                    "items": processed_items
+                    "items": processed_items,
                 },
-                cost_usd=0.0
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "limit": 0,
-                    "next_cursor": None,
-                    "items": [],
-                    "error": str(e)
-                },
-                cost_usd=0.0
-            )
+            return ActionResult(data={"limit": 0, "next_cursor": None, "items": [], "error": str(e)}, cost_usd=0.0)
+
 
 @fathom.action("get_transcript")
 class GetTranscriptAction(ActionHandler):
@@ -138,28 +132,18 @@ class GetTranscriptAction(ActionHandler):
                 speaker = segment.get("speaker", {})
                 speaker_name = speaker.get("display_name", "Unknown Speaker")
 
-                transcript.append({
-                    "speaker_name": speaker_name,
-                    "timestamp": segment.get("timestamp", "00:00:00"),
-                    "text": segment.get("text", "")
-                })
+                transcript.append(
+                    {
+                        "speaker_name": speaker_name,
+                        "timestamp": segment.get("timestamp", "00:00:00"),
+                        "text": segment.get("text", ""),
+                    }
+                )
 
-            return ActionResult(
-                data={
-                    "recording_id": recording_id,
-                    "transcript": transcript
-                },
-                cost_usd=0.0
-            )
+            return ActionResult(data={"recording_id": recording_id, "transcript": transcript}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={
-                    "recording_id": recording_id,
-                    "transcript": [],
-                    "error": str(e)
-                },
-                cost_usd=0.0
-            )
+            return ActionResult(data={"recording_id": recording_id, "transcript": [], "error": str(e)}, cost_usd=0.0)
+
 
 @fathom.action("list_teams")
 class ListTeamsAction(ActionHandler):
@@ -176,29 +160,15 @@ class ListTeamsAction(ActionHandler):
 
             teams = []
             for team in response.get("items", []):
-                teams.append({
-                    "name": team.get("name", ""),
-                    "created_at": team.get("created_at", "")
-                })
+                teams.append({"name": team.get("name", ""), "created_at": team.get("created_at", "")})
 
             return ActionResult(
-                data={
-                    "limit": response.get("limit"),
-                    "next_cursor": response.get("next_cursor"),
-                    "teams": teams
-                },
-                cost_usd=0.0
+                data={"limit": response.get("limit"), "next_cursor": response.get("next_cursor"), "teams": teams},
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "limit": None,
-                    "next_cursor": None,
-                    "teams": [],
-                    "error": str(e)
-                },
-                cost_usd=0.0
-            )
+            return ActionResult(data={"limit": None, "next_cursor": None, "teams": [], "error": str(e)}, cost_usd=0.0)
+
 
 @fathom.action("list_team_members")
 class ListTeamMembersAction(ActionHandler):
@@ -217,27 +187,23 @@ class ListTeamMembersAction(ActionHandler):
 
             team_members = []
             for member in response.get("items", []):
-                team_members.append({
-                    "name": member.get("name", ""),
-                    "email": member.get("email", ""),
-                    "created_at": member.get("created_at", "")
-                })
+                team_members.append(
+                    {
+                        "name": member.get("name", ""),
+                        "email": member.get("email", ""),
+                        "created_at": member.get("created_at", ""),
+                    }
+                )
 
             return ActionResult(
                 data={
                     "limit": response.get("limit"),
                     "next_cursor": response.get("next_cursor"),
-                    "team_members": team_members
+                    "team_members": team_members,
                 },
-                cost_usd=0.0
+                cost_usd=0.0,
             )
         except Exception as e:
             return ActionResult(
-                data={
-                    "limit": None,
-                    "next_cursor": None,
-                    "team_members": [],
-                    "error": str(e)
-                },
-                cost_usd=0.0
+                data={"limit": None, "next_cursor": None, "team_members": [], "error": str(e)}, cost_usd=0.0
             )

@@ -1,6 +1,10 @@
 from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler, ActionResult,
-    ConnectedAccountHandler, ConnectedAccountInfo
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ConnectedAccountHandler,
+    ConnectedAccountInfo,
 )
 from typing import Dict, Any
 
@@ -21,6 +25,7 @@ REPORTS_REQUESTS_PER_MINUTE = 30
 
 
 # ---- Helper Functions ----
+
 
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     """
@@ -48,7 +53,7 @@ def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
         "Authorization": f"Bearer {api_key}",
         "User-Agent": user_agent,
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        "Accept": "application/json",
     }
 
 
@@ -68,6 +73,7 @@ def handle_pagination_response(response: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ---- Connected Account Handler ----
+
 
 @float.connected_account()
 class FloatConnectedAccountHandler(ConnectedAccountHandler):
@@ -90,11 +96,7 @@ class FloatConnectedAccountHandler(ConnectedAccountHandler):
 
         try:
             # Float API provides account information through the /account endpoint
-            response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/account",
-                method="GET",
-                headers=headers
-            )
+            response = await context.fetch(url=f"{FLOAT_API_BASE_URL}/account", method="GET", headers=headers)
 
             # Extract account information
             # Float typically returns account details including company name
@@ -118,22 +120,21 @@ class FloatConnectedAccountHandler(ConnectedAccountHandler):
 
             return ConnectedAccountInfo(
                 email=user_email,
-                username=user_email.split('@')[0] if user_email else None,
+                username=user_email.split("@")[0] if user_email else None,
                 first_name=first_name,
                 last_name=last_name,
                 organization=organization,
-                user_id=str(account_data.get("account_id", "")) if account_data.get("account_id") else None
+                user_id=str(account_data.get("account_id", "")) if account_data.get("account_id") else None,
             )
 
         except Exception as e:
             # Log the error but don't fail - return minimal info
             print(f"Warning: Could not fetch Float account info: {str(e)}")
-            return ConnectedAccountInfo(
-                organization="Float Account"
-            )
+            return ConnectedAccountInfo(organization="Float Account")
 
 
 # ---- People Resource Actions ----
+
 
 @float.action("list_people")
 class ListPeopleHandler(ActionHandler):
@@ -144,7 +145,8 @@ class ListPeopleHandler(ActionHandler):
         List all people with optional filtering and pagination.
 
         Args:
-            inputs: Dictionary containing optional filters (active, department_id, modified_since, page, per_page, fields, sort)
+            inputs: Dictionary containing optional filters
+                (active, department_id, modified_since, page, per_page, fields, sort)
             context: Execution context with auth and network capabilities
 
         Returns:
@@ -178,16 +180,10 @@ class ListPeopleHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/people",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/people", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list people: {str(e)}")
@@ -218,16 +214,10 @@ class GetPersonHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/people/{people_id}",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/people/{people_id}", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get person {people_id}: {str(e)}")
@@ -248,15 +238,25 @@ class CreatePersonHandler(ActionHandler):
         Returns:
             ActionResult containing created person details
         """
-        request_body = {
-            "name": inputs["name"]
-        }
+        request_body = {"name": inputs["name"]}
 
         # Add optional fields
         optional_fields = [
-            "email", "job_title", "department_id", "role_id", "people_type_id",
-            "active", "employee_type", "work_days_hours", "start_date", "end_date",
-            "notes", "tags", "avatar_file", "cost_rate", "default_hourly_rate"
+            "email",
+            "job_title",
+            "department_id",
+            "role_id",
+            "people_type_id",
+            "active",
+            "employee_type",
+            "work_days_hours",
+            "start_date",
+            "end_date",
+            "notes",
+            "tags",
+            "avatar_file",
+            "cost_rate",
+            "default_hourly_rate",
         ]
 
         for field in optional_fields:
@@ -267,16 +267,10 @@ class CreatePersonHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/people",
-                method="POST",
-                headers=headers,
-                json=request_body
+                url=f"{FLOAT_API_BASE_URL}/people", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to create person: {str(e)}")
@@ -302,9 +296,23 @@ class UpdatePersonHandler(ActionHandler):
 
         # Add updatable fields
         updatable_fields = [
-            "name", "email", "job_title", "department_id", "role_id", "people_type_id",
-            "active", "employee_type", "work_days_hours", "start_date", "end_date",
-            "notes", "tags", "avatar_file", "cost_rate", "default_hourly_rate", "effective_date"
+            "name",
+            "email",
+            "job_title",
+            "department_id",
+            "role_id",
+            "people_type_id",
+            "active",
+            "employee_type",
+            "work_days_hours",
+            "start_date",
+            "end_date",
+            "notes",
+            "tags",
+            "avatar_file",
+            "cost_rate",
+            "default_hourly_rate",
+            "effective_date",
         ]
 
         for field in updatable_fields:
@@ -323,13 +331,10 @@ class UpdatePersonHandler(ActionHandler):
                 method="PATCH",
                 headers=headers,
                 json=request_body,
-                params=params
+                params=params,
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to update person {people_id}: {str(e)}")
@@ -354,15 +359,10 @@ class DeletePersonHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/people/{people_id}",
-                method="DELETE",
-                headers=headers
-            )
+            await context.fetch(url=f"{FLOAT_API_BASE_URL}/people/{people_id}", method="DELETE", headers=headers)
 
             return ActionResult(
-                data={"success": True, "message": f"Person {people_id} deleted successfully"},
-                cost_usd=0.0
+                data={"success": True, "message": f"Person {people_id} deleted successfully"}, cost_usd=0.0
             )
 
         except Exception as e:
@@ -370,6 +370,7 @@ class DeletePersonHandler(ActionHandler):
 
 
 # ---- Projects Resource Actions ----
+
 
 @float.action("list_projects")
 class ListProjectsHandler(ActionHandler):
@@ -390,8 +391,16 @@ class ListProjectsHandler(ActionHandler):
 
         # Add optional filters
         optional_params = [
-            "active", "client_id", "project_manager", "modified_since",
-            "start_date", "end_date", "page", "per_page", "fields", "sort"
+            "active",
+            "client_id",
+            "project_manager",
+            "modified_since",
+            "start_date",
+            "end_date",
+            "page",
+            "per_page",
+            "fields",
+            "sort",
         ]
 
         for param in optional_params:
@@ -407,16 +416,10 @@ class ListProjectsHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/projects",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/projects", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list projects: {str(e)}")
@@ -442,15 +445,10 @@ class GetProjectHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/projects/{project_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/projects/{project_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get project {project_id}: {str(e)}")
@@ -471,16 +469,26 @@ class CreateProjectHandler(ActionHandler):
         Returns:
             ActionResult containing created project details
         """
-        request_body = {
-            "name": inputs["name"]
-        }
+        request_body = {"name": inputs["name"]}
 
         # Add optional fields
         optional_fields = [
-            "client_id", "color", "project_code", "tags", "project_team",
-            "project_manager", "all_pms_schedule", "status", "budget_type",
-            "budget_total", "budget_per_phase", "non_billable", "start_date",
-            "end_date", "active", "notes"
+            "client_id",
+            "color",
+            "project_code",
+            "tags",
+            "project_team",
+            "project_manager",
+            "all_pms_schedule",
+            "status",
+            "budget_type",
+            "budget_total",
+            "budget_per_phase",
+            "non_billable",
+            "start_date",
+            "end_date",
+            "active",
+            "notes",
         ]
 
         for field in optional_fields:
@@ -491,16 +499,10 @@ class CreateProjectHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/projects",
-                method="POST",
-                headers=headers,
-                json=request_body
+                url=f"{FLOAT_API_BASE_URL}/projects", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to create project: {str(e)}")
@@ -526,10 +528,23 @@ class UpdateProjectHandler(ActionHandler):
 
         # Add updatable fields
         updatable_fields = [
-            "name", "client_id", "color", "project_code", "tags", "project_team",
-            "project_manager", "all_pms_schedule", "status", "budget_type",
-            "budget_total", "budget_per_phase", "non_billable", "start_date",
-            "end_date", "active", "notes"
+            "name",
+            "client_id",
+            "color",
+            "project_code",
+            "tags",
+            "project_team",
+            "project_manager",
+            "all_pms_schedule",
+            "status",
+            "budget_type",
+            "budget_total",
+            "budget_per_phase",
+            "non_billable",
+            "start_date",
+            "end_date",
+            "active",
+            "notes",
         ]
 
         for field in updatable_fields:
@@ -540,16 +555,10 @@ class UpdateProjectHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/projects/{project_id}",
-                method="PATCH",
-                headers=headers,
-                json=request_body
+                url=f"{FLOAT_API_BASE_URL}/projects/{project_id}", method="PATCH", headers=headers, json=request_body
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to update project {project_id}: {str(e)}")
@@ -574,18 +583,10 @@ class DeleteProjectHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/projects/{project_id}",
-                method="DELETE",
-                headers=headers
-            )
+            await context.fetch(url=f"{FLOAT_API_BASE_URL}/projects/{project_id}", method="DELETE", headers=headers)
 
             return ActionResult(
-                data={
-                    "success": True,
-                    "message": f"Project {project_id} deleted successfully"
-                },
-                cost_usd=0.0
+                data={"success": True, "message": f"Project {project_id} deleted successfully"}, cost_usd=0.0
             )
 
         except Exception as e:
@@ -593,6 +594,7 @@ class DeleteProjectHandler(ActionHandler):
 
 
 # ---- Tasks/Allocations Resource Actions ----
+
 
 @float.action("list_tasks")
 class ListTasksHandler(ActionHandler):
@@ -613,8 +615,15 @@ class ListTasksHandler(ActionHandler):
 
         # Add optional filters
         optional_params = [
-            "people_id", "project_id", "start_date", "end_date",
-            "modified_since", "page", "per_page", "fields", "sort"
+            "people_id",
+            "project_id",
+            "start_date",
+            "end_date",
+            "modified_since",
+            "page",
+            "per_page",
+            "fields",
+            "sort",
         ]
 
         for param in optional_params:
@@ -628,16 +637,10 @@ class ListTasksHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/tasks",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/tasks", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list tasks: {str(e)}")
@@ -662,16 +665,9 @@ class GetTaskHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}",
-                method="GET",
-                headers=headers
-            )
+            response = await context.fetch(url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}", method="GET", headers=headers)
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get task {task_id}: {str(e)}")
@@ -697,13 +693,19 @@ class CreateTaskHandler(ActionHandler):
             "project_id": inputs["project_id"],
             "start_date": inputs["start_date"],
             "end_date": inputs["end_date"],
-            "hours": inputs["hours"]
+            "hours": inputs["hours"],
         }
 
         # Add optional fields
         optional_fields = [
-            "name", "notes", "status", "billable", "repeat_state",
-            "repeat_end_date", "root_task_id", "parent_task_id"
+            "name",
+            "notes",
+            "status",
+            "billable",
+            "repeat_state",
+            "repeat_end_date",
+            "root_task_id",
+            "parent_task_id",
         ]
 
         for field in optional_fields:
@@ -714,16 +716,10 @@ class CreateTaskHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/tasks",
-                method="POST",
-                headers=headers,
-                json=request_body
+                url=f"{FLOAT_API_BASE_URL}/tasks", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to create task: {str(e)}")
@@ -749,9 +745,19 @@ class UpdateTaskHandler(ActionHandler):
 
         # Add updatable fields
         updatable_fields = [
-            "people_id", "project_id", "start_date", "end_date", "hours",
-            "name", "notes", "status", "billable", "repeat_state",
-            "repeat_end_date", "root_task_id", "parent_task_id"
+            "people_id",
+            "project_id",
+            "start_date",
+            "end_date",
+            "hours",
+            "name",
+            "notes",
+            "status",
+            "billable",
+            "repeat_state",
+            "repeat_end_date",
+            "root_task_id",
+            "parent_task_id",
         ]
 
         for field in updatable_fields:
@@ -762,16 +768,10 @@ class UpdateTaskHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}",
-                method="PATCH",
-                headers=headers,
-                json=request_body
+                url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}", method="PATCH", headers=headers, json=request_body
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to update task {task_id}: {str(e)}")
@@ -796,25 +796,16 @@ class DeleteTaskHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}",
-                method="DELETE",
-                headers=headers
-            )
+            await context.fetch(url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}", method="DELETE", headers=headers)
 
-            return ActionResult(
-                data={
-                    "success": True,
-                    "message": f"Task {task_id} deleted successfully"
-                },
-                cost_usd=0.0
-            )
+            return ActionResult(data={"success": True, "message": f"Task {task_id} deleted successfully"}, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to delete task {task_id}: {str(e)}")
 
 
 # ---- Time Off Resource Actions ----
+
 
 @float.action("list_time_off")
 class ListTimeOffHandler(ActionHandler):
@@ -835,8 +826,15 @@ class ListTimeOffHandler(ActionHandler):
 
         # Add optional filters
         optional_params = [
-            "people_id", "timeoff_type_id", "start_date", "end_date",
-            "modified_since", "page", "per_page", "fields", "sort"
+            "people_id",
+            "timeoff_type_id",
+            "start_date",
+            "end_date",
+            "modified_since",
+            "page",
+            "per_page",
+            "fields",
+            "sort",
         ]
 
         for param in optional_params:
@@ -850,16 +848,10 @@ class ListTimeOffHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoffs",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/timeoffs", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list time off: {str(e)}")
@@ -885,15 +877,10 @@ class GetTimeOffHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get time off {timeoff_id}: {str(e)}")
@@ -919,7 +906,7 @@ class CreateTimeOffHandler(ActionHandler):
             "timeoff_type_id": inputs["timeoff_type_id"],
             "start_date": inputs["start_date"],
             "end_date": inputs["end_date"],
-            "hours": inputs["hours"]
+            "hours": inputs["hours"],
         }
 
         # Add optional fields
@@ -933,16 +920,10 @@ class CreateTimeOffHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoffs",
-                method="POST",
-                headers=headers,
-                json=request_body
+                url=f"{FLOAT_API_BASE_URL}/timeoffs", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to create time off: {str(e)}")
@@ -967,10 +948,7 @@ class UpdateTimeOffHandler(ActionHandler):
         request_body = {}
 
         # Add updatable fields
-        updatable_fields = [
-            "people_id", "timeoff_type_id", "start_date", "end_date",
-            "hours", "full_day", "notes"
-        ]
+        updatable_fields = ["people_id", "timeoff_type_id", "start_date", "end_date", "hours", "full_day", "notes"]
 
         for field in updatable_fields:
             if field in inputs and inputs[field] is not None:
@@ -980,16 +958,10 @@ class UpdateTimeOffHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}",
-                method="PATCH",
-                headers=headers,
-                json=request_body
+                url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}", method="PATCH", headers=headers, json=request_body
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to update time off {timeoff_id}: {str(e)}")
@@ -1014,15 +986,10 @@ class DeleteTimeOffHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}",
-                method="DELETE",
-                headers=headers
-            )
+            await context.fetch(url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}", method="DELETE", headers=headers)
 
             return ActionResult(
-                data={"success": True, "message": f"Time off {timeoff_id} deleted successfully"},
-                cost_usd=0.0
+                data={"success": True, "message": f"Time off {timeoff_id} deleted successfully"}, cost_usd=0.0
             )
 
         except Exception as e:
@@ -1030,6 +997,7 @@ class DeleteTimeOffHandler(ActionHandler):
 
 
 # ---- Logged Time Resource Actions ----
+
 
 @float.action("list_logged_time")
 class ListLoggedTimeHandler(ActionHandler):
@@ -1050,8 +1018,15 @@ class ListLoggedTimeHandler(ActionHandler):
 
         # Add optional filters
         optional_params = [
-            "people_id", "project_id", "start_date", "end_date",
-            "modified_since", "page", "per_page", "fields", "sort"
+            "people_id",
+            "project_id",
+            "start_date",
+            "end_date",
+            "modified_since",
+            "page",
+            "per_page",
+            "fields",
+            "sort",
         ]
 
         for param in optional_params:
@@ -1065,16 +1040,10 @@ class ListLoggedTimeHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/logged-time",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/logged-time", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list logged time: {str(e)}")
@@ -1100,15 +1069,10 @@ class GetLoggedTimeHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/logged-time/{logged_time_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/logged-time/{logged_time_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get logged time {logged_time_id}: {str(e)}")
@@ -1133,7 +1097,7 @@ class CreateLoggedTimeHandler(ActionHandler):
             "people_id": inputs["people_id"],
             "project_id": inputs["project_id"],
             "date": inputs["date"],
-            "hours": inputs["hours"]
+            "hours": inputs["hours"],
         }
 
         # Add optional fields
@@ -1150,16 +1114,10 @@ class CreateLoggedTimeHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/logged-time",
-                method="POST",
-                headers=headers,
-                json=request_body
+                url=f"{FLOAT_API_BASE_URL}/logged-time", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to create logged time: {str(e)}")
@@ -1184,9 +1142,7 @@ class UpdateLoggedTimeHandler(ActionHandler):
         request_body = {}
 
         # Add updatable fields
-        updatable_fields = [
-            "people_id", "project_id", "date", "hours", "task_id", "notes", "billable"
-        ]
+        updatable_fields = ["people_id", "project_id", "date", "hours", "task_id", "notes", "billable"]
 
         for field in updatable_fields:
             if field in inputs and inputs[field] is not None:
@@ -1199,13 +1155,10 @@ class UpdateLoggedTimeHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/logged-time/{logged_time_id}",
                 method="PATCH",
                 headers=headers,
-                json=request_body
+                json=request_body,
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to update logged time {logged_time_id}: {str(e)}")
@@ -1231,17 +1184,11 @@ class DeleteLoggedTimeHandler(ActionHandler):
 
         try:
             await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/logged-time/{logged_time_id}",
-                method="DELETE",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/logged-time/{logged_time_id}", method="DELETE", headers=headers
             )
 
             return ActionResult(
-                data={
-                    "success": True,
-                    "message": f"Logged time {logged_time_id} deleted successfully"
-                },
-                cost_usd=0.0
+                data={"success": True, "message": f"Logged time {logged_time_id} deleted successfully"}, cost_usd=0.0
             )
 
         except Exception as e:
@@ -1249,6 +1196,7 @@ class DeleteLoggedTimeHandler(ActionHandler):
 
 
 # ---- Clients Resource Actions ----
+
 
 @float.action("list_clients")
 class ListClientsHandler(ActionHandler):
@@ -1268,9 +1216,7 @@ class ListClientsHandler(ActionHandler):
         params = {}
 
         # Add optional filters
-        optional_params = [
-            "active", "modified_since", "page", "per_page", "fields", "sort"
-        ]
+        optional_params = ["active", "modified_since", "page", "per_page", "fields", "sort"]
 
         for param in optional_params:
             if param in inputs and inputs[param] is not None:
@@ -1285,16 +1231,10 @@ class ListClientsHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/clients",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/clients", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list clients: {str(e)}")
@@ -1320,15 +1260,10 @@ class GetClientHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/clients/{client_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/clients/{client_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get client {client_id}: {str(e)}")
@@ -1349,9 +1284,7 @@ class CreateClientHandler(ActionHandler):
         Returns:
             ActionResult containing created client details
         """
-        request_body = {
-            "name": inputs["name"]
-        }
+        request_body = {"name": inputs["name"]}
 
         # Add optional fields
         if "active" in inputs and inputs["active"] is not None:
@@ -1364,16 +1297,10 @@ class CreateClientHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/clients",
-                method="POST",
-                headers=headers,
-                json=request_body
+                url=f"{FLOAT_API_BASE_URL}/clients", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to create client: {str(e)}")
@@ -1411,16 +1338,10 @@ class UpdateClientHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/clients/{client_id}",
-                method="PATCH",
-                headers=headers,
-                json=request_body
+                url=f"{FLOAT_API_BASE_URL}/clients/{client_id}", method="PATCH", headers=headers, json=request_body
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to update client {client_id}: {str(e)}")
@@ -1445,18 +1366,10 @@ class DeleteClientHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/clients/{client_id}",
-                method="DELETE",
-                headers=headers
-            )
+            await context.fetch(url=f"{FLOAT_API_BASE_URL}/clients/{client_id}", method="DELETE", headers=headers)
 
             return ActionResult(
-                data={
-                    "success": True,
-                    "message": f"Client {client_id} deleted successfully"
-                },
-                cost_usd=0.0
+                data={"success": True, "message": f"Client {client_id} deleted successfully"}, cost_usd=0.0
             )
 
         except Exception as e:
@@ -1464,6 +1377,7 @@ class DeleteClientHandler(ActionHandler):
 
 
 # ---- Departments Resource Actions ----
+
 
 @float.action("list_departments")
 class ListDepartmentsHandler(ActionHandler):
@@ -1496,16 +1410,10 @@ class ListDepartmentsHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/departments",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/departments", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list departments: {str(e)}")
@@ -1531,21 +1439,17 @@ class GetDepartmentHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/departments/{department_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/departments/{department_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get department {department_id}: {str(e)}")
 
 
 # ---- Roles Resource Actions ----
+
 
 @float.action("list_roles")
 class ListRolesHandler(ActionHandler):
@@ -1578,16 +1482,10 @@ class ListRolesHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/roles",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/roles", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list roles: {str(e)}")
@@ -1612,22 +1510,16 @@ class GetRoleHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/roles/{role_id}",
-                method="GET",
-                headers=headers
-            )
+            response = await context.fetch(url=f"{FLOAT_API_BASE_URL}/roles/{role_id}", method="GET", headers=headers)
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get role {role_id}: {str(e)}")
 
 
 # ---- Time Off Types Resource Actions ----
+
 
 @float.action("list_time_off_types")
 class ListTimeOffTypesHandler(ActionHandler):
@@ -1660,16 +1552,10 @@ class ListTimeOffTypesHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoff-types",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/timeoff-types", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list time off types: {str(e)}")
@@ -1695,21 +1581,17 @@ class GetTimeOffTypeHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoff-types/{timeoff_type_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/timeoff-types/{timeoff_type_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get time off type {timeoff_type_id}: {str(e)}")
 
 
 # ---- Accounts Resource Actions ----
+
 
 @float.action("list_accounts")
 class ListAccountsHandler(ActionHandler):
@@ -1739,16 +1621,10 @@ class ListAccountsHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/accounts",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/accounts", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list accounts: {str(e)}")
@@ -1774,21 +1650,17 @@ class GetAccountHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/accounts/{account_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/accounts/{account_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get account {account_id}: {str(e)}")
 
 
 # ---- Statuses Resource Actions ----
+
 
 @float.action("list_statuses")
 class ListStatusesHandler(ActionHandler):
@@ -1817,16 +1689,10 @@ class ListStatusesHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/status",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/status", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list statuses: {str(e)}")
@@ -1852,21 +1718,17 @@ class GetStatusHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/status/{status_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/status/{status_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get status {status_id}: {str(e)}")
 
 
 # ---- Public Holidays Resource Actions ----
+
 
 @float.action("list_public_holidays")
 class ListPublicHolidaysHandler(ActionHandler):
@@ -1895,16 +1757,10 @@ class ListPublicHolidaysHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/public-holidays",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/public-holidays", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list public holidays: {str(e)}")
@@ -1930,21 +1786,17 @@ class GetPublicHolidayHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/public-holidays/{public_holiday_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/public-holidays/{public_holiday_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get public holiday {public_holiday_id}: {str(e)}")
 
 
 # ---- Team Holidays Resource Actions ----
+
 
 @float.action("list_team_holidays")
 class ListTeamHolidaysHandler(ActionHandler):
@@ -1973,16 +1825,10 @@ class ListTeamHolidaysHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/holidays",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/holidays", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list team holidays: {str(e)}")
@@ -2008,21 +1854,17 @@ class GetTeamHolidayHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/holidays/{holiday_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/holidays/{holiday_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get team holiday {holiday_id}: {str(e)}")
 
 
 # ---- Project Stages Resource Actions ----
+
 
 @float.action("list_project_stages")
 class ListProjectStagesHandler(ActionHandler):
@@ -2051,16 +1893,10 @@ class ListProjectStagesHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-stages",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/project-stages", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list project stages: {str(e)}")
@@ -2086,21 +1922,17 @@ class GetProjectStageHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-stages/{project_stage_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/project-stages/{project_stage_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get project stage {project_stage_id}: {str(e)}")
 
 
 # ---- Project Expenses Resource Actions ----
+
 
 @float.action("list_project_expenses")
 class ListProjectExpensesHandler(ActionHandler):
@@ -2132,16 +1964,10 @@ class ListProjectExpensesHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-expenses",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/project-expenses", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list project expenses: {str(e)}")
@@ -2167,21 +1993,17 @@ class GetProjectExpenseHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-expenses/{project_expense_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/project-expenses/{project_expense_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get project expense {project_expense_id}: {str(e)}")
 
 
 # ---- Phases Resource Actions ----
+
 
 @float.action("list_phases")
 class ListPhasesHandler(ActionHandler):
@@ -2213,16 +2035,10 @@ class ListPhasesHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/phases",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/phases", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list phases: {str(e)}")
@@ -2247,22 +2063,16 @@ class GetPhaseHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/phases/{phase_id}",
-                method="GET",
-                headers=headers
-            )
+            response = await context.fetch(url=f"{FLOAT_API_BASE_URL}/phases/{phase_id}", method="GET", headers=headers)
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get phase {phase_id}: {str(e)}")
 
 
 # ---- Project Tasks Resource Actions ----
+
 
 @float.action("list_project_tasks")
 class ListProjectTasksHandler(ActionHandler):
@@ -2294,16 +2104,10 @@ class ListProjectTasksHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-tasks",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/project-tasks", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list project tasks: {str(e)}")
@@ -2329,15 +2133,10 @@ class GetProjectTaskHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-tasks/{project_task_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/project-tasks/{project_task_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get project task {project_task_id}: {str(e)}")
@@ -2358,31 +2157,23 @@ class MergeProjectTasksHandler(ActionHandler):
         Returns:
             ActionResult containing merged task details
         """
-        request_body = {
-            "source_ids": inputs["source_ids"],
-            "target_id": inputs["target_id"]
-        }
+        request_body = {"source_ids": inputs["source_ids"], "target_id": inputs["target_id"]}
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-tasks/merge",
-                method="POST",
-                headers=headers,
-                json=request_body
+                url=f"{FLOAT_API_BASE_URL}/project-tasks/merge", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to merge project tasks: {str(e)}")
 
 
 # ---- Milestones Resource Actions ----
+
 
 @float.action("list_milestones")
 class ListMilestonesHandler(ActionHandler):
@@ -2414,16 +2205,10 @@ class ListMilestonesHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/milestones",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/milestones", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list milestones: {str(e)}")
@@ -2449,21 +2234,17 @@ class GetMilestoneHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/milestones/{milestone_id}",
-                method="GET",
-                headers=headers
+                url=f"{FLOAT_API_BASE_URL}/milestones/{milestone_id}", method="GET", headers=headers
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get milestone {milestone_id}: {str(e)}")
 
 
 # ---- Reports Resource Actions ----
+
 
 @float.action("get_people_report")
 class GetPeopleReportHandler(ActionHandler):
@@ -2495,16 +2276,10 @@ class GetPeopleReportHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/reports/people",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/reports/people", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to generate people report: {str(e)}")
@@ -2540,16 +2315,10 @@ class GetProjectsReportHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/reports/projects",
-                method="GET",
-                headers=headers,
-                params=params
+                url=f"{FLOAT_API_BASE_URL}/reports/projects", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(
-                data=response,
-                cost_usd=0.0
-            )
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to generate projects report: {str(e)}")
