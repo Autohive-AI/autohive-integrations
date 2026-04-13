@@ -46,7 +46,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Box
 
-[box](box): Manages files and folders in Box cloud storage. Supports listing shared folders, searching files, downloading file contents, uploading files, and browsing folder contents with recursive support.
+[box](box): Manages files and folders in Box cloud storage. Supports listing shared folders, searching files, downloading file contents, uploading files, and browsing folder contents with recursive support. Uses OAuth2 authentication.
 
 ### Dropbox
 
