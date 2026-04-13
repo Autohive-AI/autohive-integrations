@@ -17,8 +17,7 @@ without making actual API calls to Power BI.
 """
 
 import unittest
-from unittest.mock import AsyncMock, Mock, patch
-import json
+from unittest.mock import AsyncMock, Mock
 from context import powerbi
 
 
@@ -59,7 +58,7 @@ class TestPowerBIIntegration(unittest.TestCase):
                     "name": "Test Workspace",
                     "isReadOnly": False,
                     "isOnDedicatedCapacity": False,
-                    "type": "Workspace"
+                    "type": "Workspace",
                 }
             ]
         }
@@ -93,10 +92,7 @@ class TestPowerBIIntegration(unittest.TestCase):
         self.mock_context.fetch.return_value = mock_response
 
         handler = powerbi.ListWorkspacesAction()
-        inputs = {
-            "filter": "name eq 'Test'",
-            "top": 10
-        }
+        inputs = {"filter": "name eq 'Test'", "top": 10}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -113,11 +109,7 @@ class TestPowerBIIntegration(unittest.TestCase):
 
         Verifies that workspace details are correctly fetched and returned.
         """
-        mock_response = {
-            "id": "workspace1",
-            "name": "Test Workspace",
-            "isReadOnly": False
-        }
+        mock_response = {"id": "workspace1", "name": "Test Workspace", "isReadOnly": False}
         self.mock_context.fetch.return_value = mock_response
 
         handler = powerbi.GetWorkspaceAction()
@@ -148,7 +140,7 @@ class TestPowerBIIntegration(unittest.TestCase):
                     "isRefreshable": True,
                     "isEffectiveIdentityRequired": False,
                     "isEffectiveIdentityRolesRequired": False,
-                    "isOnPremGatewayRequired": False
+                    "isOnPremGatewayRequired": False,
                 }
             ]
         }
@@ -195,11 +187,7 @@ class TestPowerBIIntegration(unittest.TestCase):
         self.mock_context.fetch.return_value = None
 
         handler = powerbi.RefreshDatasetAction()
-        inputs = {
-            "dataset_id": "dataset1",
-            "workspace_id": "workspace1",
-            "notify_option": "MailOnFailure"
-        }
+        inputs = {"dataset_id": "dataset1", "workspace_id": "workspace1", "notify_option": "MailOnFailure"}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -227,7 +215,7 @@ class TestPowerBIIntegration(unittest.TestCase):
             "type": "Full",
             "commit_mode": "Transactional",
             "max_parallelism": 4,
-            "retry_count": 3
+            "retry_count": 3,
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -256,18 +244,14 @@ class TestPowerBIIntegration(unittest.TestCase):
                     "startTime": "2024-08-01T10:00:00Z",
                     "endTime": "2024-08-01T10:05:00Z",
                     "status": "Completed",
-                    "requestId": "req123"
+                    "requestId": "req123",
                 }
             ]
         }
         self.mock_context.fetch.return_value = mock_response
 
         handler = powerbi.GetRefreshHistoryAction()
-        inputs = {
-            "dataset_id": "dataset1",
-            "workspace_id": "workspace1",
-            "top": 5
-        }
+        inputs = {"dataset_id": "dataset1", "workspace_id": "workspace1", "top": 5}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -294,7 +278,7 @@ class TestPowerBIIntegration(unittest.TestCase):
                     "name": "Sales Report",
                     "webUrl": "https://app.powerbi.com/reports/report1",
                     "embedUrl": "https://app.powerbi.com/reportEmbed?reportId=report1",
-                    "datasetId": "dataset1"
+                    "datasetId": "dataset1",
                 }
             ]
         }
@@ -316,18 +300,11 @@ class TestPowerBIIntegration(unittest.TestCase):
         Verifies that report details including associated dataset ID
         are correctly fetched and returned.
         """
-        mock_response = {
-            "id": "report1",
-            "name": "Sales Report",
-            "datasetId": "dataset1"
-        }
+        mock_response = {"id": "report1", "name": "Sales Report", "datasetId": "dataset1"}
         self.mock_context.fetch.return_value = mock_response
 
         handler = powerbi.GetReportAction()
-        inputs = {
-            "report_id": "report1",
-            "workspace_id": "workspace1"
-        }
+        inputs = {"report_id": "report1", "workspace_id": "workspace1"}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -345,7 +322,7 @@ class TestPowerBIIntegration(unittest.TestCase):
             "id": "report2",
             "name": "Sales Report Copy",
             "webUrl": "https://app.powerbi.com/reports/report2",
-            "embedUrl": "https://app.powerbi.com/reportEmbed?reportId=report2"
+            "embedUrl": "https://app.powerbi.com/reportEmbed?reportId=report2",
         }
         self.mock_context.fetch.return_value = mock_response
 
@@ -354,7 +331,7 @@ class TestPowerBIIntegration(unittest.TestCase):
             "report_id": "report1",
             "name": "Sales Report Copy",
             "workspace_id": "workspace1",
-            "target_workspace_id": "workspace2"
+            "target_workspace_id": "workspace2",
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -380,11 +357,7 @@ class TestPowerBIIntegration(unittest.TestCase):
         self.mock_context.fetch.return_value = mock_response
 
         handler = powerbi.ExportReportAction()
-        inputs = {
-            "report_id": "report1",
-            "workspace_id": "workspace1",
-            "format": "PDF"
-        }
+        inputs = {"report_id": "report1", "workspace_id": "workspace1", "format": "PDF"}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -402,18 +375,11 @@ class TestPowerBIIntegration(unittest.TestCase):
         Verifies that export status including completion percentage
         and current state are correctly retrieved.
         """
-        mock_response = {
-            "status": "Succeeded",
-            "percentComplete": 100
-        }
+        mock_response = {"status": "Succeeded", "percentComplete": 100}
         self.mock_context.fetch.return_value = mock_response
 
         handler = powerbi.GetExportStatusAction()
-        inputs = {
-            "report_id": "report1",
-            "export_id": "export123",
-            "workspace_id": "workspace1"
-        }
+        inputs = {"report_id": "report1", "export_id": "export123", "workspace_id": "workspace1"}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -438,7 +404,7 @@ class TestPowerBIIntegration(unittest.TestCase):
                     "id": "dashboard1",
                     "displayName": "Sales Dashboard",
                     "isReadOnly": False,
-                    "embedUrl": "https://app.powerbi.com/dashboardEmbed?dashboardId=dashboard1"
+                    "embedUrl": "https://app.powerbi.com/dashboardEmbed?dashboardId=dashboard1",
                 }
             ]
         }
@@ -467,17 +433,14 @@ class TestPowerBIIntegration(unittest.TestCase):
                     "title": "Revenue Chart",
                     "embedUrl": "https://app.powerbi.com/tileEmbed?tileId=tile1",
                     "datasetId": "dataset1",
-                    "reportId": "report1"
+                    "reportId": "report1",
                 }
             ]
         }
         self.mock_context.fetch.return_value = mock_response
 
         handler = powerbi.GetDashboardTilesAction()
-        inputs = {
-            "dashboard_id": "dashboard1",
-            "workspace_id": "workspace1"
-        }
+        inputs = {"dashboard_id": "dashboard1", "workspace_id": "workspace1"}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -496,30 +459,14 @@ class TestPowerBIIntegration(unittest.TestCase):
         Verifies that query requests are correctly formatted and query results
         are properly returned from the Power BI dataset.
         """
-        mock_response = {
-            "results": [
-                {
-                    "tables": [
-                        {
-                            "rows": [
-                                {"Column1": "Value1", "Column2": 100}
-                            ]
-                        }
-                    ]
-                }
-            ]
-        }
+        mock_response = {"results": [{"tables": [{"rows": [{"Column1": "Value1", "Column2": 100}]}]}]}
         self.mock_context.fetch.return_value = mock_response
 
         handler = powerbi.ExecuteQueriesAction()
         inputs = {
             "dataset_id": "dataset1",
             "workspace_id": "workspace1",
-            "queries": [
-                {
-                    "query": "EVALUATE VALUES('Table'[Column])"
-                }
-            ]
+            "queries": [{"query": "EVALUATE VALUES('Table'[Column])"}],
         }
 
         result = await handler.execute(inputs, self.mock_context)
@@ -544,24 +491,16 @@ class TestPowerBIIntegration(unittest.TestCase):
         and triggers a refresh operation on that dataset.
         """
         # Mock report response
-        mock_report_response = {
-            "id": "report1",
-            "name": "Sales Report",
-            "datasetId": "dataset1"
-        }
+        mock_report_response = {"id": "report1", "name": "Sales Report", "datasetId": "dataset1"}
 
         # Setup mock to return different values for different calls
         self.mock_context.fetch.side_effect = [
             mock_report_response,  # First call gets the report
-            None  # Second call triggers the refresh
+            None,  # Second call triggers the refresh
         ]
 
         handler = powerbi.RefreshReportAction()
-        inputs = {
-            "report_id": "report1",
-            "workspace_id": "workspace1",
-            "notify_option": "MailOnFailure"
-        }
+        inputs = {"report_id": "report1", "workspace_id": "workspace1", "notify_option": "MailOnFailure"}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -580,17 +519,11 @@ class TestPowerBIIntegration(unittest.TestCase):
         when attempting to refresh a report without a linked dataset.
         """
         # Mock report response without dataset
-        mock_report_response = {
-            "id": "report1",
-            "name": "Sales Report"
-        }
+        mock_report_response = {"id": "report1", "name": "Sales Report"}
         self.mock_context.fetch.return_value = mock_report_response
 
         handler = powerbi.RefreshReportAction()
-        inputs = {
-            "report_id": "report1",
-            "workspace_id": "workspace1"
-        }
+        inputs = {"report_id": "report1", "workspace_id": "workspace1"}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -613,20 +546,14 @@ class TestPowerBIIntegration(unittest.TestCase):
                     "gatewayId": "gateway1",
                     "name": "SQL Server",
                     "connectionString": "Server=localhost;Database=Sales",
-                    "connectionDetails": {
-                        "server": "localhost",
-                        "database": "Sales"
-                    }
+                    "connectionDetails": {"server": "localhost", "database": "Sales"},
                 }
             ]
         }
         self.mock_context.fetch.return_value = mock_response
 
         handler = powerbi.GetReportDatasourcesAction()
-        inputs = {
-            "report_id": "report1",
-            "workspace_id": "workspace1"
-        }
+        inputs = {"report_id": "report1", "workspace_id": "workspace1"}
 
         result = await handler.execute(inputs, self.mock_context)
 
@@ -658,5 +585,6 @@ class TestPowerBIIntegration(unittest.TestCase):
         self.assertIn("error", result)
         self.assertEqual(result["error"], "API Error")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

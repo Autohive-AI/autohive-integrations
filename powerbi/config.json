@@ -43,17 +43,32 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string"},
-                                "name": {"type": "string"},
-                                "isReadOnly": {"type": "boolean"},
-                                "isOnDedicatedCapacity": {"type": "boolean"},
-                                "type": {"type": "string"}
+                                "id": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "isReadOnly": {
+                                    "type": "boolean"
+                                },
+                                "isOnDedicatedCapacity": {
+                                    "type": "boolean"
+                                },
+                                "type": {
+                                    "type": "string"
+                                }
                             }
                         }
                     },
-                    "result": {"type": "boolean"}
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["workspaces", "result"]
+                "required": [
+                    "workspaces",
+                    "result"
+                ]
             }
         },
         "get_workspace": {
@@ -67,7 +82,9 @@
                         "description": "The workspace ID"
                     }
                 },
-                "required": ["workspace_id"]
+                "required": [
+                    "workspace_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -76,9 +93,14 @@
                         "type": "object",
                         "description": "Workspace details"
                     },
-                    "result": {"type": "boolean"}
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["workspace", "result"]
+                "required": [
+                    "workspace",
+                    "result"
+                ]
             }
         },
         "list_datasets": {
@@ -102,19 +124,38 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string"},
-                                "name": {"type": "string"},
-                                "configuredBy": {"type": "string"},
-                                "isRefreshable": {"type": "boolean"},
-                                "isEffectiveIdentityRequired": {"type": "boolean"},
-                                "isEffectiveIdentityRolesRequired": {"type": "boolean"},
-                                "isOnPremGatewayRequired": {"type": "boolean"}
+                                "id": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "configuredBy": {
+                                    "type": "string"
+                                },
+                                "isRefreshable": {
+                                    "type": "boolean"
+                                },
+                                "isEffectiveIdentityRequired": {
+                                    "type": "boolean"
+                                },
+                                "isEffectiveIdentityRolesRequired": {
+                                    "type": "boolean"
+                                },
+                                "isOnPremGatewayRequired": {
+                                    "type": "boolean"
+                                }
                             }
                         }
                     },
-                    "result": {"type": "boolean"}
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["datasets", "result"]
+                "required": [
+                    "datasets",
+                    "result"
+                ]
             }
         },
         "get_dataset": {
@@ -132,7 +173,9 @@
                         "description": "The workspace ID (optional, defaults to My workspace)"
                     }
                 },
-                "required": ["dataset_id"]
+                "required": [
+                    "dataset_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -141,9 +184,14 @@
                         "type": "object",
                         "description": "Dataset details"
                     },
-                    "result": {"type": "boolean"}
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["dataset", "result"]
+                "required": [
+                    "dataset",
+                    "result"
+                ]
             }
         },
         "refresh_dataset": {
@@ -163,17 +211,31 @@
                     "notify_option": {
                         "type": "string",
                         "description": "Mail notification options (NoNotification, MailOnFailure, or MailOnCompletion). Not applicable for enhanced refresh or service principal operations.",
-                        "enum": ["NoNotification", "MailOnFailure", "MailOnCompletion"]
+                        "enum": [
+                            "NoNotification",
+                            "MailOnFailure",
+                            "MailOnCompletion"
+                        ]
                     },
                     "type": {
                         "type": "string",
                         "description": "The type of processing to perform (Full, ClearValues, Calculate, DataOnly, Automatic, or Defragment)",
-                        "enum": ["Full", "ClearValues", "Calculate", "DataOnly", "Automatic", "Defragment"]
+                        "enum": [
+                            "Full",
+                            "ClearValues",
+                            "Calculate",
+                            "DataOnly",
+                            "Automatic",
+                            "Defragment"
+                        ]
                     },
                     "commit_mode": {
                         "type": "string",
                         "description": "Determines if objects will be committed in batches (PartialBatch) or only when complete (Transactional)",
-                        "enum": ["Transactional", "PartialBatch"]
+                        "enum": [
+                            "Transactional",
+                            "PartialBatch"
+                        ]
                     },
                     "max_parallelism": {
                         "type": "integer",
@@ -198,7 +260,9 @@
                                     "description": "Partition name to refresh (optional)"
                                 }
                             },
-                            "required": ["table"]
+                            "required": [
+                                "table"
+                            ]
                         }
                     },
                     "apply_refresh_policy": {
@@ -215,16 +279,26 @@
                         "pattern": "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$"
                     }
                 },
-                "required": ["dataset_id"]
+                "required": [
+                    "dataset_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {"type": "boolean"},
-                    "message": {"type": "string"},
-                    "request_id": {"type": "string"}
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "request_id": {
+                        "type": "string"
+                    }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         },
         "get_refresh_history": {
@@ -247,7 +321,9 @@
                         "default": 10
                     }
                 },
-                "required": ["dataset_id"]
+                "required": [
+                    "dataset_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -258,17 +334,32 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "refreshType": {"type": "string"},
-                                "startTime": {"type": "string"},
-                                "endTime": {"type": "string"},
-                                "status": {"type": "string"},
-                                "requestId": {"type": "string"}
+                                "refreshType": {
+                                    "type": "string"
+                                },
+                                "startTime": {
+                                    "type": "string"
+                                },
+                                "endTime": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "type": "string"
+                                },
+                                "requestId": {
+                                    "type": "string"
+                                }
                             }
                         }
                     },
-                    "result": {"type": "boolean"}
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["refreshes", "result"]
+                "required": [
+                    "refreshes",
+                    "result"
+                ]
             }
         },
         "list_reports": {
@@ -292,17 +383,32 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string"},
-                                "name": {"type": "string"},
-                                "webUrl": {"type": "string"},
-                                "embedUrl": {"type": "string"},
-                                "datasetId": {"type": "string"}
+                                "id": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "webUrl": {
+                                    "type": "string"
+                                },
+                                "embedUrl": {
+                                    "type": "string"
+                                },
+                                "datasetId": {
+                                    "type": "string"
+                                }
                             }
                         }
                     },
-                    "result": {"type": "boolean"}
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["reports", "result"]
+                "required": [
+                    "reports",
+                    "result"
+                ]
             }
         },
         "get_report": {
@@ -320,7 +426,9 @@
                         "description": "The workspace ID (optional, defaults to My workspace)"
                     }
                 },
-                "required": ["report_id"]
+                "required": [
+                    "report_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -329,9 +437,14 @@
                         "type": "object",
                         "description": "Report details"
                     },
-                    "result": {"type": "boolean"}
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["report", "result"]
+                "required": [
+                    "report",
+                    "result"
+                ]
             }
         },
         "get_report_datasources": {
@@ -349,7 +462,9 @@
                         "description": "The workspace ID (optional, defaults to My workspace)"
                     }
                 },
-                "required": ["report_id"]
+                "required": [
+                    "report_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -360,11 +475,21 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "datasourceType": {"type": "string"},
-                                "datasourceId": {"type": "string"},
-                                "gatewayId": {"type": "string"},
-                                "name": {"type": "string"},
-                                "connectionString": {"type": "string"},
+                                "datasourceType": {
+                                    "type": "string"
+                                },
+                                "datasourceId": {
+                                    "type": "string"
+                                },
+                                "gatewayId": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "connectionString": {
+                                    "type": "string"
+                                },
                                 "connectionDetails": {
                                     "type": "object",
                                     "description": "Data source connection details"
@@ -372,9 +497,14 @@
                             }
                         }
                     },
-                    "result": {"type": "boolean"}
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["datasources", "result"]
+                "required": [
+                    "datasources",
+                    "result"
+                ]
             }
         },
         "clone_report": {
@@ -404,18 +534,33 @@
                         "description": "Target dataset ID for the cloned report (optional)"
                     }
                 },
-                "required": ["report_id", "name"]
+                "required": [
+                    "report_id",
+                    "name"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "id": {"type": "string"},
-                    "name": {"type": "string"},
-                    "webUrl": {"type": "string"},
-                    "embedUrl": {"type": "string"},
-                    "result": {"type": "boolean"}
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "webUrl": {
+                        "type": "string"
+                    },
+                    "embedUrl": {
+                        "type": "string"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         },
         "refresh_report": {
@@ -435,20 +580,33 @@
                     "notify_option": {
                         "type": "string",
                         "description": "Notification option (NoNotification or MailOnFailure)",
-                        "enum": ["NoNotification", "MailOnFailure"],
+                        "enum": [
+                            "NoNotification",
+                            "MailOnFailure"
+                        ],
                         "default": "NoNotification"
                     }
                 },
-                "required": ["report_id"]
+                "required": [
+                    "report_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {"type": "boolean"},
-                    "message": {"type": "string"},
-                    "dataset_id": {"type": "string"}
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "dataset_id": {
+                        "type": "string"
+                    }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         },
         "export_report": {
@@ -468,20 +626,34 @@
                     "format": {
                         "type": "string",
                         "description": "Export format",
-                        "enum": ["PDF", "PPTX", "PNG"],
+                        "enum": [
+                            "PDF",
+                            "PPTX",
+                            "PNG"
+                        ],
                         "default": "PDF"
                     }
                 },
-                "required": ["report_id"]
+                "required": [
+                    "report_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "export_id": {"type": "string"},
-                    "result": {"type": "boolean"},
-                    "message": {"type": "string"}
+                    "export_id": {
+                        "type": "string"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
                 },
-                "required": ["result"]
+                "required": [
+                    "result"
+                ]
             }
         },
         "get_export_status": {
@@ -503,16 +675,28 @@
                         "description": "The workspace ID (optional, defaults to My workspace)"
                     }
                 },
-                "required": ["report_id", "export_id"]
+                "required": [
+                    "report_id",
+                    "export_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "status": {"type": "string"},
-                    "percentComplete": {"type": "integer"},
-                    "result": {"type": "boolean"}
+                    "status": {
+                        "type": "string"
+                    },
+                    "percentComplete": {
+                        "type": "integer"
+                    },
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["status", "result"]
+                "required": [
+                    "status",
+                    "result"
+                ]
             }
         },
         "list_dashboards": {
@@ -536,16 +720,29 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string"},
-                                "displayName": {"type": "string"},
-                                "isReadOnly": {"type": "boolean"},
-                                "embedUrl": {"type": "string"}
+                                "id": {
+                                    "type": "string"
+                                },
+                                "displayName": {
+                                    "type": "string"
+                                },
+                                "isReadOnly": {
+                                    "type": "boolean"
+                                },
+                                "embedUrl": {
+                                    "type": "string"
+                                }
                             }
                         }
                     },
-                    "result": {"type": "boolean"}
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["dashboards", "result"]
+                "required": [
+                    "dashboards",
+                    "result"
+                ]
             }
         },
         "get_dashboard": {
@@ -563,7 +760,9 @@
                         "description": "The workspace ID (optional, defaults to My workspace)"
                     }
                 },
-                "required": ["dashboard_id"]
+                "required": [
+                    "dashboard_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -572,9 +771,14 @@
                         "type": "object",
                         "description": "Dashboard details"
                     },
-                    "result": {"type": "boolean"}
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["dashboard", "result"]
+                "required": [
+                    "dashboard",
+                    "result"
+                ]
             }
         },
         "get_dashboard_tiles": {
@@ -592,7 +796,9 @@
                         "description": "The workspace ID (optional, defaults to My workspace)"
                     }
                 },
-                "required": ["dashboard_id"]
+                "required": [
+                    "dashboard_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -603,17 +809,32 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string"},
-                                "title": {"type": "string"},
-                                "embedUrl": {"type": "string"},
-                                "datasetId": {"type": "string"},
-                                "reportId": {"type": "string"}
+                                "id": {
+                                    "type": "string"
+                                },
+                                "title": {
+                                    "type": "string"
+                                },
+                                "embedUrl": {
+                                    "type": "string"
+                                },
+                                "datasetId": {
+                                    "type": "string"
+                                },
+                                "reportId": {
+                                    "type": "string"
+                                }
                             }
                         }
                     },
-                    "result": {"type": "boolean"}
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["tiles", "result"]
+                "required": [
+                    "tiles",
+                    "result"
+                ]
             }
         },
         "execute_queries": {
@@ -644,7 +865,10 @@
                         }
                     }
                 },
-                "required": ["dataset_id", "queries"]
+                "required": [
+                    "dataset_id",
+                    "queries"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -653,10 +877,16 @@
                         "type": "array",
                         "description": "Query results"
                     },
-                    "result": {"type": "boolean"}
+                    "result": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["results", "result"]
+                "required": [
+                    "results",
+                    "result"
+                ]
             }
         }
-    }
+    },
+    "display_name": "Power BI"
 }
