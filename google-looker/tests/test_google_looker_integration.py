@@ -85,15 +85,11 @@ async def test_get_dashboard():
             "id": "123",
             "title": "Test Dashboard",
             "description": "A test dashboard",
-            "dashboard_elements": [
-                {"id": "elem1", "type": "looker_line", "query": {"id": "query1"}}
-            ],
+            "dashboard_elements": [{"id": "elem1", "type": "looker_line", "query": {"id": "query1"}}],
         }
     }
     context = MockExecutionContext(responses)
-    result = await google_looker.execute_action(
-        "get_dashboard", {"dashboard_id": "123"}, context
-    )
+    result = await google_looker.execute_action("get_dashboard", {"dashboard_id": "123"}, context)
     assert result["result"] is True
     assert result["dashboard"]["id"] == "123"
     assert result["dashboard"]["title"] == "Test Dashboard"
@@ -160,9 +156,7 @@ async def test_get_model():
         }
     }
     context = MockExecutionContext(responses)
-    result = await google_looker.execute_action(
-        "get_model", {"model_name": "sales"}, context
-    )
+    result = await google_looker.execute_action("get_model", {"model_name": "sales"}, context)
     assert result["result"] is True
     assert result["model"]["name"] == "sales"
     assert len(result["model"]["explores"]) == 2
@@ -234,9 +228,7 @@ async def test_execute_lookml_query_missing_required_fields():
     context = MockExecutionContext({})
     # Missing required model and explore fields - should raise ValidationError
     try:
-        await google_looker.execute_action(
-            "execute_lookml_query", {"dimensions": ["orders.status"]}, context
-        )
+        await google_looker.execute_action("execute_lookml_query", {"dimensions": ["orders.status"]}, context)
         assert False, "Should have raised ValidationError"
     except Exception as e:
         assert "required" in str(e).lower()
@@ -246,9 +238,7 @@ async def test_execute_lookml_query_missing_required_fields():
 async def test_execute_sql_query_missing_connection():
     context = MockExecutionContext({})
     # Missing both connection_name and model_name
-    result = await google_looker.execute_action(
-        "execute_sql_query", {"sql": "SELECT * FROM orders"}, context
-    )
+    result = await google_looker.execute_action("execute_sql_query", {"sql": "SELECT * FROM orders"}, context)
     assert result["result"] is False
     assert "error" in result
     assert "connection_name" in result["error"] or "model_name" in result["error"]

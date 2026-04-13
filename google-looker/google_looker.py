@@ -31,11 +31,7 @@ class LookerAPIHelper:
         self.token_expires_at = None
 
     async def _get_access_token(self) -> str:
-        if (
-            self.access_token
-            and self.token_expires_at
-            and datetime.now() < self.token_expires_at
-        ):
+        if self.access_token and self.token_expires_at and datetime.now() < self.token_expires_at:
             return self.access_token
 
         auth_url = f"{self.base_url}/api/4.0/login"
@@ -53,9 +49,7 @@ class LookerAPIHelper:
                 token_data = response
             else:
                 if response.status_code != 200:
-                    raise Exception(
-                        f"Authentication failed with status {response.status_code}: {response.text}"
-                    )
+                    raise Exception(f"Authentication failed with status {response.status_code}: {response.text}")
                 token_data = response.json()
 
             self.access_token = token_data.get("access_token")
@@ -97,9 +91,7 @@ class LookerAPIHelper:
                 return response
             else:
                 if response.status_code not in [200, 201, 202, 204]:
-                    raise Exception(
-                        f"API request failed: {response.status_code} - {response.text}"
-                    )
+                    raise Exception(f"API request failed: {response.status_code} - {response.text}")
 
                 return response.json() if response.text else {}
 
@@ -149,14 +141,10 @@ class ListDashboards(ActionHandler):
 
             dashboards = await helper.make_request("GET", "/dashboards", params=params)
 
-            return ActionResult(
-                data={"dashboards": dashboards, "result": True}, cost_usd=0
-            )
+            return ActionResult(data={"dashboards": dashboards, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return ActionResult(
-                data={"dashboards": [], "result": False, "error": str(e)}, cost_usd=0
-            )
+            return ActionResult(data={"dashboards": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_looker.action("get_dashboard")
@@ -170,18 +158,12 @@ class GetDashboard(ActionHandler):
             if "fields" in inputs:
                 params["fields"] = inputs["fields"]
 
-            dashboard = await helper.make_request(
-                "GET", f"/dashboards/{dashboard_id}", params=params
-            )
+            dashboard = await helper.make_request("GET", f"/dashboards/{dashboard_id}", params=params)
 
-            return ActionResult(
-                data={"dashboard": dashboard, "result": True}, cost_usd=0
-            )
+            return ActionResult(data={"dashboard": dashboard, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return ActionResult(
-                data={"dashboard": {}, "result": False, "error": str(e)}, cost_usd=0
-            )
+            return ActionResult(data={"dashboard": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_looker.action("execute_lookml_query")
@@ -216,15 +198,11 @@ class ExecuteLookMLQuery(ActionHandler):
             if "apply_vis" in inputs:
                 params["apply_vis"] = inputs["apply_vis"]
 
-            results = await helper.make_request(
-                "GET", f"/queries/{query_id}/run/{result_format}", params=params
-            )
+            results = await helper.make_request("GET", f"/queries/{query_id}/run/{result_format}", params=params)
 
             return ActionResult(
                 data={
-                    "query_results": json.dumps(results)
-                    if isinstance(results, (dict, list))
-                    else str(results),
+                    "query_results": json.dumps(results) if isinstance(results, (dict, list)) else str(results),
                     "result": True,
                 },
                 cost_usd=0,
@@ -252,9 +230,7 @@ class ListModels(ActionHandler):
             return ActionResult(data={"models": models, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return ActionResult(
-                data={"models": [], "result": False, "error": str(e)}, cost_usd=0
-            )
+            return ActionResult(data={"models": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_looker.action("get_model")
@@ -268,16 +244,12 @@ class GetModel(ActionHandler):
             if "fields" in inputs:
                 params["fields"] = inputs["fields"]
 
-            model = await helper.make_request(
-                "GET", f"/lookml_models/{model_name}", params=params
-            )
+            model = await helper.make_request("GET", f"/lookml_models/{model_name}", params=params)
 
             return ActionResult(data={"model": model, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return ActionResult(
-                data={"model": {}, "result": False, "error": str(e)}, cost_usd=0
-            )
+            return ActionResult(data={"model": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_looker.action("execute_sql_query")
@@ -293,18 +265,14 @@ class ExecuteSQLQuery(ActionHandler):
             elif "model_name" in inputs:
                 sql_query_data["model_name"] = inputs["model_name"]
             else:
-                raise ValueError(
-                    "Either 'connection_name' or 'model_name' must be provided"
-                )
+                raise ValueError("Either 'connection_name' or 'model_name' must be provided")
 
             if "vis_config" in inputs:
                 sql_query_data["vis_config"] = inputs["vis_config"]
             if "slug" in inputs:
                 sql_query_data["slug"] = inputs["slug"]
 
-            sql_query = await helper.make_request(
-                "POST", "/sql_queries", data=sql_query_data
-            )
+            sql_query = await helper.make_request("POST", "/sql_queries", data=sql_query_data)
 
             slug = sql_query.get("slug")
             if not slug:
@@ -315,16 +283,12 @@ class ExecuteSQLQuery(ActionHandler):
             if "download" in inputs:
                 params["download"] = inputs["download"]
 
-            results = await helper.make_request(
-                "POST", f"/sql_queries/{slug}/run/{result_format}", params=params
-            )
+            results = await helper.make_request("POST", f"/sql_queries/{slug}/run/{result_format}", params=params)
 
             return ActionResult(
                 data={
                     "slug": slug,
-                    "query_results": json.dumps(results)
-                    if isinstance(results, (dict, list))
-                    else str(results),
+                    "query_results": json.dumps(results) if isinstance(results, (dict, list)) else str(results),
                     "result": True,
                 },
                 cost_usd=0,
@@ -352,15 +316,9 @@ class ListConnections(ActionHandler):
             if "fields" in inputs:
                 params["fields"] = inputs["fields"]
 
-            connections = await helper.make_request(
-                "GET", "/connections", params=params
-            )
+            connections = await helper.make_request("GET", "/connections", params=params)
 
-            return ActionResult(
-                data={"connections": connections, "result": True}, cost_usd=0
-            )
+            return ActionResult(data={"connections": connections, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return ActionResult(
-                data={"connections": [], "result": False, "error": str(e)}, cost_usd=0
-            )
+            return ActionResult(data={"connections": [], "result": False, "error": str(e)}, cost_usd=0)
