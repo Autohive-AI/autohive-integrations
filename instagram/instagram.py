@@ -21,7 +21,7 @@ from helpers import INSTAGRAM_GRAPH_API_BASE
 instagram = Integration.load()
 
 # Import actions to register handlers
-import actions  # noqa: F401, E402 - registers action handlers
+from instagram import actions  # noqa: F401, E402 - registers action handlers
 
 
 @instagram.connected_account()

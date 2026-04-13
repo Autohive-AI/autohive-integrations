@@ -12,3 +12,4 @@ from autohive_integrations_sdk import Integration
 humanitix = Integration.load()
 
 # Import actions to register handlers
+from humanitix import actions  # noqa: F401, E402
