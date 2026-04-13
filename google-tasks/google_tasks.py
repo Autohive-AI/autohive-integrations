@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -36,15 +36,15 @@ class ListTasklistsAction(ActionHandler):
             )
 
             tasklists = response.get("items", [])
-            result = {"tasklists": tasklists, "result": True}
+            data = {"tasklists": tasklists, "result": True}
 
             if "nextPageToken" in response:
-                result["nextPageToken"] = response["nextPageToken"]
+                data["nextPageToken"] = response["nextPageToken"]
 
-            return result
+            return ActionResult(data=data, cost_usd=0)
 
         except Exception as e:
-            return {"tasklists": [], "result": False, "error": str(e)}
+            return ActionResult(data={"tasklists": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_tasks.action("get_tasklist")
@@ -57,10 +57,10 @@ class GetTasklistAction(ActionHandler):
 
             response = await context.fetch(f"{GOOGLE_TASKS_API_BASE_URL}/users/@me/lists/{tasklist_id}", method="GET")
 
-            return {"tasklist": response, "result": True}
+            return ActionResult(data={"tasklist": response, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"tasklist": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"tasklist": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 # ---- Task Handlers ----
@@ -98,10 +98,10 @@ class CreateTaskAction(ActionHandler):
                 json=body,
             )
 
-            return {"task": response, "result": True}
+            return ActionResult(data={"task": response, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"task": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_tasks.action("list_tasks")
@@ -131,15 +131,15 @@ class ListTasksAction(ActionHandler):
             )
 
             tasks = response.get("items", [])
-            result = {"tasks": tasks, "result": True}
+            data = {"tasks": tasks, "result": True}
 
             if "nextPageToken" in response:
-                result["nextPageToken"] = response["nextPageToken"]
+                data["nextPageToken"] = response["nextPageToken"]
 
-            return result
+            return ActionResult(data=data, cost_usd=0)
 
         except Exception as e:
-            return {"tasks": [], "result": False, "error": str(e)}
+            return ActionResult(data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_tasks.action("get_task")
@@ -155,10 +155,10 @@ class GetTaskAction(ActionHandler):
                 f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="GET"
             )
 
-            return {"task": response, "result": True}
+            return ActionResult(data={"task": response, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"task": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_tasks.action("update_task")
@@ -202,10 +202,10 @@ class UpdateTaskAction(ActionHandler):
                 f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="PUT", json=body
             )
 
-            return {"task": response, "result": True}
+            return ActionResult(data={"task": response, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"task": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_tasks.action("delete_task")
@@ -219,10 +219,10 @@ class DeleteTaskAction(ActionHandler):
 
             await context.fetch(f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="DELETE")
 
-            return {"result": True}
+            return ActionResult(data={"result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_tasks.action("move_task")
@@ -247,7 +247,7 @@ class MoveTaskAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return {"task": response, "result": True}
+            return ActionResult(data={"task": response, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"task": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0)
