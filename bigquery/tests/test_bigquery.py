@@ -9,7 +9,7 @@ To run these tests:
 """
 
 import asyncio
-import context  # noqa: F401 - imported for side effect (adds parent to sys.path)
+import context as _ctx  # noqa: F401 - side effect import: adds parent dir to sys.path
 from bigquery import bigquery
 from autohive_integrations_sdk import ExecutionContext
 
