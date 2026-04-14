@@ -87,10 +87,10 @@ class PostCommentAction(ActionHandler):
                 data={
                     "comment_id": comment_data["id"],
                     "permalink": f"https://reddit.com{comment_data['permalink']}",
-                    "result": True,
+                    "success": True,
                 },
                 cost_usd=0,
             )
 
         except Exception as e:
-            return ActionResult(data={"comment_id": "", "permalink": "", "result": False, "error": str(e)}, cost_usd=0)
+            return ActionResult(data={"comment_id": "", "permalink": "", "success": False, "error": str(e)}, cost_usd=0)
