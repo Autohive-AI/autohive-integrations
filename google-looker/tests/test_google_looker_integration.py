@@ -29,7 +29,10 @@ class MockExecutionContext:
     ):
         # Route by endpoint suffix for simplicity
         if "/api/4.0/login" in url and method == "POST":
-            return self._responses.get("POST /login", {"access_token": "mock_token_123", "expires_in": 3600})  # nosec B105
+            return self._responses.get(
+                "POST /login",
+                {"access_token": "mock_token_123", "expires_in": 3600},  # nosec B105
+            )
         if "/api/4.0/dashboards/" in url and method == "GET":
             return self._responses.get("GET /dashboard", {"dashboard": {}})
         if "/api/4.0/dashboards" in url and method == "GET":
@@ -95,7 +98,10 @@ async def test_get_dashboard():
 async def test_execute_lookml_query():
     responses = {
         "POST /queries": {"id": "query_456"},
-        "GET /query_results": [{"dimension1": "value1", "measure1": 100}, {"dimension1": "value2", "measure1": 200}],
+        "GET /query_results": [
+            {"dimension1": "value1", "measure1": 100},
+            {"dimension1": "value2", "measure1": 200},
+        ],
     }
     context = MockExecutionContext(responses)
     result = await google_looker.execute_action(
@@ -119,8 +125,16 @@ async def test_execute_lookml_query():
 async def test_list_models():
     responses = {
         "GET /models": [
-            {"name": "sales", "label": "Sales Model", "explores": ["orders", "customers"]},
-            {"name": "marketing", "label": "Marketing Model", "explores": ["campaigns"]},
+            {
+                "name": "sales",
+                "label": "Sales Model",
+                "explores": ["orders", "customers"],
+            },
+            {
+                "name": "marketing",
+                "label": "Marketing Model",
+                "explores": ["campaigns"],
+            },
         ]
     }
     context = MockExecutionContext(responses)
@@ -135,7 +149,10 @@ async def test_get_model():
         "GET /model": {
             "name": "sales",
             "label": "Sales Model",
-            "explores": [{"name": "orders", "label": "Orders"}, {"name": "customers", "label": "Customers"}],
+            "explores": [
+                {"name": "orders", "label": "Orders"},
+                {"name": "customers", "label": "Customers"},
+            ],
         }
     }
     context = MockExecutionContext(responses)
@@ -155,7 +172,9 @@ async def test_execute_sql_query():
     }
     context = MockExecutionContext(responses)
     result = await google_looker.execute_action(
-        "execute_sql_query", {"sql": "SELECT * FROM orders LIMIT 10", "connection_name": "warehouse"}, context
+        "execute_sql_query",
+        {"sql": "SELECT * FROM orders LIMIT 10", "connection_name": "warehouse"},
+        context,
     )
     assert result["result"] is True
     assert result["slug"] == "sql_789"

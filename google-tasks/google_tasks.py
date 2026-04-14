@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -26,25 +26,27 @@ class ListTasklistsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            if "maxResults" in inputs:
-                params["maxResults"] = inputs["maxResults"]
-            if "pageToken" in inputs:
-                params["pageToken"] = inputs["pageToken"]
+            if inputs.get("maxResults") is not None:
+                params["maxResults"] = inputs.get("maxResults")
+            if inputs.get("pageToken") is not None:
+                params["pageToken"] = inputs.get("pageToken")
 
-            response = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/users/@me/lists", method="GET", params=params if params else None
-            )
+            response = (
+                await context.fetch(
+                    f"{GOOGLE_TASKS_API_BASE_URL}/users/@me/lists", method="GET", params=params if params else None
+                )
+            ).data
 
             tasklists = response.get("items", [])
-            result = {"tasklists": tasklists, "result": True}
+            data = {"tasklists": tasklists, "result": True}
 
             if "nextPageToken" in response:
-                result["nextPageToken"] = response["nextPageToken"]
+                data["nextPageToken"] = response["nextPageToken"]
 
-            return result
+            return ActionResult(data=data, cost_usd=0)
 
         except Exception as e:
-            return {"tasklists": [], "result": False, "error": str(e)}
+            return ActionResult(data={"tasklists": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_tasks.action("get_tasklist")
@@ -55,12 +57,14 @@ class GetTasklistAction(ActionHandler):
         try:
             tasklist_id = inputs["tasklist"]
 
-            response = await context.fetch(f"{GOOGLE_TASKS_API_BASE_URL}/users/@me/lists/{tasklist_id}", method="GET")
+            tasklist = (
+                await context.fetch(f"{GOOGLE_TASKS_API_BASE_URL}/users/@me/lists/{tasklist_id}", method="GET")
+            ).data
 
-            return {"tasklist": response, "result": True}
+            return ActionResult(data={"tasklist": tasklist, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"tasklist": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"tasklist": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 # ---- Task Handlers ----
@@ -77,31 +81,33 @@ class CreateTaskAction(ActionHandler):
             # Build task body
             body = {"title": inputs["title"]}
 
-            if "notes" in inputs and inputs["notes"]:
-                body["notes"] = inputs["notes"]
-            if "due" in inputs and inputs["due"]:
-                body["due"] = inputs["due"]
-            if "status" in inputs and inputs["status"]:
-                body["status"] = inputs["status"]
+            if inputs.get("notes"):
+                body["notes"] = inputs.get("notes")
+            if inputs.get("due"):
+                body["due"] = inputs.get("due")
+            if inputs.get("status"):
+                body["status"] = inputs.get("status")
 
             # Build query params for positioning
             params = {}
-            if "parent" in inputs and inputs["parent"]:
-                params["parent"] = inputs["parent"]
-            if "previous" in inputs and inputs["previous"]:
-                params["previous"] = inputs["previous"]
+            if inputs.get("parent"):
+                params["parent"] = inputs.get("parent")
+            if inputs.get("previous"):
+                params["previous"] = inputs.get("previous")
 
-            response = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks",
-                method="POST",
-                params=params if params else None,
-                json=body,
-            )
+            task = (
+                await context.fetch(
+                    f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks",
+                    method="POST",
+                    params=params if params else None,
+                    json=body,
+                )
+            ).data
 
-            return {"task": response, "result": True}
+            return ActionResult(data={"task": task, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"task": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_tasks.action("list_tasks")
@@ -113,33 +119,35 @@ class ListTasksAction(ActionHandler):
             tasklist_id = inputs["tasklist"]
 
             params = {}
-            if "maxResults" in inputs:
-                params["maxResults"] = inputs["maxResults"]
-            if "pageToken" in inputs:
-                params["pageToken"] = inputs["pageToken"]
-            if "showCompleted" in inputs and inputs["showCompleted"] is not None:
-                params["showCompleted"] = str(inputs["showCompleted"]).lower()
-            if "showHidden" in inputs and inputs["showHidden"] is not None:
-                params["showHidden"] = str(inputs["showHidden"]).lower()
-            if "dueMin" in inputs:
-                params["dueMin"] = inputs["dueMin"]
-            if "dueMax" in inputs:
-                params["dueMax"] = inputs["dueMax"]
+            if inputs.get("maxResults") is not None:
+                params["maxResults"] = inputs.get("maxResults")
+            if inputs.get("pageToken") is not None:
+                params["pageToken"] = inputs.get("pageToken")
+            if inputs.get("showCompleted") is not None:
+                params["showCompleted"] = str(inputs.get("showCompleted")).lower()
+            if inputs.get("showHidden") is not None:
+                params["showHidden"] = str(inputs.get("showHidden")).lower()
+            if inputs.get("dueMin") is not None:
+                params["dueMin"] = inputs.get("dueMin")
+            if inputs.get("dueMax") is not None:
+                params["dueMax"] = inputs.get("dueMax")
 
-            response = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks", method="GET", params=params
-            )
+            response = (
+                await context.fetch(
+                    f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks", method="GET", params=params
+                )
+            ).data
 
             tasks = response.get("items", [])
-            result = {"tasks": tasks, "result": True}
+            data = {"tasks": tasks, "result": True}
 
             if "nextPageToken" in response:
-                result["nextPageToken"] = response["nextPageToken"]
+                data["nextPageToken"] = response["nextPageToken"]
 
-            return result
+            return ActionResult(data=data, cost_usd=0)
 
         except Exception as e:
-            return {"tasks": [], "result": False, "error": str(e)}
+            return ActionResult(data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_tasks.action("get_task")
@@ -151,14 +159,14 @@ class GetTaskAction(ActionHandler):
             tasklist_id = inputs["tasklist"]
             task_id = inputs["task"]
 
-            response = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="GET"
-            )
+            task = (
+                await context.fetch(f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="GET")
+            ).data
 
-            return {"task": response, "result": True}
+            return ActionResult(data={"task": task, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"task": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_tasks.action("update_task")
@@ -171,9 +179,9 @@ class UpdateTaskAction(ActionHandler):
             task_id = inputs["task"]
 
             # First, fetch the existing task to preserve unmodified fields
-            existing_task = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="GET"
-            )
+            existing_task = (
+                await context.fetch(f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="GET")
+            ).data
 
             # Build update body starting with existing task data
             # NOTE: Google Tasks API requires 'id' in the body even though it's in the URL
@@ -189,23 +197,25 @@ class UpdateTaskAction(ActionHandler):
                 body["due"] = existing_task["due"]
 
             # Override with any provided fields
-            if "title" in inputs and inputs["title"]:
-                body["title"] = inputs["title"]
-            if "notes" in inputs and inputs["notes"] is not None:
-                body["notes"] = inputs["notes"]
+            if inputs.get("title"):
+                body["title"] = inputs.get("title")
+            if inputs.get("notes") is not None:
+                body["notes"] = inputs.get("notes")
             if "due" in inputs:
-                body["due"] = inputs["due"]
-            if "status" in inputs and inputs["status"]:
-                body["status"] = inputs["status"]
+                body["due"] = inputs.get("due")
+            if inputs.get("status"):
+                body["status"] = inputs.get("status")
 
-            response = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="PUT", json=body
-            )
+            task = (
+                await context.fetch(
+                    f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="PUT", json=body
+                )
+            ).data
 
-            return {"task": response, "result": True}
+            return ActionResult(data={"task": task, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"task": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_tasks.action("delete_task")
@@ -219,10 +229,10 @@ class DeleteTaskAction(ActionHandler):
 
             await context.fetch(f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}", method="DELETE")
 
-            return {"result": True}
+            return ActionResult(data={"result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_tasks.action("move_task")
@@ -236,18 +246,20 @@ class MoveTaskAction(ActionHandler):
 
             # Build query params
             params = {}
-            if "parent" in inputs and inputs["parent"]:
-                params["parent"] = inputs["parent"]
-            if "previous" in inputs and inputs["previous"]:
-                params["previous"] = inputs["previous"]
+            if inputs.get("parent"):
+                params["parent"] = inputs.get("parent")
+            if inputs.get("previous"):
+                params["previous"] = inputs.get("previous")
 
-            response = await context.fetch(
-                f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}/move",
-                method="POST",
-                params=params if params else None,
-            )
+            task = (
+                await context.fetch(
+                    f"{GOOGLE_TASKS_API_BASE_URL}/lists/{tasklist_id}/tasks/{task_id}/move",
+                    method="POST",
+                    params=params if params else None,
+                )
+            ).data
 
-            return {"task": response, "result": True}
+            return ActionResult(data={"task": task, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"task": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0)

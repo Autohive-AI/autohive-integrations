@@ -34,7 +34,20 @@
             "description": "Retrieve a list of all available dashboards in the Looker instance, including dashboard IDs, titles, and metadata",
             "input_schema": {
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "fields": {
+                        "type": "string",
+                        "description": "Comma-separated list of fields to return in the response"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number of results to return (1-based)"
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Number of results to return per page"
+                    }
+                },
                 "required": []
             },
             "output_schema": {
