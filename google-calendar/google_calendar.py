@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -61,16 +61,16 @@ class CalendarEventParser:
 class ListCalendars(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            response = await context.fetch(service_endpoint + "users/me/calendarList", method="GET")
+            response = (await context.fetch(service_endpoint + "users/me/calendarList", method="GET")).data
 
             calendars = []
             for raw_calendar in response.get("items", []):
                 calendars.append(CalendarEventParser.parse_calendar(raw_calendar))
 
-            return {"calendars": calendars, "result": True}
+            return ActionResult(data={"calendars": calendars, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"calendars": [], "result": False, "error": str(e)}
+            return ActionResult(data={"calendars": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_calendar.action("list_events")
@@ -90,9 +90,9 @@ class ListEvents(ActionHandler):
             if "page_token" in inputs:
                 params["pageToken"] = inputs["page_token"]
 
-            response = await context.fetch(
-                service_endpoint + f"calendars/{calendar_id}/events", method="GET", params=params
-            )
+            response = (
+                await context.fetch(service_endpoint + f"calendars/{calendar_id}/events", method="GET", params=params)
+            ).data
 
             events = []
             for raw_event in response.get("items", []):
@@ -105,10 +105,10 @@ class ListEvents(ActionHandler):
             if "nextPageToken" in response:
                 result["nextPageToken"] = response["nextPageToken"]
 
-            return result
+            return ActionResult(data=result, cost_usd=0)
 
         except Exception as e:
-            return {"events": [], "result": False, "error": str(e)}
+            return ActionResult(data={"events": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_calendar.action("get_event")
@@ -118,14 +118,14 @@ class GetEvent(ActionHandler):
             calendar_id = inputs["calendar_id"]
             event_id = inputs["event_id"]
 
-            response = await context.fetch(
-                service_endpoint + f"calendars/{calendar_id}/events/{event_id}", method="GET"
-            )
+            response = (
+                await context.fetch(service_endpoint + f"calendars/{calendar_id}/events/{event_id}", method="GET")
+            ).data
 
-            return {"event": CalendarEventParser.parse_event(response), "result": True}
+            return ActionResult(data={"event": CalendarEventParser.parse_event(response), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"event": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"event": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_calendar.action("create_event")
@@ -155,14 +155,16 @@ class CreateEvent(ActionHandler):
             if "attendees" in inputs and inputs["attendees"]:
                 event_data["attendees"] = [{"email": email} for email in inputs["attendees"]]
 
-            response = await context.fetch(
-                service_endpoint + f"calendars/{calendar_id}/events", method="POST", json=event_data
-            )
+            response = (
+                await context.fetch(
+                    service_endpoint + f"calendars/{calendar_id}/events", method="POST", json=event_data
+                )
+            ).data
 
-            return {"event": CalendarEventParser.parse_event(response), "result": True}
+            return ActionResult(data={"event": CalendarEventParser.parse_event(response), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"event": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"event": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_calendar.action("update_event")
@@ -173,9 +175,9 @@ class UpdateEvent(ActionHandler):
             event_id = inputs["event_id"]
 
             # First, get the existing event to preserve fields not being updated
-            existing_event = await context.fetch(
-                service_endpoint + f"calendars/{calendar_id}/events/{event_id}", method="GET"
-            )
+            existing_event = (
+                await context.fetch(service_endpoint + f"calendars/{calendar_id}/events/{event_id}", method="GET")
+            ).data
 
             # Build updated event data, starting with existing event
             event_data = existing_event.copy()
@@ -204,14 +206,16 @@ class UpdateEvent(ActionHandler):
                     # Remove attendees if empty list is provided
                     event_data.pop("attendees", None)
 
-            response = await context.fetch(
-                service_endpoint + f"calendars/{calendar_id}/events/{event_id}", method="PUT", json=event_data
-            )
+            response = (
+                await context.fetch(
+                    service_endpoint + f"calendars/{calendar_id}/events/{event_id}", method="PUT", json=event_data
+                )
+            ).data
 
-            return {"event": CalendarEventParser.parse_event(response), "result": True}
+            return ActionResult(data={"event": CalendarEventParser.parse_event(response), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"event": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"event": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @google_calendar.action("delete_event")
@@ -223,10 +227,10 @@ class DeleteEvent(ActionHandler):
 
             await context.fetch(service_endpoint + f"calendars/{calendar_id}/events/{event_id}", method="DELETE")
 
-            return {"result": True}
+            return ActionResult(data={"result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0)
 
 
 # ---- Polling Trigger Handlers ----
