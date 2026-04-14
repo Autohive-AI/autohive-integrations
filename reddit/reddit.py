@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -30,9 +30,9 @@ class SearchSubredditAction(ActionHandler):
                 params["t"] = time_filter
 
         try:
-            response = await context.fetch(
-                url, method="GET", params=params, headers={"User-Agent": "AutohiveIntegration/1.0"}
-            )
+            response = (
+                await context.fetch(url, method="GET", params=params, headers={"User-Agent": "AutohiveIntegration/1.0"})
+            ).data
 
             posts = []
             if "data" in response and "children" in response["data"]:
@@ -52,10 +52,10 @@ class SearchSubredditAction(ActionHandler):
                         }
                     )
 
-            return {"posts": posts}
+            return ActionResult(data={"posts": posts, "result": True}, cost_usd=0)
 
         except Exception as e:
-            raise Exception(f"Failed to search subreddit: {str(e)}")
+            return ActionResult(data={"posts": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @reddit.action("post_comment")
@@ -65,12 +65,17 @@ class PostCommentAction(ActionHandler):
         text = inputs["text"]
 
         try:
-            response = await context.fetch(
-                "https://oauth.reddit.com/api/comment",
-                method="POST",
-                data={"parent": parent_id, "text": text, "api_type": "json"},
-                headers={"User-Agent": "AutohiveIntegration/1.0", "Content-Type": "application/x-www-form-urlencoded"},
-            )
+            response = (
+                await context.fetch(
+                    "https://oauth.reddit.com/api/comment",
+                    method="POST",
+                    data={"parent": parent_id, "text": text, "api_type": "json"},
+                    headers={
+                        "User-Agent": "AutohiveIntegration/1.0",
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                )
+            ).data
 
             if response.get("json", {}).get("errors"):
                 errors = response["json"]["errors"]
@@ -78,11 +83,14 @@ class PostCommentAction(ActionHandler):
 
             comment_data = response["json"]["data"]["things"][0]["data"]
 
-            return {
-                "comment_id": comment_data["id"],
-                "permalink": f"https://reddit.com{comment_data['permalink']}",
-                "success": True,
-            }
+            return ActionResult(
+                data={
+                    "comment_id": comment_data["id"],
+                    "permalink": f"https://reddit.com{comment_data['permalink']}",
+                    "result": True,
+                },
+                cost_usd=0,
+            )
 
         except Exception as e:
-            return {"comment_id": "", "permalink": "", "success": False, "error": str(e)}
+            return ActionResult(data={"comment_id": "", "permalink": "", "result": False, "error": str(e)}, cost_usd=0)
