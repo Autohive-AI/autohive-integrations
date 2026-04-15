@@ -39,10 +39,10 @@ class XeroConnectedAccountHandler(ConnectedAccountHandler):
             "https://api.xero.com/connections", method="GET", headers={"Accept": "application/json"}
         )
 
-        if not response or not isinstance(response, list) or len(response) == 0:
+        if not response.data or not isinstance(response.data, list) or len(response.data) == 0:
             return ConnectedAccountInfo(username="Unknown Organization")
 
-        first_connection = response[0]
+        first_connection = response.data[0]
         tenant_name = first_connection.get("tenantName", "Unknown Organization")
 
         return ConnectedAccountInfo(username=tenant_name, user_id=first_connection.get("tenantId"))
@@ -101,7 +101,7 @@ class XeroRateLimiter:
         for attempt in range(self.max_retries + 1):
             try:
                 response = await context.fetch(url, **kwargs)
-                return response
+                return response.data
 
             except Exception as e:
                 last_error = e
@@ -147,10 +147,10 @@ async def get_all_connections(context: ExecutionContext) -> list:
             "https://api.xero.com/connections", method="GET", headers={"Accept": "application/json"}
         )
 
-        if not response or not isinstance(response, list) or len(response) == 0:
+        if not response.data or not isinstance(response.data, list) or len(response.data) == 0:
             raise ValueError("No Xero connections found")
 
-        return response
+        return response.data
 
     except Exception as e:
         raise Exception(f"Failed to get connections: {str(e)}")

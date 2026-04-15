@@ -645,8 +645,8 @@ class CreateContact(ActionHandler):
             response = await context.fetch(url, method="POST", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                contact_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                contact_result = response.data["data"][0]
 
                 if contact_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -696,8 +696,8 @@ class GetContact(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                contact_data = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                contact_data = response.data["data"][0]
                 return ActionResult(data={"contact": contact_data, "result": True}, cost_usd=0)
             else:
                 return ActionResult(data={"contact": {}, "result": False, "error": "Contact not found"}, cost_usd=0)
@@ -727,8 +727,8 @@ class UpdateContact(ActionHandler):
             response = await context.fetch(url, method="PUT", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                contact_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                contact_result = response.data["data"][0]
 
                 if contact_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -773,8 +773,8 @@ class DeleteContact(ActionHandler):
             response = await context.fetch(url, method="DELETE", headers=headers)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                delete_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                delete_result = response.data["data"][0]
 
                 if delete_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -818,8 +818,8 @@ class ListContacts(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            contacts = response.get("data", [])
-            info = response.get("info", {})
+            contacts = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"contacts": contacts, "info": info, "result": True}, cost_usd=0)
 
@@ -844,8 +844,8 @@ class SearchContacts(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            contacts = response.get("data", [])
-            info = response.get("info", {})
+            contacts = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"contacts": contacts, "info": info, "result": True}, cost_usd=0)
 
@@ -876,8 +876,8 @@ class CreateAccount(ActionHandler):
             response = await context.fetch(url, method="POST", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                account_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                account_result = response.data["data"][0]
 
                 if account_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -942,8 +942,8 @@ class GetAccount(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                account_data = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                account_data = response.data["data"][0]
                 return ActionResult(data={"account": account_data, "result": True}, cost_usd=0)
             else:
                 return ActionResult(data={"account": {}, "result": False, "error": "Account not found"}, cost_usd=0)
@@ -973,8 +973,8 @@ class UpdateAccount(ActionHandler):
             response = await context.fetch(url, method="PUT", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                account_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                account_result = response.data["data"][0]
 
                 if account_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1019,8 +1019,8 @@ class DeleteAccount(ActionHandler):
             response = await context.fetch(url, method="DELETE", headers=headers)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                delete_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                delete_result = response.data["data"][0]
 
                 if delete_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1064,8 +1064,8 @@ class ListAccounts(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            accounts = response.get("data", [])
-            info = response.get("info", {})
+            accounts = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"accounts": accounts, "info": info, "result": True}, cost_usd=0)
 
@@ -1090,8 +1090,8 @@ class SearchAccounts(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            accounts = response.get("data", [])
-            info = response.get("info", {})
+            accounts = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"accounts": accounts, "info": info, "result": True}, cost_usd=0)
 
@@ -1122,8 +1122,8 @@ class CreateDeal(ActionHandler):
             response = await context.fetch(url, method="POST", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                deal_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                deal_result = response.data["data"][0]
 
                 if deal_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1189,8 +1189,8 @@ class GetDeal(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                deal_data = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                deal_data = response.data["data"][0]
                 return ActionResult(data={"deal": deal_data, "result": True}, cost_usd=0)
             else:
                 return ActionResult(data={"deal": {}, "result": False, "error": "Deal not found"}, cost_usd=0)
@@ -1220,8 +1220,8 @@ class UpdateDeal(ActionHandler):
             response = await context.fetch(url, method="PUT", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                deal_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                deal_result = response.data["data"][0]
 
                 if deal_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1266,8 +1266,8 @@ class DeleteDeal(ActionHandler):
             response = await context.fetch(url, method="DELETE", headers=headers)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                delete_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                delete_result = response.data["data"][0]
 
                 if delete_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1308,8 +1308,8 @@ class ListDeals(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            deals = response.get("data", [])
-            info = response.get("info", {})
+            deals = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"deals": deals, "info": info, "result": True}, cost_usd=0)
 
@@ -1333,8 +1333,8 @@ class SearchDeals(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            deals = response.get("data", [])
-            info = response.get("info", {})
+            deals = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"deals": deals, "info": info, "result": True}, cost_usd=0)
 
@@ -1364,8 +1364,8 @@ class CreateLead(ActionHandler):
             response = await context.fetch(url, method="POST", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                lead_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                lead_result = response.data["data"][0]
 
                 if lead_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1432,8 +1432,8 @@ class GetLead(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                lead_data = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                lead_data = response.data["data"][0]
                 return ActionResult(data={"lead": lead_data, "result": True}, cost_usd=0)
             else:
                 return ActionResult(data={"lead": {}, "result": False, "error": "Lead not found"}, cost_usd=0)
@@ -1463,8 +1463,8 @@ class UpdateLead(ActionHandler):
             response = await context.fetch(url, method="PUT", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                lead_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                lead_result = response.data["data"][0]
 
                 if lead_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1509,8 +1509,8 @@ class DeleteLead(ActionHandler):
             response = await context.fetch(url, method="DELETE", headers=headers)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                delete_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                delete_result = response.data["data"][0]
 
                 if delete_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1551,8 +1551,8 @@ class ListLeads(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            leads = response.get("data", [])
-            info = response.get("info", {})
+            leads = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"leads": leads, "info": info, "result": True}, cost_usd=0)
 
@@ -1576,8 +1576,8 @@ class SearchLeads(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            leads = response.get("data", [])
-            info = response.get("info", {})
+            leads = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"leads": leads, "info": info, "result": True}, cost_usd=0)
 
@@ -1631,8 +1631,8 @@ class ConvertLead(ActionHandler):
             response = await context.fetch(url, method="POST", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                conversion_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                conversion_result = response.data["data"][0]
 
                 if conversion_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1686,8 +1686,8 @@ class CreateTask(ActionHandler):
             response = await context.fetch(url, method="POST", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                task_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                task_result = response.data["data"][0]
 
                 if task_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1752,8 +1752,8 @@ class GetTask(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                task_data = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                task_data = response.data["data"][0]
                 return ActionResult(data={"task": task_data, "result": True}, cost_usd=0)
             else:
                 return ActionResult(data={"task": {}, "result": False, "error": "Task not found"}, cost_usd=0)
@@ -1783,8 +1783,8 @@ class UpdateTask(ActionHandler):
             response = await context.fetch(url, method="PUT", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                task_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                task_result = response.data["data"][0]
 
                 if task_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1829,8 +1829,8 @@ class DeleteTask(ActionHandler):
             response = await context.fetch(url, method="DELETE", headers=headers)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                delete_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                delete_result = response.data["data"][0]
 
                 if delete_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1871,8 +1871,8 @@ class ListTasks(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            tasks = response.get("data", [])
-            info = response.get("info", {})
+            tasks = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"tasks": tasks, "info": info, "result": True}, cost_usd=0)
 
@@ -1896,8 +1896,8 @@ class SearchTasks(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            tasks = response.get("data", [])
-            info = response.get("info", {})
+            tasks = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"tasks": tasks, "info": info, "result": True}, cost_usd=0)
 
@@ -1927,8 +1927,8 @@ class CreateEvent(ActionHandler):
             response = await context.fetch(url, method="POST", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                event_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                event_result = response.data["data"][0]
 
                 if event_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -1994,8 +1994,8 @@ class GetEvent(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                event_data = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                event_data = response.data["data"][0]
                 return ActionResult(data={"event": event_data, "result": True}, cost_usd=0)
             else:
                 return ActionResult(data={"event": {}, "result": False, "error": "Event not found"}, cost_usd=0)
@@ -2025,8 +2025,8 @@ class UpdateEvent(ActionHandler):
             response = await context.fetch(url, method="PUT", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                event_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                event_result = response.data["data"][0]
 
                 if event_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -2071,8 +2071,8 @@ class DeleteEvent(ActionHandler):
             response = await context.fetch(url, method="DELETE", headers=headers)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                delete_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                delete_result = response.data["data"][0]
 
                 if delete_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -2113,8 +2113,8 @@ class ListEvents(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            events = response.get("data", [])
-            info = response.get("info", {})
+            events = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"events": events, "info": info, "result": True}, cost_usd=0)
 
@@ -2138,8 +2138,8 @@ class SearchEvents(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            events = response.get("data", [])
-            info = response.get("info", {})
+            events = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"events": events, "info": info, "result": True}, cost_usd=0)
 
@@ -2170,8 +2170,8 @@ class CreateCall(ActionHandler):
             response = await context.fetch(url, method="POST", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                call_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                call_result = response.data["data"][0]
 
                 if call_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -2237,8 +2237,8 @@ class GetCall(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                call_data = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                call_data = response.data["data"][0]
                 return ActionResult(data={"call": call_data, "result": True}, cost_usd=0)
             else:
                 return ActionResult(data={"call": {}, "result": False, "error": "Call not found"}, cost_usd=0)
@@ -2268,8 +2268,8 @@ class UpdateCall(ActionHandler):
             response = await context.fetch(url, method="PUT", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                call_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                call_result = response.data["data"][0]
 
                 if call_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -2314,8 +2314,8 @@ class DeleteCall(ActionHandler):
             response = await context.fetch(url, method="DELETE", headers=headers)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                delete_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                delete_result = response.data["data"][0]
 
                 if delete_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -2356,8 +2356,8 @@ class ListCalls(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            calls = response.get("data", [])
-            info = response.get("info", {})
+            calls = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"calls": calls, "info": info, "result": True}, cost_usd=0)
 
@@ -2381,8 +2381,8 @@ class SearchCalls(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            calls = response.get("data", [])
-            info = response.get("info", {})
+            calls = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"calls": calls, "info": info, "result": True}, cost_usd=0)
 
@@ -2418,8 +2418,8 @@ class GetRelatedRecords(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            related_records = response.get("data", [])
-            info = response.get("info", {})
+            related_records = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"related_records": related_records, "info": info, "result": True}, cost_usd=0)
 
@@ -2685,8 +2685,8 @@ class ExecuteCOQLQuery(ActionHandler):
             response = await context.fetch(url, method="POST", headers=headers, json=payload)
 
             # Process response
-            data = response.get("data", [])
-            info = response.get("info", {})
+            data = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"data": data, "info": info, "result": True}, cost_usd=0)
 
@@ -2717,8 +2717,8 @@ class UpdateRelatedRecords(ActionHandler):
             response = await context.fetch(url, method="PUT", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                update_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                update_result = response.data["data"][0]
 
                 if update_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -2767,8 +2767,8 @@ class CreateNote(ActionHandler):
             response = await context.fetch(url, method="POST", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                note_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                note_result = response.data["data"][0]
 
                 if note_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -2817,8 +2817,8 @@ class GetContactNotes(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            notes_data = response.get("data", [])
-            info = response.get("info", {})
+            notes_data = response.data.get("data", [])
+            info = response.data.get("info", {})
 
             return ActionResult(data={"notes": notes_data, "info": info, "result": True}, cost_usd=0)
 
@@ -2849,8 +2849,8 @@ class GetNote(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                note_data = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                note_data = response.data["data"][0]
                 return ActionResult(data={"note": note_data, "result": True}, cost_usd=0)
             else:
                 return ActionResult(data={"note": {}, "result": False, "error": "Note not found"}, cost_usd=0)
@@ -2885,8 +2885,8 @@ class UpdateNote(ActionHandler):
             response = await context.fetch(url, method="PUT", headers=headers, json=payload)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                note_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                note_result = response.data["data"][0]
 
                 if note_result.get("code") == "SUCCESS":
                     return ActionResult(
@@ -2931,8 +2931,8 @@ class DeleteNote(ActionHandler):
             response = await context.fetch(url, method="DELETE", headers=headers)
 
             # Process response
-            if response.get("data") and len(response["data"]) > 0:
-                delete_result = response["data"][0]
+            if response.data.get("data") and len(response.data["data"]) > 0:
+                delete_result = response.data["data"][0]
 
                 if delete_result.get("code") == "SUCCESS":
                     return ActionResult(data={"result": True, "message": "Note deleted successfully"}, cost_usd=0)

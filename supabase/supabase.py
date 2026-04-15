@@ -68,7 +68,7 @@ class SelectRecordsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            records = response if isinstance(response, list) else []
+            records = response.data if isinstance(response.data, list) else []
 
             return ActionResult(
                 data={"records": records, "count": len(records), "result": True},
@@ -114,7 +114,7 @@ class InsertRecordsAction(ActionHandler):
                 json=records,
             )
 
-            result_records = response if isinstance(response, list) else []
+            result_records = response.data if isinstance(response.data, list) else []
             count = len(result_records) if result_records else len(records)
 
             return ActionResult(
@@ -163,7 +163,7 @@ class UpdateRecordsAction(ActionHandler):
                 json=data,
             )
 
-            result_records = response if isinstance(response, list) else []
+            result_records = response.data if isinstance(response.data, list) else []
             count = None if return_minimal else len(result_records)
 
             return ActionResult(
@@ -212,7 +212,7 @@ class DeleteRecordsAction(ActionHandler):
                 params=params,
             )
 
-            result_records = response if isinstance(response, list) else []
+            result_records = response.data if isinstance(response.data, list) else []
             count = None if return_minimal else len(result_records)
 
             return ActionResult(
@@ -269,7 +269,7 @@ class ListBucketsAction(ActionHandler):
 
             response = await context.fetch(f"{base_url}/storage/v1/bucket", method="GET", headers=headers)
 
-            buckets = response if isinstance(response, list) else []
+            buckets = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"buckets": buckets, "result": True}, cost_usd=0.0)
 
@@ -381,7 +381,7 @@ class ListFilesAction(ActionHandler):
                 json=body,
             )
 
-            files = response if isinstance(response, list) else []
+            files = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"files": files, "result": True}, cost_usd=0.0)
 
@@ -407,13 +407,13 @@ class DeleteFilesAction(ActionHandler):
                 json={"prefixes": paths},
             )
 
-            if isinstance(response, dict) and response.get("error"):
+            if isinstance(response.data, dict) and response.data.get("error"):
                 return ActionResult(
-                    data={"deleted": [], "result": False, "error": response.get("message", response["error"])},
+                    data={"deleted": [], "result": False, "error": response.data.get("message", response["error"])},
                     cost_usd=0.0,
                 )
 
-            deleted = response if isinstance(response, list) else []
+            deleted = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"deleted": deleted, "result": True}, cost_usd=0.0)
 
@@ -464,8 +464,8 @@ class ListUsersAction(ActionHandler):
                 params=params if params else None,
             )
 
-            users = response.get("users", []) if isinstance(response, dict) else []
-            total = response.get("total", len(users)) if isinstance(response, dict) else len(users)
+            users = response.data.get("users", []) if isinstance(response.data, dict) else []
+            total = response.data.get("total", len(users)) if isinstance(response.data, dict) else len(users)
 
             return ActionResult(data={"users": users, "total": total, "result": True}, cost_usd=0.0)
 

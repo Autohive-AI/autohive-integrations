@@ -89,13 +89,13 @@ class SendMessageAction(ActionHandler):
             )
 
             # Check for successful response containing message ID
-            if isinstance(response, dict) and "messages" in response and response["messages"]:
-                message_id = response["messages"][0]["id"]
+            if isinstance(response.data, dict) and "messages" in response.data and response.data["messages"]:
+                message_id = response.data["messages"][0]["id"]
                 return ActionResult(data={"message_id": message_id, "success": True})
             else:
                 # Handle API errors or unexpected response structure
-                if isinstance(response, dict):
-                    error_msg = response.get("error", {}).get("message", "Unknown error")
+                if isinstance(response.data, dict):
+                    error_msg = response.data.get("error", {}).get("message", "Unknown error")
                 else:
                     error_msg = f"Unexpected response: {response}"
 
@@ -166,15 +166,15 @@ class SendTemplateMessageAction(ActionHandler):
                 json=template_payload,
             )
 
-            if "messages" in response and response["messages"]:
-                message_id = response["messages"][0]["id"]
+            if "messages" in response.data and response.data["messages"]:
+                message_id = response.data["messages"][0]["id"]
                 return ActionResult(data={"message_id": message_id, "success": True})
             else:
                 return ActionResult(
                     data={
                         "message_id": None,
                         "success": False,
-                        "error": response.get("error", {}).get("message", "Unknown error"),
+                        "error": response.data.get("error", {}).get("message", "Unknown error"),
                     }
                 )
 
@@ -255,15 +255,15 @@ class SendMediaMessageAction(ActionHandler):
                 json=media_payload,
             )
 
-            if "messages" in response and response["messages"]:
-                message_id = response["messages"][0]["id"]
+            if "messages" in response.data and response.data["messages"]:
+                message_id = response.data["messages"][0]["id"]
                 return ActionResult(data={"message_id": message_id, "success": True})
             else:
                 return ActionResult(
                     data={
                         "message_id": None,
                         "success": False,
-                        "error": response.get("error", {}).get("message", "Unknown error"),
+                        "error": response.data.get("error", {}).get("message", "Unknown error"),
                     }
                 )
 
@@ -304,17 +304,17 @@ class GetPhoneNumberHealthAction(ActionHandler):
                 headers={"Authorization": f"Bearer {creds['access_token']}", "Content-Type": "application/json"},
             )
 
-            if "status" in response:
+            if "status" in response.data:
                 return ActionResult(
                     data={
-                        "status": response.get("status", "UNKNOWN"),
-                        "quality_rating": response.get("quality_rating", "UNKNOWN"),
+                        "status": response.data.get("status", "UNKNOWN"),
+                        "quality_rating": response.data.get("quality_rating", "UNKNOWN"),
                         "success": True,
                     }
                 )
             else:
-                if isinstance(response, dict):
-                    error_msg = response.get("error", {}).get("message", "Unknown error")
+                if isinstance(response.data, dict):
+                    error_msg = response.data.get("error", {}).get("message", "Unknown error")
                 else:
                     error_msg = f"Unexpected response: {response}"
 

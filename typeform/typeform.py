@@ -127,7 +127,7 @@ class GetCurrentUserAction(ActionHandler):
         try:
             response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/me", method="GET")
 
-            return ActionResult(data={"user": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"user": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -167,8 +167,8 @@ class ListFormsAction(ActionHandler):
                 f"{TYPEFORM_API_BASE_URL}/forms", method="GET", params=params if params else None
             )
 
-            forms = response.get("items", []) if isinstance(response, dict) else []
-            total_items = response.get("total_items", len(forms)) if isinstance(response, dict) else len(forms)
+            forms = response.data.get("items", []) if isinstance(response.data, dict) else []
+            total_items = response.data.get("total_items", len(forms)) if isinstance(response.data, dict) else len(forms)
 
             return ActionResult(data={"forms": forms, "total_items": total_items, "result": True}, cost_usd=0.0)
 
@@ -197,7 +197,7 @@ class GetFormAction(ActionHandler):
 
             response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms/{form_id}", method="GET")
 
-            return ActionResult(data={"form": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"form": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -237,7 +237,7 @@ class CreateFormAction(ActionHandler):
 
             response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms", method="POST", json=body)
 
-            return ActionResult(data={"form": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"form": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -273,7 +273,7 @@ class UpdateFormAction(ActionHandler):
 
             # Start with full existing form and remove only read-only fields
             # This prevents data loss when updating specific fields
-            body = {k: v for k, v in existing_form.items() if k not in FORM_READONLY_FIELDS}
+            body = {k: v for k, v in existing_form.data.items() if k not in FORM_READONLY_FIELDS}
 
             # Apply updates from inputs (only if provided)
             if inputs.get("title"):
@@ -292,7 +292,7 @@ class UpdateFormAction(ActionHandler):
             # Use PUT to replace the entire form
             response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms/{form_id}", method="PUT", json=body)
 
-            return ActionResult(data={"form": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"form": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -360,9 +360,9 @@ class ListResponsesAction(ActionHandler):
                 f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/responses", method="GET", params=params if params else None
             )
 
-            responses = response.get("items", []) if isinstance(response, dict) else []
-            total_items = response.get("total_items", 0) if isinstance(response, dict) else 0
-            page_count = response.get("page_count", 1) if isinstance(response, dict) else 1
+            responses = response.data.get("items", []) if isinstance(response.data, dict) else []
+            total_items = response.data.get("total_items", 0) if isinstance(response.data, dict) else 0
+            page_count = response.data.get("page_count", 1) if isinstance(response.data, dict) else 1
 
             return ActionResult(
                 data={"responses": responses, "total_items": total_items, "page_count": page_count, "result": True},
@@ -440,9 +440,9 @@ class ListWorkspacesAction(ActionHandler):
                 f"{TYPEFORM_API_BASE_URL}/workspaces", method="GET", params=params if params else None
             )
 
-            workspaces = response.get("items", []) if isinstance(response, dict) else []
+            workspaces = response.data.get("items", []) if isinstance(response.data, dict) else []
             total_items = (
-                response.get("total_items", len(workspaces)) if isinstance(response, dict) else len(workspaces)
+                response.data.get("total_items", len(workspaces)) if isinstance(response.data, dict) else len(workspaces)
             )
 
             return ActionResult(
@@ -476,7 +476,7 @@ class GetWorkspaceAction(ActionHandler):
 
             response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/workspaces/{workspace_id}", method="GET")
 
-            return ActionResult(data={"workspace": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"workspace": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -503,7 +503,7 @@ class CreateWorkspaceAction(ActionHandler):
 
             response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/workspaces", method="POST", json=body)
 
-            return ActionResult(data={"workspace": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"workspace": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -538,7 +538,7 @@ class UpdateWorkspaceAction(ActionHandler):
             # Fetch the updated workspace to return
             updated_workspace = await context.fetch(f"{TYPEFORM_API_BASE_URL}/workspaces/{workspace_id}", method="GET")
 
-            return ActionResult(data={"workspace": updated_workspace, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"workspace": updated_workspace.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -601,8 +601,8 @@ class ListThemesAction(ActionHandler):
                 f"{TYPEFORM_API_BASE_URL}/themes", method="GET", params=params if params else None
             )
 
-            themes = response.get("items", []) if isinstance(response, dict) else []
-            total_items = response.get("total_items", len(themes)) if isinstance(response, dict) else len(themes)
+            themes = response.data.get("items", []) if isinstance(response.data, dict) else []
+            total_items = response.data.get("total_items", len(themes)) if isinstance(response.data, dict) else len(themes)
 
             return ActionResult(data={"themes": themes, "total_items": total_items, "result": True}, cost_usd=0.0)
 
@@ -631,7 +631,7 @@ class GetThemeAction(ActionHandler):
 
             response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/themes/{theme_id}", method="GET")
 
-            return ActionResult(data={"theme": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"theme": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -667,7 +667,7 @@ class CreateThemeAction(ActionHandler):
 
             response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/themes", method="POST", json=body)
 
-            return ActionResult(data={"theme": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"theme": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -730,8 +730,8 @@ class ListImagesAction(ActionHandler):
                 f"{TYPEFORM_API_BASE_URL}/images", method="GET", params=params if params else None
             )
 
-            images = response.get("items", []) if isinstance(response, dict) else []
-            total_items = response.get("total_items", len(images)) if isinstance(response, dict) else len(images)
+            images = response.data.get("items", []) if isinstance(response.data, dict) else []
+            total_items = response.data.get("total_items", len(images)) if isinstance(response.data, dict) else len(images)
 
             return ActionResult(data={"images": images, "total_items": total_items, "result": True}, cost_usd=0.0)
 
@@ -760,7 +760,7 @@ class GetImageAction(ActionHandler):
 
             response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/images/{image_id}", method="GET")
 
-            return ActionResult(data={"image": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"image": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -817,7 +817,7 @@ class ListWebhooksAction(ActionHandler):
 
             response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/webhooks", method="GET")
 
-            webhooks = response.get("items", []) if isinstance(response, dict) else []
+            webhooks = response.data.get("items", []) if isinstance(response.data, dict) else []
 
             return ActionResult(data={"webhooks": webhooks, "result": True}, cost_usd=0.0)
 
@@ -847,7 +847,7 @@ class GetWebhookAction(ActionHandler):
 
             response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/webhooks/{tag}", method="GET")
 
-            return ActionResult(data={"webhook": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"webhook": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)
@@ -884,7 +884,7 @@ class CreateWebhookAction(ActionHandler):
                 f"{TYPEFORM_API_BASE_URL}/forms/{form_id}/webhooks/{tag}", method="PUT", json=body
             )
 
-            return ActionResult(data={"webhook": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"webhook": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             is_rate_limit, retry_after = is_rate_limit_error(e)

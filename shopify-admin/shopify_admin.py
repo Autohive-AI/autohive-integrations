@@ -127,11 +127,11 @@ async def execute_graphql(context: ExecutionContext, query: str, variables: dict
     response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
     # Check for GraphQL errors
-    if "errors" in response:
-        error_messages = [e.get("message", str(e)) for e in response["errors"]]
+    if "errors" in response.data:
+        error_messages = [e.get("message", str(e)) for e in response.data["errors"]]
         raise Exception(f"GraphQL Error: {'; '.join(error_messages)}")
 
-    return response.get("data", {})
+    return response.data.get("data", {})
 
 
 def escape_graphql_query_value(value: str) -> str:
@@ -460,7 +460,7 @@ class ListCustomersHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params, headers=headers)
 
-            customers = response.get("customers", [])
+            customers = response.data.get("customers", [])
             return success_response(customers=customers, count=len(customers))
         except Exception as e:
             return error_response(e, customers=[], count=0)
@@ -478,7 +478,7 @@ class GetCustomerHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return success_response(customer=response.get("customer", {}))
+            return success_response(customer=response.data.get("customer", {}))
         except Exception as e:
             return error_response(e, customer=None)
 
@@ -500,7 +500,7 @@ class SearchCustomersHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params, headers=headers)
 
-            customers = response.get("customers", [])
+            customers = response.data.get("customers", [])
             return success_response(customers=customers, count=len(customers))
         except Exception as e:
             return error_response(e, customers=[], count=0)
@@ -538,7 +538,7 @@ class CreateCustomerHandler(ActionHandler):
             payload = {"customer": customer_data}
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return success_response(customer=response.get("customer", {}))
+            return success_response(customer=response.data.get("customer", {}))
         except Exception as e:
             return error_response(e, customer=None)
 
@@ -571,7 +571,7 @@ class UpdateCustomerHandler(ActionHandler):
             payload = {"customer": customer_data}
             response = await context.fetch(url, method="PUT", json=payload, headers=headers)
 
-            return success_response(customer=response.get("customer", {}))
+            return success_response(customer=response.data.get("customer", {}))
         except Exception as e:
             return error_response(e, customer=None)
 
@@ -608,7 +608,7 @@ class ListOrdersHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params, headers=headers)
 
-            orders = response.get("orders", [])
+            orders = response.data.get("orders", [])
             return success_response(orders=orders, count=len(orders))
         except Exception as e:
             return error_response(e, orders=[], count=0)
@@ -626,7 +626,7 @@ class GetOrderHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return success_response(order=response.get("order", {}))
+            return success_response(order=response.data.get("order", {}))
         except Exception as e:
             return error_response(e, order=None)
 
@@ -665,7 +665,7 @@ class CreateOrderHandler(ActionHandler):
             payload = {"order": order_data}
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return success_response(order=response.get("order", {}))
+            return success_response(order=response.data.get("order", {}))
         except Exception as e:
             return error_response(e, order=None)
 
@@ -690,7 +690,7 @@ class CancelOrderHandler(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=cancel_data, headers=headers)
 
-            return success_response(order=response.get("order", {}))
+            return success_response(order=response.data.get("order", {}))
         except Exception as e:
             return error_response(e, order=None)
 
@@ -941,7 +941,7 @@ class GetInventoryLevelsHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params, headers=headers)
 
-            inventory_levels = response.get("inventory_levels", [])
+            inventory_levels = response.data.get("inventory_levels", [])
             return success_response(inventory_levels=inventory_levels, count=len(inventory_levels))
         except Exception as e:
             return error_response(e, inventory_levels=[], count=0)
@@ -964,7 +964,7 @@ class SetInventoryLevelHandler(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return success_response(inventory_level=response.get("inventory_level", {}))
+            return success_response(inventory_level=response.data.get("inventory_level", {}))
         except Exception as e:
             return error_response(e, inventory_level=None)
 
@@ -985,7 +985,7 @@ class ListLocationsHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", headers=headers)
 
-            locations = response.get("locations", [])
+            locations = response.data.get("locations", [])
             return success_response(locations=locations, count=len(locations))
         except Exception as e:
             return error_response(e, locations=[], count=0)
@@ -1003,7 +1003,7 @@ class GetLocationHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return success_response(location=response.get("location", {}))
+            return success_response(location=response.data.get("location", {}))
         except Exception as e:
             return error_response(e, location=None)
 
@@ -1024,7 +1024,7 @@ class GetShopHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return success_response(shop=response.get("shop", {}))
+            return success_response(shop=response.data.get("shop", {}))
         except Exception as e:
             return error_response(e, shop=None)
 
@@ -1051,7 +1051,7 @@ class ListDraftOrdersHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params, headers=headers)
 
-            draft_orders = response.get("draft_orders", [])
+            draft_orders = response.data.get("draft_orders", [])
             return success_response(draft_orders=draft_orders, count=len(draft_orders))
         except Exception as e:
             return error_response(e, draft_orders=[], count=0)
@@ -1088,7 +1088,7 @@ class CreateDraftOrderHandler(ActionHandler):
             payload = {"draft_order": draft_order_data}
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return success_response(draft_order=response.get("draft_order", {}))
+            return success_response(draft_order=response.data.get("draft_order", {}))
         except Exception as e:
             return error_response(e, draft_order=None)
 
@@ -1109,7 +1109,7 @@ class CompleteDraftOrderHandler(ActionHandler):
 
             response = await context.fetch(url, method="PUT", params=params, headers=headers)
 
-            return success_response(draft_order=response.get("draft_order", {}))
+            return success_response(draft_order=response.data.get("draft_order", {}))
         except Exception as e:
             return error_response(e, draft_order=None)
 
@@ -1148,7 +1148,7 @@ class ListFulfillmentsHandler(ActionHandler):
 
             response = await context.fetch(url, method="GET", headers=headers)
 
-            fulfillments = response.get("fulfillments", [])
+            fulfillments = response.data.get("fulfillments", [])
             return success_response(fulfillments=fulfillments, count=len(fulfillments))
         except Exception as e:
             return error_response(e, fulfillments=[], count=0)
@@ -1181,7 +1181,7 @@ class CreateFulfillmentHandler(ActionHandler):
             payload = {"fulfillment": fulfillment_data}
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return success_response(fulfillment=response.get("fulfillment", {}))
+            return success_response(fulfillment=response.data.get("fulfillment", {}))
         except Exception as e:
             return error_response(e, fulfillment=None)
 
@@ -1213,6 +1213,6 @@ class UpdateFulfillmentTrackingHandler(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-            return success_response(fulfillment=response.get("fulfillment", {}))
+            return success_response(fulfillment=response.data.get("fulfillment", {}))
         except Exception as e:
             return error_response(e, fulfillment=None)

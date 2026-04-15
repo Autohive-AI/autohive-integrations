@@ -1,6 +1,6 @@
 from typing import Dict, Any
 import base64
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 
 # Create the integration using the config.json
 toggl = Integration.load()
@@ -49,4 +49,4 @@ class CreateTimeEntry(ActionHandler):
         resp = await context.fetch(url, method="POST", headers=headers, json=body)
 
         # The SDK returns parsed JSON for JSON responses; if it's bytes/string parse may be needed.
-        return resp
+        return ActionResult(data=resp.data, cost_usd=0)

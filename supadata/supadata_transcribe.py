@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 from supadata import Supadata, SupadataError
 
@@ -25,11 +25,11 @@ class GetTranscriptAction(ActionHandler):
             # Format as SRT-style text
             formatted_transcript = self._format_as_srt(transcript_response.content)
 
-            return {
+            return ActionResult(data={
                 "transcript": formatted_transcript,
                 "language": getattr(transcript_response, "lang", ""),
                 "available_languages": getattr(transcript_response, "available_langs", []),
-            }
+            }, cost_usd=0)
 
         except SupadataError as e:
             raise ValueError(f"Supadata API error: {str(e)}")

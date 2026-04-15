@@ -88,7 +88,7 @@ class GetPublicationPostsAction(ActionHandler):
             params=params,
             headers=headers,
         )
-        posts = [_format_post(p) for p in (posts_raw or [])]
+        posts = [_format_post(p) for p in (posts_raw.data or [])]
         return ActionResult(data={"posts": posts, "count": len(posts)}, cost_usd=0.0)
 
 
@@ -144,7 +144,7 @@ class SearchPublicationsAction(ActionHandler):
             params=params,
             headers=headers,
         )
-        pubs_raw = response.get("publications", []) if isinstance(response, dict) else response
+        pubs_raw = response.data.get("publications", []) if isinstance(response.data, dict) else response.data
         pubs = [
             _drop_none(
                 {
@@ -159,7 +159,7 @@ class SearchPublicationsAction(ActionHandler):
             )
             for p in pubs_raw
         ]
-        more = response.get("more", False) if isinstance(response, dict) else False
+        more = response.data.get("more", False) if isinstance(response.data, dict) else False
         return ActionResult(data={"publications": pubs, "more": more}, cost_usd=0.0)
 
 
@@ -184,7 +184,7 @@ class SearchPostsAction(ActionHandler):
             params=params,
             headers=headers,
         )
-        posts = [_format_post(p) for p in (posts_raw or [])]
+        posts = [_format_post(p) for p in (posts_raw.data or [])]
         return ActionResult(data={"posts": posts, "count": len(posts)}, cost_usd=0.0)
 
 
@@ -207,5 +207,5 @@ class GetPostCommentsAction(ActionHandler):
             params=params,
             headers=headers,
         )
-        comments = response.get("comments", []) if isinstance(response, dict) else []
+        comments = response.data.get("comments", []) if isinstance(response.data, dict) else []
         return ActionResult(data={"comments": comments, "count": len(comments)}, cost_usd=0.0)

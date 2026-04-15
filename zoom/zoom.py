@@ -62,15 +62,18 @@ class ZoomAPIClient:
         headers = get_headers()
 
         if method == "GET":
-            return await self.context.fetch(url, params=params, headers=headers)
+            response = await self.context.fetch(url, params=params, headers=headers)
+            return response.data
         elif method == "POST":
-            return await self.context.fetch(url, method="POST", json=data, headers=headers)
+            response = await self.context.fetch(url, method="POST", json=data, headers=headers)
+            return response.data
         elif method == "PATCH":
-            return await self.context.fetch(url, method="PATCH", json=data, headers=headers)
+            response = await self.context.fetch(url, method="PATCH", json=data, headers=headers)
+            return response.data
         elif method == "DELETE":
             response = await self.context.fetch(url, method="DELETE", params=params, headers=headers)
             # DELETE typically returns empty response on success
-            return response if response else {"success": True}
+            return response.data if response.data else {"success": True}
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
 

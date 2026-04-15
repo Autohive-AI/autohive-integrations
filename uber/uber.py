@@ -223,7 +223,7 @@ async def uber_fetch(
         kwargs["json"] = json_body
 
     response = await context.fetch(url, **kwargs)
-    return response
+    return response.data.data
 
 
 # =============================================================================
@@ -577,7 +577,7 @@ async def uber_fetch_v1(
         kwargs["json"] = json_body
 
     response = await context.fetch(url, **kwargs)
-    return response
+    return response.data.data
 
 
 @uber.action("link_loyalty_account")

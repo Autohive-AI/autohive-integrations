@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 import base64
 from io import BytesIO
@@ -187,22 +187,22 @@ class Search(ActionHandler):
             response = await context.fetch(service_endpoint + "search", method="GET", params=params)
 
             items = []
-            for item in response.get("items", []):
+            for item in response.data.get("items", []):
                 items.append(YouTubeParser.parse_search_result(item))
 
             result = {
                 "items": items,
-                "total_results": response.get("pageInfo", {}).get("totalResults", 0),
+                "total_results": response.data.get("pageInfo", {}).get("totalResults", 0),
                 "result": True,
             }
 
-            if "nextPageToken" in response:
-                result["next_page_token"] = response["nextPageToken"]
+            if "nextPageToken" in response.data:
+                result["next_page_token"] = response.data["nextPageToken"]
 
             return result
 
         except Exception as e:
-            return {"items": [], "total_results": 0, "result": False, "error": str(e)}
+            return ActionResult(data={"items": [], "total_results": 0, "result": False, "error": str(e)}, cost_usd=0)
 
 
 # ---- Video Management ----
@@ -218,16 +218,16 @@ class GetVideo(ActionHandler):
                 params={"part": "snippet,statistics,contentDetails", "id": inputs["video_id"]},
             )
 
-            items = response.get("items", [])
+            items = response.data.get("items", [])
             if not items:
-                return {"video": {}, "result": False, "error": "Video not found"}
+                return ActionResult(data={"video": {}, "result": False, "error": "Video not found"}, cost_usd=0)
 
             video = YouTubeParser.parse_video(items[0])
 
-            return {"video": video, "result": True}
+            return ActionResult(data={"video": video, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"video": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"video": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("update_video")
@@ -241,9 +241,9 @@ class UpdateVideo(ActionHandler):
                 service_endpoint + "videos", method="GET", params={"part": "snippet,status", "id": video_id}
             )
 
-            items = existing_response.get("items", [])
+            items = existing_response.data.get("items", [])
             if not items:
-                return {"video": {}, "result": False, "error": "Video not found"}
+                return ActionResult(data={"video": {}, "result": False, "error": "Video not found"}, cost_usd=0)
 
             existing_video = items[0]
             snippet = existing_video.get("snippet", {})
@@ -270,10 +270,10 @@ class UpdateVideo(ActionHandler):
                 service_endpoint + "videos", method="PUT", params={"part": "snippet,status"}, json=update_data
             )
 
-            return {"video": YouTubeParser.parse_video(response), "result": True}
+            return ActionResult(data={"video": YouTubeParser.parse_video(response.data), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"video": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"video": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("upload_thumbnail")
@@ -358,18 +358,18 @@ class UploadThumbnail(ActionHandler):
                 if content_b64:
                     image_data = base64.b64decode(content_b64)
                 else:
-                    return {"thumbnail": {}, "result": False, "error": "File object missing 'content' field"}
+                    return ActionResult(data={"thumbnail": {}, "result": False, "error": "File object missing 'content' field"}, cost_usd=0)
             elif image_url:
                 # Fetch the image data from the URL (including conversation file:// URLs)
                 image_response = await context.fetch(image_url, method="GET")
 
                 # Get the image content as bytes
-                if isinstance(image_response, bytes):
-                    image_data = image_response
-                elif isinstance(image_response, dict) and "content" in image_response:
-                    image_data = image_response["content"]
+                if isinstance(image_response.data, bytes):
+                    image_data = image_response.data
+                elif isinstance(image_response, dict) and "content" in image_response.data:
+                    image_data = image_response.data["content"]
                 else:
-                    image_data = str(image_response).encode()
+                    image_data = str(image_response.data).encode()
             else:
                 return {
                     "thumbnail": {},
@@ -401,7 +401,7 @@ class UploadThumbnail(ActionHandler):
                 headers={"Content-Type": mimetype},
             )
 
-            result = {"thumbnail": response, "result": True}
+            result = {"thumbnail": response.data, "result": True}
 
             # Add compression info if compression occurred
             if compression_info:
@@ -410,7 +410,7 @@ class UploadThumbnail(ActionHandler):
             return result
 
         except Exception as e:
-            return {"thumbnail": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"thumbnail": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 # ---- Channel Management ----
@@ -438,16 +438,16 @@ class GetChannel(ActionHandler):
 
             response = await context.fetch(service_endpoint + "channels", method="GET", params=params)
 
-            items = response.get("items", [])
+            items = response.data.get("items", [])
             if not items:
-                return {"channel": {}, "result": False, "error": "Channel not found"}
+                return ActionResult(data={"channel": {}, "result": False, "error": "Channel not found"}, cost_usd=0)
 
             channel = YouTubeParser.parse_channel(items[0])
 
-            return {"channel": channel, "result": True}
+            return ActionResult(data={"channel": channel, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"channel": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"channel": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 # ---- Playlist Management ----
@@ -464,7 +464,7 @@ class ListPlaylists(ActionHandler):
             elif "channel_id" in inputs:
                 params["channelId"] = inputs["channel_id"]
             else:
-                return {"playlists": [], "result": False, "error": "Must provide channel_id or set mine=true"}
+                return ActionResult(data={"playlists": [], "result": False, "error": "Must provide channel_id or set mine=true"}, cost_usd=0)
 
             if "page_token" in inputs:
                 params["pageToken"] = inputs["page_token"]
@@ -472,18 +472,18 @@ class ListPlaylists(ActionHandler):
             response = await context.fetch(service_endpoint + "playlists", method="GET", params=params)
 
             playlists = []
-            for item in response.get("items", []):
+            for item in response.data.get("items", []):
                 playlists.append(YouTubeParser.parse_playlist(item))
 
             result = {"playlists": playlists, "result": True}
 
-            if "nextPageToken" in response:
-                result["next_page_token"] = response["nextPageToken"]
+            if "nextPageToken" in response.data:
+                result["next_page_token"] = response.data["nextPageToken"]
 
             return result
 
         except Exception as e:
-            return {"playlists": [], "result": False, "error": str(e)}
+            return ActionResult(data={"playlists": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("create_playlist")
@@ -502,10 +502,10 @@ class CreatePlaylist(ActionHandler):
                 service_endpoint + "playlists", method="POST", params={"part": "snippet,status"}, json=playlist_data
             )
 
-            return {"playlist": YouTubeParser.parse_playlist(response), "result": True}
+            return ActionResult(data={"playlist": YouTubeParser.parse_playlist(response.data), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"playlist": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"playlist": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("update_playlist")
@@ -519,9 +519,9 @@ class UpdatePlaylist(ActionHandler):
                 service_endpoint + "playlists", method="GET", params={"part": "snippet,status", "id": playlist_id}
             )
 
-            items = existing_response.get("items", [])
+            items = existing_response.data.get("items", [])
             if not items:
-                return {"playlist": {}, "result": False, "error": "Playlist not found"}
+                return ActionResult(data={"playlist": {}, "result": False, "error": "Playlist not found"}, cost_usd=0)
 
             existing_playlist = items[0]
             snippet = existing_playlist.get("snippet", {})
@@ -541,10 +541,10 @@ class UpdatePlaylist(ActionHandler):
                 service_endpoint + "playlists", method="PUT", params={"part": "snippet,status"}, json=update_data
             )
 
-            return {"playlist": YouTubeParser.parse_playlist(response), "result": True}
+            return ActionResult(data={"playlist": YouTubeParser.parse_playlist(response.data), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"playlist": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"playlist": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("delete_playlist")
@@ -553,10 +553,10 @@ class DeletePlaylist(ActionHandler):
         try:
             await context.fetch(service_endpoint + "playlists", method="DELETE", params={"id": inputs["playlist_id"]})
 
-            return {"result": True}
+            return ActionResult(data={"result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("list_playlist_items")
@@ -575,7 +575,7 @@ class ListPlaylistItems(ActionHandler):
             response = await context.fetch(service_endpoint + "playlistItems", method="GET", params=params)
 
             items = []
-            for item in response.get("items", []):
+            for item in response.data.get("items", []):
                 snippet = item.get("snippet", {})
                 content_details = item.get("contentDetails", {})
                 items.append(
@@ -592,13 +592,13 @@ class ListPlaylistItems(ActionHandler):
 
             result = {"items": items, "result": True}
 
-            if "nextPageToken" in response:
-                result["next_page_token"] = response["nextPageToken"]
+            if "nextPageToken" in response.data:
+                result["next_page_token"] = response.data["nextPageToken"]
 
             return result
 
         except Exception as e:
-            return {"items": [], "result": False, "error": str(e)}
+            return ActionResult(data={"items": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("add_video_to_playlist")
@@ -619,10 +619,10 @@ class AddVideoToPlaylist(ActionHandler):
                 service_endpoint + "playlistItems", method="POST", params={"part": "snippet"}, json=playlist_item_data
             )
 
-            return {"playlist_item": response, "result": True}
+            return ActionResult(data={"playlist_item": response.data, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"playlist_item": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"playlist_item": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("remove_video_from_playlist")
@@ -633,10 +633,10 @@ class RemoveVideoFromPlaylist(ActionHandler):
                 service_endpoint + "playlistItems", method="DELETE", params={"id": inputs["playlist_item_id"]}
             )
 
-            return {"result": True}
+            return ActionResult(data={"result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0)
 
 
 # ---- Comment Management ----
@@ -661,18 +661,18 @@ class ListComments(ActionHandler):
             response = await context.fetch(service_endpoint + "commentThreads", method="GET", params=params)
 
             comments = []
-            for item in response.get("items", []):
+            for item in response.data.get("items", []):
                 comments.append(YouTubeParser.parse_comment(item))
 
             result = {"comments": comments, "result": True}
 
-            if "nextPageToken" in response:
-                result["next_page_token"] = response["nextPageToken"]
+            if "nextPageToken" in response.data:
+                result["next_page_token"] = response.data["nextPageToken"]
 
             return result
 
         except Exception as e:
-            return {"comments": [], "result": False, "error": str(e)}
+            return ActionResult(data={"comments": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("list_comment_replies")
@@ -692,7 +692,7 @@ class ListCommentReplies(ActionHandler):
             response = await context.fetch(service_endpoint + "comments", method="GET", params=params)
 
             replies = []
-            for item in response.get("items", []):
+            for item in response.data.get("items", []):
                 snippet = item.get("snippet", {})
                 replies.append(
                     {
@@ -706,13 +706,13 @@ class ListCommentReplies(ActionHandler):
 
             result = {"replies": replies, "result": True}
 
-            if "nextPageToken" in response:
-                result["next_page_token"] = response["nextPageToken"]
+            if "nextPageToken" in response.data:
+                result["next_page_token"] = response.data["nextPageToken"]
 
             return result
 
         except Exception as e:
-            return {"replies": [], "result": False, "error": str(e)}
+            return ActionResult(data={"replies": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("post_comment")
@@ -730,10 +730,10 @@ class PostComment(ActionHandler):
                 service_endpoint + "commentThreads", method="POST", params={"part": "snippet"}, json=comment_data
             )
 
-            return {"comment": YouTubeParser.parse_comment(response), "result": True}
+            return ActionResult(data={"comment": YouTubeParser.parse_comment(response.data), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"comment": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"comment": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("reply_to_comment")
@@ -746,18 +746,18 @@ class ReplyToComment(ActionHandler):
                 service_endpoint + "comments", method="POST", params={"part": "snippet"}, json=reply_data
             )
 
-            snippet = response.get("snippet", {})
-            return {
+            snippet = response.data.get("snippet", {})
+            return ActionResult(data={
                 "comment": {
-                    "id": response.get("id", ""),
+                    "id": response.data.get("id", ""),
                     "text": snippet.get("textDisplay", ""),
                     "author_display_name": snippet.get("authorDisplayName", ""),
                 },
                 "result": True,
-            }
+            }, cost_usd=0)
 
         except Exception as e:
-            return {"comment": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"comment": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("update_comment")
@@ -771,9 +771,9 @@ class UpdateComment(ActionHandler):
                 service_endpoint + "comments", method="GET", params={"part": "snippet", "id": comment_id}
             )
 
-            items = existing_response.get("items", [])
+            items = existing_response.data.get("items", [])
             if not items:
-                return {"comment": {}, "result": False, "error": "Comment not found"}
+                return ActionResult(data={"comment": {}, "result": False, "error": "Comment not found"}, cost_usd=0)
 
             existing_comment = items[0]
             snippet = existing_comment.get("snippet", {})
@@ -785,10 +785,10 @@ class UpdateComment(ActionHandler):
                 service_endpoint + "comments", method="PUT", params={"part": "snippet"}, json=update_data
             )
 
-            return {"comment": response, "result": True}
+            return ActionResult(data={"comment": response.data, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"comment": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"comment": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("delete_comment")
@@ -797,10 +797,10 @@ class DeleteComment(ActionHandler):
         try:
             await context.fetch(service_endpoint + "comments", method="DELETE", params={"id": inputs["comment_id"]})
 
-            return {"result": True}
+            return ActionResult(data={"result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0)
 
 
 @youtube.action("moderate_comment")
@@ -814,7 +814,7 @@ class ModerateComment(ActionHandler):
 
             await context.fetch(service_endpoint + "comments/setModerationStatus", method="POST", params=params)
 
-            return {"result": True}
+            return ActionResult(data={"result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0)

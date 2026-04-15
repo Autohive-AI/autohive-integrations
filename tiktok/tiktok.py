@@ -341,7 +341,7 @@ class TikTokConnectedAccountHandler(ConnectedAccountHandler):
             method="GET",
             params={"fields": ",".join(BASIC_USER_INFO_FIELDS)},
         )
-        data = _check_api_response(response)
+        data = _check_api_response(response.data)
         user = data.get("user", data)
         return ConnectedAccountInfo(
             user_id=user.get("open_id", ""),
@@ -367,7 +367,7 @@ class GetUserInfoHandler(ActionHandler):
             method="GET",
             params={"fields": ",".join(ALL_USER_INFO_FIELDS)},
         )
-        data = _check_api_response(response)
+        data = _check_api_response(response.data)
         return ActionResult(data=_build_user_info(data))
 
 
@@ -377,7 +377,7 @@ class GetCreatorInfoHandler(ActionHandler):
 
     async def execute(self, inputs: dict, context: ExecutionContext) -> ActionResult:
         response = await context.fetch(CREATOR_INFO_ENDPOINT, method="POST", json={})
-        data = _check_api_response(response)
+        data = _check_api_response(response.data)
         return ActionResult(data=_build_creator_info(data))
 
 
@@ -424,7 +424,7 @@ class CreateVideoPostHandler(ActionHandler):
         }
 
         response = await context.fetch(VIDEO_INIT_ENDPOINT, method="POST", json=request_body)
-        data = _check_api_response(response)
+        data = _check_api_response(response.data)
 
         publish_id = data.get("publish_id", "")
         upload_url = data.get("upload_url", "")
@@ -466,7 +466,7 @@ class UploadVideoDraftHandler(ActionHandler):
         }
 
         response = await context.fetch(INBOX_VIDEO_INIT_ENDPOINT, method="POST", json=request_body)
-        data = _check_api_response(response)
+        data = _check_api_response(response.data)
 
         publish_id = data.get("publish_id", "")
         upload_url = data.get("upload_url", "")
@@ -496,7 +496,7 @@ class GetPostStatusHandler(ActionHandler):
             raise ValueError("publish_id is required")
 
         response = await context.fetch(STATUS_FETCH_ENDPOINT, method="POST", json={"publish_id": publish_id})
-        data = _check_api_response(response)
+        data = _check_api_response(response.data)
         return ActionResult(data=_build_post_status(data))
 
 
@@ -521,7 +521,7 @@ class GetVideosHandler(ActionHandler):
             request_body["cursor"] = cursor
 
         response = await context.fetch(VIDEO_LIST_ENDPOINT, method="POST", json=request_body)
-        data = _check_api_response(response)
+        data = _check_api_response(response.data)
 
         return ActionResult(
             data={
@@ -560,6 +560,6 @@ class CreatePhotoPostHandler(ActionHandler):
         }
 
         response = await context.fetch(PHOTO_INIT_ENDPOINT, method="POST", json=request_body)
-        data = _check_api_response(response)
+        data = _check_api_response(response.data)
 
         return ActionResult(data={"publish_id": data.get("publish_id", ""), "status": "PROCESSING_DOWNLOAD"})

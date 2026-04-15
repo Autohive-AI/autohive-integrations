@@ -90,18 +90,8 @@ async def execute_graphql(context: ExecutionContext, query: str, variables: Dict
 
     response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-    # Handle response - context.fetch may return dict directly or response object
-    if hasattr(response, "json"):
-        # Response object - need to parse JSON
-        if callable(response.json):
-            import asyncio
-
-            if asyncio.iscoroutinefunction(response.json):
-                return await response.json()
-            return response.json()
-
-    # Already a dict (some SDK versions return parsed JSON directly)
-    return response
+    # SDK 2.0: response.data contains the parsed JSON body
+    return response.data
 
 
 def success_response(**kwargs) -> ActionResult:
@@ -836,26 +826,16 @@ class ExchangeCodeHandler(ActionHandler):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            # Handle response object if needed
-            if hasattr(response, "json"):
-                if callable(response.json):
-                    import asyncio
-
-                    if asyncio.iscoroutinefunction(response.json):
-                        response = await response.json()
-                    else:
-                        response = response.json()
-
-            if "error" in response:
-                return error_response(response.get("error_description", response["error"]))
+            if "error" in response.data:
+                return error_response(response.data.get("error_description", response.data["error"]))
 
             return success_response(
-                access_token=response.get("access_token"),
-                refresh_token=response.get("refresh_token"),
-                id_token=response.get("id_token"),
-                token_type=response.get("token_type"),
-                expires_in=response.get("expires_in"),
-                scope=response.get("scope"),
+                access_token=response.data.get("access_token"),
+                refresh_token=response.data.get("refresh_token"),
+                id_token=response.data.get("id_token"),
+                token_type=response.data.get("token_type"),
+                expires_in=response.data.get("expires_in"),
+                scope=response.data.get("scope"),
             )
         except Exception as e:
             return error_response(e)
@@ -891,24 +871,14 @@ class RefreshTokenHandler(ActionHandler):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            # Handle response object if needed
-            if hasattr(response, "json"):
-                if callable(response.json):
-                    import asyncio
-
-                    if asyncio.iscoroutinefunction(response.json):
-                        response = await response.json()
-                    else:
-                        response = response.json()
-
-            if "error" in response:
-                return error_response(response.get("error_description", response["error"]))
+            if "error" in response.data:
+                return error_response(response.data.get("error_description", response.data["error"]))
 
             return success_response(
-                access_token=response.get("access_token"),
-                refresh_token=response.get("refresh_token"),
-                token_type=response.get("token_type"),
-                expires_in=response.get("expires_in"),
+                access_token=response.data.get("access_token"),
+                refresh_token=response.data.get("refresh_token"),
+                token_type=response.data.get("token_type"),
+                expires_in=response.data.get("expires_in"),
             )
         except Exception as e:
             return error_response(e)

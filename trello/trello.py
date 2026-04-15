@@ -36,7 +36,7 @@ class GetCurrentMemberAction(ActionHandler):
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/members/me", method="GET", params=auth_params)
 
-            return ActionResult(data={"member": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"member": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"member": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -68,7 +68,7 @@ class CreateBoardAction(ActionHandler):
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/boards/", method="POST", params=merged_params)
 
-            return ActionResult(data={"board": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"board": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"board": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -93,7 +93,7 @@ class GetBoardAction(ActionHandler):
                 f"{TRELLO_API_BASE_URL}/boards/{board_id}", method="GET", params=merged_params
             )
 
-            return ActionResult(data={"board": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"board": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"board": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -125,7 +125,7 @@ class UpdateBoardAction(ActionHandler):
                 f"{TRELLO_API_BASE_URL}/boards/{board_id}", method="PUT", params=merged_params
             )
 
-            return ActionResult(data={"board": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"board": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"board": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -150,7 +150,7 @@ class ListBoardsAction(ActionHandler):
             )
 
             # Response is already an array
-            boards = response if isinstance(response, list) else []
+            boards = response.data if isinstance(response.data, list) else []
             return ActionResult(data={"boards": boards, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -176,7 +176,7 @@ class CreateListAction(ActionHandler):
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/lists", method="POST", params=merged_params)
 
-            return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"list": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -193,7 +193,7 @@ class GetListAction(ActionHandler):
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/lists/{list_id}", method="GET", params=auth_params)
 
-            return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"list": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -220,7 +220,7 @@ class UpdateListAction(ActionHandler):
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/lists/{list_id}", method="PUT", params=merged_params)
 
-            return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"list": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -245,7 +245,7 @@ class ListListsAction(ActionHandler):
                 f"{TRELLO_API_BASE_URL}/boards/{board_id}/lists", method="GET", params=merged_params
             )
 
-            lists = response if isinstance(response, list) else []
+            lists = response.data if isinstance(response.data, list) else []
             return ActionResult(data={"lists": lists, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -280,7 +280,7 @@ class CreateCardAction(ActionHandler):
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/cards", method="POST", params=merged_params)
 
-            return ActionResult(data={"card": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"card": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"card": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -303,7 +303,7 @@ class GetCardAction(ActionHandler):
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/cards/{card_id}", method="GET", params=merged_params)
 
-            return ActionResult(data={"card": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"card": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"card": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -339,7 +339,7 @@ class UpdateCardAction(ActionHandler):
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/cards/{card_id}", method="PUT", params=merged_params)
 
-            return ActionResult(data={"card": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"card": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"card": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -388,7 +388,7 @@ class ListCardsAction(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=merged_params)
 
-            cards = response if isinstance(response, list) else []
+            cards = response.data if isinstance(response.data, list) else []
             return ActionResult(data={"cards": cards, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -411,7 +411,7 @@ class CreateChecklistAction(ActionHandler):
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/checklists", method="POST", params=merged_params)
 
-            return ActionResult(data={"checklist": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"checklist": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"checklist": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -438,7 +438,7 @@ class AddChecklistItemAction(ActionHandler):
                 f"{TRELLO_API_BASE_URL}/checklists/{checklist_id}/checkItems", method="POST", params=merged_params
             )
 
-            return ActionResult(data={"checkItem": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"checkItem": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"checkItem": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -463,7 +463,7 @@ class AddCommentAction(ActionHandler):
                 f"{TRELLO_API_BASE_URL}/cards/{card_id}/actions/comments", method="POST", params=merged_params
             )
 
-            return ActionResult(data={"comment": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"comment": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"comment": {}, "result": False, "error": str(e)}, cost_usd=0.0)

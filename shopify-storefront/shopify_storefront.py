@@ -142,7 +142,7 @@ async def execute_graphql(context: ExecutionContext, query: str, variables: Dict
         payload["variables"] = variables
 
     response = await context.fetch(url, method="POST", json=payload, headers=headers)
-    return response
+    return response.data
 
 
 def success_response(**kwargs) -> ActionResult:

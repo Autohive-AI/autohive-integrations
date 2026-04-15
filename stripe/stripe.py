@@ -93,10 +93,10 @@ class ListCustomersAction(ActionHandler):
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers", method="GET", headers=headers, params=params
             )
 
-            customers = response.get("data", [])
+            customers = response.data.get("data", [])
 
             return ActionResult(
-                data={"customers": customers, "has_more": response.get("has_more", False), "result": True}, cost_usd=0.0
+                data={"customers": customers, "has_more": response.data.get("has_more", False), "result": True}, cost_usd=0.0
             )
 
         except Exception as e:
@@ -118,7 +118,7 @@ class GetCustomerAction(ActionHandler):
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers/{customer_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data={"customer": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"customer": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -153,7 +153,7 @@ class CreateCustomerAction(ActionHandler):
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers", method="POST", headers=headers, data=form_data
             )
 
-            return ActionResult(data={"customer": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"customer": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -192,7 +192,7 @@ class UpdateCustomerAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"customer": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"customer": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -212,7 +212,7 @@ class DeleteCustomerAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"id": response.get("id", customer_id), "deleted": response.get("deleted", True), "result": True},
+                data={"id": response.data.get("id", customer_id), "deleted": response.data.get("deleted", True), "result": True},
                 cost_usd=0.0,
             )
 
@@ -250,10 +250,10 @@ class ListInvoicesAction(ActionHandler):
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices", method="GET", headers=headers, params=params
             )
 
-            invoices = response.get("data", [])
+            invoices = response.data.get("data", [])
 
             return ActionResult(
-                data={"invoices": invoices, "has_more": response.get("has_more", False), "result": True}, cost_usd=0.0
+                data={"invoices": invoices, "has_more": response.data.get("has_more", False), "result": True}, cost_usd=0.0
             )
 
         except Exception as e:
@@ -367,7 +367,7 @@ class DeleteInvoiceAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"id": response.get("id", invoice_id), "deleted": response.get("deleted", True), "result": True},
+                data={"id": response.data.get("id", invoice_id), "deleted": response.data.get("deleted", True), "result": True},
                 cost_usd=0.0,
             )
 
@@ -497,10 +497,10 @@ class ListInvoiceItemsAction(ActionHandler):
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems", method="GET", headers=headers, params=params
             )
 
-            invoice_items = response.get("data", [])
+            invoice_items = response.data.get("data", [])
 
             return ActionResult(
-                data={"invoice_items": invoice_items, "has_more": response.get("has_more", False), "result": True},
+                data={"invoice_items": invoice_items, "has_more": response.data.get("has_more", False), "result": True},
                 cost_usd=0.0,
             )
 
@@ -618,8 +618,8 @@ class DeleteInvoiceItemAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "id": response.get("id", invoice_item_id),
-                    "deleted": response.get("deleted", True),
+                    "id": response.data.get("id", invoice_item_id),
+                    "deleted": response.data.get("deleted", True),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -659,10 +659,10 @@ class ListProductsAction(ActionHandler):
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/products", method="GET", headers=headers, params=params
             )
 
-            products = response.get("data", [])
+            products = response.data.get("data", [])
 
             return ActionResult(
-                data={"products": products, "has_more": response.get("has_more", False), "result": True}, cost_usd=0.0
+                data={"products": products, "has_more": response.data.get("has_more", False), "result": True}, cost_usd=0.0
             )
 
         except Exception as e:
@@ -805,10 +805,10 @@ class ListPricesAction(ActionHandler):
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices", method="GET", headers=headers, params=params
             )
 
-            prices = response.get("data", [])
+            prices = response.data.get("data", [])
 
             return ActionResult(
-                data={"prices": prices, "has_more": response.get("has_more", False), "result": True}, cost_usd=0.0
+                data={"prices": prices, "has_more": response.data.get("has_more", False), "result": True}, cost_usd=0.0
             )
 
         except Exception as e:
@@ -944,10 +944,10 @@ class ListSubscriptionsAction(ActionHandler):
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions", method="GET", headers=headers, params=params
             )
 
-            subscriptions = response.get("data", [])
+            subscriptions = response.data.get("data", [])
 
             return ActionResult(
-                data={"subscriptions": subscriptions, "has_more": response.get("has_more", False), "result": True},
+                data={"subscriptions": subscriptions, "has_more": response.data.get("has_more", False), "result": True},
                 cost_usd=0.0,
             )
 
@@ -1144,10 +1144,10 @@ class ListPaymentMethodsAction(ActionHandler):
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/payment_methods", method="GET", headers=headers, params=params
             )
 
-            payment_methods = response.get("data", [])
+            payment_methods = response.data.get("data", [])
 
             return ActionResult(
-                data={"payment_methods": payment_methods, "has_more": response.get("has_more", False), "result": True},
+                data={"payment_methods": payment_methods, "has_more": response.data.get("has_more", False), "result": True},
                 cost_usd=0.0,
             )
 
