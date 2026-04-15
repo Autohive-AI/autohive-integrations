@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 import base64
 
@@ -80,10 +80,10 @@ class ListCompaniesAction(ActionHandler):
             # Response is a list of companies
             companies = response if isinstance(response, list) else []
 
-            return {"companies": companies, "total": len(companies), "result": True}
+            return ActionResult(data={"companies": companies, "total": len(companies), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"companies": [], "total": 0, "result": False, "error": str(e)}
+            return ActionResult(data={"companies": [], "total": 0, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("create_company")
@@ -119,10 +119,10 @@ class CreateCompanyAction(ActionHandler):
             url = f"{base_url}/companies"
             response = await context.fetch(url, method="POST", headers=headers, json=body)
 
-            return {"company": response, "result": True}
+            return ActionResult(data={"company": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"company": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"company": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("get_company")
@@ -144,10 +144,10 @@ class GetCompanyAction(ActionHandler):
             url = f"{base_url}/companies/{company_id}"
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return {"company": response, "result": True}
+            return ActionResult(data={"company": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"company": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"company": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("update_company")
@@ -188,10 +188,10 @@ class UpdateCompanyAction(ActionHandler):
             url = f"{base_url}/companies/{company_id}"
             response = await context.fetch(url, method="PUT", headers=headers, json=body)
 
-            return {"company": response, "result": True}
+            return ActionResult(data={"company": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"company": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"company": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("delete_company")
@@ -214,10 +214,10 @@ class DeleteCompanyAction(ActionHandler):
             url = f"{base_url}/companies/{company_id}"
             await context.fetch(url, method="DELETE", headers=headers)
 
-            return {"result": True}
+            return ActionResult(data={"result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("search_companies")
@@ -248,10 +248,10 @@ class SearchCompaniesAction(ActionHandler):
             # Extract companies from response
             companies = response.get("companies", []) if isinstance(response, dict) else []
 
-            return {"companies": companies, "total": len(companies), "result": True}
+            return ActionResult(data={"companies": companies, "total": len(companies), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"companies": [], "total": 0, "result": False, "error": str(e)}
+            return ActionResult(data={"companies": [], "total": 0, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Ticket Handlers ----
@@ -285,10 +285,10 @@ class CreateTicketAction(ActionHandler):
 
             response = await context.fetch(f"{base_url}/tickets", method="POST", headers=headers, json=body)
 
-            return {"ticket": response, "result": True}
+            return ActionResult(data={"ticket": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"ticket": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"ticket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("list_tickets")
@@ -306,10 +306,10 @@ class ListTicketsAction(ActionHandler):
 
             tickets = response if isinstance(response, list) else []
 
-            return {"tickets": tickets, "total": len(tickets), "result": True}
+            return ActionResult(data={"tickets": tickets, "total": len(tickets), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"tickets": [], "total": 0, "result": False, "error": str(e)}
+            return ActionResult(data={"tickets": [], "total": 0, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("get_ticket")
@@ -325,10 +325,10 @@ class GetTicketAction(ActionHandler):
 
             response = await context.fetch(f"{base_url}/tickets/{ticket_id}", method="GET", headers=headers)
 
-            return {"ticket": response, "result": True}
+            return ActionResult(data={"ticket": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"ticket": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"ticket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("update_ticket")
@@ -356,10 +356,10 @@ class UpdateTicketAction(ActionHandler):
 
             response = await context.fetch(f"{base_url}/tickets/{ticket_id}", method="PUT", headers=headers, json=body)
 
-            return {"ticket": response, "result": True}
+            return ActionResult(data={"ticket": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"ticket": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"ticket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("delete_ticket")
@@ -375,10 +375,10 @@ class DeleteTicketAction(ActionHandler):
 
             await context.fetch(f"{base_url}/tickets/{ticket_id}", method="DELETE", headers=headers)
 
-            return {"result": True}
+            return ActionResult(data={"result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Contact Handlers ----
@@ -410,10 +410,10 @@ class CreateContactAction(ActionHandler):
 
             response = await context.fetch(f"{base_url}/contacts", method="POST", headers=headers, json=body)
 
-            return {"contact": response, "result": True}
+            return ActionResult(data={"contact": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"contact": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"contact": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("list_contacts")
@@ -431,10 +431,10 @@ class ListContactsAction(ActionHandler):
 
             contacts = response if isinstance(response, list) else []
 
-            return {"contacts": contacts, "total": len(contacts), "result": True}
+            return ActionResult(data={"contacts": contacts, "total": len(contacts), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"contacts": [], "total": 0, "result": False, "error": str(e)}
+            return ActionResult(data={"contacts": [], "total": 0, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("get_contact")
@@ -450,10 +450,10 @@ class GetContactAction(ActionHandler):
 
             response = await context.fetch(f"{base_url}/contacts/{contact_id}", method="GET", headers=headers)
 
-            return {"contact": response, "result": True}
+            return ActionResult(data={"contact": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"contact": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"contact": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("update_contact")
@@ -485,10 +485,10 @@ class UpdateContactAction(ActionHandler):
                 f"{base_url}/contacts/{contact_id}", method="PUT", headers=headers, json=body
             )
 
-            return {"contact": response, "result": True}
+            return ActionResult(data={"contact": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"contact": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"contact": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("delete_contact")
@@ -504,10 +504,10 @@ class DeleteContactAction(ActionHandler):
 
             await context.fetch(f"{base_url}/contacts/{contact_id}", method="DELETE", headers=headers)
 
-            return {"result": True}
+            return ActionResult(data={"result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("search_contacts")
@@ -538,10 +538,10 @@ class SearchContactsAction(ActionHandler):
             # Response is directly an array of contacts
             contacts = response if isinstance(response, list) else []
 
-            return {"contacts": contacts, "total": len(contacts), "result": True}
+            return ActionResult(data={"contacts": contacts, "total": len(contacts), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"contacts": [], "total": 0, "result": False, "error": str(e)}
+            return ActionResult(data={"contacts": [], "total": 0, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Conversation Handlers ----
@@ -564,10 +564,10 @@ class ListConversationsAction(ActionHandler):
 
             conversations = response if isinstance(response, list) else []
 
-            return {"conversations": conversations, "result": True}
+            return ActionResult(data={"conversations": conversations, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"conversations": [], "result": False, "error": str(e)}
+            return ActionResult(data={"conversations": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("create_note")
@@ -589,10 +589,10 @@ class CreateNoteAction(ActionHandler):
                 f"{base_url}/tickets/{ticket_id}/notes", method="POST", headers=headers, json=body
             )
 
-            return {"conversation": response, "result": True}
+            return ActionResult(data={"conversation": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"conversation": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"conversation": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @freshdesk.action("create_reply")
@@ -614,7 +614,7 @@ class CreateReplyAction(ActionHandler):
                 f"{base_url}/tickets/{ticket_id}/reply", method="POST", headers=headers, json=body
             )
 
-            return {"conversation": response, "result": True}
+            return ActionResult(data={"conversation": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"conversation": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"conversation": {}, "result": False, "error": str(e)}, cost_usd=0.0)

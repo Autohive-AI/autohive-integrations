@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any, List
 import base64
 import aiohttp
@@ -87,11 +87,11 @@ class GetInboxAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "inbox": {},
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse inbox
             inbox = {
@@ -108,10 +108,10 @@ class GetInboxAction(ActionHandler):
             if "is_private" in response:
                 inbox["is_private"] = response["is_private"]
 
-            return {"inbox": inbox, "result": True}
+            return ActionResult(data={"inbox": inbox, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"inbox": {}, "result": False, "error": f"Error getting inbox: {str(e)}"}
+            return ActionResult(data={"inbox": {}, "result": False, "error": f"Error getting inbox: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("list_inbox_conversations")
@@ -135,11 +135,11 @@ class ListInboxConversationsAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "conversations": [],
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse conversations
             conversations = []
@@ -148,10 +148,10 @@ class ListInboxConversationsAction(ActionHandler):
             for raw_conv in raw_conversations:
                 conversations.append(FrontDataParser.parse_conversation(raw_conv))
 
-            return {"conversations": conversations, "result": True}
+            return ActionResult(data={"conversations": conversations, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"conversations": [], "result": False, "error": f"Error listing inbox conversations: {str(e)}"}
+            return ActionResult(data={"conversations": [], "result": False, "error": f"Error listing inbox conversations: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("get_conversation")
@@ -165,19 +165,19 @@ class GetConversationAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "conversation": {},
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse conversation - Front returns conversation data directly
             conversation = FrontDataParser.parse_conversation(response)
 
-            return {"conversation": conversation, "result": True}
+            return ActionResult(data={"conversation": conversation, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"conversation": {}, "result": False, "error": f"Error getting conversation: {str(e)}"}
+            return ActionResult(data={"conversation": {}, "result": False, "error": f"Error getting conversation: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("list_conversation_messages")
@@ -194,11 +194,11 @@ class ListConversationMessagesAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "messages": [],
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse messages
             messages = []
@@ -207,10 +207,10 @@ class ListConversationMessagesAction(ActionHandler):
             for raw_msg in raw_messages:
                 messages.append(FrontDataParser.parse_message(raw_msg))
 
-            return {"messages": messages, "result": True}
+            return ActionResult(data={"messages": messages, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"messages": [], "result": False, "error": f"Error listing conversation messages: {str(e)}"}
+            return ActionResult(data={"messages": [], "result": False, "error": f"Error listing conversation messages: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("create_message_reply")
@@ -284,17 +284,17 @@ class CreateMessageReplyAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "message_uid": "",
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Front returns message_uid for async processing
-            return {"message_uid": response.get("message_uid", ""), "result": True}
+            return ActionResult(data={"message_uid": response.get("message_uid", ""), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"message_uid": "", "result": False, "error": f"Error creating message reply: {str(e)}"}
+            return ActionResult(data={"message_uid": "", "result": False, "error": f"Error creating message reply: {str(e)}"}, cost_usd=0.0)
 
     async def _send_reply_with_attachments(
         self,
@@ -435,19 +435,19 @@ class GetMessageAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "message": {},
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse message
             message = FrontDataParser.parse_message(response)
 
-            return {"message": message, "result": True}
+            return ActionResult(data={"message": message, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"message": {}, "result": False, "error": f"Error getting message: {str(e)}"}
+            return ActionResult(data={"message": {}, "result": False, "error": f"Error getting message: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("download_message_attachment")
@@ -511,7 +511,7 @@ class DownloadMessageAttachmentAction(ActionHandler):
                     }
 
         except Exception as e:
-            return {"file": {}, "result": False, "error": f"Error downloading attachment: {str(e)}"}
+            return ActionResult(data={"file": {}, "result": False, "error": f"Error downloading attachment: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("create_message")
@@ -579,17 +579,17 @@ class CreateMessageAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "message_uid": "",
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Front returns message_uid for async processing
-            return {"message_uid": response.get("message_uid", ""), "result": True}
+            return ActionResult(data={"message_uid": response.get("message_uid", ""), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"message_uid": "", "result": False, "error": f"Error creating message: {str(e)}"}
+            return ActionResult(data={"message_uid": "", "result": False, "error": f"Error creating message: {str(e)}"}, cost_usd=0.0)
 
     async def _send_with_attachments(
         self,
@@ -728,11 +728,11 @@ class ListChannelsAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "channels": [],
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse channels
             channels = []
@@ -754,10 +754,10 @@ class ListChannelsAction(ActionHandler):
 
                 channels.append(channel)
 
-            return {"channels": channels, "result": True}
+            return ActionResult(data={"channels": channels, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"channels": [], "result": False, "error": f"Error listing channels: {str(e)}"}
+            return ActionResult(data={"channels": [], "result": False, "error": f"Error listing channels: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("list_inbox_channels")
@@ -774,11 +774,11 @@ class ListInboxChannelsAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "channels": [],
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse channels
             channels = []
@@ -800,10 +800,10 @@ class ListInboxChannelsAction(ActionHandler):
 
                 channels.append(channel)
 
-            return {"channels": channels, "result": True}
+            return ActionResult(data={"channels": channels, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"channels": [], "result": False, "error": f"Error listing inbox channels: {str(e)}"}
+            return ActionResult(data={"channels": [], "result": False, "error": f"Error listing inbox channels: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("get_channel")
@@ -817,11 +817,11 @@ class GetChannelAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "channel": {"id": "", "name": "", "type": ""},
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse channel - Note: Front API returns "types" but we standardize to "type"
             channel = {
@@ -840,14 +840,14 @@ class GetChannelAction(ActionHandler):
             if "settings" in response:
                 channel["settings"] = response["settings"]
 
-            return {"channel": channel, "result": True}
+            return ActionResult(data={"channel": channel, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "channel": {"id": "", "name": "", "type": ""},
                 "result": False,
                 "error": f"Error getting channel: {str(e)}",
-            }
+            }, cost_usd=0.0)
 
 
 @front.action("list_message_templates")
@@ -861,11 +861,11 @@ class ListMessageTemplatesAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "templates": [],
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse templates
             templates = []
@@ -883,10 +883,10 @@ class ListMessageTemplatesAction(ActionHandler):
 
                 templates.append(template)
 
-            return {"templates": templates, "result": True}
+            return ActionResult(data={"templates": templates, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"templates": [], "result": False, "error": f"Error listing message templates: {str(e)}"}
+            return ActionResult(data={"templates": [], "result": False, "error": f"Error listing message templates: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("get_message_template")
@@ -900,11 +900,11 @@ class GetMessageTemplateAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "template": {},
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse template
             template = {
@@ -916,10 +916,10 @@ class GetMessageTemplateAction(ActionHandler):
                 "metadata": response.get("metadata", {}),
             }
 
-            return {"template": template, "result": True}
+            return ActionResult(data={"template": template, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"template": {}, "result": False, "error": f"Error getting message template: {str(e)}"}
+            return ActionResult(data={"template": {}, "result": False, "error": f"Error getting message template: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("update_conversation")
@@ -946,7 +946,7 @@ class UpdateConversationAction(ActionHandler):
                 update_data["custom_fields"] = inputs["custom_fields"]
 
             if not update_data:
-                return {"conversation": {}, "result": False, "error": "No valid update fields provided"}
+                return ActionResult(data={"conversation": {}, "result": False, "error": "No valid update fields provided"}, cost_usd=0.0)
 
             # Update conversation
             response = await context.fetch(
@@ -960,33 +960,33 @@ class UpdateConversationAction(ActionHandler):
                 get_response = await context.fetch(f"{FRONT_API_BASE}/conversations/{conversation_id}")
 
                 if get_response is None or "error" in get_response:
-                    return {
+                    return ActionResult(data={
                         "conversation": {},
                         "result": False,
                         "error": (
                             f"Update may have succeeded but failed to fetch updated conversation: "
                             f"{get_response.get('error', 'Unknown error') if get_response else 'No response'}"
                         ),
-                    }
+                    }, cost_usd=0.0)
 
                 conversation = FrontDataParser.parse_conversation(get_response)
-                return {"conversation": conversation, "result": True}
+                return ActionResult(data={"conversation": conversation, "result": True}, cost_usd=0.0)
 
             # Check for API errors in response
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "conversation": {},
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse response conversation
             conversation = FrontDataParser.parse_conversation(response)
 
-            return {"conversation": conversation, "result": True}
+            return ActionResult(data={"conversation": conversation, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"conversation": {}, "result": False, "error": f"Error updating conversation: {str(e)}"}
+            return ActionResult(data={"conversation": {}, "result": False, "error": f"Error updating conversation: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("list_inboxes")
@@ -1000,11 +1000,11 @@ class ListInboxesAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "inboxes": [],
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse inboxes
             inboxes = []
@@ -1024,10 +1024,10 @@ class ListInboxesAction(ActionHandler):
 
                 inboxes.append(inbox)
 
-            return {"inboxes": inboxes, "result": True}
+            return ActionResult(data={"inboxes": inboxes, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"inboxes": [], "result": False, "error": f"Error listing inboxes: {str(e)}"}
+            return ActionResult(data={"inboxes": [], "result": False, "error": f"Error listing inboxes: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("list_teammates")
@@ -1041,11 +1041,11 @@ class ListTeammatesAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "teammates": [],
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse teammates
             teammates = []
@@ -1067,10 +1067,10 @@ class ListTeammatesAction(ActionHandler):
 
                 teammates.append(teammate)
 
-            return {"teammates": teammates, "result": True}
+            return ActionResult(data={"teammates": teammates, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"teammates": [], "result": False, "error": f"Error listing teammates: {str(e)}"}
+            return ActionResult(data={"teammates": [], "result": False, "error": f"Error listing teammates: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("get_teammate")
@@ -1084,11 +1084,11 @@ class GetTeammateAction(ActionHandler):
 
             # Check for API errors
             if "error" in response:
-                return {
+                return ActionResult(data={
                     "teammate": {},
                     "result": False,
                     "error": f"API request failed: {response.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Parse teammate
             teammate = {
@@ -1104,10 +1104,10 @@ class GetTeammateAction(ActionHandler):
                 "custom_fields": response.get("custom_fields", {}),
             }
 
-            return {"teammate": teammate, "result": True}
+            return ActionResult(data={"teammate": teammate, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"teammate": {}, "result": False, "error": f"Error getting teammate: {str(e)}"}
+            return ActionResult(data={"teammate": {}, "result": False, "error": f"Error getting teammate: {str(e)}"}, cost_usd=0.0)
 
 
 # ---- Helper Actions for Name-Based Lookups ----
@@ -1128,11 +1128,11 @@ class FindTeammateAction(ActionHandler):
             list_result = await list_action.execute({"limit": 100}, context)
 
             if not list_result["result"]:
-                return {
+                return ActionResult(data={
                     "teammates": [],
                     "result": False,
                     "error": f"Failed to fetch teammates: {list_result.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Filter teammates by search query (case-insensitive partial match)
             teammates = list_result["teammates"]
@@ -1156,10 +1156,10 @@ class FindTeammateAction(ActionHandler):
                 ):
                     matching_teammates.append(teammate)
 
-            return {"teammates": matching_teammates, "result": True, "count": len(matching_teammates)}
+            return ActionResult(data={"teammates": matching_teammates, "result": True, "count": len(matching_teammates)}, cost_usd=0.0)
 
         except Exception as e:
-            return {"teammates": [], "result": False, "error": f"Error finding teammate: {str(e)}"}
+            return ActionResult(data={"teammates": [], "result": False, "error": f"Error finding teammate: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("find_inbox")
@@ -1177,11 +1177,11 @@ class FindInboxAction(ActionHandler):
             list_result = await list_action.execute({"limit": 100}, context)
 
             if not list_result["result"]:
-                return {
+                return ActionResult(data={
                     "inboxes": [],
                     "result": False,
                     "error": f"Failed to fetch inboxes: {list_result.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Filter inboxes by name (case-insensitive partial match)
             inboxes = list_result["inboxes"]
@@ -1194,10 +1194,10 @@ class FindInboxAction(ActionHandler):
                 if inbox_name in name:
                     matching_inboxes.append(inbox)
 
-            return {"inboxes": matching_inboxes, "result": True, "count": len(matching_inboxes)}
+            return ActionResult(data={"inboxes": matching_inboxes, "result": True, "count": len(matching_inboxes)}, cost_usd=0.0)
 
         except Exception as e:
-            return {"inboxes": [], "result": False, "error": f"Error finding inbox: {str(e)}"}
+            return ActionResult(data={"inboxes": [], "result": False, "error": f"Error finding inbox: {str(e)}"}, cost_usd=0.0)
 
 
 @front.action("find_conversation")
@@ -1216,11 +1216,11 @@ class FindConversationAction(ActionHandler):
             list_result = await list_action.execute({"inbox_id": inbox_id, "limit": 100}, context)
 
             if not list_result["result"]:
-                return {
+                return ActionResult(data={
                     "conversations": [],
                     "result": False,
                     "error": f"Failed to fetch conversations: {list_result.get('error', 'Unknown error')}",
-                }
+                }, cost_usd=0.0)
 
             # Filter conversations by search query (case-insensitive partial match)
             conversations = list_result["conversations"]
@@ -1246,7 +1246,7 @@ class FindConversationAction(ActionHandler):
                 ):
                     matching_conversations.append(conversation)
 
-            return {"conversations": matching_conversations, "result": True, "count": len(matching_conversations)}
+            return ActionResult(data={"conversations": matching_conversations, "result": True, "count": len(matching_conversations)}, cost_usd=0.0)
 
         except Exception as e:
-            return {"conversations": [], "result": False, "error": f"Error finding conversation: {str(e)}"}
+            return ActionResult(data={"conversations": [], "result": False, "error": f"Error finding conversation: {str(e)}"}, cost_usd=0.0)

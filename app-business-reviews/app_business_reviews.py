@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -48,7 +48,7 @@ class SearchAppsIOS(ActionHandler):
             }
             apps.append(app)
 
-        return {"apps": apps, "total_results": len(apps)}
+        return ActionResult(data={"apps": apps, "total_results": len(apps)}, cost_usd=0.0)
 
 
 @app_business_reviews.action("get_reviews_app_store")
@@ -143,12 +143,12 @@ class GetReviewsAppStore(ActionHandler):
             if not pagination_info.get("next"):
                 break
 
-        return {
+        return ActionResult(data={
             "reviews": all_reviews,
             "total_reviews": len(all_reviews),
             "app_name": app_title,
             "product_id": product_id,
-        }
+        }, cost_usd=0.0)
 
 
 # ---- Google Play Store Actions ----
@@ -189,7 +189,7 @@ class SearchAppsAndroid(ActionHandler):
             if len(apps) >= limit:
                 break
 
-        return {"apps": apps, "total_results": len(apps)}
+        return ActionResult(data={"apps": apps, "total_results": len(apps)}, cost_usd=0.0)
 
 
 @app_business_reviews.action("get_reviews_google_play")
@@ -293,13 +293,13 @@ class GetReviewsGooglePlay(ActionHandler):
         # Extract app information from the response
         app_info = response.get("product_info", {})
 
-        return {
+        return ActionResult(data={
             "reviews": all_reviews,
             "total_reviews": len(all_reviews),
             "app_name": app_info.get("title", ""),
             "app_rating": app_info.get("rating") or 0.0,
             "product_id": product_id,
-        }
+        }, cost_usd=0.0)
 
 
 # ---- Google Maps Actions ----
@@ -340,7 +340,7 @@ class SearchPlacesGoogleMaps(ActionHandler):
             }
             places.append(place)
 
-        return {"places": places, "total_results": len(places)}
+        return ActionResult(data={"places": places, "total_results": len(places)}, cost_usd=0.0)
 
 
 @app_business_reviews.action("get_reviews_google_maps")
@@ -458,10 +458,10 @@ class GetReviewsGoogleMaps(ActionHandler):
             if local_results:
                 business_name = local_results[0].get("title", business_name)
 
-        return {
+        return ActionResult(data={
             "reviews": all_reviews,
             "total_reviews": len(all_reviews),
             "average_rating": place_info.get("rating") or 0.0,
             "business_name": business_name,
             "place_id": place_id or place_info.get("place_id", inputs.get("place_id", "")),
-        }
+        }, cost_usd=0.0)

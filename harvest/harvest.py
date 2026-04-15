@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -43,10 +43,10 @@ class CreateTimeEntry(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/time_entries", method="POST", json=payload)
 
-            return {"success": True, "time_entry": response}
+            return ActionResult(data={"success": True, "time_entry": response}, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionResult(data={"success": False, "error": str(e)}, cost_usd=0.0)
 
 
 @harvest.action("stop_time_entry")
@@ -59,10 +59,10 @@ class StopTimeEntry(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/time_entries/{time_entry_id}/stop", method="PATCH")
 
-            return {"success": True, "time_entry": response}
+            return ActionResult(data={"success": True, "time_entry": response}, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionResult(data={"success": False, "error": str(e)}, cost_usd=0.0)
 
 
 @harvest.action("list_time_entries")
@@ -109,7 +109,7 @@ class ListTimeEntries(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/time_entries", method="GET", params=params)
 
-            return {
+            return ActionResult(data={
                 "success": True,
                 "time_entries": response.get("time_entries", []),
                 "per_page": response.get("per_page"),
@@ -119,10 +119,10 @@ class ListTimeEntries(ActionHandler):
                 "previous_page": response.get("previous_page"),
                 "page": response.get("page"),
                 "links": response.get("links"),
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionResult(data={"success": False, "error": str(e)}, cost_usd=0.0)
 
 
 @harvest.action("update_time_entry")
@@ -166,10 +166,10 @@ class UpdateTimeEntry(ActionHandler):
                 json=payload,
             )
 
-            return {"success": True, "time_entry": response}
+            return ActionResult(data={"success": True, "time_entry": response}, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionResult(data={"success": False, "error": str(e)}, cost_usd=0.0)
 
 
 @harvest.action("delete_time_entry")
@@ -182,13 +182,13 @@ class DeleteTimeEntry(ActionHandler):
 
             await context.fetch(f"{HARVEST_API_BASE}/time_entries/{time_entry_id}", method="DELETE")
 
-            return {
+            return ActionResult(data={
                 "success": True,
                 "message": f"Time entry {time_entry_id} deleted successfully",
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionResult(data={"success": False, "error": str(e)}, cost_usd=0.0)
 
 
 @harvest.action("list_projects")
@@ -217,7 +217,7 @@ class ListProjects(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/projects", method="GET", params=params)
 
-            return {
+            return ActionResult(data={
                 "success": True,
                 "projects": response.get("projects", []),
                 "per_page": response.get("per_page"),
@@ -227,10 +227,10 @@ class ListProjects(ActionHandler):
                 "previous_page": response.get("previous_page"),
                 "page": response.get("page"),
                 "links": response.get("links"),
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionResult(data={"success": False, "error": str(e)}, cost_usd=0.0)
 
 
 @harvest.action("get_project")
@@ -243,10 +243,10 @@ class GetProject(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/projects/{project_id}", method="GET")
 
-            return {"success": True, "project": response}
+            return ActionResult(data={"success": True, "project": response}, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionResult(data={"success": False, "error": str(e)}, cost_usd=0.0)
 
 
 @harvest.action("list_clients")
@@ -272,7 +272,7 @@ class ListClients(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/clients", method="GET", params=params)
 
-            return {
+            return ActionResult(data={
                 "success": True,
                 "clients": response.get("clients", []),
                 "per_page": response.get("per_page"),
@@ -282,10 +282,10 @@ class ListClients(ActionHandler):
                 "previous_page": response.get("previous_page"),
                 "page": response.get("page"),
                 "links": response.get("links"),
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionResult(data={"success": False, "error": str(e)}, cost_usd=0.0)
 
 
 @harvest.action("list_tasks")
@@ -311,7 +311,7 @@ class ListTasks(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/tasks", method="GET", params=params)
 
-            return {
+            return ActionResult(data={
                 "success": True,
                 "tasks": response.get("tasks", []),
                 "per_page": response.get("per_page"),
@@ -321,10 +321,10 @@ class ListTasks(ActionHandler):
                 "previous_page": response.get("previous_page"),
                 "page": response.get("page"),
                 "links": response.get("links"),
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionResult(data={"success": False, "error": str(e)}, cost_usd=0.0)
 
 
 @harvest.action("list_users")
@@ -350,7 +350,7 @@ class ListUsers(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/users", method="GET", params=params)
 
-            return {
+            return ActionResult(data={
                 "success": True,
                 "users": response.get("users", []),
                 "per_page": response.get("per_page"),
@@ -360,7 +360,7 @@ class ListUsers(ActionHandler):
                 "previous_page": response.get("previous_page"),
                 "page": response.get("page"),
                 "links": response.get("links"),
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionResult(data={"success": False, "error": str(e)}, cost_usd=0.0)
