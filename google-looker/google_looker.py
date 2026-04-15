@@ -167,18 +167,17 @@ class ExecuteLookMLQuery(ActionHandler):
         try:
             helper = build_looker_helper(context)
 
-            query_data = {"model": inputs["model"], "explore": inputs["explore"]}
+            query_data = {"model": inputs["model"], "view": inputs["explore"]}
 
-            if inputs.get("dimensions") is not None:
-                query_data["dimensions"] = inputs.get("dimensions")
-            if inputs.get("measures") is not None:
-                query_data["measures"] = inputs.get("measures")
+            fields = (inputs.get("dimensions") or []) + (inputs.get("measures") or [])
+            if fields:
+                query_data["fields"] = fields
             if inputs.get("filters") is not None:
                 query_data["filters"] = inputs.get("filters")
             if inputs.get("sorts") is not None:
                 query_data["sorts"] = inputs.get("sorts")
             if inputs.get("limit") is not None:
-                query_data["limit"] = inputs.get("limit")
+                query_data["limit"] = str(inputs.get("limit"))
 
             query = await helper.make_request("POST", "/queries", data=query_data)
             query_id = query.get("id")
@@ -204,7 +203,10 @@ class ExecuteLookMLQuery(ActionHandler):
             )
 
         except Exception as e:
-            return ActionResult(data={"query_results": "[]", "result": False, "error": str(e)}, cost_usd=0)
+            return ActionResult(
+                data={"query_results": "[]", "result": False, "error": str(e)},
+                cost_usd=0,
+            )
 
 
 @google_looker.action("list_models")
@@ -287,7 +289,15 @@ class ExecuteSQLQuery(ActionHandler):
             )
 
         except Exception as e:
-            return ActionResult(data={"slug": "", "query_results": "", "result": False, "error": str(e)}, cost_usd=0)
+            return ActionResult(
+                data={
+                    "slug": "",
+                    "query_results": "",
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0,
+            )
 
 
 @google_looker.action("list_connections")
