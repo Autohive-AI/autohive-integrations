@@ -1,6 +1,6 @@
 {
     "name": "Google Looker",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Looker integration with custom authentication",
     "entry_point": "google_looker.py",
     "auth": {
