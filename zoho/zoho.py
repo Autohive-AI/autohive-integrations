@@ -2452,7 +2452,7 @@ class GetAccountHierarchy(ActionHandler):
                 params={"fields": "Account_Name,Industry,Phone,Website,Owner"},
             )
 
-            account_data = account_response.get("data", [{}])[0] if account_response.get("data") else {}
+            account_data = account_response.data.get("data", [{}])[0] if account_response.data.get("data") else {}
 
             # Initialize hierarchy data
             hierarchy = {"account": account_data, "contacts": [], "deals": [], "tasks": [], "events": [], "calls": []}
@@ -2470,7 +2470,7 @@ class GetAccountHierarchy(ActionHandler):
                         params={"fields": ",".join(default_fields), "per_page": "50"},
                     )
 
-                    related_data = related_response.get("data", [])
+                    related_data = related_response.data.get("data", [])
                     hierarchy[module.lower()] = related_data
 
                 except Exception:
@@ -2512,7 +2512,7 @@ class GetContactActivities(ActionHandler):
                 params={"fields": "First_Name,Last_Name,Email,Phone,Account_Name"},
             )
 
-            contact_data = contact_response.get("data", [{}])[0] if contact_response.get("data") else {}
+            contact_data = contact_response.data.get("data", [{}])[0] if contact_response.data.get("data") else {}
 
             # Initialize activities data
             activities = {
@@ -2536,7 +2536,7 @@ class GetContactActivities(ActionHandler):
                         params={"fields": ",".join(default_fields), "per_page": "100"},
                     )
 
-                    related_data = related_response.get("data", [])
+                    related_data = related_response.data.get("data", [])
                     activities[module.lower()] = related_data
                     activities["activity_summary"][f"total_{module.lower()}"] = len(related_data)
 
@@ -2579,7 +2579,7 @@ class GetDealRelationships(ActionHandler):
                 params={"fields": "Deal_Name,Stage,Amount,Account_Name,Contact_Name,Owner"},
             )
 
-            deal_data = deal_response.get("data", [{}])[0] if deal_response.get("data") else {}
+            deal_data = deal_response.data.get("data", [{}])[0] if deal_response.data.get("data") else {}
 
             # Initialize relationship data
             relationships = {
@@ -2604,7 +2604,7 @@ class GetDealRelationships(ActionHandler):
                             headers=headers,
                             params={"fields": "Account_Name,Industry,Phone,Website"},
                         )
-                        relationships["account"] = account_response.get("data", [{}])[0]
+                        relationships["account"] = account_response.data.get("data", [{}])[0]
                         relationships["relationship_summary"]["has_account"] = True
                     except Exception:  # nosec B110
                         pass
@@ -2621,7 +2621,7 @@ class GetDealRelationships(ActionHandler):
                             headers=headers,
                             params={"fields": "First_Name,Last_Name,Email,Phone,Title"},
                         )
-                        relationships["contact"] = contact_response.get("data", [{}])[0]
+                        relationships["contact"] = contact_response.data.get("data", [{}])[0]
                         relationships["relationship_summary"]["has_contact"] = True
                     except Exception:  # nosec B110
                         pass
@@ -2643,7 +2643,7 @@ class GetDealRelationships(ActionHandler):
                             params={"fields": ",".join(default_fields), "per_page": "50"},
                         )
 
-                        activity_data = activity_response.get("data", [])
+                        activity_data = activity_response.data.get("data", [])
                         relationships[module.lower()] = activity_data
                         total_activities += len(activity_data)
 
