@@ -2028,7 +2028,7 @@ class CreatePresentationAction(ActionHandler):
 
         result = {"presentation_id": presentation_id, "slide_count": len(prs.slides)}
 
-        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context, custom_filename)
+        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context, custom_filename))
 
 
 @slide_maker.action("add_slide")
@@ -2047,7 +2047,7 @@ class AddSlideAction(ActionHandler):
         prs.slides.add_slide(slide_layout)
 
         original_result = {"slide_index": len(prs.slides) - 1, "slide_count": len(prs.slides)}
-        return ActionResult(data=await save_and_return_presentation(original_result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(original_result, presentation_id, context))
 
 
 @slide_maker.action("add_image")
@@ -2127,7 +2127,7 @@ class AddImageAction(ActionHandler):
             pic = slide.shapes.add_picture(image_file, left, top)
 
         original_result = {"shape_id": str(pic.shape_id)}
-        return ActionResult(data=await save_and_return_presentation(original_result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(original_result, presentation_id, context))
 
 
 @slide_maker.action("add_chart")
@@ -2187,7 +2187,7 @@ class AddChartAction(ActionHandler):
         chart_shape = slide.shapes.add_chart(chart_type_enum, left, top, width, height, chart_data)
 
         original_result = {"chart_id": str(chart_shape.shape_id)}
-        return ActionResult(data=await save_and_return_presentation(original_result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(original_result, presentation_id, context))
 
 
 @slide_maker.action("set_text_autosize")
@@ -2258,7 +2258,7 @@ class SetTextAutosizeAction(ActionHandler):
             shape.height = original_height
 
         original_result = {"success": True, "autosize_type": autosize_type, "word_wrap": text_frame.word_wrap}
-        return ActionResult(data=await save_and_return_presentation(original_result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(original_result, presentation_id, context))
 
 
 @slide_maker.action("set_text_margins")
@@ -2313,7 +2313,7 @@ class SetTextMarginsAction(ActionHandler):
 
         result = {"success": True, "margins_set": margins}
 
-        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context))
 
 
 @slide_maker.action("set_text_alignment")
@@ -2364,7 +2364,7 @@ class SetTextAlignmentAction(ActionHandler):
 
         result = {"success": True, "vertical_anchor": vertical_anchor}
 
-        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context))
 
 
 @slide_maker.action("set_slide_background_color")
@@ -2439,7 +2439,7 @@ class SetSlideBackgroundColorAction(ActionHandler):
 
         result = {"success": True, "color_set": color}
 
-        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context))
 
 
 @slide_maker.action("set_slide_background_gradient")
@@ -2510,7 +2510,7 @@ class SetSlideBackgroundGradientAction(ActionHandler):
             "gradient_stops_applied": len(gradient_stops) if gradient_stops else 2,
         }
 
-        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context))
 
 
 @slide_maker.action("add_background_image_workaround")
@@ -2575,7 +2575,7 @@ class AddBackgroundImageWorkaroundAction(ActionHandler):
             "note": "Image added as full-slide picture. Add other elements after this for proper layering.",
         }
 
-        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context))
 
 
 @slide_maker.action("reset_slide_background")
@@ -2629,7 +2629,7 @@ class ResetSlideBackgroundAction(ActionHandler):
             "note": "Slide background reset to inherit from master/layout",
         }
 
-        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context))
 
 
 @slide_maker.action("delete_element")
@@ -2695,7 +2695,7 @@ class DeleteElementAction(ActionHandler):
 
         result = {"deleted": True, "element_type": element_type, "remaining_shapes": remaining_shapes}
 
-        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context))
 
 
 @slide_maker.action("get_slide_elements")
@@ -3009,7 +3009,7 @@ class RepositionElementAction(ActionHandler):
             },
         }
 
-        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context))
 
 
 @slide_maker.action("get_element_styling")
@@ -3922,7 +3922,7 @@ class FindAndReplaceAction(ActionHandler):
             "warnings": warnings,
         }
 
-        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context))
 
 
 @slide_maker.action("add_elements")
@@ -3990,7 +3990,7 @@ class AddElementsAction(ActionHandler):
                 "elements_skipped": [],
             }
 
-            return ActionResult(data=await save_and_return_presentation(result, presentation_id, context)
+            return ActionResult(data=await save_and_return_presentation(result, presentation_id, context))
 
         # GRANULAR MODE: Array of elements with position control
         elements_to_add = inputs.get("elements")
@@ -4126,4 +4126,4 @@ class AddElementsAction(ActionHandler):
             "elements_skipped": elements_skipped,
         }
 
-        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context)
+        return ActionResult(data=await save_and_return_presentation(result, presentation_id, context))

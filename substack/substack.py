@@ -106,21 +106,21 @@ class GetPostAction(ActionHandler):
         )
         result = _drop_none(
             {
-                "id": post.get("id"),
-                "slug": post.get("slug", ""),
-                "title": post.get("title", ""),
-                "subtitle": post.get("subtitle", ""),
-                "body_html": post.get("body_html", ""),
-                "post_date": post.get("post_date", ""),
-                "canonical_url": post.get("canonical_url", ""),
-                "audience": post.get("audience", ""),
-                "paywall": post.get("paywall", False),
-                "reading_time_minutes": post.get("reading_time_minutes"),
-                "cover_image": post.get("cover_image"),
-                "like_count": post.get("like_count", 0),
-                "comment_count": post.get("comment_count", 0),
-                "type": post.get("type", ""),
-                "audio_url": post.get("audio_url"),
+                "id": post.data.get("id"),
+                "slug": post.data.get("slug", ""),
+                "title": post.data.get("title", ""),
+                "subtitle": post.data.get("subtitle", ""),
+                "body_html": post.data.get("body_html", ""),
+                "post_date": post.data.get("post_date", ""),
+                "canonical_url": post.data.get("canonical_url", ""),
+                "audience": post.data.get("audience", ""),
+                "paywall": post.data.get("paywall", False),
+                "reading_time_minutes": post.data.get("reading_time_minutes"),
+                "cover_image": post.data.get("cover_image"),
+                "like_count": post.data.get("like_count", 0),
+                "comment_count": post.data.get("comment_count", 0),
+                "type": post.data.get("type", ""),
+                "audio_url": post.data.get("audio_url"),
             }
         )
         return ActionResult(data=result, cost_usd=0.0)

@@ -409,7 +409,7 @@ class DeleteFilesAction(ActionHandler):
 
             if isinstance(response.data, dict) and response.data.get("error"):
                 return ActionResult(
-                    data={"deleted": [], "result": False, "error": response.data.get("message", response["error"])},
+                    data={"deleted": [], "result": False, "error": response.data.get("message", response.data["error"])},
                     cost_usd=0.0,
                 )
 

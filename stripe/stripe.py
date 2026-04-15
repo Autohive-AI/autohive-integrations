@@ -1,4 +1,9 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+)
 from typing import Dict, Any
 
 
@@ -18,7 +23,10 @@ def get_common_headers() -> Dict[str, str]:
     Return common headers for Stripe API requests.
     Auth headers are automatically added by the SDK when using platform auth.
     """
-    return {"Content-Type": "application/x-www-form-urlencoded", "Stripe-Version": "2025-12-15.preview"}
+    return {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Stripe-Version": "2025-12-15.preview",
+    }
 
 
 def build_form_data(data: Dict[str, Any], prefix: str = "") -> Dict[str, str]:
@@ -90,18 +98,32 @@ class ListCustomersAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers", method="GET", headers=headers, params=params
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
             customers = response.data.get("data", [])
 
             return ActionResult(
-                data={"customers": customers, "has_more": response.data.get("has_more", False), "result": True}, cost_usd=0.0
+                data={
+                    "customers": customers,
+                    "has_more": response.data.get("has_more", False),
+                    "result": True,
+                },
+                cost_usd=0.0,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"customers": [], "has_more": False, "result": False, "error": str(e)}, cost_usd=0.0
+                data={
+                    "customers": [],
+                    "has_more": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
             )
 
 
@@ -115,13 +137,19 @@ class GetCustomerAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers/{customer_id}", method="GET", headers=headers
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers/{customer_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data={"customer": response.data, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"customer": response.data, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("create_customer")
@@ -150,13 +178,20 @@ class CreateCustomerAction(ActionHandler):
             form_data = build_form_data(body)
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers", method="POST", headers=headers, data=form_data
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers",
+                method="POST",
+                headers=headers,
+                data=form_data,
             )
 
-            return ActionResult(data={"customer": response.data, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"customer": response.data, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("update_customer")
@@ -192,10 +227,14 @@ class UpdateCustomerAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"customer": response.data, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"customer": response.data, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("delete_customer")
@@ -208,17 +247,28 @@ class DeleteCustomerAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers/{customer_id}", method="DELETE", headers=headers
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers/{customer_id}",
+                method="DELETE",
+                headers=headers,
             )
 
             return ActionResult(
-                data={"id": response.data.get("id", customer_id), "deleted": response.data.get("deleted", True), "result": True},
+                data={
+                    "id": response.data.get("id", customer_id),
+                    "deleted": response.data.get("deleted", True),
+                    "result": True,
+                },
                 cost_usd=0.0,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"id": inputs.get("customer_id", ""), "deleted": False, "result": False, "error": str(e)},
+                data={
+                    "id": inputs.get("customer_id", ""),
+                    "deleted": False,
+                    "result": False,
+                    "error": str(e),
+                },
                 cost_usd=0.0,
             )
 
@@ -247,18 +297,32 @@ class ListInvoicesAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices", method="GET", headers=headers, params=params
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
             invoices = response.data.get("data", [])
 
             return ActionResult(
-                data={"invoices": invoices, "has_more": response.data.get("has_more", False), "result": True}, cost_usd=0.0
+                data={
+                    "invoices": invoices,
+                    "has_more": response.data.get("has_more", False),
+                    "result": True,
+                },
+                cost_usd=0.0,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"invoices": [], "has_more": False, "result": False, "error": str(e)}, cost_usd=0.0
+                data={
+                    "invoices": [],
+                    "has_more": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
             )
 
 
@@ -272,13 +336,19 @@ class GetInvoiceAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}", method="GET", headers=headers
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("create_invoice")
@@ -307,13 +377,20 @@ class CreateInvoiceAction(ActionHandler):
             form_data = build_form_data(body)
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices", method="POST", headers=headers, data=form_data
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices",
+                method="POST",
+                headers=headers,
+                data=form_data,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("update_invoice")
@@ -347,10 +424,14 @@ class UpdateInvoiceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("delete_invoice")
@@ -363,17 +444,28 @@ class DeleteInvoiceAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}", method="DELETE", headers=headers
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}",
+                method="DELETE",
+                headers=headers,
             )
 
             return ActionResult(
-                data={"id": response.data.get("id", invoice_id), "deleted": response.data.get("deleted", True), "result": True},
+                data={
+                    "id": response.data.get("id", invoice_id),
+                    "deleted": response.data.get("deleted", True),
+                    "result": True,
+                },
                 cost_usd=0.0,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"id": inputs.get("invoice_id", ""), "deleted": False, "result": False, "error": str(e)},
+                data={
+                    "id": inputs.get("invoice_id", ""),
+                    "deleted": False,
+                    "result": False,
+                    "error": str(e),
+                },
                 cost_usd=0.0,
             )
 
@@ -400,10 +492,14 @@ class FinalizeInvoiceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("send_invoice")
@@ -416,13 +512,19 @@ class SendInvoiceAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}/send", method="POST", headers=headers
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}/send",
+                method="POST",
+                headers=headers,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("pay_invoice")
@@ -447,10 +549,14 @@ class PayInvoiceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("void_invoice")
@@ -463,13 +569,19 @@ class VoidInvoiceAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}/void", method="POST", headers=headers
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}/void",
+                method="POST",
+                headers=headers,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Invoice Item Action Handlers ----
@@ -494,19 +606,32 @@ class ListInvoiceItemsAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems", method="GET", headers=headers, params=params
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
             invoice_items = response.data.get("data", [])
 
             return ActionResult(
-                data={"invoice_items": invoice_items, "has_more": response.data.get("has_more", False), "result": True},
+                data={
+                    "invoice_items": invoice_items,
+                    "has_more": response.data.get("has_more", False),
+                    "result": True,
+                },
                 cost_usd=0.0,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"invoice_items": [], "has_more": False, "result": False, "error": str(e)}, cost_usd=0.0
+                data={
+                    "invoice_items": [],
+                    "has_more": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
             )
 
 
@@ -520,13 +645,20 @@ class GetInvoiceItemAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems/{invoice_item_id}", method="GET", headers=headers
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems/{invoice_item_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data={"invoice_item": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice_item": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"invoice_item": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice_item": {}, "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @stripe.action("create_invoice_item")
@@ -557,13 +689,21 @@ class CreateInvoiceItemAction(ActionHandler):
             form_data = build_form_data(body)
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems", method="POST", headers=headers, data=form_data
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems",
+                method="POST",
+                headers=headers,
+                data=form_data,
             )
 
-            return ActionResult(data={"invoice_item": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice_item": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"invoice_item": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice_item": {}, "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @stripe.action("update_invoice_item")
@@ -597,10 +737,15 @@ class UpdateInvoiceItemAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"invoice_item": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice_item": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"invoice_item": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"invoice_item": {}, "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @stripe.action("delete_invoice_item")
@@ -613,7 +758,9 @@ class DeleteInvoiceItemAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems/{invoice_item_id}", method="DELETE", headers=headers
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems/{invoice_item_id}",
+                method="DELETE",
+                headers=headers,
             )
 
             return ActionResult(
@@ -627,7 +774,12 @@ class DeleteInvoiceItemAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"id": inputs.get("invoice_item_id", ""), "deleted": False, "result": False, "error": str(e)},
+                data={
+                    "id": inputs.get("invoice_item_id", ""),
+                    "deleted": False,
+                    "result": False,
+                    "error": str(e),
+                },
                 cost_usd=0.0,
             )
 
@@ -656,18 +808,32 @@ class ListProductsAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/products", method="GET", headers=headers, params=params
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/products",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
             products = response.data.get("data", [])
 
             return ActionResult(
-                data={"products": products, "has_more": response.data.get("has_more", False), "result": True}, cost_usd=0.0
+                data={
+                    "products": products,
+                    "has_more": response.data.get("has_more", False),
+                    "result": True,
+                },
+                cost_usd=0.0,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"products": [], "has_more": False, "result": False, "error": str(e)}, cost_usd=0.0
+                data={
+                    "products": [],
+                    "has_more": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
             )
 
 
@@ -681,13 +847,19 @@ class GetProductAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/products/{product_id}", method="GET", headers=headers
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/products/{product_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data={"product": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"product": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("create_product")
@@ -720,13 +892,20 @@ class CreateProductAction(ActionHandler):
             form_data = build_form_data(body)
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/products", method="POST", headers=headers, data=form_data
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/products",
+                method="POST",
+                headers=headers,
+                data=form_data,
             )
 
-            return ActionResult(data={"product": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"product": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("update_product")
@@ -768,10 +947,14 @@ class UpdateProductAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"product": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"product": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Price Action Handlers ----
@@ -802,17 +985,33 @@ class ListPricesAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices", method="GET", headers=headers, params=params
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
             prices = response.data.get("data", [])
 
             return ActionResult(
-                data={"prices": prices, "has_more": response.data.get("has_more", False), "result": True}, cost_usd=0.0
+                data={
+                    "prices": prices,
+                    "has_more": response.data.get("has_more", False),
+                    "result": True,
+                },
+                cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"prices": [], "has_more": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "prices": [],
+                    "has_more": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
 
 
 @stripe.action("get_price")
@@ -825,13 +1024,17 @@ class GetPriceAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices/{price_id}", method="GET", headers=headers
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices/{price_id}",
+                method="GET",
+                headers=headers,
             )
 
             return ActionResult(data={"price": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("create_price")
@@ -840,7 +1043,10 @@ class CreatePriceAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = {"currency": inputs.get("currency", "usd"), "product": inputs["product"]}
+            body = {
+                "currency": inputs.get("currency", "usd"),
+                "product": inputs["product"],
+            }
 
             # Add unit_amount or custom_unit_amount
             if "unit_amount" in inputs and inputs["unit_amount"] is not None:
@@ -870,13 +1076,18 @@ class CreatePriceAction(ActionHandler):
             form_data = build_form_data(body)
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices", method="POST", headers=headers, data=form_data
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices",
+                method="POST",
+                headers=headers,
+                data=form_data,
             )
 
             return ActionResult(data={"price": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @stripe.action("update_price")
@@ -902,13 +1113,18 @@ class UpdatePriceAction(ActionHandler):
             form_data = build_form_data(body)
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices/{price_id}", method="POST", headers=headers, data=form_data
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices/{price_id}",
+                method="POST",
+                headers=headers,
+                data=form_data,
             )
 
             return ActionResult(data={"price": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Subscription Action Handlers ----
@@ -933,27 +1149,46 @@ class ListSubscriptionsAction(ActionHandler):
                 params["created[gte]"] = inputs["created_gte"]
             if "created_lte" in inputs and inputs["created_lte"]:
                 params["created[lte]"] = inputs["created_lte"]
-            if "current_period_start_gte" in inputs and inputs["current_period_start_gte"]:
+            if (
+                "current_period_start_gte" in inputs
+                and inputs["current_period_start_gte"]
+            ):
                 params["current_period_start[gte]"] = inputs["current_period_start_gte"]
-            if "current_period_start_lte" in inputs and inputs["current_period_start_lte"]:
+            if (
+                "current_period_start_lte" in inputs
+                and inputs["current_period_start_lte"]
+            ):
                 params["current_period_start[lte]"] = inputs["current_period_start_lte"]
 
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions", method="GET", headers=headers, params=params
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
             subscriptions = response.data.get("data", [])
 
             return ActionResult(
-                data={"subscriptions": subscriptions, "has_more": response.data.get("has_more", False), "result": True},
+                data={
+                    "subscriptions": subscriptions,
+                    "has_more": response.data.get("has_more", False),
+                    "result": True,
+                },
                 cost_usd=0.0,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"subscriptions": [], "has_more": False, "result": False, "error": str(e)}, cost_usd=0.0
+                data={
+                    "subscriptions": [],
+                    "has_more": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
             )
 
 
@@ -967,13 +1202,20 @@ class GetSubscriptionAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions/{subscription_id}", method="GET", headers=headers
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions/{subscription_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data={"subscription": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"subscription": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"subscription": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"subscription": {}, "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @stripe.action("create_subscription")
@@ -995,7 +1237,10 @@ class CreateSubscriptionAction(ActionHandler):
                 body["payment_behavior"] = inputs["payment_behavior"]
             if "billing_cycle_anchor" in inputs and inputs["billing_cycle_anchor"]:
                 body["billing_cycle_anchor"] = inputs["billing_cycle_anchor"]
-            if "cancel_at_period_end" in inputs and inputs["cancel_at_period_end"] is not None:
+            if (
+                "cancel_at_period_end" in inputs
+                and inputs["cancel_at_period_end"] is not None
+            ):
                 body["cancel_at_period_end"] = inputs["cancel_at_period_end"]
             if "cancel_at" in inputs and inputs["cancel_at"]:
                 body["cancel_at"] = inputs["cancel_at"]
@@ -1016,13 +1261,21 @@ class CreateSubscriptionAction(ActionHandler):
             form_data = build_form_data(body)
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions", method="POST", headers=headers, data=form_data
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions",
+                method="POST",
+                headers=headers,
+                data=form_data,
             )
 
-            return ActionResult(data={"subscription": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"subscription": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"subscription": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"subscription": {}, "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @stripe.action("update_subscription")
@@ -1041,7 +1294,10 @@ class UpdateSubscriptionAction(ActionHandler):
                 body["default_payment_method"] = inputs["default_payment_method"]
             if "payment_behavior" in inputs and inputs["payment_behavior"]:
                 body["payment_behavior"] = inputs["payment_behavior"]
-            if "cancel_at_period_end" in inputs and inputs["cancel_at_period_end"] is not None:
+            if (
+                "cancel_at_period_end" in inputs
+                and inputs["cancel_at_period_end"] is not None
+            ):
                 body["cancel_at_period_end"] = inputs["cancel_at_period_end"]
             if "cancel_at" in inputs and inputs["cancel_at"]:
                 body["cancel_at"] = inputs["cancel_at"]
@@ -1066,10 +1322,15 @@ class UpdateSubscriptionAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"subscription": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"subscription": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"subscription": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"subscription": {}, "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @stripe.action("cancel_subscription")
@@ -1114,10 +1375,15 @@ class CancelSubscriptionAction(ActionHandler):
                     data=form_data if form_data else None,
                 )
 
-            return ActionResult(data={"subscription": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"subscription": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"subscription": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"subscription": {}, "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 # ---- Payment Method Action Handlers ----
@@ -1141,19 +1407,32 @@ class ListPaymentMethodsAction(ActionHandler):
             headers = get_common_headers()
 
             response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/payment_methods", method="GET", headers=headers, params=params
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/payment_methods",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
             payment_methods = response.data.get("data", [])
 
             return ActionResult(
-                data={"payment_methods": payment_methods, "has_more": response.data.get("has_more", False), "result": True},
+                data={
+                    "payment_methods": payment_methods,
+                    "has_more": response.data.get("has_more", False),
+                    "result": True,
+                },
                 cost_usd=0.0,
             )
 
         except Exception as e:
             return ActionResult(
-                data={"payment_methods": [], "has_more": False, "result": False, "error": str(e)}, cost_usd=0.0
+                data={
+                    "payment_methods": [],
+                    "has_more": False,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
             )
 
 
@@ -1172,10 +1451,15 @@ class GetPaymentMethodAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"payment_method": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"payment_method": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"payment_method": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"payment_method": {}, "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @stripe.action("attach_payment_method")
@@ -1197,10 +1481,15 @@ class AttachPaymentMethodAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"payment_method": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"payment_method": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"payment_method": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"payment_method": {}, "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @stripe.action("detach_payment_method")
@@ -1218,7 +1507,12 @@ class DetachPaymentMethodAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"payment_method": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"payment_method": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"payment_method": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"payment_method": {}, "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )
