@@ -89,7 +89,7 @@ class ListMeetingsAction(ActionHandler):
             response = await client._make_request("meetings", params=params)
 
             # Process items to filter out null optional fields
-            items = response.get("items", [])
+            items = response.data.get("items", [])
             processed_items = []
 
             # Fields to exclude when they are null (not in output schema)
@@ -107,8 +107,8 @@ class ListMeetingsAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "limit": response.get("limit", 0),
-                    "next_cursor": response.get("next_cursor"),
+                    "limit": response.data.get("limit", 0),
+                    "next_cursor": response.data.get("next_cursor"),
                     "items": processed_items,
                 },
                 cost_usd=0.0,
@@ -127,7 +127,7 @@ class GetTranscriptAction(ActionHandler):
             response = await client._make_request(f"recordings/{recording_id}/transcript")
 
             transcript = []
-            for segment in response.get("transcript", []):
+            for segment in response.data.get("transcript", []):
                 # Extract speaker name from speaker object
                 speaker = segment.get("speaker", {})
                 speaker_name = speaker.get("display_name", "Unknown Speaker")
@@ -159,11 +159,11 @@ class ListTeamsAction(ActionHandler):
             response = await client._make_request("teams", params=params)
 
             teams = []
-            for team in response.get("items", []):
+            for team in response.data.get("items", []):
                 teams.append({"name": team.get("name", ""), "created_at": team.get("created_at", "")})
 
             return ActionResult(
-                data={"limit": response.get("limit"), "next_cursor": response.get("next_cursor"), "teams": teams},
+                data={"limit": response.data.get("limit"), "next_cursor": response.data.get("next_cursor"), "teams": teams},
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -186,7 +186,7 @@ class ListTeamMembersAction(ActionHandler):
             response = await client._make_request("team_members", params=params)
 
             team_members = []
-            for member in response.get("items", []):
+            for member in response.data.get("items", []):
                 team_members.append(
                     {
                         "name": member.get("name", ""),
@@ -197,8 +197,8 @@ class ListTeamMembersAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "limit": response.get("limit"),
-                    "next_cursor": response.get("next_cursor"),
+                    "limit": response.data.get("limit"),
+                    "next_cursor": response.data.get("next_cursor"),
                     "team_members": team_members,
                 },
                 cost_usd=0.0,

@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -29,7 +29,7 @@ class SearchAppsIOS(ActionHandler):
         response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
 
         # Extract apps from organic results
-        organic_results = response.get("organic_results", [])
+        organic_results = response.data.get("organic_results", [])
         limit = inputs.get("num", 10)
         apps = []
 
@@ -48,7 +48,7 @@ class SearchAppsIOS(ActionHandler):
             }
             apps.append(app)
 
-        return {"apps": apps, "total_results": len(apps)}
+        return ActionResult(data={"apps": apps, "total_results": len(apps)}, cost_usd=0)
 
 
 @app_business_reviews.action("get_reviews_app_store")
@@ -73,7 +73,7 @@ class GetReviewsAppStore(ActionHandler):
 
             search_response = await context.fetch("https://serpapi.com/search", method="GET", params=search_params)
 
-            organic_results = search_response.get("organic_results", [])
+            organic_results = search_response.data.get("organic_results", [])
             if not organic_results:
                 raise ValueError(f"No apps found for search term: {app_name}")
 
@@ -110,7 +110,7 @@ class GetReviewsAppStore(ActionHandler):
             response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
 
             # Extract reviews data from current page
-            page_reviews = response.get("reviews", [])
+            page_reviews = response.data.get("reviews", [])
             if not page_reviews:
                 break
 
@@ -139,16 +139,19 @@ class GetReviewsAppStore(ActionHandler):
             current_page += 1
 
             # Check if there are more pages using pagination info
-            pagination_info = response.get("serpapi_pagination", {})
+            pagination_info = response.data.get("serpapi_pagination", {})
             if not pagination_info.get("next"):
                 break
 
-        return {
-            "reviews": all_reviews,
-            "total_reviews": len(all_reviews),
-            "app_name": app_title,
-            "product_id": product_id,
-        }
+        return ActionResult(
+            data={
+                "reviews": all_reviews,
+                "total_reviews": len(all_reviews),
+                "app_name": app_title,
+                "product_id": product_id,
+            },
+            cost_usd=0,
+        )
 
 
 # ---- Google Play Store Actions ----
@@ -166,7 +169,7 @@ class SearchAppsAndroid(ActionHandler):
         response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
 
         # Extract apps from organic results
-        organic_results = response.get("organic_results", [])
+        organic_results = response.data.get("organic_results", [])
         limit = inputs.get("limit", 10)
         apps = []
 
@@ -189,7 +192,7 @@ class SearchAppsAndroid(ActionHandler):
             if len(apps) >= limit:
                 break
 
-        return {"apps": apps, "total_results": len(apps)}
+        return ActionResult(data={"apps": apps, "total_results": len(apps)}, cost_usd=0)
 
 
 @app_business_reviews.action("get_reviews_google_play")
@@ -210,7 +213,7 @@ class GetReviewsGooglePlay(ActionHandler):
 
             search_response = await context.fetch("https://serpapi.com/search", method="GET", params=search_params)
 
-            organic_results = search_response.get("organic_results", [])
+            organic_results = search_response.data.get("organic_results", [])
             if not organic_results:
                 raise ValueError(f"No apps found for search term: {app_name}")
 
@@ -265,7 +268,7 @@ class GetReviewsGooglePlay(ActionHandler):
             response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
 
             # Extract reviews data from current page
-            page_reviews = response.get("reviews", [])
+            page_reviews = response.data.get("reviews", [])
             if not page_reviews:
                 break
 
@@ -285,21 +288,24 @@ class GetReviewsGooglePlay(ActionHandler):
             pages_fetched += 1
 
             # Check if there's a next page
-            pagination_info = response.get("serpapi_pagination", {})
+            pagination_info = response.data.get("serpapi_pagination", {})
             next_page_token = pagination_info.get("next_page_token")
             if not next_page_token:
                 break
 
         # Extract app information from the response
-        app_info = response.get("product_info", {})
+        app_info = response.data.get("product_info", {})
 
-        return {
-            "reviews": all_reviews,
-            "total_reviews": len(all_reviews),
-            "app_name": app_info.get("title", ""),
-            "app_rating": app_info.get("rating") or 0.0,
-            "product_id": product_id,
-        }
+        return ActionResult(
+            data={
+                "reviews": all_reviews,
+                "total_reviews": len(all_reviews),
+                "app_name": app_info.get("title", ""),
+                "app_rating": app_info.get("rating") or 0.0,
+                "product_id": product_id,
+            },
+            cost_usd=0,
+        )
 
 
 # ---- Google Maps Actions ----
@@ -323,7 +329,7 @@ class SearchPlacesGoogleMaps(ActionHandler):
         response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
 
         # Extract places from local results
-        local_results = response.get("local_results", [])
+        local_results = response.data.get("local_results", [])
         limit = inputs.get("num_results", 5)
         places = []
 
@@ -340,7 +346,7 @@ class SearchPlacesGoogleMaps(ActionHandler):
             }
             places.append(place)
 
-        return {"places": places, "total_results": len(places)}
+        return ActionResult(data={"places": places, "total_results": len(places)}, cost_usd=0)
 
 
 @app_business_reviews.action("get_reviews_google_maps")
@@ -369,7 +375,7 @@ class GetReviewsGoogleMaps(ActionHandler):
             # Search for the place to get place_id and data_id
             search_response = await context.fetch("https://serpapi.com/search", method="GET", params=search_params)
 
-            local_results = search_response.get("local_results", [])
+            local_results = search_response.data.get("local_results", [])
             if not local_results:
                 # Provide helpful error message
                 suggestion = (
@@ -426,7 +432,7 @@ class GetReviewsGoogleMaps(ActionHandler):
             response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
 
             # Extract reviews data from current page
-            page_reviews = response.get("reviews", [])
+            page_reviews = response.data.get("reviews", [])
             if not page_reviews:
                 break
 
@@ -444,12 +450,12 @@ class GetReviewsGoogleMaps(ActionHandler):
             pages_fetched += 1
 
             # Check if there's a next page
-            next_page_token = response.get("serpapi_pagination", {}).get("next_page_token")
+            next_page_token = response.data.get("serpapi_pagination", {}).get("next_page_token")
             if not next_page_token:
                 break
 
         # Extract business information from the last response
-        place_info = response.get("place_info", {})
+        place_info = response.data.get("place_info", {})
 
         # Use business name from search result if we searched, otherwise from place_info
         business_name = place_info.get("title", "")
@@ -458,10 +464,13 @@ class GetReviewsGoogleMaps(ActionHandler):
             if local_results:
                 business_name = local_results[0].get("title", business_name)
 
-        return {
-            "reviews": all_reviews,
-            "total_reviews": len(all_reviews),
-            "average_rating": place_info.get("rating") or 0.0,
-            "business_name": business_name,
-            "place_id": place_id or place_info.get("place_id", inputs.get("place_id", "")),
-        }
+        return ActionResult(
+            data={
+                "reviews": all_reviews,
+                "total_reviews": len(all_reviews),
+                "average_rating": place_info.get("rating") or 0.0,
+                "business_name": business_name,
+                "place_id": place_id or place_info.get("place_id", inputs.get("place_id", "")),
+            },
+            cost_usd=0,
+        )

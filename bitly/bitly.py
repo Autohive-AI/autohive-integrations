@@ -44,7 +44,7 @@ class GetUserAction(ActionHandler):
         try:
             response = await context.fetch(f"{BITLY_API_BASE_URL}/user", method="GET")
 
-            return ActionResult(data={"user": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"user": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -68,7 +68,7 @@ class ShortenUrlAction(ActionHandler):
 
             response = await context.fetch(f"{BITLY_API_BASE_URL}/shorten", method="POST", json=body)
 
-            return ActionResult(data={"bitlink": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"bitlink": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"bitlink": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -95,7 +95,7 @@ class CreateBitlinkAction(ActionHandler):
 
             response = await context.fetch(f"{BITLY_API_BASE_URL}/bitlinks", method="POST", json=body)
 
-            return ActionResult(data={"bitlink": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"bitlink": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"bitlink": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -112,7 +112,7 @@ class GetBitlinkAction(ActionHandler):
 
             response = await context.fetch(f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}", method="GET")
 
-            return ActionResult(data={"bitlink": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"bitlink": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"bitlink": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -139,7 +139,7 @@ class UpdateBitlinkAction(ActionHandler):
                 f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}", method="PATCH", json=body
             )
 
-            return ActionResult(data={"bitlink": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"bitlink": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"bitlink": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -155,7 +155,7 @@ class ExpandBitlinkAction(ActionHandler):
 
             response = await context.fetch(f"{BITLY_API_BASE_URL}/expand", method="POST", json={"bitlink_id": bitlink})
 
-            return ActionResult(data={"long_url": response.get("long_url", ""), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"long_url": response.data.get("long_url", ""), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"long_url": "", "result": False, "error": str(e)}, cost_usd=0.0)
@@ -182,7 +182,7 @@ class GetClicksAction(ActionHandler):
                 f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}/clicks", method="GET", params=params
             )
 
-            clicks = response.get("link_clicks", [])
+            clicks = response.data.get("link_clicks", [])
 
             return ActionResult(data={"clicks": clicks, "result": True}, cost_usd=0.0)
 
@@ -210,9 +210,9 @@ class GetClicksSummaryAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "total_clicks": response.get("total_clicks", 0),
-                    "unit": response.get("unit", ""),
-                    "units": response.get("units", 0),
+                    "total_clicks": response.data.get("total_clicks", 0),
+                    "unit": response.data.get("unit", ""),
+                    "units": response.data.get("units", 0),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -235,7 +235,7 @@ class ListBitlinksAction(ActionHandler):
             if not group_guid:
                 # Get user's default group
                 user_response = await context.fetch(f"{BITLY_API_BASE_URL}/user", method="GET")
-                group_guid = user_response.get("default_group_guid")
+                group_guid = user_response.data.get("default_group_guid")
                 if not group_guid:
                     return ActionResult(
                         data={"bitlinks": [], "result": False, "error": "No default_group_guid found for user"},
@@ -261,8 +261,8 @@ class ListBitlinksAction(ActionHandler):
                 params=params if params else None,
             )
 
-            bitlinks = response.get("links", [])
-            pagination = response.get("pagination", {})
+            bitlinks = response.data.get("links", [])
+            pagination = response.data.get("pagination", {})
 
             return ActionResult(
                 data={
@@ -292,7 +292,7 @@ class ListGroupsAction(ActionHandler):
         try:
             response = await context.fetch(f"{BITLY_API_BASE_URL}/groups", method="GET")
 
-            groups = response.get("groups", [])
+            groups = response.data.get("groups", [])
 
             return ActionResult(data={"groups": groups, "result": True}, cost_usd=0.0)
 
@@ -310,7 +310,7 @@ class GetGroupAction(ActionHandler):
 
             response = await context.fetch(f"{BITLY_API_BASE_URL}/groups/{group_guid}", method="GET")
 
-            return ActionResult(data={"group": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"group": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"group": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -327,7 +327,7 @@ class ListOrganizationsAction(ActionHandler):
         try:
             response = await context.fetch(f"{BITLY_API_BASE_URL}/organizations", method="GET")
 
-            organizations = response.get("organizations", [])
+            organizations = response.data.get("organizations", [])
 
             return ActionResult(data={"organizations": organizations, "result": True}, cost_usd=0.0)
 

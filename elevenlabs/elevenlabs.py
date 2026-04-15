@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 import base64
 import aiohttp
@@ -56,11 +56,11 @@ class ListVoicesAction(ActionHandler):
                 f"{ELEVENLABS_API_BASE_URL}/voices", method="GET", headers=headers, params=params if params else None
             )
 
-            voices = response.get("voices", [])
-            return {"voices": voices, "result": True}
+            voices = response.data.get("voices", [])
+            return ActionResult(data={"voices": voices, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"voices": [], "result": False, "error": str(e)}
+            return ActionResult(data={"voices": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @elevenlabs.action("get_voice")
@@ -84,10 +84,10 @@ class GetVoiceAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return {"voice": response, "result": True}
+            return ActionResult(data={"voice": response.data, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"voice": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"voice": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @elevenlabs.action("get_voice_settings")
@@ -104,10 +104,10 @@ class GetVoiceSettingsAction(ActionHandler):
                 f"{ELEVENLABS_API_BASE_URL}/voices/{voice_id}/settings", method="GET", headers=headers
             )
 
-            return {"settings": response, "result": True}
+            return ActionResult(data={"settings": response.data, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"settings": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"settings": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @elevenlabs.action("list_history")
@@ -129,11 +129,11 @@ class ListHistoryAction(ActionHandler):
                 f"{ELEVENLABS_API_BASE_URL}/history", method="GET", headers=headers, params=params if params else None
             )
 
-            history = response.get("history", [])
-            return {"history": history, "result": True}
+            history = response.data.get("history", [])
+            return ActionResult(data={"history": history, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"history": [], "result": False, "error": str(e)}
+            return ActionResult(data={"history": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @elevenlabs.action("download_history_audio")
@@ -158,20 +158,23 @@ class DownloadHistoryAudioAction(ActionHandler):
                         # Encode as base64 following Autohive pattern (see Slider integration)
                         audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
 
-                        return {
-                            "file": {
-                                "content": audio_base64,
-                                "name": "downloaded_audio.mp3",
-                                "contentType": "audio/mpeg",
+                        return ActionResult(
+                            data={
+                                "file": {
+                                    "content": audio_base64,
+                                    "name": "downloaded_audio.mp3",
+                                    "contentType": "audio/mpeg",
+                                },
+                                "result": True,
                             },
-                            "result": True,
-                        }
+                            cost_usd=0,
+                        )
                     else:
                         error_text = await resp.text()
-                        return {"audio": {}, "result": False, "error": f"HTTP {resp.status}: {error_text}"}
+                        return ActionResult(data={"audio": {}, "result": False, "error": f"HTTP {resp.status}: {error_text}"}, cost_usd=0)
 
         except Exception as e:
-            return {"audio": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"audio": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @elevenlabs.action("get_user_subscription")
@@ -186,10 +189,10 @@ class GetUserSubscriptionAction(ActionHandler):
                 f"{ELEVENLABS_API_BASE_URL}/user/subscription", method="GET", headers=headers
             )
 
-            return {"subscription": response, "result": True}
+            return ActionResult(data={"subscription": response.data, "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"subscription": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"subscription": {}, "result": False, "error": str(e)}, cost_usd=0)
 
 
 @elevenlabs.action("text_to_speech")
@@ -227,17 +230,20 @@ class TextToSpeechAction(ActionHandler):
                         # Encode as base64 following Autohive pattern (see Slider integration)
                         audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
 
-                        return {
-                            "file": {
-                                "content": audio_base64,
-                                "name": "generated_audio.mp3",
-                                "contentType": "audio/mpeg",
+                        return ActionResult(
+                            data={
+                                "file": {
+                                    "content": audio_base64,
+                                    "name": "generated_audio.mp3",
+                                    "contentType": "audio/mpeg",
+                                },
+                                "result": True,
                             },
-                            "result": True,
-                        }
+                            cost_usd=0,
+                        )
                     else:
                         error_text = await resp.text()
-                        return {"audio": {}, "result": False, "error": f"HTTP {resp.status}: {error_text}"}
+                        return ActionResult(data={"audio": {}, "result": False, "error": f"HTTP {resp.status}: {error_text}"}, cost_usd=0)
 
         except Exception as e:
-            return {"audio": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"audio": {}, "result": False, "error": str(e)}, cost_usd=0)

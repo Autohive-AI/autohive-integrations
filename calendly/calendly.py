@@ -26,7 +26,7 @@ class GetCurrentUserAction(ActionHandler):
         try:
             response = await context.fetch(f"{CALENDLY_API_BASE_URL}/users/me", method="GET")
 
-            user = response.get("resource", response)
+            user = response.data.get("resource", response.data)
 
             return ActionResult(data={"user": user, "result": True}, cost_usd=0.0)
 
@@ -44,7 +44,7 @@ class GetUserAction(ActionHandler):
 
             response = await context.fetch(f"{CALENDLY_API_BASE_URL}/users/{user_uuid}", method="GET")
 
-            user = response.get("resource", response)
+            user = response.data.get("resource", response.data)
 
             return ActionResult(data={"user": user, "result": True}, cost_usd=0.0)
 
@@ -70,8 +70,8 @@ class ListEventTypesAction(ActionHandler):
                 f"{CALENDLY_API_BASE_URL}/event_types", method="GET", params=params if params else None
             )
 
-            event_types = response.get("collection", [])
-            pagination = response.get("pagination", {})
+            event_types = response.data.get("collection", [])
+            pagination = response.data.get("pagination", {})
 
             return ActionResult(
                 data={"event_types": event_types, "pagination": pagination, "result": True}, cost_usd=0.0
@@ -93,7 +93,7 @@ class GetEventTypeAction(ActionHandler):
 
             response = await context.fetch(f"{CALENDLY_API_BASE_URL}/event_types/{event_type_uuid}", method="GET")
 
-            event_type = response.get("resource", response)
+            event_type = response.data.get("resource", response.data)
 
             return ActionResult(data={"event_type": event_type, "result": True}, cost_usd=0.0)
 
@@ -129,8 +129,8 @@ class ListScheduledEventsAction(ActionHandler):
                 f"{CALENDLY_API_BASE_URL}/scheduled_events", method="GET", params=params if params else None
             )
 
-            events = response.get("collection", [])
-            pagination = response.get("pagination", {})
+            events = response.data.get("collection", [])
+            pagination = response.data.get("pagination", {})
 
             return ActionResult(data={"events": events, "pagination": pagination, "result": True}, cost_usd=0.0)
 
@@ -148,7 +148,7 @@ class GetScheduledEventAction(ActionHandler):
 
             response = await context.fetch(f"{CALENDLY_API_BASE_URL}/scheduled_events/{event_uuid}", method="GET")
 
-            event = response.get("resource", response)
+            event = response.data.get("resource", response.data)
 
             return ActionResult(data={"event": event, "result": True}, cost_usd=0.0)
 
@@ -202,8 +202,8 @@ class ListEventInviteesAction(ActionHandler):
                 params=params if params else None,
             )
 
-            invitees = response.get("collection", [])
-            pagination = response.get("pagination", {})
+            invitees = response.data.get("collection", [])
+            pagination = response.data.get("pagination", {})
 
             return ActionResult(data={"invitees": invitees, "pagination": pagination, "result": True}, cost_usd=0.0)
 
@@ -225,7 +225,7 @@ class GetInviteeAction(ActionHandler):
                 f"{CALENDLY_API_BASE_URL}/scheduled_events/{event_uuid}/invitees/{invitee_uuid}", method="GET"
             )
 
-            invitee = response.get("resource", response)
+            invitee = response.data.get("resource", response.data)
 
             return ActionResult(data={"invitee": invitee, "result": True}, cost_usd=0.0)
 
@@ -252,7 +252,7 @@ class GetEventTypeAvailableTimesAction(ActionHandler):
                 f"{CALENDLY_API_BASE_URL}/event_type_available_times", method="GET", params=params
             )
 
-            available_times = response.get("collection", [])
+            available_times = response.data.get("collection", [])
 
             return ActionResult(data={"available_times": available_times, "result": True}, cost_usd=0.0)
 
@@ -270,7 +270,7 @@ class GetUserBusyTimesAction(ActionHandler):
 
             response = await context.fetch(f"{CALENDLY_API_BASE_URL}/user_busy_times", method="GET", params=params)
 
-            busy_times = response.get("collection", [])
+            busy_times = response.data.get("collection", [])
 
             return ActionResult(data={"busy_times": busy_times, "result": True}, cost_usd=0.0)
 
@@ -290,7 +290,7 @@ class ListUserAvailabilitySchedulesAction(ActionHandler):
                 f"{CALENDLY_API_BASE_URL}/user_availability_schedules", method="GET", params=params
             )
 
-            schedules = response.get("collection", [])
+            schedules = response.data.get("collection", [])
 
             return ActionResult(data={"availability_schedules": schedules, "result": True}, cost_usd=0.0)
 
@@ -316,8 +316,8 @@ class ListOrganizationMembershipsAction(ActionHandler):
                 f"{CALENDLY_API_BASE_URL}/organization_memberships", method="GET", params=params if params else None
             )
 
-            memberships = response.get("collection", [])
-            pagination = response.get("pagination", {})
+            memberships = response.data.get("collection", [])
+            pagination = response.data.get("pagination", {})
 
             return ActionResult(
                 data={"memberships": memberships, "pagination": pagination, "result": True}, cost_usd=0.0
@@ -347,8 +347,8 @@ class ListWebhooksAction(ActionHandler):
                 f"{CALENDLY_API_BASE_URL}/webhook_subscriptions", method="GET", params=params if params else None
             )
 
-            webhooks = response.get("collection", [])
-            pagination = response.get("pagination", {})
+            webhooks = response.data.get("collection", [])
+            pagination = response.data.get("pagination", {})
 
             return ActionResult(data={"webhooks": webhooks, "pagination": pagination, "result": True}, cost_usd=0.0)
 
@@ -368,7 +368,7 @@ class GetWebhookAction(ActionHandler):
                 f"{CALENDLY_API_BASE_URL}/webhook_subscriptions/{webhook_uuid}", method="GET"
             )
 
-            webhook = response.get("resource", response)
+            webhook = response.data.get("resource", response.data)
 
             return ActionResult(data={"webhook": webhook, "result": True}, cost_usd=0.0)
 
@@ -396,7 +396,7 @@ class CreateWebhookAction(ActionHandler):
 
             response = await context.fetch(f"{CALENDLY_API_BASE_URL}/webhook_subscriptions", method="POST", json=body)
 
-            webhook = response.get("resource", response)
+            webhook = response.data.get("resource", response.data)
 
             return ActionResult(data={"webhook": webhook, "result": True}, cost_usd=0.0)
 
@@ -437,8 +437,8 @@ class ListRoutingFormsAction(ActionHandler):
 
             response = await context.fetch(f"{CALENDLY_API_BASE_URL}/routing_forms", method="GET", params=params)
 
-            routing_forms = response.get("collection", [])
-            pagination = response.get("pagination", {})
+            routing_forms = response.data.get("collection", [])
+            pagination = response.data.get("pagination", {})
 
             return ActionResult(
                 data={"routing_forms": routing_forms, "pagination": pagination, "result": True}, cost_usd=0.0
@@ -460,7 +460,7 @@ class GetRoutingFormAction(ActionHandler):
 
             response = await context.fetch(f"{CALENDLY_API_BASE_URL}/routing_forms/{routing_form_uuid}", method="GET")
 
-            routing_form = response.get("resource", response)
+            routing_form = response.data.get("resource", response.data)
 
             return ActionResult(data={"routing_form": routing_form, "result": True}, cost_usd=0.0)
 
@@ -485,8 +485,8 @@ class ListRoutingFormSubmissionsAction(ActionHandler):
                 f"{CALENDLY_API_BASE_URL}/routing_form_submissions", method="GET", params=params
             )
 
-            submissions = response.get("collection", [])
-            pagination = response.get("pagination", {})
+            submissions = response.data.get("collection", [])
+            pagination = response.data.get("pagination", {})
 
             return ActionResult(
                 data={"submissions": submissions, "pagination": pagination, "result": True}, cost_usd=0.0

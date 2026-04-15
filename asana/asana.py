@@ -44,7 +44,7 @@ class CreateTaskAction(ActionHandler):
 
             response = await context.fetch(f"{ASANA_API_BASE_URL}/tasks", method="POST", json={"data": data})
 
-            return ActionResult(data={"task": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"task": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -67,7 +67,7 @@ class GetTaskAction(ActionHandler):
                 f"{ASANA_API_BASE_URL}/tasks/{task_gid}", method="GET", params=params if params else None
             )
 
-            return ActionResult(data={"task": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"task": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -98,7 +98,7 @@ class UpdateTaskAction(ActionHandler):
 
             response = await context.fetch(f"{ASANA_API_BASE_URL}/tasks/{task_gid}", method="PUT", json={"data": data})
 
-            return ActionResult(data={"task": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"task": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -130,7 +130,7 @@ class ListTasksAction(ActionHandler):
 
             response = await context.fetch(f"{ASANA_API_BASE_URL}/tasks", method="GET", params=params)
 
-            tasks = response.get("data", [])
+            tasks = response.data.get("data", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -175,7 +175,7 @@ class ListProjectsAction(ActionHandler):
 
             response = await context.fetch(f"{ASANA_API_BASE_URL}/projects", method="GET", params=params)
 
-            projects = response.get("data", [])
+            projects = response.data.get("data", [])
             return ActionResult(data={"projects": projects, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -198,7 +198,7 @@ class GetProjectAction(ActionHandler):
                 f"{ASANA_API_BASE_URL}/projects/{project_gid}", method="GET", params=params if params else None
             )
 
-            return ActionResult(data={"project": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"project": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"project": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -223,7 +223,7 @@ class CreateProjectAction(ActionHandler):
 
             response = await context.fetch(f"{ASANA_API_BASE_URL}/projects", method="POST", json={"data": data})
 
-            return ActionResult(data={"project": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"project": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"project": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -253,7 +253,7 @@ class UpdateProjectAction(ActionHandler):
                 f"{ASANA_API_BASE_URL}/projects/{project_gid}", method="PUT", json={"data": data}
             )
 
-            return ActionResult(data={"project": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"project": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"project": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -305,7 +305,7 @@ class GetProjectByNameAction(ActionHandler):
                 response = await context.fetch(f"{ASANA_API_BASE_URL}/projects", method="GET", params=params)
 
                 # Check if response is successful
-                data = response.get("data", [])
+                data = response.data.get("data", [])
 
                 for project in data:
                     projects_checked += 1
@@ -326,7 +326,7 @@ class GetProjectByNameAction(ActionHandler):
                         )
 
                 # Check for next page
-                next_page = response.get("next_page")
+                next_page = response.data.get("next_page")
                 if next_page and next_page.get("offset"):
                     offset = next_page["offset"]
                 else:
@@ -385,7 +385,7 @@ class ListSectionsAction(ActionHandler):
                 f"{ASANA_API_BASE_URL}/projects/{project_gid}/sections", method="GET", params=params if params else None
             )
 
-            sections = response.get("data", [])
+            sections = response.data.get("data", [])
             return ActionResult(data={"sections": sections, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -405,7 +405,7 @@ class CreateSectionAction(ActionHandler):
                 f"{ASANA_API_BASE_URL}/projects/{project_gid}/sections", method="POST", json={"data": data}
             )
 
-            return ActionResult(data={"section": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"section": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"section": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -424,7 +424,7 @@ class UpdateSectionAction(ActionHandler):
                 f"{ASANA_API_BASE_URL}/sections/{section_gid}", method="PUT", json={"data": data}
             )
 
-            return ActionResult(data={"section": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"section": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"section": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -465,7 +465,7 @@ class CreateStoryAction(ActionHandler):
                 f"{ASANA_API_BASE_URL}/tasks/{task_gid}/stories", method="POST", json={"data": data}
             )
 
-            return ActionResult(data={"story": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"story": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"story": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -487,7 +487,7 @@ class ListStoriesAction(ActionHandler):
                 f"{ASANA_API_BASE_URL}/tasks/{task_gid}/stories", method="GET", params=params if params else None
             )
 
-            stories = response.get("data", [])
+            stories = response.data.get("data", [])
             return ActionResult(data={"stories": stories, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -517,7 +517,7 @@ class CreateSubtaskAction(ActionHandler):
                 f"{ASANA_API_BASE_URL}/tasks/{parent_task_gid}/subtasks", method="POST", json={"data": data}
             )
 
-            return ActionResult(data={"subtask": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"subtask": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"subtask": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -542,7 +542,7 @@ class ListWorkspacesAction(ActionHandler):
                 f"{ASANA_API_BASE_URL}/workspaces", method="GET", params=params if params else None
             )
 
-            workspaces = response.get("data", [])
+            workspaces = response.data.get("data", [])
             return ActionResult(data={"workspaces": workspaces, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -565,7 +565,7 @@ class GetWorkspaceAction(ActionHandler):
                 f"{ASANA_API_BASE_URL}/workspaces/{workspace_gid}", method="GET", params=params if params else None
             )
 
-            return ActionResult(data={"workspace": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"workspace": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"workspace": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -590,7 +590,7 @@ class GetUserAction(ActionHandler):
                 f"{ASANA_API_BASE_URL}/users/{user_gid}", method="GET", params=params if params else None
             )
 
-            return ActionResult(data={"user": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"user": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"subtask": {}, "result": False, "error": str(e)}, cost_usd=0.0)

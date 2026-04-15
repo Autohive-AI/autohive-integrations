@@ -314,13 +314,14 @@ def build_search_params(inputs: Dict[str, Any], allowed_params: List[str]) -> Di
     return params
 
 
-def handle_api_response(response: Dict[str, Any], default_return: Dict[str, Any]) -> Optional[ActionResult]:
+def handle_api_response(response, default_return: Dict[str, Any]) -> Optional[ActionResult]:
     """
     Check API response for errors and handle HTML responses.
     Returns ActionResult if there's an error, None if response is valid.
     """
-    if "error" in response:
-        error_msg = response.get("error", "Unknown error")
+    response_data = response.data if hasattr(response, "data") else response
+    if "error" in response_data:
+        error_msg = response_data.get("error", "Unknown error")
         # Truncate HTML error pages
         if isinstance(error_msg, str) and len(error_msg) > 500:
             error_msg = (
@@ -359,8 +360,8 @@ class SearchPostsAction(ActionHandler):
                 return error_response
 
             # Parse response - Circle API returns paginated data
-            posts = response.get("records", [])
-            count = response.get("count", 0)
+            posts = response.data.get("records", [])
+            count = response.data.get("count", 0)
 
             return ActionResult(data={"posts": posts, "count": count, "result": True}, cost_usd=0.0)
 
@@ -387,7 +388,7 @@ class GetPostAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return ActionResult(data={"post": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"post": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -426,7 +427,7 @@ class CreatePostAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return ActionResult(data={"post": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"post": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -463,7 +464,7 @@ class UpdatePostAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return ActionResult(data={"post": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"post": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -493,7 +494,7 @@ class SearchMemberByEmailAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return ActionResult(data={"member": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"member": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -524,8 +525,8 @@ class ListMembersAction(ActionHandler):
                 return error_response
 
             # Parse response
-            members = response.get("records", [])
-            count = response.get("count", 0)
+            members = response.data.get("records", [])
+            count = response.data.get("count", 0)
 
             return ActionResult(data={"members": members, "count": count, "result": True}, cost_usd=0.0)
 
@@ -552,7 +553,7 @@ class GetMemberAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return ActionResult(data={"member": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"member": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -585,8 +586,8 @@ class SearchSpacesAction(ActionHandler):
                 return error_response
 
             # Parse response
-            spaces = response.get("records", [])
-            count = response.get("count", 0)
+            spaces = response.data.get("records", [])
+            count = response.data.get("count", 0)
 
             return ActionResult(data={"spaces": spaces, "count": count, "result": True}, cost_usd=0.0)
 
@@ -613,7 +614,7 @@ class GetSpaceAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return ActionResult(data={"space": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"space": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -646,8 +647,8 @@ class SearchEventsAction(ActionHandler):
                 return error_response
 
             # Parse response
-            events = response.get("records", [])
-            count = response.get("count", 0)
+            events = response.data.get("records", [])
+            count = response.data.get("count", 0)
 
             return ActionResult(data={"events": events, "count": count, "result": True}, cost_usd=0.0)
 
@@ -674,7 +675,7 @@ class GetEventAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return ActionResult(data={"event": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"event": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -706,7 +707,7 @@ class CreateCommentAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return ActionResult(data={"comment": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"comment": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -734,8 +735,8 @@ class GetPostCommentsAction(ActionHandler):
                 return error_response
 
             # Parse response
-            comments = response.get("records", [])
-            count = response.get("count", 0)
+            comments = response.data.get("records", [])
+            count = response.data.get("count", 0)
 
             return ActionResult(data={"comments": comments, "count": count, "result": True}, cost_usd=0.0)
 
@@ -763,7 +764,7 @@ class GetCommunityInfoAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return ActionResult(data={"community": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"community": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -935,8 +936,8 @@ class ListTagsAction(ActionHandler):
                 return error_response
 
             # Parse response
-            tags = response.get("records", [])
-            count = response.get("count", 0)
+            tags = response.data.get("records", [])
+            count = response.data.get("count", 0)
 
             return ActionResult(data={"tags": tags, "count": count, "result": True}, cost_usd=0.0)
 
@@ -968,8 +969,8 @@ class ListSpaceGroupsAction(ActionHandler):
                 return error_response
 
             # Parse response
-            space_groups = response.get("records", [])
-            count = response.get("count", 0)
+            space_groups = response.data.get("records", [])
+            count = response.data.get("count", 0)
 
             return ActionResult(data={"space_groups": space_groups, "count": count, "result": True}, cost_usd=0.0)
 
@@ -1007,8 +1008,8 @@ class ListAccessGroupsAction(ActionHandler):
                 return error_response
 
             # Parse response
-            access_groups = response.get("records", [])
-            count = response.get("count", 0)
+            access_groups = response.data.get("records", [])
+            count = response.data.get("count", 0)
 
             return ActionResult(data={"access_groups": access_groups, "count": count, "result": True}, cost_usd=0.0)
 

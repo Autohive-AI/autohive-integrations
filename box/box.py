@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 import json
 import base64
@@ -31,7 +31,7 @@ class ListSharedFolders(ActionHandler):
 
             # Filter for folders only
             folders = []
-            for item in data.get("entries", []):
+            for item in data.data.get("entries", []):
                 if item.get("type") == "folder":
                     folders.append(
                         {
@@ -47,15 +47,15 @@ class ListSharedFolders(ActionHandler):
             response_data = {"folders": folders, "result": True}
 
             # Add pagination token if there are more items
-            total_count = data.get("total_count", 0)
+            total_count = data.data.get("total_count", 0)
             current_offset = int(params.get("offset", 0))
             if current_offset + page_size < total_count:
                 response_data["nextPageToken"] = str(current_offset + page_size)
 
-            return response_data
+            return ActionResult(data=response_data, cost_usd=0)
 
         except Exception as e:
-            return {"folders": [], "result": False, "error": str(e)}
+            return ActionResult(data={"folders": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @box.action("list_files")
@@ -94,7 +94,7 @@ class ListFiles(ActionHandler):
 
             # Format the files response
             files = []
-            entries = data.get("entries", [])
+            entries = data.data.get("entries", [])
             for item in entries:
                 if item.get("type") == "file":
                     files.append(
@@ -111,13 +111,13 @@ class ListFiles(ActionHandler):
             response_data = {"files": files, "result": True}
 
             # Add pagination if available
-            if "next_marker" in data:
-                response_data["nextPageToken"] = data["next_marker"]
+            if "next_marker" in data.data:
+                response_data["nextPageToken"] = data.data["next_marker"]
 
-            return response_data
+            return ActionResult(data=response_data, cost_usd=0)
 
         except Exception as e:
-            return {"files": [], "result": False, "error": str(e)}
+            return ActionResult(data={"files": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @box.action("list_folder_contents")
@@ -135,7 +135,7 @@ class ListFolderContents(ActionHandler):
 
             # Format the items response
             items = []
-            for item in data.get("entries", []):
+            for item in data.data.get("entries", []):
                 formatted_item = {
                     "id": item.get("id"),
                     "name": item.get("name"),
@@ -156,7 +156,7 @@ class ListFolderContents(ActionHandler):
                         subfolder_url = f"{BOX_API_BASE}/folders/{item['id']}/items"
                         sub_data = await context.fetch(subfolder_url, method="GET", params=params)
 
-                        for sub_item in sub_data.get("entries", []):
+                        for sub_item in sub_data.data.get("entries", []):
                             sub_formatted_item = {
                                 "id": sub_item.get("id"),
                                 "name": f"{item['name']}/{sub_item.get('name')}",
@@ -173,13 +173,13 @@ class ListFolderContents(ActionHandler):
             response_data = {"items": items, "result": True}
 
             # Add pagination if available
-            if "next_marker" in data:
-                response_data["nextPageToken"] = data["next_marker"]
+            if "next_marker" in data.data:
+                response_data["nextPageToken"] = data.data["next_marker"]
 
-            return response_data
+            return ActionResult(data=response_data, cost_usd=0)
 
         except Exception as e:
-            return {"items": [], "result": False, "error": str(e)}
+            return ActionResult(data={"items": [], "result": False, "error": str(e)}, cost_usd=0)
 
 
 @box.action("get_file")
@@ -212,45 +212,54 @@ class GetFile(ActionHandler):
                 async with session.get(content_url, headers=headers) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        return {
-                            "file": {"name": "", "content": "", "contentType": ""},
-                            "metadata": {"id": file_id},
-                            "result": False,
-                            "error": f"Box API error getting content: {response.status} - {error_text}",
-                        }
+                        return ActionResult(
+                            data={
+                                "file": {"name": "", "content": "", "contentType": ""},
+                                "metadata": {"id": file_id},
+                                "result": False,
+                                "error": f"Box API error getting content: {response.status} - {error_text}",
+                            },
+                            cost_usd=0,
+                        )
 
                     # Read binary content and encode as base64
                     file_content = await response.read()
                     content_base64 = base64.b64encode(file_content).decode("utf-8")
 
             # Extract information from metadata
-            file_name = metadata.get("name", f"file_{file_id}")
-            content_type = metadata.get("content_type") or "application/octet-stream"
+            file_name = metadata.data.get("name", f"file_{file_id}")
+            content_type = metadata.data.get("content_type") or "application/octet-stream"
 
             # Structure the metadata to match the required format
             structured_metadata = {
                 "id": file_id,
                 "name": file_name,
-                "size": str(metadata.get("size", 0)),
+                "size": str(metadata.data.get("size", 0)),
                 "mimeType": content_type,
-                "createdTime": metadata.get("created_at", ""),
-                "modifiedTime": metadata.get("modified_at", ""),
-                "parents": [metadata.get("parent", {}).get("id", "")] if metadata.get("parent") else [],
+                "createdTime": metadata.data.get("created_at", ""),
+                "modifiedTime": metadata.data.get("modified_at", ""),
+                "parents": [metadata.data.get("parent", {}).get("id", "")] if metadata.data.get("parent") else [],
             }
 
-            return {
-                "file": {"name": file_name, "content": content_base64, "contentType": content_type},
-                "metadata": structured_metadata,
-                "result": True,
-            }
+            return ActionResult(
+                data={
+                    "file": {"name": file_name, "content": content_base64, "contentType": content_type},
+                    "metadata": structured_metadata,
+                    "result": True,
+                },
+                cost_usd=0,
+            )
 
         except Exception as e:
-            return {
-                "file": {"name": "", "content": "", "contentType": ""},
-                "metadata": {"id": file_id},
-                "result": False,
-                "error": str(e),
-            }
+            return ActionResult(
+                data={
+                    "file": {"name": "", "content": "", "contentType": ""},
+                    "metadata": {"id": file_id},
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0,
+            )
 
 
 @box.action("upload_file")
@@ -300,7 +309,10 @@ class UploadFile(ActionHandler):
                 async with session.post(url, headers=headers, data=data) as response:
                     if response.status not in [200, 201]:
                         error_text = await response.text()
-                        return {"result": False, "error": f"Box upload error: {response.status} - {error_text}"}
+                        return ActionResult(
+                            data={"result": False, "error": f"Box upload error: {response.status} - {error_text}"},
+                            cost_usd=0,
+                        )
 
                     upload_result = await response.json()
 
@@ -308,23 +320,29 @@ class UploadFile(ActionHandler):
                     entries = upload_result.get("entries", [])
                     if entries:
                         uploaded_file = entries[0]
-                        return {
-                            "file_id": uploaded_file.get("id"),
-                            "file_name": uploaded_file.get("name"),
-                            "file_size": uploaded_file.get("size"),
-                            "content_type": content_type,
-                            "result": True,
-                        }
+                        return ActionResult(
+                            data={
+                                "file_id": uploaded_file.get("id"),
+                                "file_name": uploaded_file.get("name"),
+                                "file_size": uploaded_file.get("size"),
+                                "content_type": content_type,
+                                "result": True,
+                            },
+                            cost_usd=0,
+                        )
                     else:
-                        return {
-                            "file_name": file_name,
-                            "content_type": content_type,
-                            "result": True,
-                            "error": "Upload succeeded but no file details returned",
-                        }
+                        return ActionResult(
+                            data={
+                                "file_name": file_name,
+                                "content_type": content_type,
+                                "result": True,
+                                "error": "Upload succeeded but no file details returned",
+                            },
+                            cost_usd=0,
+                        )
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0)
 
 
 # ---- Polling Trigger Handlers ----

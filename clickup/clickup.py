@@ -46,7 +46,7 @@ class CreateTaskAction(ActionHandler):
 
             response = await context.fetch(f"{CLICKUP_API_BASE_URL}/list/{list_id}/task", method="POST", json=data)
 
-            return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"task": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -69,7 +69,7 @@ class GetTaskAction(ActionHandler):
                 f"{CLICKUP_API_BASE_URL}/task/{task_id}", method="GET", params=params if params else None
             )
 
-            return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"task": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -100,7 +100,7 @@ class UpdateTaskAction(ActionHandler):
 
             response = await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}", method="PUT", json=data)
 
-            return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"task": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -151,7 +151,7 @@ class GetTasksAction(ActionHandler):
                 f"{CLICKUP_API_BASE_URL}/list/{list_id}/task", method="GET", params=params if params else None
             )
 
-            tasks = response.get("tasks", [])
+            tasks = response.data.get("tasks", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -199,7 +199,7 @@ class CreateListAction(ActionHandler):
                 f"{CLICKUP_API_BASE_URL}/{parent_type}/{parent_id}/list", method="POST", json=data
             )
 
-            return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"list": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -215,7 +215,7 @@ class GetListAction(ActionHandler):
 
             response = await context.fetch(f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="GET")
 
-            return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"list": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -241,7 +241,7 @@ class UpdateListAction(ActionHandler):
 
             response = await context.fetch(f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="PUT", json=data)
 
-            return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"list": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -295,7 +295,7 @@ class GetListsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            lists = response.get("lists", [])
+            lists = response.data.get("lists", [])
             return ActionResult(data={"lists": lists, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -316,7 +316,7 @@ class CreateFolderAction(ActionHandler):
 
             response = await context.fetch(f"{CLICKUP_API_BASE_URL}/space/{space_id}/folder", method="POST", json=data)
 
-            return ActionResult(data={"folder": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"folder": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -332,7 +332,7 @@ class GetFolderAction(ActionHandler):
 
             response = await context.fetch(f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="GET")
 
-            return ActionResult(data={"folder": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"folder": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -349,7 +349,7 @@ class UpdateFolderAction(ActionHandler):
 
             response = await context.fetch(f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="PUT", json=data)
 
-            return ActionResult(data={"folder": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"folder": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -387,7 +387,7 @@ class GetFoldersAction(ActionHandler):
                 f"{CLICKUP_API_BASE_URL}/space/{space_id}/folder", method="GET", params=params if params else None
             )
 
-            folders = response.get("folders", [])
+            folders = response.data.get("folders", [])
             return ActionResult(data={"folders": folders, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -407,7 +407,7 @@ class GetSpaceAction(ActionHandler):
 
             response = await context.fetch(f"{CLICKUP_API_BASE_URL}/space/{space_id}", method="GET")
 
-            return ActionResult(data={"space": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"space": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"space": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -429,7 +429,7 @@ class GetSpacesAction(ActionHandler):
                 f"{CLICKUP_API_BASE_URL}/team/{team_id}/space", method="GET", params=params if params else None
             )
 
-            spaces = response.get("spaces", [])
+            spaces = response.data.get("spaces", [])
             return ActionResult(data={"spaces": spaces, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -447,7 +447,7 @@ class GetAuthorizedTeamsAction(ActionHandler):
         try:
             response = await context.fetch(f"{CLICKUP_API_BASE_URL}/team", method="GET")
 
-            teams = response.get("teams", [])
+            teams = response.data.get("teams", [])
             return ActionResult(data={"teams": teams, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -474,7 +474,7 @@ class CreateTaskCommentAction(ActionHandler):
 
             response = await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment", method="POST", json=data)
 
-            return ActionResult(data={"comment": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"comment": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"comment": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -490,7 +490,7 @@ class GetTaskCommentsAction(ActionHandler):
 
             response = await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment", method="GET")
 
-            comments = response.get("comments", [])
+            comments = response.data.get("comments", [])
             return ActionResult(data={"comments": comments, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -508,7 +508,7 @@ class UpdateCommentAction(ActionHandler):
 
             response = await context.fetch(f"{CLICKUP_API_BASE_URL}/comment/{comment_id}", method="PUT", json=data)
 
-            return ActionResult(data={"comment": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"comment": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"comment": {}, "result": False, "error": str(e)}, cost_usd=0.0)

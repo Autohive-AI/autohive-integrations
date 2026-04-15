@@ -451,7 +451,7 @@ class AddCompanyContactAction(ActionHandler):
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
             return ActionResult(
-                data={"contact": response, "result": True, "message": "Contact added successfully"}, cost_usd=None
+                data={"contact": response.data, "result": True, "message": "Contact added successfully"}, cost_usd=None
             )
 
         except Exception as e:
@@ -517,7 +517,7 @@ class SearchNZAddressAction(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params, headers=headers)
 
-            addresses = response.get("items", []) if isinstance(response, dict) else response
+            addresses = response.data.get("items", []) if isinstance(response.data, dict) else response.data
 
             return ActionResult(
                 data={
@@ -610,14 +610,14 @@ class FileAnnualReturnAction(ActionHandler):
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
             is_credit_card = payment_method == "creditCard"
-            payment_info_resp = response.get("paymentInfo", {}) if isinstance(response, dict) else {}
+            payment_info_resp = response.data.get("paymentInfo", {}) if isinstance(response.data, dict) else {}
 
             return ActionResult(
                 data={
-                    "documentId": response.get("documentId") if not is_credit_card else None,
-                    "documentType": response.get("documentType") if not is_credit_card else None,
-                    "status": response.get("status") if not is_credit_card else None,
-                    "startDate": response.get("startDate") if not is_credit_card else None,
+                    "documentId": response.data.get("documentId") if not is_credit_card else None,
+                    "documentType": response.data.get("documentType") if not is_credit_card else None,
+                    "status": response.data.get("status") if not is_credit_card else None,
+                    "startDate": response.data.get("startDate") if not is_credit_card else None,
                     "paymentUrl": payment_info_resp.get("paymentUrl") if is_credit_card else None,
                     "billingReference": payment_info_resp.get("billingReference"),
                     "paymentMethod": payment_method,

@@ -119,14 +119,14 @@ class GetPostsAction(ActionHandler):
             response = await context.fetch(
                 f"{GRAPH_API_BASE}/{post_id}", method="GET", params={"fields": fields, "access_token": page_token}
             )
-            posts = [_build_post_response(response)]
+            posts = [_build_post_response(response.data)]
         else:
             response = await context.fetch(
                 f"{GRAPH_API_BASE}/{page_id}/posts",
                 method="GET",
                 params={"fields": fields, "limit": limit, "access_token": page_token},
             )
-            posts = [_build_post_response(p) for p in response.get("data", [])]
+            posts = [_build_post_response(p) for p in response.data.get("data", [])]
 
         return ActionResult(data={"posts": posts})
 
@@ -192,7 +192,7 @@ class CreatePostAction(ActionHandler):
 
         response = await context.fetch(endpoint, method="POST", data=data)
 
-        post_id = response.get("id") or response.get("post_id", "")
+        post_id = response.data.get("id") or response.data.get("post_id", "")
 
         result = {
             "post_id": post_id,

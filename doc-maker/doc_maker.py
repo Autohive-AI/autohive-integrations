@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any, List
 from docx import Document
 from docx.shared import Inches
@@ -80,12 +80,13 @@ async def save_and_return_document(
     save_result = await save_action.execute(save_inputs, context)
 
     combined_result = original_result.copy()
+    save_data = save_result.data if hasattr(save_result, "data") else save_result
     combined_result.update(
         {
-            "saved": save_result["saved"],
-            "file_path": save_result["file_path"],
-            "file": save_result["file"],
-            "error": save_result.get("error", ""),
+            "saved": save_data["saved"],
+            "file_path": save_data["file_path"],
+            "file": save_data["file"],
+            "error": save_data.get("error", ""),
         }
     )
     return combined_result
@@ -667,20 +668,23 @@ class GetDocumentElementsAction(ActionHandler):
                         pattern = cell["pattern_type"]
                         pattern_counts[pattern] = pattern_counts.get(pattern, 0) + 1
 
-        return {
-            "template_summary": {
-                "structure": f"{analysis['paragraphs']}p,{analysis['tables']}t",
-                "fillable_total": int(analysis["fillable_paragraphs"] + analysis["fillable_cells"]),
-                "content_elements_hidden": int(
-                    analysis["total_elements"] - len(fillable_paragraphs) - len(fillable_cells)
-                ),
+        return ActionResult(
+            data={
+                "template_summary": {
+                    "structure": f"{analysis['paragraphs']}p,{analysis['tables']}t",
+                    "fillable_total": int(analysis["fillable_paragraphs"] + analysis["fillable_cells"]),
+                    "content_elements_hidden": int(
+                        analysis["total_elements"] - len(fillable_paragraphs) - len(fillable_cells)
+                    ),
+                },
+                "fillable_paragraphs": fillable_paragraphs,
+                "fillable_cells": fillable_cells,
+                "pattern_distribution": pattern_counts,
+                "recommended_strategy": "mixed" if len(pattern_counts) > 2 else "single_method",
+                "template_ready": True,
             },
-            "fillable_paragraphs": fillable_paragraphs,
-            "fillable_cells": fillable_cells,
-            "pattern_distribution": pattern_counts,
-            "recommended_strategy": "mixed" if len(pattern_counts) > 2 else "single_method",
-            "template_ready": True,
-        }
+            cost_usd=0,
+        )
 
 
 @doc_maker.action("create_document")
@@ -722,7 +726,7 @@ class CreateDocumentAction(ActionHandler):
             "markdown_processed": bool(markdown_content),
         }
 
-        return await save_and_return_document(result, document_id, context, custom_filename)
+        return ActionResult(data=await save_and_return_document(result, document_id, context, custom_filename), cost_usd=0)
 
 
 @doc_maker.action("add_table")
@@ -749,7 +753,7 @@ class AddTableAction(ActionHandler):
                 table.cell(row_idx, col_idx).text = str(cell_value)
 
         original_result = {"table_rows": rows, "table_cols": cols}
-        return await save_and_return_document(original_result, document_id, context)
+        return ActionResult(data=await save_and_return_document(original_result, document_id, context), cost_usd=0)
 
 
 @doc_maker.action("add_image")
@@ -798,7 +802,7 @@ class AddImageAction(ActionHandler):
             paragraph.add_run().add_picture(image_file)
 
         original_result = {"image_added": True}
-        return await save_and_return_document(original_result, document_id, context)
+        return ActionResult(data=await save_and_return_document(original_result, document_id, context), cost_usd=0)
 
 
 @doc_maker.action("add_markdown_content")
@@ -822,7 +826,7 @@ class AddMarkdownContentAction(ActionHandler):
         elements_added = len([p for p in doc.paragraphs if p.text.strip()])
 
         original_result = {"markdown_processed": True, "elements_added": elements_added}
-        return await save_and_return_document(original_result, document_id, context)
+        return ActionResult(data=await save_and_return_document(original_result, document_id, context), cost_usd=0)
 
 
 @doc_maker.action("update_by_position")
@@ -893,7 +897,7 @@ class UpdateByPositionAction(ActionHandler):
             + (f", {len(failed_updates)} failed" if failed_updates else ""),
             "failures": failed_updates[:3] if failed_updates else [],  # Limit failure details
         }
-        return await save_and_return_document(original_result, document_id, context)
+        return ActionResult(data=await save_and_return_document(original_result, document_id, context), cost_usd=0)
 
 
 @doc_maker.action("find_and_replace")
@@ -1150,7 +1154,7 @@ class FindAndReplaceAction(ActionHandler):
             "alerts": warnings[:3] if warnings else [],
             "safety_active": True,
         }
-        return await save_and_return_document(original_result, document_id, context)
+        return ActionResult(data=await save_and_return_document(original_result, document_id, context), cost_usd=0)
 
 
 @doc_maker.action("fill_template_fields")
@@ -1388,7 +1392,7 @@ class FillTemplateFieldsAction(ActionHandler):
             "template_status": "partially_complete" if blocked_operations > 0 else "complete",
             "action_required": "Review safety warnings and use more specific context" if safety_warnings else "none",
         }
-        return await save_and_return_document(original_result, document_id, context)
+        return ActionResult(data=await save_and_return_document(original_result, document_id, context), cost_usd=0)
 
 
 @doc_maker.action("save_document")
@@ -1415,26 +1419,32 @@ class SaveDocumentAction(ActionHandler):
             # Get file name from path
             file_name = os.path.basename(file_path)
 
-            return {
-                "saved": True,
-                "file_path": file_path,
-                "file": {
-                    "content": content_base64,
-                    "name": file_name,
-                    "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            return ActionResult(
+                data={
+                    "saved": True,
+                    "file_path": file_path,
+                    "file": {
+                        "content": content_base64,
+                        "name": file_name,
+                        "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    },
                 },
-            }
+                cost_usd=0,
+            )
         except Exception as e:
-            return {
-                "saved": False,
-                "file_path": file_path,
-                "file": {
-                    "content": "",
-                    "name": os.path.basename(file_path),
-                    "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            return ActionResult(
+                data={
+                    "saved": False,
+                    "file_path": file_path,
+                    "file": {
+                        "content": "",
+                        "name": os.path.basename(file_path),
+                        "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    },
+                    "error": f"Could not generate document for streaming: {str(e)}",
                 },
-                "error": f"Could not generate document for streaming: {str(e)}",
-            }
+                cost_usd=0,
+            )
 
 
 @doc_maker.action("add_page_break")
@@ -1453,4 +1463,4 @@ class AddPageBreakAction(ActionHandler):
         paragraph.add_run().add_break(WD_BREAK.PAGE)
 
         original_result = {"page_break_added": True}
-        return await save_and_return_document(original_result, document_id, context)
+        return ActionResult(data=await save_and_return_document(original_result, document_id, context), cost_usd=0)

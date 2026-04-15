@@ -49,8 +49,8 @@ class GetCommentsAction(ActionHandler):
 
         response = await context.fetch(f"{GRAPH_API_BASE}/{post_id}/comments", method="GET", params=params)
 
-        comments = [_build_comment_response(c) for c in response.get("data", [])]
-        total_count = response.get("summary", {}).get("total_count", len(comments))
+        comments = [_build_comment_response(c) for c in response.data.get("data", [])]
+        total_count = response.data.get("summary", {}).get("total_count", len(comments))
 
         return ActionResult(data={"comments": comments, "total_count": total_count})
 
@@ -85,7 +85,7 @@ class ManageCommentAction(ActionHandler):
                 method="POST",
                 data={"message": message, "access_token": page_token},
             )
-            return ActionResult(data={"success": True, "action_taken": "reply", "reply_id": response.get("id", "")})
+            return ActionResult(data={"success": True, "action_taken": "reply", "reply_id": response.data.get("id", "")})
 
         elif action in ("hide", "unhide"):
             is_hidden = action == "hide"

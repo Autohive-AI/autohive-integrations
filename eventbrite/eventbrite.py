@@ -26,7 +26,7 @@ class GetCurrentUserAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"result": True, "user": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "user": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -45,8 +45,8 @@ class ListOrganizationsAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "organizations": response.get("organizations", []),
-                    "pagination": response.get("pagination"),
+                    "organizations": response.data.get("organizations", []),
+                    "pagination": response.data.get("pagination"),
                 },
                 cost_usd=0.0,
             )
@@ -80,7 +80,7 @@ class GetEventAction(ActionHandler):
 
             response = await context.fetch(url, method="GET")
 
-            return ActionResult(data={"result": True, "event": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "event": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -112,7 +112,7 @@ class ListEventsAction(ActionHandler):
             response = await context.fetch(url, method="GET")
 
             return ActionResult(
-                data={"result": True, "events": response.get("events", []), "pagination": response.get("pagination")},
+                data={"result": True, "events": response.data.get("events", []), "pagination": response.data.get("pagination")},
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -174,7 +174,7 @@ class CreateEventAction(ActionHandler):
                 json=event_data,
             )
 
-            return ActionResult(data={"result": True, "event": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "event": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -219,7 +219,7 @@ class UpdateEventAction(ActionHandler):
                 json=event_data,
             )
 
-            return ActionResult(data={"result": True, "event": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "event": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -259,7 +259,7 @@ class PublishEventAction(ActionHandler):
                 method="POST",
             )
 
-            return ActionResult(data={"result": True, "published": response.get("published", True)}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "published": response.data.get("published", True)}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -279,7 +279,7 @@ class UnpublishEventAction(ActionHandler):
                 method="POST",
             )
 
-            return ActionResult(data={"result": True, "unpublished": response.get("unpublished", True)}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "unpublished": response.data.get("unpublished", True)}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -331,7 +331,7 @@ class CopyEventAction(ActionHandler):
                 json=copy_data if copy_data else None,
             )
 
-            return ActionResult(data={"result": True, "event": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "event": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -351,7 +351,7 @@ class GetEventDescriptionAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"result": True, "description": response.get("description", "")}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "description": response.data.get("description", "")}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -376,7 +376,7 @@ class GetVenueAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"result": True, "venue": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "venue": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -397,7 +397,7 @@ class ListVenuesAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"result": True, "venues": response.get("venues", []), "pagination": response.get("pagination")},
+                data={"result": True, "venues": response.data.get("venues", []), "pagination": response.data.get("pagination")},
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -442,7 +442,7 @@ class CreateVenueAction(ActionHandler):
                 json=venue_data,
             )
 
-            return ActionResult(data={"result": True, "venue": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "venue": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -473,7 +473,7 @@ class GetOrderAction(ActionHandler):
 
             response = await context.fetch(url, method="GET")
 
-            return ActionResult(data={"result": True, "order": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "order": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -501,7 +501,7 @@ class ListOrdersByEventAction(ActionHandler):
             response = await context.fetch(url, method="GET")
 
             return ActionResult(
-                data={"result": True, "orders": response.get("orders", []), "pagination": response.get("pagination")},
+                data={"result": True, "orders": response.data.get("orders", []), "pagination": response.data.get("pagination")},
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -531,7 +531,7 @@ class ListOrdersByOrganizationAction(ActionHandler):
             response = await context.fetch(url, method="GET")
 
             return ActionResult(
-                data={"result": True, "orders": response.get("orders", []), "pagination": response.get("pagination")},
+                data={"result": True, "orders": response.data.get("orders", []), "pagination": response.data.get("pagination")},
                 cost_usd=0.0,
             )
         except Exception as e:
@@ -560,7 +560,7 @@ class GetAttendeeAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"result": True, "attendee": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "attendee": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -590,8 +590,8 @@ class ListAttendeesAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "attendees": response.get("attendees", []),
-                    "pagination": response.get("pagination"),
+                    "attendees": response.data.get("attendees", []),
+                    "pagination": response.data.get("pagination"),
                 },
                 cost_usd=0.0,
             )
@@ -623,7 +623,7 @@ class GetTicketClassAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"result": True, "ticket_class": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "ticket_class": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -651,8 +651,8 @@ class ListTicketClassesAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "ticket_classes": response.get("ticket_classes", []),
-                    "pagination": response.get("pagination"),
+                    "ticket_classes": response.data.get("ticket_classes", []),
+                    "pagination": response.data.get("pagination"),
                 },
                 cost_usd=0.0,
             )
@@ -713,7 +713,7 @@ class CreateTicketClassAction(ActionHandler):
                 json=ticket_class_data,
             )
 
-            return ActionResult(data={"result": True, "ticket_class": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "ticket_class": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -760,7 +760,7 @@ class UpdateTicketClassAction(ActionHandler):
                 json=ticket_class_data,
             )
 
-            return ActionResult(data={"result": True, "ticket_class": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "ticket_class": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -805,7 +805,7 @@ class ListCategoriesAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"result": True, "categories": response.get("categories", [])}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "categories": response.data.get("categories", [])}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -825,6 +825,6 @@ class GetCategoryAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"result": True, "category": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "category": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)

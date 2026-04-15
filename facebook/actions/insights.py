@@ -62,7 +62,7 @@ class GetInsightsAction(ActionHandler):
         response = await context.fetch(endpoint, method="GET", params=params)
 
         metrics_data = {}
-        for item in response.get("data", []):
+        for item in response.data.get("data", []):
             metric_name = item.get("name", "")
             values = item.get("values", [])
             if values:

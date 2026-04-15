@@ -26,8 +26,8 @@ class GetRequest(ActionHandler):
             # Return success response
             return ActionResult(
                 data={
-                    "status_code": getattr(response, "status_code", 200),
-                    "response_data": response,
+                    "status_code": response.status,
+                    "response_data": response.data,
                     "headers": response_headers,
                     "success": True,
                 },
@@ -83,8 +83,8 @@ class PostRequest(ActionHandler):
             # Return success response
             return ActionResult(
                 data={
-                    "status_code": getattr(response, "status_code", 200),
-                    "response_data": response,
+                    "status_code": response.status,
+                    "response_data": response.data,
                     "headers": response_headers,
                     "success": True,
                 },

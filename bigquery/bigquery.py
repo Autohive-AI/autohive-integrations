@@ -109,7 +109,7 @@ class RunQueryAction(ActionHandler):
                     data={
                         "rows": [],
                         "total_rows": 0,
-                        "total_bytes_processed": int(response.get("totalBytesProcessed", 0)),
+                        "total_bytes_processed": int(response.data.get("totalBytesProcessed", 0)),
                         "job_complete": True,
                         "dry_run": True,
                         "result": True,
@@ -118,27 +118,27 @@ class RunQueryAction(ActionHandler):
                 )
 
             # Parse the response
-            schema = response.get("schema", {})
-            rows = parse_rows(schema, response.get("rows", []))
-            job_complete = response.get("jobComplete", False)
-            job_reference = response.get("jobReference", {})
+            schema = response.data.get("schema", {})
+            rows = parse_rows(schema, response.data.get("rows", []))
+            job_complete = response.data.get("jobComplete", False)
+            job_reference = response.data.get("jobReference", {})
 
             result_data = {
                 "rows": rows,
-                "total_rows": int(response.get("totalRows", 0)) if response.get("totalRows") else len(rows),
+                "total_rows": int(response.data.get("totalRows", 0)) if response.data.get("totalRows") else len(rows),
                 "schema": format_schema(schema),
                 "job_id": job_reference.get("jobId"),
                 "job_complete": job_complete,
                 "total_bytes_processed": (
-                    int(response.get("totalBytesProcessed", 0)) if response.get("totalBytesProcessed") else None
+                    int(response.data.get("totalBytesProcessed", 0)) if response.data.get("totalBytesProcessed") else None
                 ),
-                "cache_hit": response.get("cacheHit"),
+                "cache_hit": response.data.get("cacheHit"),
                 "result": True,
             }
 
             # Add page token if more results available
-            if response.get("pageToken"):
-                result_data["page_token"] = response["pageToken"]
+            if response.data.get("pageToken"):
+                result_data["page_token"] = response.data["pageToken"]
 
             return ActionResult(data=result_data, cost_usd=0.0)
 
@@ -170,19 +170,19 @@ class GetQueryResultsAction(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params if params else None)
 
-            schema = response.get("schema", {})
-            rows = parse_rows(schema, response.get("rows", []))
+            schema = response.data.get("schema", {})
+            rows = parse_rows(schema, response.data.get("rows", []))
 
             result_data = {
                 "rows": rows,
-                "total_rows": int(response.get("totalRows", 0)) if response.get("totalRows") else len(rows),
+                "total_rows": int(response.data.get("totalRows", 0)) if response.data.get("totalRows") else len(rows),
                 "schema": format_schema(schema),
-                "job_complete": response.get("jobComplete", False),
+                "job_complete": response.data.get("jobComplete", False),
                 "result": True,
             }
 
-            if response.get("pageToken"):
-                result_data["page_token"] = response["pageToken"]
+            if response.data.get("pageToken"):
+                result_data["page_token"] = response.data["pageToken"]
 
             return ActionResult(data=result_data, cost_usd=0.0)
 
@@ -220,7 +220,7 @@ class ListDatasetsAction(ActionHandler):
             response = await context.fetch(url, method="GET", params=params if params else None)
 
             datasets = []
-            for ds in response.get("datasets", []):
+            for ds in response.data.get("datasets", []):
                 dataset_ref = ds.get("datasetReference", {})
                 datasets.append(
                     {
@@ -235,8 +235,8 @@ class ListDatasetsAction(ActionHandler):
 
             result_data = {"datasets": datasets, "result": True}
 
-            if response.get("nextPageToken"):
-                result_data["next_page_token"] = response["nextPageToken"]
+            if response.data.get("nextPageToken"):
+                result_data["next_page_token"] = response.data["nextPageToken"]
 
             return ActionResult(data=result_data, cost_usd=0.0)
 
@@ -257,20 +257,20 @@ class GetDatasetAction(ActionHandler):
 
             response = await context.fetch(url, method="GET")
 
-            dataset_ref = response.get("datasetReference", {})
+            dataset_ref = response.data.get("datasetReference", {})
             dataset = {
-                "id": response.get("id"),
+                "id": response.data.get("id"),
                 "dataset_id": dataset_ref.get("datasetId"),
                 "project_id": dataset_ref.get("projectId"),
-                "friendly_name": response.get("friendlyName"),
-                "description": response.get("description"),
-                "location": response.get("location"),
-                "creation_time": response.get("creationTime"),
-                "last_modified_time": response.get("lastModifiedTime"),
-                "default_table_expiration_ms": response.get("defaultTableExpirationMs"),
-                "default_partition_expiration_ms": response.get("defaultPartitionExpirationMs"),
-                "labels": response.get("labels", {}),
-                "access": response.get("access", []),
+                "friendly_name": response.data.get("friendlyName"),
+                "description": response.data.get("description"),
+                "location": response.data.get("location"),
+                "creation_time": response.data.get("creationTime"),
+                "last_modified_time": response.data.get("lastModifiedTime"),
+                "default_table_expiration_ms": response.data.get("defaultTableExpirationMs"),
+                "default_partition_expiration_ms": response.data.get("defaultPartitionExpirationMs"),
+                "labels": response.data.get("labels", {}),
+                "access": response.data.get("access", []),
             }
 
             return ActionResult(data={"dataset": dataset, "result": True}, cost_usd=0.0)
@@ -305,13 +305,13 @@ class CreateDatasetAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=payload)
 
-            dataset_ref = response.get("datasetReference", {})
+            dataset_ref = response.data.get("datasetReference", {})
             dataset = {
-                "id": response.get("id"),
+                "id": response.data.get("id"),
                 "dataset_id": dataset_ref.get("datasetId"),
                 "project_id": dataset_ref.get("projectId"),
-                "location": response.get("location"),
-                "creation_time": response.get("creationTime"),
+                "location": response.data.get("location"),
+                "creation_time": response.data.get("creationTime"),
             }
 
             return ActionResult(data={"dataset": dataset, "result": True}, cost_usd=0.0)
@@ -369,7 +369,7 @@ class ListTablesAction(ActionHandler):
             response = await context.fetch(url, method="GET", params=params if params else None)
 
             tables = []
-            for tbl in response.get("tables", []):
+            for tbl in response.data.get("tables", []):
                 table_ref = tbl.get("tableReference", {})
                 tables.append(
                     {
@@ -385,10 +385,10 @@ class ListTablesAction(ActionHandler):
                     }
                 )
 
-            result_data = {"tables": tables, "total_items": response.get("totalItems"), "result": True}
+            result_data = {"tables": tables, "total_items": response.data.get("totalItems"), "result": True}
 
-            if response.get("nextPageToken"):
-                result_data["next_page_token"] = response["nextPageToken"]
+            if response.data.get("nextPageToken"):
+                result_data["next_page_token"] = response.data["nextPageToken"]
 
             return ActionResult(data=result_data, cost_usd=0.0)
 
@@ -410,26 +410,26 @@ class GetTableAction(ActionHandler):
 
             response = await context.fetch(url, method="GET")
 
-            table_ref = response.get("tableReference", {})
+            table_ref = response.data.get("tableReference", {})
             table = {
-                "id": response.get("id"),
+                "id": response.data.get("id"),
                 "table_id": table_ref.get("tableId"),
                 "dataset_id": table_ref.get("datasetId"),
                 "project_id": table_ref.get("projectId"),
-                "type": response.get("type"),
-                "friendly_name": response.get("friendlyName"),
-                "description": response.get("description"),
-                "schema": format_schema(response.get("schema", {})),
-                "num_rows": response.get("numRows"),
-                "num_bytes": response.get("numBytes"),
-                "creation_time": response.get("creationTime"),
-                "last_modified_time": response.get("lastModifiedTime"),
-                "expiration_time": response.get("expirationTime"),
-                "location": response.get("location"),
-                "streaming_buffer": response.get("streamingBuffer"),
-                "time_partitioning": response.get("timePartitioning"),
-                "clustering": response.get("clustering"),
-                "labels": response.get("labels", {}),
+                "type": response.data.get("type"),
+                "friendly_name": response.data.get("friendlyName"),
+                "description": response.data.get("description"),
+                "schema": format_schema(response.data.get("schema", {})),
+                "num_rows": response.data.get("numRows"),
+                "num_bytes": response.data.get("numBytes"),
+                "creation_time": response.data.get("creationTime"),
+                "last_modified_time": response.data.get("lastModifiedTime"),
+                "expiration_time": response.data.get("expirationTime"),
+                "location": response.data.get("location"),
+                "streaming_buffer": response.data.get("streamingBuffer"),
+                "time_partitioning": response.data.get("timePartitioning"),
+                "clustering": response.data.get("clustering"),
+                "labels": response.data.get("labels", {}),
             }
 
             return ActionResult(data={"table": table, "result": True}, cost_usd=0.0)
@@ -482,14 +482,14 @@ class CreateTableAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=payload)
 
-            table_ref = response.get("tableReference", {})
+            table_ref = response.data.get("tableReference", {})
             table = {
-                "id": response.get("id"),
+                "id": response.data.get("id"),
                 "table_id": table_ref.get("tableId"),
                 "dataset_id": table_ref.get("datasetId"),
                 "project_id": table_ref.get("projectId"),
-                "schema": format_schema(response.get("schema", {})),
-                "creation_time": response.get("creationTime"),
+                "schema": format_schema(response.data.get("schema", {})),
+                "creation_time": response.data.get("creationTime"),
             }
 
             return ActionResult(data={"table": table, "result": True}, cost_usd=0.0)
@@ -544,7 +544,7 @@ class InsertRowsAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=payload)
 
-            insert_errors = response.get("insertErrors", [])
+            insert_errors = response.data.get("insertErrors", [])
 
             # Count unique failed row indices - a single row can have multiple errors
             # but should only be counted once as a failed insert
@@ -607,7 +607,7 @@ class ListJobsAction(ActionHandler):
             response = await context.fetch(url, method="GET", params=params if params else None)
 
             jobs = []
-            for job in response.get("jobs", []):
+            for job in response.data.get("jobs", []):
                 job_ref = job.get("jobReference", {})
                 status = job.get("status", {})
                 statistics = job.get("statistics", {})
@@ -631,8 +631,8 @@ class ListJobsAction(ActionHandler):
 
             result_data = {"jobs": jobs, "result": True}
 
-            if response.get("nextPageToken"):
-                result_data["next_page_token"] = response["nextPageToken"]
+            if response.data.get("nextPageToken"):
+                result_data["next_page_token"] = response.data["nextPageToken"]
 
             return ActionResult(data=result_data, cost_usd=0.0)
 
@@ -658,13 +658,13 @@ class GetJobAction(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params if params else None)
 
-            job_ref = response.get("jobReference", {})
-            status = response.get("status", {})
-            statistics = response.get("statistics", {})
-            configuration = response.get("configuration", {})
+            job_ref = response.data.get("jobReference", {})
+            status = response.data.get("status", {})
+            statistics = response.data.get("statistics", {})
+            configuration = response.data.get("configuration", {})
 
             job = {
-                "id": response.get("id"),
+                "id": response.data.get("id"),
                 "job_id": job_ref.get("jobId"),
                 "project_id": job_ref.get("projectId"),
                 "location": job_ref.get("location"),
@@ -679,7 +679,7 @@ class GetJobAction(ActionHandler):
                 "cache_hit": statistics.get("query", {}).get("cacheHit"),
                 "configuration": configuration,
                 # Note: user_email is snake_case in BigQuery API (exception to camelCase convention)
-                "user_email": response.get("user_email"),
+                "user_email": response.data.get("user_email"),
             }
 
             return ActionResult(data={"job": job, "result": True}, cost_usd=0.0)
@@ -711,7 +711,7 @@ class ListProjectsAction(ActionHandler):
             response = await context.fetch(url, method="GET", params=params if params else None)
 
             projects = []
-            for proj in response.get("projects", []):
+            for proj in response.data.get("projects", []):
                 project_ref = proj.get("projectReference", {})
                 projects.append(
                     {
@@ -724,8 +724,8 @@ class ListProjectsAction(ActionHandler):
 
             result_data = {"projects": projects, "result": True}
 
-            if response.get("nextPageToken"):
-                result_data["next_page_token"] = response["nextPageToken"]
+            if response.data.get("nextPageToken"):
+                result_data["next_page_token"] = response.data["nextPageToken"]
 
             return ActionResult(data=result_data, cost_usd=0.0)
 

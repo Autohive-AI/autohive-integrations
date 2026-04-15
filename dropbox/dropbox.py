@@ -48,9 +48,9 @@ class ListFolderAction(ActionHandler):
 
                 response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/list_folder", method="POST", json=data)
 
-            entries = response.get("entries", [])
-            new_cursor = response.get("cursor")
-            has_more = response.get("has_more", False)
+            entries = response.data.get("entries", [])
+            new_cursor = response.data.get("cursor")
+            has_more = response.data.get("has_more", False)
 
             return ActionResult(
                 data={"entries": entries, "cursor": new_cursor, "has_more": has_more, "result": True}, cost_usd=0.0
@@ -79,7 +79,7 @@ class GetMetadataAction(ActionHandler):
 
             response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/get_metadata", method="POST", json=data)
 
-            return ActionResult(data={"metadata": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"metadata": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"metadata": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -98,8 +98,8 @@ class GetTemporaryLinkAction(ActionHandler):
 
             response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/get_temporary_link", method="POST", json=data)
 
-            link = response.get("link")
-            metadata = response.get("metadata", {})
+            link = response.data.get("link")
+            metadata = response.data.get("metadata", {})
 
             return ActionResult(data={"link": link, "metadata": metadata, "result": True}, cost_usd=0.0)
 
@@ -140,7 +140,7 @@ class UploadFileAction(ActionHandler):
                 f"{DROPBOX_CONTENT_BASE_URL}/files/upload", method="POST", headers=headers, data=content
             )
 
-            return ActionResult(data={"file": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"file": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"file": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -156,7 +156,7 @@ class CreateFolderAction(ActionHandler):
 
             response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/create_folder_v2", method="POST", json=data)
 
-            return ActionResult(data={"folder": response.get("metadata", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"folder": response.data.get("metadata", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -172,7 +172,7 @@ class DeleteAction(ActionHandler):
 
             response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/delete_v2", method="POST", json=data)
 
-            return ActionResult(data={"metadata": response.get("metadata", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"metadata": response.data.get("metadata", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"metadata": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -193,7 +193,7 @@ class MoveAction(ActionHandler):
 
             response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/move_v2", method="POST", json=data)
 
-            return ActionResult(data={"metadata": response.get("metadata", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"metadata": response.data.get("metadata", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"metadata": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -213,7 +213,7 @@ class CopyAction(ActionHandler):
 
             response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/copy_v2", method="POST", json=data)
 
-            return ActionResult(data={"metadata": response.get("metadata", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"metadata": response.data.get("metadata", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"metadata": {}, "result": False, "error": str(e)}, cost_usd=0.0)

@@ -30,7 +30,7 @@ class ListPagesAction(ActionHandler):
                 "category": page.get("category", ""),
                 "followers_count": page.get("followers_count", 0),
             }
-            for page in response.get("data", [])
+            for page in response.data.get("data", [])
         ]
 
         return ActionResult(data={"pages": pages})

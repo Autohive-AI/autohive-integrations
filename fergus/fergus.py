@@ -99,7 +99,7 @@ class CreateJob(ActionHandler):
                     body["customerReference"] = inputs["customer_reference"]
 
             resp = await context.fetch(f"{BASE_URL}/jobs", method="POST", headers=headers, json=body)
-            return _success({"job": resp})
+            return _success({"job": resp.data})
         except Exception as e:
             return _error(e)
 
@@ -133,7 +133,7 @@ class UpdateJob(ActionHandler):
                 raise ValueError("At least one field must be provided to update a job.")
 
             resp = await context.fetch(f"{BASE_URL}/jobs/{job_id}", method="PUT", headers=headers, json=body)
-            return _success({"job": resp})
+            return _success({"job": resp.data})
         except Exception as e:
             return _error(e)
 
@@ -154,7 +154,7 @@ class FinaliseJob(ActionHandler):
                 headers=headers,
                 json={},
             )
-            return _success({"job": resp})
+            return _success({"job": resp.data})
         except Exception as e:
             return _error(e)
 
@@ -170,7 +170,7 @@ class GetJob(ActionHandler):
             job_id = int(inputs["job_id"])
 
             resp = await context.fetch(f"{BASE_URL}/jobs/{job_id}", method="GET", headers=headers)
-            return _success({"job": resp})
+            return _success({"job": resp.data})
         except Exception as e:
             return _error(e)
 
@@ -203,7 +203,7 @@ class ListJobs(ActionHandler):
                 params["filterSearchText"] = inputs["search"]
 
             resp = await context.fetch(f"{BASE_URL}/jobs", method="GET", headers=headers, params=params)
-            return _success({"jobs": resp})
+            return _success({"jobs": resp.data})
         except Exception as e:
             return _error(e)
 
@@ -226,7 +226,7 @@ class SearchCustomers(ActionHandler):
                 params["filterSearchText"] = inputs["search"]
 
             resp = await context.fetch(f"{BASE_URL}/customers", method="GET", headers=headers, params=params)
-            return _success({"customers": resp})
+            return _success({"customers": resp.data})
         except Exception as e:
             return _error(e)
 
@@ -242,7 +242,7 @@ class GetCustomer(ActionHandler):
             customer_id = int(inputs["customer_id"])
 
             resp = await context.fetch(f"{BASE_URL}/customers/{customer_id}", method="GET", headers=headers)
-            return _success({"customer": resp})
+            return _success({"customer": resp.data})
         except Exception as e:
             return _error(e)
 
@@ -265,7 +265,7 @@ class ListSites(ActionHandler):
                 params["filterSearchText"] = inputs["search"]
 
             resp = await context.fetch(f"{BASE_URL}/sites", method="GET", headers=headers, params=params)
-            return _success({"sites": resp})
+            return _success({"sites": resp.data})
         except Exception as e:
             return _error(e)
 
@@ -288,6 +288,6 @@ class ListUsers(ActionHandler):
                 params["filterSearchText"] = inputs["search"]
 
             resp = await context.fetch(f"{BASE_URL}/users", method="GET", headers=headers, params=params)
-            return _success({"users": resp})
+            return _success({"users": resp.data})
         except Exception as e:
             return _error(e)

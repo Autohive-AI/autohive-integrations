@@ -27,8 +27,8 @@ class CanvaConnectedAccountHandler(ConnectedAccountHandler):
         user_response = await context.fetch(f"{service_endpoint}/v1/users/me", method="GET")
 
         # Extract information from responses
-        display_name = profile_response.get("profile", {}).get("display_name")
-        team_user = user_response.get("team_user", {})
+        display_name = profile_response.data.get("profile", {}).get("display_name")
+        team_user = user_response.data.get("team_user", {})
         user_id = team_user.get("user_id")
         team_id = team_user.get("team_id")
 
@@ -56,7 +56,7 @@ class GetUserCapabilities(ActionHandler):
         try:
             response = await context.fetch(f"{service_endpoint}/v1/users/me/capabilities", method="GET")
 
-            return ActionResult(data={"result": True, "capabilities": response.get("capabilities", [])}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "capabilities": response.data.get("capabilities", [])}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -102,7 +102,7 @@ class UploadAsset(ActionHandler):
             )
 
             result = {"result": True}
-            job_data = response.get("job", {})
+            job_data = response.data.get("job", {})
 
             if job_data.get("id"):
                 result["job_id"] = job_data["id"]
@@ -123,7 +123,7 @@ class GetAssetUploadStatus(ActionHandler):
             response = await context.fetch(f"{service_endpoint}/v1/asset-uploads/{job_id}", method="GET")
 
             result = {"result": True}
-            job_data = response.get("job", {})
+            job_data = response.data.get("job", {})
 
             if job_data.get("status"):
                 result["status"] = job_data["status"]
@@ -145,8 +145,8 @@ class GetAsset(ActionHandler):
 
             result = {"result": True}
 
-            if response.get("asset"):
-                result["asset"] = response["asset"]
+            if response.data.get("asset"):
+                result["asset"] = response.data["asset"]
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
@@ -206,7 +206,7 @@ class CreateDesign(ActionHandler):
 
             result = {"result": True}
 
-            if response.get("design"):
+            if response.data.get("design"):
                 result["design"] = response["design"]
 
             return ActionResult(data=result, cost_usd=0.0)
@@ -232,11 +232,11 @@ class ListDesigns(ActionHandler):
             response = await context.fetch(f"{service_endpoint}/v1/designs", method="GET", params=params)
 
             # Wrap response to match output schema
-            result = {"designs": response.get("items", []), "result": True}
+            result = {"designs": response.data.get("items", []), "result": True}
 
             # Only include continuation if it exists
-            if response.get("continuation"):
-                result["continuation"] = response["continuation"]
+            if response.data.get("continuation"):
+                result["continuation"] = response.data["continuation"]
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
@@ -253,7 +253,7 @@ class GetDesign(ActionHandler):
 
             result = {"result": True}
 
-            if response.get("design"):
+            if response.data.get("design"):
                 result["design"] = response["design"]
 
             return ActionResult(data=result, cost_usd=0.0)
@@ -333,7 +333,7 @@ class ExportDesign(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/exports", method="POST", json=export_data)
 
-            job_id = response.get("job", {}).get("id")
+            job_id = response.data.get("job", {}).get("id")
 
             return ActionResult(data={"result": True, "job_id": job_id} if job_id else {"result": True}, cost_usd=0.0)
         except Exception as e:
@@ -349,7 +349,7 @@ class GetExportStatus(ActionHandler):
             response = await context.fetch(f"{service_endpoint}/v1/exports/{export_id}", method="GET")
 
             result = {"result": True}
-            job_data = response.get("job", {})
+            job_data = response.data.get("job", {})
 
             if job_data.get("status"):
                 result["status"] = job_data["status"]
@@ -405,7 +405,7 @@ class ImportDesign(ActionHandler):
             )
 
             result = {"result": True}
-            job_data = response.get("job", {})
+            job_data = response.data.get("job", {})
 
             if job_data.get("id"):
                 result["job_id"] = job_data["id"]
@@ -426,7 +426,7 @@ class GetDesignImportStatus(ActionHandler):
             response = await context.fetch(f"{service_endpoint}/v1/imports/{job_id}", method="GET")
 
             result = {"result": True}
-            job_data = response.get("job", {})
+            job_data = response.data.get("job", {})
 
             if job_data.get("status"):
                 result["status"] = job_data["status"]
@@ -452,7 +452,7 @@ class ImportDesignFromUrl(ActionHandler):
             response = await context.fetch(f"{service_endpoint}/v1/url-imports", method="POST", json=import_data)
 
             result = {"result": True}
-            job_data = response.get("job", {})
+            job_data = response.data.get("job", {})
 
             if job_data.get("id"):
                 result["job_id"] = job_data["id"]
@@ -473,7 +473,7 @@ class GetUrlImportStatus(ActionHandler):
             response = await context.fetch(f"{service_endpoint}/v1/url-imports/{job_id}", method="GET")
 
             result = {"result": True}
-            job_data = response.get("job", {})
+            job_data = response.data.get("job", {})
 
             if job_data.get("status"):
                 result["status"] = job_data["status"]
@@ -498,7 +498,7 @@ class CreateFolder(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/folders", method="POST", json=folder_data)
 
-            return ActionResult(data={"result": True, "folder": response.get("folder")}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "folder": response.data.get("folder")}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -513,7 +513,7 @@ class GetFolder(ActionHandler):
 
             result = {"result": True}
 
-            if response.get("folder"):
+            if response.data.get("folder"):
                 result["folder"] = response["folder"]
 
             return ActionResult(data=result, cost_usd=0.0)
@@ -536,11 +536,11 @@ class ListFolderItems(ActionHandler):
                 f"{service_endpoint}/v1/folders/{folder_id}/items", method="GET", params=params
             )
 
-            result = {"items": response.get("items", []), "result": True}
+            result = {"items": response.data.get("items", []), "result": True}
 
             # Only include continuation if it exists
-            if response.get("continuation"):
-                result["continuation"] = response["continuation"]
+            if response.data.get("continuation"):
+                result["continuation"] = response.data["continuation"]
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
