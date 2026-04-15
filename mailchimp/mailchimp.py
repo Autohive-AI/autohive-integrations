@@ -55,7 +55,7 @@ class MailchimpRateLimiter:
         for attempt in range(self.max_retries + 1):
             try:
                 response = await context.fetch(url, **kwargs)
-                return response
+                return response.data
 
             except Exception as e:
                 last_error = e

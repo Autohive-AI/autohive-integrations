@@ -42,7 +42,8 @@ async def fetch_single_resource(
     context: ExecutionContext, path: str, params: Dict[str, Any], result_key: str
 ) -> ActionResult:
     url = build_url(path, params or None)
-    response = await context.fetch(url, method="GET", headers=get_api_headers(context))
+    resp = await context.fetch(url, method="GET", headers=get_api_headers(context))
+    response = resp.data
     if error := build_error_result(response):
         return error
     return ActionResult(data={"result": True, result_key: response})

@@ -50,6 +50,7 @@ class GetEventsAction(ActionHandler):
         url = build_url("events", params)
 
         response = await context.fetch(url, method="GET", headers=get_api_headers(context))
+        response = response.data
 
         if error := build_error_result(response):
             return error

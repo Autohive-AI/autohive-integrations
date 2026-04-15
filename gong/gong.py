@@ -36,13 +36,13 @@ class GongAPIClient:
 
         # Use the context's fetch method for authenticated requests (OAuth handled by SDK)
         if method == "GET":
-            return await self.context.fetch(url, params=params, headers=headers)
+            return (await self.context.fetch(url, params=params, headers=headers)).data
         elif method == "POST":
-            return await self.context.fetch(url, method="POST", json=data, headers=headers)
+            return (await self.context.fetch(url, method="POST", json=data, headers=headers)).data
         elif method == "PUT":
-            return await self.context.fetch(url, method="PUT", json=data, headers=headers)
+            return (await self.context.fetch(url, method="PUT", json=data, headers=headers)).data
         elif method == "DELETE":
-            return await self.context.fetch(url, method="DELETE", headers=headers)
+            return (await self.context.fetch(url, method="DELETE", headers=headers)).data
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
 

@@ -37,14 +37,14 @@ class GetAccountAction(ActionHandler):
 
         return ActionResult(
             data={
-                "id": response.get("id", ""),
-                "username": response.get("username", ""),
-                "name": response.get("name", ""),
-                "biography": response.get("biography", ""),
-                "followers_count": response.get("followers_count", 0),
-                "following_count": response.get("follows_count", 0),
-                "media_count": response.get("media_count", 0),
-                "profile_picture_url": response.get("profile_picture_url", ""),
-                "website": response.get("website", ""),
+                "id": response.data.get("id", ""),
+                "username": response.data.get("username", ""),
+                "name": response.data.get("name", ""),
+                "biography": response.data.get("biography", ""),
+                "followers_count": response.data.get("followers_count", 0),
+                "following_count": response.data.get("follows_count", 0),
+                "media_count": response.data.get("media_count", 0),
+                "profile_picture_url": response.data.get("profile_picture_url", ""),
+                "website": response.data.get("website", ""),
             }
         )

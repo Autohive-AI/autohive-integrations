@@ -51,7 +51,8 @@ async def get_cloud_id(access_token: str, context: ExecutionContext) -> str:
         "Accept": "application/json",
     }
     try:
-        resources = await context.fetch(ACCESSIBLE_RESOURCES_URL, headers=headers)
+        resources_resp = await context.fetch(ACCESSIBLE_RESOURCES_URL, headers=headers)
+        resources = resources_resp.data
     except Exception as e:
         raise Exception(f"Failed to discover Jira Cloud ID: {e}")
 
@@ -168,7 +169,7 @@ async def jira_request(
         body = await context.fetch(url, method=method, params=params, data=raw_body, headers=headers)
     else:
         body = await context.fetch(url, method=method, params=params, json=payload, headers=headers)
-    return body
+    return body.data
 
 
 # ---- Action Handlers ----

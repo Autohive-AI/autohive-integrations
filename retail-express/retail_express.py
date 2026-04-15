@@ -33,7 +33,7 @@ async def get_access_token(context: ExecutionContext) -> str:
         headers={"x-api-key": api_key, "Accept": "application/json"},
     )
 
-    return response.get("access_token", "")
+    return response.data.get("access_token", "")
 
 
 async def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
@@ -95,14 +95,14 @@ class ListProductsAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/products", method="GET", headers=headers, params=params
             )
 
-            products = response.get("data", [])
+            products = response.data.get("data", [])
 
             return ActionResult(
                 data={
                     "products": products,
-                    "page_number": response.get("page_number", 1),
-                    "page_size": response.get("page_size", 20),
-                    "total_records": response.get("total_records", len(products)),
+                    "page_number": response.data.get("page_number", 1),
+                    "page_size": response.data.get("page_size", 20),
+                    "total_records": response.data.get("total_records", len(products)),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -136,7 +136,7 @@ class GetProductAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/products/{product_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data={"product": response.get("data", response), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"product": response.data.get("data", response.data), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -165,14 +165,14 @@ class ListCustomersAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/customers", method="GET", headers=headers, params=params
             )
 
-            customers = response.get("data", [])
+            customers = response.data.get("data", [])
 
             return ActionResult(
                 data={
                     "customers": customers,
-                    "page_number": response.get("page_number", 1),
-                    "page_size": response.get("page_size", 20),
-                    "total_records": response.get("total_records", len(customers)),
+                    "page_number": response.data.get("page_number", 1),
+                    "page_size": response.data.get("page_size", 20),
+                    "total_records": response.data.get("total_records", len(customers)),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -206,7 +206,7 @@ class GetCustomerAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/customers/{customer_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data={"customer": response.get("data", response), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"customer": response.data.get("data", response.data), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -240,7 +240,7 @@ class CreateCustomerAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/customers", method="POST", headers=headers, json=body
             )
 
-            return ActionResult(data={"customer": response.get("data", response), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"customer": response.data.get("data", response.data), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -278,7 +278,7 @@ class UpdateCustomerAction(ActionHandler):
                 json=body,
             )
 
-            return ActionResult(data={"customer": response.get("data", response), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"customer": response.data.get("data", response.data), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -309,14 +309,14 @@ class ListOrdersAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/orders", method="GET", headers=headers, params=params
             )
 
-            orders = response.get("data", [])
+            orders = response.data.get("data", [])
 
             return ActionResult(
                 data={
                     "orders": orders,
-                    "page_number": response.get("page_number", 1),
-                    "page_size": response.get("page_size", 20),
-                    "total_records": response.get("total_records", len(orders)),
+                    "page_number": response.data.get("page_number", 1),
+                    "page_size": response.data.get("page_size", 20),
+                    "total_records": response.data.get("total_records", len(orders)),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -350,7 +350,7 @@ class GetOrderAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/orders/{order_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data={"order": response.get("data", response), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"order": response.data.get("data", response.data), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"order": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -373,14 +373,14 @@ class ListOutletsAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/outlets", method="GET", headers=headers, params=params
             )
 
-            outlets = response.get("data", [])
+            outlets = response.data.get("data", [])
 
             return ActionResult(
                 data={
                     "outlets": outlets,
-                    "page_number": response.get("page_number", 1),
-                    "page_size": response.get("page_size", 20),
-                    "total_records": response.get("total_records", len(outlets)),
+                    "page_number": response.data.get("page_number", 1),
+                    "page_size": response.data.get("page_size", 20),
+                    "total_records": response.data.get("total_records", len(outlets)),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -414,7 +414,7 @@ class GetOutletAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/outlets/{outlet_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data={"outlet": response.get("data", response), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"outlet": response.data.get("data", response.data), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"outlet": {}, "result": False, "error": str(e)}, cost_usd=0.0)

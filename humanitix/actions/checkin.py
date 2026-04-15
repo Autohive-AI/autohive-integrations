@@ -21,6 +21,7 @@ async def _toggle_check(inputs: Dict[str, Any], context: ExecutionContext, actio
     url = build_url(f"events/{event_id}/tickets/{ticket_id}/{action}", params)
 
     response = await context.fetch(url, method="POST", headers=headers)
+    response = response.data
 
     if error := build_error_result(response):
         return error

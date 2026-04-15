@@ -45,7 +45,7 @@ class CreateDealAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/deals", method="POST", json=data)
 
-            return ActionResult(data={"deal": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"deal": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"deal": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -61,7 +61,7 @@ class GetDealAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/deals/{deal_id}", method="GET")
 
-            return ActionResult(data={"deal": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"deal": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"deal": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -98,7 +98,7 @@ class UpdateDealAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/deals/{deal_id}", method="PUT", json=data)
 
-            return ActionResult(data={"deal": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"deal": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"deal": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -129,7 +129,7 @@ class ListDealsAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/deals", method="GET", params=params)
 
-            deals = response.get("data", [])
+            deals = response.data.get("data", [])
             return ActionResult(data={"deals": deals, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -177,7 +177,7 @@ class CreatePersonAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/persons", method="POST", json=data)
 
-            return ActionResult(data={"person": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"person": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"person": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -193,7 +193,7 @@ class GetPersonAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/persons/{person_id}", method="GET")
 
-            return ActionResult(data={"person": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"person": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"person": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -221,7 +221,7 @@ class UpdatePersonAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/persons/{person_id}", method="PUT", json=data)
 
-            return ActionResult(data={"person": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"person": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"person": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -248,7 +248,7 @@ class ListPersonsAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/persons", method="GET", params=params)
 
-            persons = response.get("data", [])
+            persons = response.data.get("data", [])
             return ActionResult(data={"persons": persons, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -291,7 +291,7 @@ class CreateOrganizationAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/organizations", method="POST", json=data)
 
-            return ActionResult(data={"organization": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"organization": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"organization": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -307,7 +307,7 @@ class GetOrganizationAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/organizations/{org_id}", method="GET")
 
-            return ActionResult(data={"organization": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"organization": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"organization": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -331,7 +331,7 @@ class UpdateOrganizationAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/organizations/{org_id}", method="PUT", json=data)
 
-            return ActionResult(data={"organization": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"organization": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"organization": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -358,7 +358,7 @@ class ListOrganizationsAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/organizations", method="GET", params=params)
 
-            organizations = response.get("data", [])
+            organizations = response.data.get("data", [])
             return ActionResult(data={"organizations": organizations, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -413,7 +413,7 @@ class CreateActivityAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/activities", method="POST", json=data)
 
-            return ActionResult(data={"activity": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"activity": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"activity": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -429,7 +429,7 @@ class GetActivityAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/activities/{activity_id}", method="GET")
 
-            return ActionResult(data={"activity": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"activity": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"activity": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -463,7 +463,7 @@ class UpdateActivityAction(ActionHandler):
                 f"{PIPEDRIVE_API_BASE_URL}/activities/{activity_id}", method="PUT", json=data
             )
 
-            return ActionResult(data={"activity": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"activity": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"activity": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -496,7 +496,7 @@ class ListActivitiesAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/activities", method="GET", params=params)
 
-            activities = response.get("data", [])
+            activities = response.data.get("data", [])
             return ActionResult(data={"activities": activities, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -539,7 +539,7 @@ class CreateNoteAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/notes", method="POST", json=data)
 
-            return ActionResult(data={"note": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"note": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"note": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -566,7 +566,7 @@ class ListNotesAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/notes", method="GET", params=params)
 
-            notes = response.get("data", [])
+            notes = response.data.get("data", [])
             return ActionResult(data={"notes": notes, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -584,7 +584,7 @@ class ListPipelinesAction(ActionHandler):
         try:
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/pipelines", method="GET")
 
-            pipelines = response.get("data", [])
+            pipelines = response.data.get("data", [])
             return ActionResult(data={"pipelines": pipelines, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -601,7 +601,7 @@ class GetPipelineAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/pipelines/{pipeline_id}", method="GET")
 
-            return ActionResult(data={"pipeline": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"pipeline": response.data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"pipeline": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -625,7 +625,7 @@ class ListStagesAction(ActionHandler):
                 f"{PIPEDRIVE_API_BASE_URL}/stages", method="GET", params=params if params else None
             )
 
-            stages = response.get("data", [])
+            stages = response.data.get("data", [])
             return ActionResult(data={"stages": stages, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -656,7 +656,7 @@ class SearchAction(ActionHandler):
 
             response = await context.fetch(f"{PIPEDRIVE_API_BASE_URL}/itemSearch", method="GET", params=params)
 
-            items = response.get("data", {}).get("items", [])
+            items = response.data.get("data", {}).get("items", [])
             return ActionResult(data={"items": items, "result": True}, cost_usd=0.0)
 
         except Exception as e:

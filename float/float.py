@@ -100,7 +100,7 @@ class FloatConnectedAccountHandler(ConnectedAccountHandler):
 
             # Extract account information
             # Float typically returns account details including company name
-            account_data = response if isinstance(response, dict) else {}
+            account_data = response.data if isinstance(response.data, dict) else {}
 
             # Try to get the current user's information from the account endpoint
             # Float API typically returns the account owner's information
@@ -183,7 +183,7 @@ class ListPeopleHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/people", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list people: {str(e)}")
@@ -217,7 +217,7 @@ class GetPersonHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/people/{people_id}", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get person {people_id}: {str(e)}")
@@ -270,7 +270,7 @@ class CreatePersonHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/people", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to create person: {str(e)}")
@@ -334,7 +334,7 @@ class UpdatePersonHandler(ActionHandler):
                 params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to update person {people_id}: {str(e)}")
@@ -419,7 +419,7 @@ class ListProjectsHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/projects", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list projects: {str(e)}")
@@ -448,7 +448,7 @@ class GetProjectHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/projects/{project_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get project {project_id}: {str(e)}")
@@ -502,7 +502,7 @@ class CreateProjectHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/projects", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to create project: {str(e)}")
@@ -558,7 +558,7 @@ class UpdateProjectHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/projects/{project_id}", method="PATCH", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to update project {project_id}: {str(e)}")
@@ -640,7 +640,7 @@ class ListTasksHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/tasks", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list tasks: {str(e)}")
@@ -667,7 +667,7 @@ class GetTaskHandler(ActionHandler):
         try:
             response = await context.fetch(url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}", method="GET", headers=headers)
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get task {task_id}: {str(e)}")
@@ -719,7 +719,7 @@ class CreateTaskHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/tasks", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to create task: {str(e)}")
@@ -771,7 +771,7 @@ class UpdateTaskHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}", method="PATCH", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to update task {task_id}: {str(e)}")
@@ -851,7 +851,7 @@ class ListTimeOffHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/timeoffs", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list time off: {str(e)}")
@@ -880,7 +880,7 @@ class GetTimeOffHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get time off {timeoff_id}: {str(e)}")
@@ -923,7 +923,7 @@ class CreateTimeOffHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/timeoffs", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to create time off: {str(e)}")
@@ -961,7 +961,7 @@ class UpdateTimeOffHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}", method="PATCH", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to update time off {timeoff_id}: {str(e)}")
@@ -1043,7 +1043,7 @@ class ListLoggedTimeHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/logged-time", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list logged time: {str(e)}")
@@ -1072,7 +1072,7 @@ class GetLoggedTimeHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/logged-time/{logged_time_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get logged time {logged_time_id}: {str(e)}")
@@ -1117,7 +1117,7 @@ class CreateLoggedTimeHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/logged-time", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to create logged time: {str(e)}")
@@ -1158,7 +1158,7 @@ class UpdateLoggedTimeHandler(ActionHandler):
                 json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to update logged time {logged_time_id}: {str(e)}")
@@ -1234,7 +1234,7 @@ class ListClientsHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/clients", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list clients: {str(e)}")
@@ -1263,7 +1263,7 @@ class GetClientHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/clients/{client_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get client {client_id}: {str(e)}")
@@ -1300,7 +1300,7 @@ class CreateClientHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/clients", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to create client: {str(e)}")
@@ -1341,7 +1341,7 @@ class UpdateClientHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/clients/{client_id}", method="PATCH", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to update client {client_id}: {str(e)}")
@@ -1413,7 +1413,7 @@ class ListDepartmentsHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/departments", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list departments: {str(e)}")
@@ -1442,7 +1442,7 @@ class GetDepartmentHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/departments/{department_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get department {department_id}: {str(e)}")
@@ -1485,7 +1485,7 @@ class ListRolesHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/roles", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list roles: {str(e)}")
@@ -1512,7 +1512,7 @@ class GetRoleHandler(ActionHandler):
         try:
             response = await context.fetch(url=f"{FLOAT_API_BASE_URL}/roles/{role_id}", method="GET", headers=headers)
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get role {role_id}: {str(e)}")
@@ -1555,7 +1555,7 @@ class ListTimeOffTypesHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/timeoff-types", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list time off types: {str(e)}")
@@ -1584,7 +1584,7 @@ class GetTimeOffTypeHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/timeoff-types/{timeoff_type_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get time off type {timeoff_type_id}: {str(e)}")
@@ -1624,7 +1624,7 @@ class ListAccountsHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/accounts", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list accounts: {str(e)}")
@@ -1653,7 +1653,7 @@ class GetAccountHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/accounts/{account_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get account {account_id}: {str(e)}")
@@ -1692,7 +1692,7 @@ class ListStatusesHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/status", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list statuses: {str(e)}")
@@ -1721,7 +1721,7 @@ class GetStatusHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/status/{status_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get status {status_id}: {str(e)}")
@@ -1760,7 +1760,7 @@ class ListPublicHolidaysHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/public-holidays", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list public holidays: {str(e)}")
@@ -1789,7 +1789,7 @@ class GetPublicHolidayHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/public-holidays/{public_holiday_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get public holiday {public_holiday_id}: {str(e)}")
@@ -1828,7 +1828,7 @@ class ListTeamHolidaysHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/holidays", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list team holidays: {str(e)}")
@@ -1857,7 +1857,7 @@ class GetTeamHolidayHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/holidays/{holiday_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get team holiday {holiday_id}: {str(e)}")
@@ -1896,7 +1896,7 @@ class ListProjectStagesHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/project-stages", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list project stages: {str(e)}")
@@ -1925,7 +1925,7 @@ class GetProjectStageHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/project-stages/{project_stage_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get project stage {project_stage_id}: {str(e)}")
@@ -1967,7 +1967,7 @@ class ListProjectExpensesHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/project-expenses", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list project expenses: {str(e)}")
@@ -1996,7 +1996,7 @@ class GetProjectExpenseHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/project-expenses/{project_expense_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get project expense {project_expense_id}: {str(e)}")
@@ -2038,7 +2038,7 @@ class ListPhasesHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/phases", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list phases: {str(e)}")
@@ -2065,7 +2065,7 @@ class GetPhaseHandler(ActionHandler):
         try:
             response = await context.fetch(url=f"{FLOAT_API_BASE_URL}/phases/{phase_id}", method="GET", headers=headers)
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get phase {phase_id}: {str(e)}")
@@ -2107,7 +2107,7 @@ class ListProjectTasksHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/project-tasks", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list project tasks: {str(e)}")
@@ -2136,7 +2136,7 @@ class GetProjectTaskHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/project-tasks/{project_task_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get project task {project_task_id}: {str(e)}")
@@ -2166,7 +2166,7 @@ class MergeProjectTasksHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/project-tasks/merge", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to merge project tasks: {str(e)}")
@@ -2208,7 +2208,7 @@ class ListMilestonesHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/milestones", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to list milestones: {str(e)}")
@@ -2237,7 +2237,7 @@ class GetMilestoneHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/milestones/{milestone_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to get milestone {milestone_id}: {str(e)}")
@@ -2279,7 +2279,7 @@ class GetPeopleReportHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/reports/people", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to generate people report: {str(e)}")
@@ -2318,7 +2318,7 @@ class GetProjectsReportHandler(ActionHandler):
                 url=f"{FLOAT_API_BASE_URL}/reports/projects", method="GET", headers=headers, params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             raise Exception(f"Failed to generate projects report: {str(e)}")

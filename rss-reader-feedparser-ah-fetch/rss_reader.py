@@ -1,5 +1,5 @@
 # rss-reader.py
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 import feedparser
 
@@ -57,7 +57,7 @@ class GetFeedAction(ActionHandler):
             response = await context.fetch(feed_url)
 
         # Parse feed
-        feed = feedparser.parse(response)
+        feed = feedparser.parse(response.data)
 
         # Check for parsing errors
         if hasattr(feed, "bozo_exception"):
@@ -76,4 +76,4 @@ class GetFeedAction(ActionHandler):
                 }
             )
 
-        return {"feed_title": feed.feed.get("title", ""), "feed_link": feed.feed.get("link", ""), "entries": entries}
+        return ActionResult(data={"feed_title": feed.feed.get("title", ""), "feed_link": feed.feed.get("link", ""), "entries": entries}, cost_usd=0)

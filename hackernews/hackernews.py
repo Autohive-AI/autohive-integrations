@@ -18,7 +18,7 @@ HN_USER_URL = "https://news.ycombinator.com/user?id="
 async def fetch_json(context: ExecutionContext, url: str) -> Optional[Any]:
     """Fetch JSON from a URL, returning None on error."""
     try:
-        return await context.fetch(url, method="GET")
+        return (await context.fetch(url, method="GET")).data
     except Exception:
         return None
 

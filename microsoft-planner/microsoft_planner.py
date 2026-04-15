@@ -34,7 +34,7 @@ async def get_etag(context: ExecutionContext, resource_url: str) -> Optional[str
     try:
         response = await context.fetch(resource_url, method="GET")
         # ETag is returned in the response with @odata.etag key
-        return response.get("@odata.etag")
+        return response.data.get("@odata.etag")
     except Exception:
         return None
 
@@ -63,7 +63,7 @@ class ListGroupsAction(ActionHandler):
                 params=params,
             )
 
-            groups = response.get("value", [])
+            groups = response.data.get("value", [])
             return ActionResult(data={"groups": groups, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -86,7 +86,7 @@ class GetUserByEmailAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/users", method="GET", params=params)
 
-            users = response.get("value", [])
+            users = response.data.get("value", [])
 
             if users:
                 user = users[0]
@@ -139,7 +139,7 @@ class SearchUsersAction(ActionHandler):
                 headers=headers,
             )
 
-            users = response.get("value", [])
+            users = response.data.get("value", [])
 
             # Format users for easier consumption
             formatted_users = [
@@ -168,10 +168,10 @@ class GetCurrentUserAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "user": response,
-                    "user_id": response.get("id"),
-                    "display_name": response.get("displayName"),
-                    "email": response.get("mail") or response.get("userPrincipalName"),
+                    "user": response.data,
+                    "user_id": response.data.get("id"),
+                    "display_name": response.data.get("displayName"),
+                    "email": response.data.get("mail") or response.data.get("userPrincipalName"),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -191,7 +191,7 @@ class ListUserTasksAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/users/{user_id}/planner/tasks", method="GET")
 
-            tasks = response.get("value", [])
+            tasks = response.data.get("value", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -208,7 +208,7 @@ class ListUserPlansAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/users/{user_id}/planner/plans", method="GET")
 
-            plans = response.get("value", [])
+            plans = response.data.get("value", [])
             return ActionResult(data={"plans": plans, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -228,7 +228,7 @@ class ListPlansAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/groups/{group_id}/planner/plans", method="GET")
 
-            plans = response.get("value", [])
+            plans = response.data.get("value", [])
             return ActionResult(data={"plans": plans, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -245,7 +245,7 @@ class GetPlanAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}", method="GET")
 
-            return ActionResult(data={"plan": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"plan": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"plan": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -281,7 +281,7 @@ class CreatePlanAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/plans", method="POST", json=body)
 
-            return ActionResult(data={"plan": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"plan": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"plan": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -322,7 +322,7 @@ class UpdatePlanAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"plan": response if response else {}, "result": True},
+                data={"plan": response.data if response else {}, "result": True},
                 cost_usd=0.0,
             )
 
@@ -375,7 +375,7 @@ class GetPlanDetailsAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}/details", method="GET")
 
-            return ActionResult(data={"plan_details": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"plan_details": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -428,7 +428,7 @@ class UpdatePlanDetailsAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"plan_details": response if response else {}, "result": True},
+                data={"plan_details": response.data if response else {}, "result": True},
                 cost_usd=0.0,
             )
 
@@ -455,7 +455,7 @@ class ListBucketsAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/buckets", method="GET", params=params)
 
-            buckets = response.get("value", [])
+            buckets = response.data.get("value", [])
             return ActionResult(data={"buckets": buckets, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -472,7 +472,7 @@ class GetBucketAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}", method="GET")
 
-            return ActionResult(data={"bucket": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"bucket": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -493,7 +493,7 @@ class CreateBucketAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/buckets", method="POST", json=body)
 
-            return ActionResult(data={"bucket": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"bucket": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -534,7 +534,7 @@ class UpdateBucketAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"bucket": response if response else {}, "result": True},
+                data={"bucket": response.data if response else {}, "result": True},
                 cost_usd=0.0,
             )
 
@@ -584,7 +584,7 @@ class ListBucketTasksAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}/tasks", method="GET")
 
-            tasks = response.get("value", [])
+            tasks = response.data.get("value", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -604,7 +604,7 @@ class ListTasksAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}/tasks", method="GET")
 
-            tasks = response.get("value", [])
+            tasks = response.data.get("value", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -621,7 +621,7 @@ class GetTaskAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}", method="GET")
 
-            return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"task": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -677,7 +677,7 @@ class CreateTaskAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks", method="POST", json=body)
 
-            return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"task": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -775,7 +775,7 @@ class UpdateTaskAction(ActionHandler):
 
             # Ensure we always return an object for task, even if response is None
             return ActionResult(
-                data={"task": response if response else {}, "result": True},
+                data={"task": response.data if response else {}, "result": True},
                 cost_usd=0.0,
             )
 
@@ -828,7 +828,7 @@ class GetTaskDetailsAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET")
 
-            return ActionResult(data={"task_details": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"task_details": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -887,7 +887,7 @@ class UpdateTaskDetailsAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"task_details": response if response else {}, "result": True},
+                data={"task_details": response.data if response else {}, "result": True},
                 cost_usd=0.0,
             )
 
@@ -913,7 +913,7 @@ class AddChecklistItemAction(ActionHandler):
             current_details = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET")
 
             # Get current ETag (required for updates)
-            etag = current_details.get("@odata.etag")
+            etag = current_details.data.get("@odata.etag")
             if not etag:
                 return ActionResult(
                     data={
@@ -924,7 +924,7 @@ class AddChecklistItemAction(ActionHandler):
                 )
 
             # Get existing checklist or initialize empty dict
-            existing_checklist = current_details.get("checklist", {})
+            existing_checklist = current_details.data.get("checklist", {})
 
             # Clean existing checklist items by removing read-only fields
             # Don't include orderHint for existing items since we're not reordering them
@@ -961,7 +961,7 @@ class AddChecklistItemAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "task_details": response if response else {},
+                    "task_details": response.data if response else {},
                     "item_id": item_id,
                     "result": True,
                 },
@@ -985,7 +985,7 @@ class UpdateChecklistItemAction(ActionHandler):
             current_details = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET")
 
             # Get current ETag (required for updates)
-            etag = current_details.get("@odata.etag")
+            etag = current_details.data.get("@odata.etag")
             if not etag:
                 return ActionResult(
                     data={
@@ -996,7 +996,7 @@ class UpdateChecklistItemAction(ActionHandler):
                 )
 
             # Get existing checklist
-            existing_checklist = current_details.get("checklist", {})
+            existing_checklist = current_details.data.get("checklist", {})
 
             if item_id not in existing_checklist:
                 return ActionResult(
@@ -1036,7 +1036,7 @@ class UpdateChecklistItemAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"task_details": response if response else {}, "result": True},
+                data={"task_details": response.data if response else {}, "result": True},
                 cost_usd=0.0,
             )
 
@@ -1057,7 +1057,7 @@ class RemoveChecklistItemAction(ActionHandler):
             current_details = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET")
 
             # Get current ETag (required for updates)
-            etag = current_details.get("@odata.etag")
+            etag = current_details.data.get("@odata.etag")
             if not etag:
                 return ActionResult(
                     data={
@@ -1068,7 +1068,7 @@ class RemoveChecklistItemAction(ActionHandler):
                 )
 
             # Get existing checklist
-            existing_checklist = current_details.get("checklist", {})
+            existing_checklist = current_details.data.get("checklist", {})
 
             if item_id not in existing_checklist:
                 return ActionResult(
@@ -1103,7 +1103,7 @@ class RemoveChecklistItemAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"task_details": response if response else {}, "result": True},
+                data={"task_details": response.data if response else {}, "result": True},
                 cost_usd=0.0,
             )
 
@@ -1127,7 +1127,7 @@ class GetTaskAssignedToBoardFormatAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"board_format": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"board_format": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1181,7 +1181,7 @@ class UpdateTaskAssignedToBoardFormatAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"board_format": response if response else {}, "result": True},
+                data={"board_format": response.data if response else {}, "result": True},
                 cost_usd=0.0,
             )
 
@@ -1205,7 +1205,7 @@ class GetTaskBucketBoardFormatAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"board_format": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"board_format": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1255,7 +1255,7 @@ class UpdateTaskBucketBoardFormatAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"board_format": response if response else {}, "result": True},
+                data={"board_format": response.data if response else {}, "result": True},
                 cost_usd=0.0,
             )
 
@@ -1279,7 +1279,7 @@ class GetTaskProgressBoardFormatAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"board_format": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"board_format": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1329,7 +1329,7 @@ class UpdateTaskProgressBoardFormatAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"board_format": response if response else {}, "result": True},
+                data={"board_format": response.data if response else {}, "result": True},
                 cost_usd=0.0,
             )
 

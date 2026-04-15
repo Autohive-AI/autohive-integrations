@@ -350,7 +350,7 @@ class ListDocuments(ActionHandler):
             response = await context.fetch(url, method="GET", params=params)
 
             documents = []
-            for item in response.get("value", []):
+            for item in response.data.get("value", []):
                 if item.get("name", "").lower().endswith(".docx"):
                     documents.append(
                         {
@@ -363,7 +363,7 @@ class ListDocuments(ActionHandler):
                         }
                     )
 
-            next_link = response.get("@odata.nextLink")
+            next_link = response.data.get("@odata.nextLink")
 
             return ActionResult(
                 data={"documents": documents, "next_page_token": next_link if next_link else None, "result": True},
@@ -392,7 +392,7 @@ class GetDocument(ActionHandler):
 
             document = await context.fetch(url, method="GET", params=params)
 
-            return ActionResult(data={"document": document, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"document": document.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
@@ -420,12 +420,12 @@ class GetContent(ActionHandler):
                 response = await context.fetch(content_url, method="GET")
                 metadata = None
 
-            if not isinstance(response, bytes):
+            if not isinstance(response.data, bytes):
                 return ActionResult(
                     data={"result": False, "error": "Failed to download document content"}, cost_usd=0.0
                 )
 
-            docx_bytes = response
+            docx_bytes = response.data
 
             parsed = parse_docx_content(docx_bytes)
 
@@ -444,7 +444,7 @@ class GetContent(ActionHandler):
             }
 
             if metadata is not None:
-                result_data["metadata"] = metadata
+                result_data["metadata"] = metadata.data
 
             result_data["result"] = True
             return ActionResult(data=result_data, cost_usd=0.0)
@@ -474,8 +474,8 @@ class CreateDocument(ActionHandler):
                     folder_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_path}"
                     folder_info = await context.fetch(folder_url, method="GET")
                     copy_body["parentReference"] = {
-                        "driveId": folder_info.get("parentReference", {}).get("driveId"),
-                        "id": folder_info.get("id"),
+                        "driveId": folder_info.data.get("parentReference", {}).get("driveId"),
+                        "id": folder_info.data.get("id"),
                     }
 
                 await context.fetch(copy_url, method="POST", json=copy_body)
@@ -514,9 +514,9 @@ class CreateDocument(ActionHandler):
 
                 return ActionResult(
                     data={
-                        "document_id": response.get("id"),
-                        "name": response.get("name"),
-                        "webUrl": response.get("webUrl"),
+                        "document_id": response.data.get("id"),
+                        "name": response.data.get("name"),
+                        "webUrl": response.data.get("webUrl"),
                         "result": True,
                     },
                     cost_usd=0.0,
@@ -544,7 +544,8 @@ async def _wait_for_copy(
             else:
                 check_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_name}"
 
-            return await context.fetch(check_url, method="GET")
+            resp = await context.fetch(check_url, method="GET")
+            return resp.data
         except Exception:
             await asyncio.sleep(delay)
             delay = min(delay * 1.5, 5.0)  # Cap at 5 seconds
@@ -564,14 +565,14 @@ class UpdateContent(ActionHandler):
 
             if preserve_formatting:
                 content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
-                existing_bytes = await context.fetch(content_url, method="GET")
+                existing_bytes_resp = await context.fetch(content_url, method="GET")
 
-                if not isinstance(existing_bytes, bytes):
+                if not isinstance(existing_bytes_resp.data, bytes):
                     return ActionResult(
                         data={"result": False, "error": "Failed to download document content"}, cost_usd=0.0
                     )
 
-                docx_bytes, _ = modify_docx_content(existing_bytes, {"replace_all": content})
+                docx_bytes, _ = modify_docx_content(existing_bytes_resp.data, {"replace_all": content})
             else:
                 docx_bytes = create_docx_from_text(content)
 
@@ -610,14 +611,14 @@ class InsertText(ActionHandler):
                 )
 
             content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
-            existing_bytes = await context.fetch(content_url, method="GET")
+            existing_bytes_resp = await context.fetch(content_url, method="GET")
 
-            if not isinstance(existing_bytes, bytes):
+            if not isinstance(existing_bytes_resp.data, bytes):
                 return ActionResult(
                     data={"result": False, "error": "Failed to download document content"}, cost_usd=0.0
                 )
 
-            parsed = parse_docx_content(existing_bytes)
+            parsed = parse_docx_content(existing_bytes_resp.data)
             paragraphs = parsed["paragraphs"]
 
             texts = [p["text"] for p in paragraphs]
@@ -668,14 +669,14 @@ class GetParagraphs(ActionHandler):
                 return ActionResult(data={"result": False, "error": "start_index must be non-negative"}, cost_usd=0.0)
 
             content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
-            docx_bytes = await context.fetch(content_url, method="GET")
+            docx_bytes_resp = await context.fetch(content_url, method="GET")
 
-            if not isinstance(docx_bytes, bytes):
+            if not isinstance(docx_bytes_resp.data, bytes):
                 return ActionResult(
                     data={"result": False, "error": "Failed to download document content"}, cost_usd=0.0
                 )
 
-            parsed = parse_docx_content(docx_bytes)
+            parsed = parse_docx_content(docx_bytes_resp.data)
             paragraphs = parsed["paragraphs"]
 
             if start_index > 0:
@@ -712,9 +713,9 @@ class SearchReplace(ActionHandler):
                 return ActionResult(data={"result": False, "error": "search_text cannot be empty"}, cost_usd=0.0)
 
             content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
-            docx_bytes = await context.fetch(content_url, method="GET")
+            docx_bytes_resp = await context.fetch(content_url, method="GET")
 
-            if not isinstance(docx_bytes, bytes):
+            if not isinstance(docx_bytes_resp.data, bytes):
                 return ActionResult(
                     data={"result": False, "error": "Failed to download document content"}, cost_usd=0.0
                 )
@@ -722,7 +723,7 @@ class SearchReplace(ActionHandler):
             # For match_whole_word, we need to handle it differently
             # since modify_docx_content doesn't support word boundaries
             if match_whole_word:
-                parsed = parse_docx_content(docx_bytes)
+                parsed = parse_docx_content(docx_bytes_resp.data)
                 text = parsed["full_text"]
                 pattern = re.compile(r"\b" + re.escape(search_text) + r"\b", 0 if match_case else re.IGNORECASE)
                 count_before = len(pattern.findall(text))
@@ -743,7 +744,7 @@ class SearchReplace(ActionHandler):
             }
 
             # modify_docx_content now returns (bytes, replacement_count)
-            modified_bytes, replacement_count = modify_docx_content(docx_bytes, modifications)
+            modified_bytes, replacement_count = modify_docx_content(docx_bytes_resp.data, modifications)
 
             if replacement_count == 0:
                 return ActionResult(
@@ -785,15 +786,15 @@ class ExportPdf(ActionHandler):
 
             pdf_response = await context.fetch(pdf_url, method="GET")
 
-            if not isinstance(pdf_response, bytes):
+            if not isinstance(pdf_response.data, bytes):
                 return ActionResult(data={"result": False, "error": "Failed to convert document to PDF"}, cost_usd=0.0)
 
-            pdf_bytes = pdf_response
+            pdf_bytes = pdf_response.data
 
             if save_to_drive:
                 if not output_name:
                     doc_info = await context.fetch(f"{GRAPH_API_BASE}/me/drive/items/{document_id}", method="GET")
-                    original_name = doc_info.get("name", "document.docx")
+                    original_name = doc_info.data.get("name", "document.docx")
                     output_name = original_name.rsplit(".", 1)[0] + ".pdf"
 
                 if not output_name.lower().endswith(".pdf"):
@@ -814,9 +815,9 @@ class ExportPdf(ActionHandler):
 
                 return ActionResult(
                     data={
-                        "pdf_url": uploaded.get("webUrl"),
-                        "pdf_id": uploaded.get("id"),
-                        "size": uploaded.get("size"),
+                        "pdf_url": uploaded.data.get("webUrl"),
+                        "pdf_id": uploaded.data.get("id"),
+                        "size": uploaded.data.get("size"),
                         "result": True,
                     },
                     cost_usd=0.0,
@@ -854,14 +855,14 @@ class GetTables(ActionHandler):
             table_index = inputs.get("table_index")
 
             content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
-            docx_bytes = await context.fetch(content_url, method="GET")
+            docx_bytes_resp = await context.fetch(content_url, method="GET")
 
-            if not isinstance(docx_bytes, bytes):
+            if not isinstance(docx_bytes_resp.data, bytes):
                 return ActionResult(
                     data={"result": False, "error": "Failed to download document content"}, cost_usd=0.0
                 )
 
-            parsed = parse_docx_content(docx_bytes)
+            parsed = parse_docx_content(docx_bytes_resp.data)
             tables = parsed["tables"]
 
             if table_index is not None:

@@ -28,7 +28,7 @@ async def get_instagram_account_id(context: ExecutionContext) -> str:
     """
     response = await context.fetch(f"{INSTAGRAM_GRAPH_API_BASE}/me", method="GET", params={"fields": "id,username"})
 
-    account_id = response.get("id")
+    account_id = response.data.get("id")
     if not account_id:
         raise Exception(
             "Failed to retrieve Instagram account ID. "
@@ -66,15 +66,15 @@ async def wait_for_media_container(
             f"{INSTAGRAM_GRAPH_API_BASE}/{container_id}", method="GET", params={"fields": "status_code,status"}
         )
 
-        status_code = response.get("status_code", "").upper()
+        status_code = response.data.get("status_code", "").upper()
 
         if status_code == "FINISHED":
-            return response
+            return response.data
         elif status_code == "ERROR":
-            error_msg = response.get("status", "Unknown error during media processing")
+            error_msg = response.data.get("status", "Unknown error during media processing")
             raise Exception(f"Media container processing failed: {error_msg}")
         elif status_code in ("EXPIRED", "FAILED"):
-            raise Exception(f"Media container {status_code.lower()}: {response.get('status', 'Unknown error')}")
+            raise Exception(f"Media container {status_code.lower()}: {response.data.get('status', 'Unknown error')}")
 
         await asyncio.sleep(delay)
 

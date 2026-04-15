@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -145,10 +145,10 @@ class ListSpaces(ActionHandler):
             if "nextPageToken" in response:
                 result["next_page_token"] = response["nextPageToken"]
 
-            return result
+            return ActionResult(data=result, cost_usd=0)
 
         except Exception as e:
-            return {"spaces": [], **handle_api_error(e)}
+            return ActionResult(data={"spaces": [], **handle_api_error(e)}, cost_usd=0)
 
 
 @google_chat.action("get_space")
@@ -161,10 +161,10 @@ class GetSpace(ActionHandler):
             request = service.spaces().get(name=space_name)
             response = request.execute()
 
-            return {"space": format_space(response), "result": True}
+            return ActionResult(data={"space": format_space(response), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"space": {}, **handle_api_error(e)}
+            return ActionResult(data={"space": {}, **handle_api_error(e)}, cost_usd=0)
 
 
 @google_chat.action("create_space")
@@ -181,10 +181,10 @@ class CreateSpace(ActionHandler):
             request = service.spaces().create(body=space_body)
             response = request.execute()
 
-            return {"space": format_space(response), "result": True}
+            return ActionResult(data={"space": format_space(response), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"space": {}, **handle_api_error(e)}
+            return ActionResult(data={"space": {}, **handle_api_error(e)}, cost_usd=0)
 
 
 @google_chat.action("send_message")
@@ -208,10 +208,10 @@ class SendMessage(ActionHandler):
             request = service.spaces().messages().create(**params)
             response = request.execute()
 
-            return {"message": format_message(response), "result": True}
+            return ActionResult(data={"message": format_message(response), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"message": {}, **handle_api_error(e)}
+            return ActionResult(data={"message": {}, **handle_api_error(e)}, cost_usd=0)
 
 
 @google_chat.action("list_messages")
@@ -246,10 +246,10 @@ class ListMessages(ActionHandler):
             if "nextPageToken" in response:
                 result["next_page_token"] = response["nextPageToken"]
 
-            return result
+            return ActionResult(data=result, cost_usd=0)
 
         except Exception as e:
-            return {"messages": [], **handle_api_error(e)}
+            return ActionResult(data={"messages": [], **handle_api_error(e)}, cost_usd=0)
 
 
 @google_chat.action("get_message")
@@ -262,10 +262,10 @@ class GetMessage(ActionHandler):
             request = service.spaces().messages().get(name=message_name)
             response = request.execute()
 
-            return {"message": format_message(response), "result": True}
+            return ActionResult(data={"message": format_message(response), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"message": {}, **handle_api_error(e)}
+            return ActionResult(data={"message": {}, **handle_api_error(e)}, cost_usd=0)
 
 
 @google_chat.action("update_message")
@@ -282,10 +282,10 @@ class UpdateMessage(ActionHandler):
             request = service.spaces().messages().patch(**params)
             response = request.execute()
 
-            return {"message": format_message(response), "result": True}
+            return ActionResult(data={"message": format_message(response), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"message": {}, **handle_api_error(e)}
+            return ActionResult(data={"message": {}, **handle_api_error(e)}, cost_usd=0)
 
 
 @google_chat.action("delete_message")
@@ -302,10 +302,10 @@ class DeleteMessage(ActionHandler):
             request = service.spaces().messages().delete(**params)
             request.execute()
 
-            return {"result": True}
+            return ActionResult(data={"result": True}, cost_usd=0)
 
         except Exception as e:
-            return handle_api_error(e)
+            return ActionResult(data=handle_api_error(e), cost_usd=0)
 
 
 @google_chat.action("list_members")
@@ -336,10 +336,10 @@ class ListMembers(ActionHandler):
             if "nextPageToken" in response:
                 result["next_page_token"] = response["nextPageToken"]
 
-            return result
+            return ActionResult(data=result, cost_usd=0)
 
         except Exception as e:
-            return {"members": [], **handle_api_error(e)}
+            return ActionResult(data={"members": [], **handle_api_error(e)}, cost_usd=0)
 
 
 @google_chat.action("add_reaction")
@@ -354,10 +354,10 @@ class AddReaction(ActionHandler):
             request = service.spaces().messages().reactions().create(parent=message_name, body=reaction_body)
             response = request.execute()
 
-            return {"reaction": format_reaction(response), "result": True}
+            return ActionResult(data={"reaction": format_reaction(response), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"reaction": {}, **handle_api_error(e)}
+            return ActionResult(data={"reaction": {}, **handle_api_error(e)}, cost_usd=0)
 
 
 @google_chat.action("list_reactions")
@@ -388,10 +388,10 @@ class ListReactions(ActionHandler):
             if "nextPageToken" in response:
                 result["next_page_token"] = response["nextPageToken"]
 
-            return result
+            return ActionResult(data=result, cost_usd=0)
 
         except Exception as e:
-            return {"reactions": [], **handle_api_error(e)}
+            return ActionResult(data={"reactions": [], **handle_api_error(e)}, cost_usd=0)
 
 
 @google_chat.action("remove_reaction")
@@ -404,10 +404,10 @@ class RemoveReaction(ActionHandler):
             request = service.spaces().messages().reactions().delete(name=reaction_name)
             request.execute()
 
-            return {"result": True}
+            return ActionResult(data={"result": True}, cost_usd=0)
 
         except Exception as e:
-            return handle_api_error(e)
+            return ActionResult(data=handle_api_error(e), cost_usd=0)
 
 
 @google_chat.action("find_direct_message")
@@ -420,7 +420,7 @@ class FindDirectMessage(ActionHandler):
             request = service.spaces().findDirectMessage(name=user_name)
             response = request.execute()
 
-            return {"space": format_space(response), "result": True}
+            return ActionResult(data={"space": format_space(response), "result": True}, cost_usd=0)
 
         except Exception as e:
-            return {"space": {}, **handle_api_error(e)}
+            return ActionResult(data={"space": {}, **handle_api_error(e)}, cost_usd=0)

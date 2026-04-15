@@ -1,5 +1,5 @@
 pyyaml
-autohive-integrations-sdk~=1.0.2
+autohive-integrations-sdk~=2.0.0
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib

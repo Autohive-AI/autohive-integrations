@@ -36,9 +36,7 @@ async def execute_graphql_query(query: str, variables: Dict[str, Any], context: 
 
     response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
-    return response
-
-
+    return response.data
 @monday_com.action("get_boards")
 class GetBoards(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):

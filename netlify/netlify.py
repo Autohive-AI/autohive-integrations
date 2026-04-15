@@ -23,7 +23,7 @@ class ListSitesAction(ActionHandler):
         try:
             response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites", method="GET")
 
-            sites = response if isinstance(response, list) else []
+            sites = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"sites": sites, "result": True}, cost_usd=0.0)
 
@@ -46,7 +46,7 @@ class CreateSiteAction(ActionHandler):
 
             response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites", method="POST", json=payload)
 
-            return ActionResult(data={"site": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"site": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"site": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -62,7 +62,7 @@ class GetSiteAction(ActionHandler):
 
             response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites/{site_id}", method="GET")
 
-            return ActionResult(data={"site": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"site": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"site": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -84,7 +84,7 @@ class UpdateSiteAction(ActionHandler):
 
             response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites/{site_id}", method="PATCH", json=payload)
 
-            return ActionResult(data={"site": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"site": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"site": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -119,7 +119,7 @@ class ListDeploysAction(ActionHandler):
 
             response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites/{site_id}/deploys", method="GET")
 
-            deploys = response if isinstance(response, list) else []
+            deploys = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"deploys": deploys, "result": True}, cost_usd=0.0)
 
@@ -151,8 +151,8 @@ class CreateDeployAction(ActionHandler):
             )
 
             # Upload required files
-            required_hashes = deploy.get("required", [])
-            deploy_id = deploy.get("id")
+            required_hashes = deploy.data.get("required", [])
+            deploy_id = deploy.data.get("id")
 
             for sha1_hash in required_hashes:
                 if sha1_hash in hash_to_content:
@@ -169,10 +169,10 @@ class CreateDeployAction(ActionHandler):
             final_deploy = await context.fetch(f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}", method="GET")
 
             deploy_url = (
-                final_deploy.get("deploy_ssl_url") or final_deploy.get("ssl_url") or final_deploy.get("url", "")
+                final_deploy.data.get("deploy_ssl_url") or final_deploy.data.get("ssl_url") or final_deploy.data.get("url", "")
             )
 
-            return ActionResult(data={"deploy": final_deploy, "deploy_url": deploy_url, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"deploy": final_deploy.data, "deploy_url": deploy_url, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"deploy": {}, "deploy_url": "", "result": False, "error": str(e)}, cost_usd=0.0)
@@ -188,7 +188,7 @@ class GetDeployAction(ActionHandler):
 
             response = await context.fetch(f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}", method="GET")
 
-            return ActionResult(data={"deploy": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"deploy": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"deploy": {}, "result": False, "error": str(e)}, cost_usd=0.0)

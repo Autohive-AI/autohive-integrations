@@ -41,7 +41,7 @@ class GetCurrentUserAction(ActionHandler):
         try:
             response = await context.fetch(f"{GITLAB_API_BASE_URL}/user", method="GET")
 
-            return ActionResult(data={"user": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"user": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -77,7 +77,7 @@ class ListProjectsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            projects = response if isinstance(response, list) else []
+            projects = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"projects": projects, "result": True}, cost_usd=0.0)
 
@@ -103,7 +103,7 @@ class GetProjectAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return ActionResult(data={"project": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"project": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"project": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -147,7 +147,7 @@ class ListIssuesAction(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params if params else None)
 
-            issues = response if isinstance(response, list) else []
+            issues = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"issues": issues, "result": True}, cost_usd=0.0)
 
@@ -169,7 +169,7 @@ class GetIssueAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"issue": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"issue": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"issue": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -216,7 +216,7 @@ class ListMergeRequestsAction(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params if params else None)
 
-            merge_requests = response if isinstance(response, list) else []
+            merge_requests = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"merge_requests": merge_requests, "result": True}, cost_usd=0.0)
 
@@ -248,7 +248,7 @@ class GetMergeRequestAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return ActionResult(data={"merge_request": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"merge_request": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -271,7 +271,7 @@ class GetMergeRequestChangesAction(ActionHandler):
                 method="GET",
             )
 
-            changes = response.get("changes", []) if isinstance(response, dict) else []
+            changes = response.data.get("changes", []) if isinstance(response, dict) else []
 
             return ActionResult(data={"changes": changes, "result": True}, cost_usd=0.0)
 
@@ -299,7 +299,7 @@ class ListMergeRequestCommitsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            commits = response if isinstance(response, list) else []
+            commits = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"commits": commits, "result": True}, cost_usd=0.0)
 
@@ -329,7 +329,7 @@ class ListBranchesAction(ActionHandler):
                 params=params if params else None,
             )
 
-            branches = response if isinstance(response, list) else []
+            branches = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"branches": branches, "result": True}, cost_usd=0.0)
 
@@ -351,7 +351,7 @@ class GetBranchAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"branch": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"branch": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"branch": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -390,7 +390,7 @@ class ListCommitsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            commits = response if isinstance(response, list) else []
+            commits = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"commits": commits, "result": True}, cost_usd=0.0)
 
@@ -417,7 +417,7 @@ class GetCommitAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return ActionResult(data={"commit": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"commit": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"commit": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -443,7 +443,7 @@ class GetCommitDiffAction(ActionHandler):
                 params=params if params else None,
             )
 
-            diffs = response if isinstance(response, list) else []
+            diffs = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"diffs": diffs, "result": True}, cost_usd=0.0)
 
@@ -485,7 +485,7 @@ class ListPipelinesAction(ActionHandler):
                 params=params if params else None,
             )
 
-            pipelines = response if isinstance(response, list) else []
+            pipelines = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"pipelines": pipelines, "result": True}, cost_usd=0.0)
 
@@ -507,7 +507,7 @@ class GetPipelineAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"pipeline": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"pipeline": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"pipeline": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -533,7 +533,7 @@ class ListPipelineJobsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            jobs = response if isinstance(response, list) else []
+            jobs = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"jobs": jobs, "result": True}, cost_usd=0.0)
 
@@ -563,7 +563,7 @@ class ListRepositoryTreeAction(ActionHandler):
                 params=params if params else None,
             )
 
-            tree = response if isinstance(response, list) else []
+            tree = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"tree": tree, "result": True}, cost_usd=0.0)
 
@@ -587,7 +587,7 @@ class GetFileAction(ActionHandler):
                 params={"ref": ref},
             )
 
-            return ActionResult(data={"file": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"file": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"file": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -641,7 +641,7 @@ class CompareBranchesAction(ActionHandler):
                 params=params,
             )
 
-            return ActionResult(data={"comparison": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"comparison": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"comparison": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -669,7 +669,7 @@ class ListContainerRegistryRepositoriesAction(ActionHandler):
                 params=params if params else None,
             )
 
-            repositories = response if isinstance(response, list) else []
+            repositories = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"repositories": repositories, "result": True}, cost_usd=0.0)
 
@@ -700,7 +700,7 @@ class GetContainerRegistryRepositoryAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return ActionResult(data={"repository": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"repository": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"repository": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -726,7 +726,7 @@ class ListContainerRegistryTagsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            tags = response if isinstance(response, list) else []
+            tags = response.data if isinstance(response.data, list) else []
 
             return ActionResult(data={"tags": tags, "result": True}, cost_usd=0.0)
 
@@ -749,7 +749,7 @@ class GetContainerRegistryTagAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"tag": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"tag": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"tag": {}, "result": False, "error": str(e)}, cost_usd=0.0)

@@ -19,9 +19,9 @@ def get_common_headers() -> Dict[str, str]:
 def parse_error(response, default_msg: str = "Unknown error") -> str:
     """Extract error message from Productboard API error response."""
     try:
-        body = response.json()
+        body = response.data
     except Exception:
-        return f"{default_msg} (HTTP {response.status_code})"
+        return f"{default_msg} (HTTP {response.status})"
 
     errors = body.get("errors")
     if isinstance(errors, list) and errors:
@@ -29,10 +29,10 @@ def parse_error(response, default_msg: str = "Unknown error") -> str:
         detail = first.get("detail") or first.get("title")
         code = first.get("code")
         if code:
-            return f"{detail or default_msg} (code={code}, http={response.status_code})"
+            return f"{detail or default_msg} (code={code}, http={response.status})"
         return detail or default_msg
 
-    return f"{default_msg} (HTTP {response.status_code})"
+    return f"{default_msg} (HTTP {response.status})"
 
 
 def extract_page_cursor(next_link: Optional[str]) -> Optional[str]:
@@ -87,13 +87,13 @@ class ListEntitiesAction(ActionHandler):
                 params=params if params else None,
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={"entities": [], "result": False, "error": parse_error(response, "Failed to list entities")},
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             next_link = data.get("links", {}).get("next")
             next_cursor = extract_page_cursor(next_link)
 
@@ -124,13 +124,13 @@ class GetEntityAction(ActionHandler):
                 params=params if params else None,
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={"entity": {}, "result": False, "error": parse_error(response, "Failed to get entity")},
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             return ActionResult(data={"entity": data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -167,13 +167,13 @@ class CreateEntityAction(ActionHandler):
                 json={"data": entity_data},
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={"entity": {}, "result": False, "error": parse_error(response, "Failed to create entity")},
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             return ActionResult(data={"entity": data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -220,13 +220,13 @@ class UpdateEntityAction(ActionHandler):
                 json={"data": {"patch": patch_operations}},
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={"entity": {}, "result": False, "error": parse_error(response, "Failed to update entity")},
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             return ActionResult(data={"entity": data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -247,7 +247,7 @@ class GetEntityConfigurationAction(ActionHandler):
                 headers=get_common_headers(),
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={
                         "configuration": {},
@@ -257,7 +257,7 @@ class GetEntityConfigurationAction(ActionHandler):
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             return ActionResult(data={"configuration": data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -307,13 +307,13 @@ class ListNotesAction(ActionHandler):
                 params=params if params else None,
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={"notes": [], "result": False, "error": parse_error(response, "Failed to list notes")},
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             next_link = data.get("links", {}).get("next")
             next_cursor = extract_page_cursor(next_link)
 
@@ -344,13 +344,13 @@ class GetNoteAction(ActionHandler):
                 params=params if params else None,
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={"note": {}, "result": False, "error": parse_error(response, "Failed to get note")},
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             return ActionResult(data={"note": data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -401,13 +401,13 @@ class CreateNoteAction(ActionHandler):
                 json={"data": note_data},
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={"note": {}, "result": False, "error": parse_error(response, "Failed to create note")},
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             return ActionResult(data={"note": data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -463,13 +463,13 @@ class UpdateNoteAction(ActionHandler):
                 json={"data": {"patch": patch_operations}},
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={"note": {}, "result": False, "error": parse_error(response, "Failed to update note")},
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             return ActionResult(data={"note": data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -488,7 +488,7 @@ class GetNoteConfigurationAction(ActionHandler):
                 headers=get_common_headers(),
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={
                         "configuration": {},
@@ -498,7 +498,7 @@ class GetNoteConfigurationAction(ActionHandler):
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             return ActionResult(data={"configuration": data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -526,13 +526,13 @@ class ListAnalyticsReportsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={"reports": [], "result": False, "error": parse_error(response, "Failed to list reports")},
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             next_link = data.get("links", {}).get("next")
             next_cursor = extract_page_cursor(next_link)
 
@@ -558,13 +558,13 @@ class GetAnalyticsReportAction(ActionHandler):
                 headers=get_common_headers(),
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={"report": {}, "result": False, "error": parse_error(response, "Failed to get report")},
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             return ActionResult(data={"report": data.get("data", {}), "result": True}, cost_usd=0.0)
 
         except Exception as e:
@@ -584,13 +584,13 @@ class GetCurrentUserAction(ActionHandler):
                 f"{PRODUCTBOARD_API_BASE_URL}/oauth2/token/info", method="GET", headers=get_common_headers()
             )
 
-            if response.status_code not in SUCCESS_STATUSES:
+            if response.status not in SUCCESS_STATUSES:
                 return ActionResult(
                     data={"user": {}, "result": False, "error": parse_error(response, "Failed to get user info")},
                     cost_usd=0.0,
                 )
 
-            data = response.json()
+            data = response.data
             return ActionResult(data={"user": data, "result": True}, cost_usd=0.0)
 
         except Exception as e:

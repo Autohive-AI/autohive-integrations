@@ -43,13 +43,13 @@ class InstagramConnectedAccountHandler(ConnectedAccountHandler):
 
         response = await context.fetch(f"{INSTAGRAM_GRAPH_API_BASE}/me", method="GET", params={"fields": fields})
 
-        name = response.get("name", "")
+        name = response.data.get("name", "")
         name_parts = name.split(maxsplit=1) if name else []
 
         return ConnectedAccountInfo(
-            username=response.get("username"),
+            username=response.data.get("username"),
             first_name=name_parts[0] if len(name_parts) > 0 else None,
             last_name=name_parts[1] if len(name_parts) > 1 else None,
-            avatar_url=response.get("profile_picture_url"),
-            user_id=response.get("id"),
+            avatar_url=response.data.get("profile_picture_url"),
+            user_id=response.data.get("id"),
         )

@@ -77,7 +77,7 @@ class GeneratePhotoAvatarHandler(ActionHandler):
                 json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -106,7 +106,7 @@ class CheckGenerationStatusHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/photo_avatar/generation/{generation_id}", headers=headers, method="GET"
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -143,7 +143,7 @@ class CreateAvatarGroupHandler(ActionHandler):
                 json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -180,7 +180,7 @@ class AddLooksToGroupHandler(ActionHandler):
                 json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -210,7 +210,7 @@ class TrainAvatarGroupHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/photo_avatar/train", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -239,7 +239,7 @@ class CheckTrainingStatusHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/photo_avatar/train/status/{group_id}", headers=headers, method="GET"
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -278,7 +278,7 @@ class GenerateAvatarLookHandler(ActionHandler):
                 json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -315,7 +315,7 @@ class AddMotionToAvatarHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/photo_avatar/add_motion", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -348,7 +348,7 @@ class AddSoundEffectToAvatarHandler(ActionHandler):
                 json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -387,7 +387,7 @@ class ListAvatarGroupsHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/avatar_group.list", headers=headers, method="GET", params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -416,7 +416,7 @@ class ListAvatarsInGroupHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/avatar_group/{group_id}/avatars", headers=headers, method="GET"
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -445,7 +445,7 @@ class GetAvatarDetailsHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/avatar/{avatar_id}/details", headers=headers, method="GET"
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -474,7 +474,7 @@ class GetPhotoAvatarDetailsHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/photo_avatar/{photo_avatar_id}", headers=headers, method="GET"
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -500,7 +500,7 @@ class ListVoicesHandler(ActionHandler):
         try:
             response = await context.fetch(url=f"{HEYGEN_API_BASE_URL}/voices", headers=headers, method="GET")
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -532,7 +532,7 @@ class ListVoiceLocalesHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/voices/locales", headers=headers, method="GET", params=params
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -569,8 +569,8 @@ class ListAvatarsHandler(ActionHandler):
             )
 
             # Simplify response to reduce size - remove long URLs
-            if response.get("data"):
-                data = response["data"]
+            if response.data.get("data"):
+                data = response.data["data"]
 
                 # Simplify avatars list
                 if "avatars" in data and data["avatars"]:
@@ -600,7 +600,7 @@ class ListAvatarsHandler(ActionHandler):
                         )
                     data["talking_photos"] = simplified_photos
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -649,7 +649,7 @@ class CreateAvatarVideoHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/video/generate", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -706,7 +706,7 @@ class CreatePhotoAvatarVideoHandler(ActionHandler):
                 url=f"{HEYGEN_API_BASE_URL}/video/av4/generate", method="POST", headers=headers, json=request_body
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)
@@ -735,7 +735,7 @@ class GetVideoStatusHandler(ActionHandler):
                 url=f"https://api.heygen.com/v1/video_status.get?video_id={video_id}", headers=headers, method="GET"
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "data": None}, cost_usd=0.0)

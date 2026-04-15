@@ -61,9 +61,9 @@ class GetCommentsAction(ActionHandler):
 
         response = await context.fetch(f"{INSTAGRAM_GRAPH_API_BASE}/{media_id}/comments", method="GET", params=params)
 
-        comments = [_build_comment_response(c) for c in response.get("data", [])]
+        comments = [_build_comment_response(c) for c in response.data.get("data", [])]
 
-        paging = response.get("paging", {})
+        paging = response.data.get("paging", {})
         cursors = paging.get("cursors", {})
         next_cursor = cursors.get("after") if paging.get("next") else None
 
@@ -93,7 +93,7 @@ class ManageCommentAction(ActionHandler):
             response = await context.fetch(
                 f"{INSTAGRAM_GRAPH_API_BASE}/{comment_id}/replies", method="POST", data={"message": message}
             )
-            return ActionResult(data={"success": True, "action_taken": "reply", "reply_id": response.get("id", "")})
+            return ActionResult(data={"success": True, "action_taken": "reply", "reply_id": response.data.get("id", "")})
 
         elif action in ("hide", "unhide"):
             hide_value = action == "hide"
