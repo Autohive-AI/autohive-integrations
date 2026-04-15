@@ -48,8 +48,8 @@ async def get_current_user_urn(context: ExecutionContext) -> str:
     user_info_url = "https://api.linkedin.com/v2/userinfo"
     user_response = await context.fetch(user_info_url, method="GET")
 
-    if isinstance(user_response, dict) and user_response.get("sub"):
-        return f"urn:li:person:{user_response.get('sub')}"
+    if isinstance(user_response, dict) and user_response.data.get("sub"):
+        return f"urn:li:person:{user_response.data.get('sub')}"
     raise ValueError("Could not determine current user. Please ensure proper authentication.")
 
 
@@ -72,7 +72,7 @@ async def post_to_linkedin(url: str, payload: dict, access_token: str) -> Tuple[
             body = None
             if response.content_length and response.content_length > 0:
                 try:
-                    body = await response.json()
+                    body = await response.data
                 except Exception:
                     body = await response.text()
 
@@ -105,7 +105,7 @@ async def initialize_image_upload(context: ExecutionContext, owner_urn: str) -> 
     response = await context.fetch(url, method="POST", json=payload, headers=get_linkedin_headers())
 
     if isinstance(response, dict) and "value" in response:
-        value = response["value"]
+        value = response.data["value"]
         return {"upload_url": value.get("uploadUrl"), "image_urn": value.get("image")}
 
     raise ValueError(f"Failed to initialize image upload: {response}")
@@ -211,15 +211,15 @@ class UserInfoActionHandler(ActionHandler):
 
         response = await context.fetch(url, method="GET")
 
-        if isinstance(response, dict) and response.get("sub"):
+        if isinstance(response, dict) and response.data.get("sub"):
             return ActionResult(
                 data={
                     "result": "User information retrieved successfully.",
-                    "user_info": response,
+                    "user_info": response.data,
                 }
             )
         else:
-            error_details = response.get("error", "Unknown error") if isinstance(response, dict) else "Unknown error"
+            error_details = response.data.get("error", "Unknown error") if isinstance(response, dict) else "Unknown error"
             return ActionResult(
                 data={
                     "result": "Failed to retrieve user information.",
@@ -582,7 +582,7 @@ class GetPostActionHandler(ActionHandler):
         try:
             response = await context.fetch(url, method="GET", headers=get_linkedin_headers())
 
-            return ActionResult(data={"result": "Post retrieved successfully.", "post": response})
+            return ActionResult(data={"result": "Post retrieved successfully.", "post": response.data})
         except Exception as e:
             error_message = str(e)
             error_details = getattr(e, "response_data", str(e))
@@ -629,8 +629,8 @@ class GetPostsActionHandler(ActionHandler):
         try:
             response = await context.fetch(url, method="GET", headers=headers)
 
-            posts = response.get("elements", []) if isinstance(response, dict) else []
-            paging = response.get("paging") if isinstance(response, dict) else None
+            posts = response.data.get("elements", []) if isinstance(response, dict) else []
+            paging = response.data.get("paging") if isinstance(response, dict) else None
 
             return ActionResult(
                 data={
@@ -728,8 +728,8 @@ class GetCommentsActionHandler(ActionHandler):
         try:
             response = await context.fetch(url, method="GET", headers=get_linkedin_headers())
 
-            comments = response.get("elements", []) if isinstance(response, dict) else []
-            paging = response.get("paging") if isinstance(response, dict) else None
+            comments = response.data.get("elements", []) if isinstance(response, dict) else []
+            paging = response.data.get("paging") if isinstance(response, dict) else None
 
             return ActionResult(
                 data={
@@ -783,13 +783,13 @@ class CreateCommentActionHandler(ActionHandler):
         try:
             response = await context.fetch(url, method="POST", json=payload, headers=get_linkedin_headers())
 
-            comment_id = response.get("id") if isinstance(response, dict) else None
+            comment_id = response.data.get("id") if isinstance(response, dict) else None
 
             return ActionResult(
                 data={
                     "result": "Comment created successfully.",
                     "comment_id": comment_id,
-                    "comment": response,
+                    "comment": response.data,
                 }
             )
         except Exception as e:
@@ -871,8 +871,8 @@ class GetReactionsActionHandler(ActionHandler):
         try:
             response = await context.fetch(url, method="GET", headers=get_linkedin_headers())
 
-            reactions = response.get("elements", []) if isinstance(response, dict) else []
-            paging = response.get("paging") if isinstance(response, dict) else None
+            reactions = response.data.get("elements", []) if isinstance(response, dict) else []
+            paging = response.data.get("paging") if isinstance(response, dict) else None
 
             return ActionResult(
                 data={
@@ -925,7 +925,7 @@ class CreateReactionActionHandler(ActionHandler):
         try:
             response = await context.fetch(url, method="POST", json=payload, headers=get_linkedin_headers())
 
-            return ActionResult(data={"result": "Reaction created successfully.", "reaction": response})
+            return ActionResult(data={"result": "Reaction created successfully.", "reaction": response.data})
         except Exception as e:
             error_message = str(e)
             error_details = getattr(e, "response_data", str(e))

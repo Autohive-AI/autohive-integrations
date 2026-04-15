@@ -77,7 +77,7 @@ async def make_request(
         else:
             return {"success": False, "error": f"Unsupported HTTP method: {method}"}
 
-        return {"success": True, "data": response}
+        return {"success": True, "data": response.data}
     except Exception as e:
         error_message = str(e)
         error_details = {"raw_error": error_message}

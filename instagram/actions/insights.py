@@ -81,7 +81,7 @@ class GetInsightsAction(ActionHandler):
             media_response = await context.fetch(
                 f"{INSTAGRAM_GRAPH_API_BASE}/{target_id}", method="GET", params={"fields": "media_product_type"}
             )
-            media_product_type = media_response.get("media_product_type", "FEED")
+            media_product_type = media_response.data.get("media_product_type", "FEED")
 
             if media_product_type == "REELS":
                 metrics = custom_metrics or self.DEFAULT_MEDIA_METRICS_REELS
@@ -96,7 +96,7 @@ class GetInsightsAction(ActionHandler):
         response = await context.fetch(endpoint, method="GET", params=params)
 
         metrics_data = {}
-        for item in response.get("data", []):
+        for item in response.data.get("data", []):
             metric_name = item.get("name", "")
 
             total_value = item.get("total_value", {})

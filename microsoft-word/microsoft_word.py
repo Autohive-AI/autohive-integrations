@@ -350,7 +350,7 @@ class ListDocuments(ActionHandler):
             response = await context.fetch(url, method="GET", params=params)
 
             documents = []
-            for item in response.get("value", []):
+            for item in response.data.get("value", []):
                 if item.get("name", "").lower().endswith(".docx"):
                     documents.append(
                         {
@@ -363,7 +363,7 @@ class ListDocuments(ActionHandler):
                         }
                     )
 
-            next_link = response.get("@odata.nextLink")
+            next_link = response.data.get("@odata.nextLink")
 
             return ActionResult(
                 data={"documents": documents, "next_page_token": next_link if next_link else None, "result": True},
@@ -392,7 +392,7 @@ class GetDocument(ActionHandler):
 
             document = await context.fetch(url, method="GET", params=params)
 
-            return ActionResult(data={"document": document, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"document": document.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
@@ -474,8 +474,8 @@ class CreateDocument(ActionHandler):
                     folder_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_path}"
                     folder_info = await context.fetch(folder_url, method="GET")
                     copy_body["parentReference"] = {
-                        "driveId": folder_info.get("parentReference", {}).get("driveId"),
-                        "id": folder_info.get("id"),
+                        "driveId": folder_info.data.get("parentReference", {}).get("driveId"),
+                        "id": folder_info.data.get("id"),
                     }
 
                 await context.fetch(copy_url, method="POST", json=copy_body)
@@ -514,9 +514,9 @@ class CreateDocument(ActionHandler):
 
                 return ActionResult(
                     data={
-                        "document_id": response.get("id"),
-                        "name": response.get("name"),
-                        "webUrl": response.get("webUrl"),
+                        "document_id": response.data.get("id"),
+                        "name": response.data.get("name"),
+                        "webUrl": response.data.get("webUrl"),
                         "result": True,
                     },
                     cost_usd=0.0,
@@ -793,7 +793,7 @@ class ExportPdf(ActionHandler):
             if save_to_drive:
                 if not output_name:
                     doc_info = await context.fetch(f"{GRAPH_API_BASE}/me/drive/items/{document_id}", method="GET")
-                    original_name = doc_info.get("name", "document.docx")
+                    original_name = doc_info.data.get("name", "document.docx")
                     output_name = original_name.rsplit(".", 1)[0] + ".pdf"
 
                 if not output_name.lower().endswith(".pdf"):
@@ -814,9 +814,9 @@ class ExportPdf(ActionHandler):
 
                 return ActionResult(
                     data={
-                        "pdf_url": uploaded.get("webUrl"),
-                        "pdf_id": uploaded.get("id"),
-                        "size": uploaded.get("size"),
+                        "pdf_url": uploaded.data.get("webUrl"),
+                        "pdf_id": uploaded.data.get("id"),
+                        "size": uploaded.data.get("size"),
                         "result": True,
                     },
                     cost_usd=0.0,

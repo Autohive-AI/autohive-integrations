@@ -106,10 +106,9 @@ async def get_oauth_token(context: ExecutionContext) -> Optional[str]:
 
     # Handle response
     token_data = None
-    if hasattr(response, "status_code") and response.status_code == 200:
-        token_data = response.json()
-    elif isinstance(response, dict):
-        token_data = response
+    if response.status == 200:
+        token_data = response.data
+
 
     if token_data and "access_token" in token_data:
         access_token = token_data["access_token"]
@@ -144,24 +143,21 @@ async def make_request(
 
     response = await context.fetch(url, method=method, headers=headers, params=params)
 
-    if hasattr(response, "status_code"):
-        if response.status_code == 200:
-            return {"success": True, "data": response.json()}
-        elif response.status_code == 304:
-            return {"success": True, "data": None, "not_modified": True}
-        elif response.status_code == 400:
-            error_data = response.json() if hasattr(response, "json") else {}
-            return {"success": False, "error": error_data.get("errorDescription", "Bad request - validation failed")}
-        elif response.status_code == 401:
-            return {"success": False, "error": "Unauthorized - invalid credentials"}
-        elif response.status_code == 403:
-            return {"success": False, "error": "Forbidden - insufficient permissions"}
-        elif response.status_code == 404:
-            return {"success": False, "error": "Entity not found"}
-        else:
-            return {"success": False, "error": f"API error: {response.status_code}"}
-
-    return {"success": True, "data": response}
+    if response.status == 200:
+        return {"success": True, "data": response.data}
+    elif response.status == 304:
+        return {"success": True, "data": None, "not_modified": True}
+    elif response.status == 400:
+        error_data = response.data if response.data else {}
+        return {"success": False, "error": error_data.get("errorDescription", "Bad request - validation failed")}
+    elif response.status == 401:
+        return {"success": False, "error": "Unauthorized - invalid credentials"}
+    elif response.status == 403:
+        return {"success": False, "error": "Forbidden - insufficient permissions"}
+    elif response.status == 404:
+        return {"success": False, "error": "Entity not found"}
+    else:
+        return {"success": False, "error": f"API error: {response.status}"}
 
 
 # =============================================================================

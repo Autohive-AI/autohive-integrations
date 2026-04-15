@@ -99,8 +99,8 @@ class CreateCalendarEventAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "id": response["id"],
-                    "webLink": response["webLink"],
+                    "id": response.data["id"],
+                    "webLink": response.data["webLink"],
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -138,9 +138,9 @@ class UploadFileAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "id": response["id"],
-                    "webUrl": response["webUrl"],
-                    "size": response["size"],
+                    "id": response.data["id"],
+                    "webUrl": response.data["webUrl"],
+                    "size": response.data["size"],
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -173,7 +173,7 @@ class ListFilesAction(ActionHandler):
 
             # Format files
             files = []
-            for item in response.get("value", []):
+            for item in response.data.get("value", []):
                 file_item = {
                     "id": item["id"],
                     "name": item["name"],
@@ -237,8 +237,8 @@ class UpdateCalendarEventAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "id": response["id"],
-                    "webLink": response["webLink"],
+                    "id": response.data["id"],
+                    "webLink": response.data["webLink"],
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -290,7 +290,7 @@ class ListCalendarEventsAction(ActionHandler):
 
             # Format events
             events = []
-            for event in response.get("value", []):
+            for event in response.data.get("value", []):
                 # Process attendees
                 attendees = []
                 for attendee in event.get("attendees", []):
@@ -368,7 +368,7 @@ class ListEmailsAction(ActionHandler):
 
             # Format emails
             emails = []
-            for email in response.get("value", []):
+            for email in response.data.get("value", []):
                 emails.append(
                     {
                         "id": email["id"],
@@ -411,7 +411,7 @@ class ListEmailsFromContactAction(ActionHandler):
 
             # Format emails
             emails = []
-            for email in response.get("value", []):
+            for email in response.data.get("value", []):
                 emails.append(
                     {
                         "id": email["id"],
@@ -461,9 +461,9 @@ class MarkEmailReadAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "id": response["id"],
-                    "isRead": response["isRead"],
-                    "lastModifiedDateTime": response["lastModifiedDateTime"],
+                    "id": response.data["id"],
+                    "isRead": response.data["isRead"],
+                    "lastModifiedDateTime": response.data["lastModifiedDateTime"],
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -514,8 +514,8 @@ class ListMailFoldersAction(ActionHandler):
                     # nextLink already contains query params, don't pass params again
                     response = await context.fetch(next_url)
 
-                all_folder_items.extend(response.get("value", []))
-                next_url = response.get("@odata.nextLink")
+                all_folder_items.extend(response.data.get("value", []))
+                next_url = response.data.get("@odata.nextLink")
 
             # Format folders
             folders = []
@@ -577,8 +577,8 @@ class ListMailFoldersAction(ActionHandler):
                     # nextLink already contains query params, don't pass params again
                     response = await context.fetch(next_url)
 
-                all_folder_items.extend(response.get("value", []))
-                next_url = response.get("@odata.nextLink")
+                all_folder_items.extend(response.data.get("value", []))
+                next_url = response.data.get("@odata.nextLink")
 
             folders = []
             for folder in all_folder_items:
@@ -626,13 +626,13 @@ class GetMailFolderAction(ActionHandler):
             response = await context.fetch(api_url, params=params)
 
             folder_data = {
-                "id": response["id"],
-                "displayName": response.get("displayName", ""),
-                "parentFolderId": response.get("parentFolderId", ""),
-                "childFolderCount": response.get("childFolderCount", 0),
-                "unreadItemCount": response.get("unreadItemCount", 0),
-                "totalItemCount": response.get("totalItemCount", 0),
-                "isHidden": response.get("isHidden", False),
+                "id": response.data["id"],
+                "displayName": response.data.get("displayName", ""),
+                "parentFolderId": response.data.get("parentFolderId", ""),
+                "childFolderCount": response.data.get("childFolderCount", 0),
+                "unreadItemCount": response.data.get("unreadItemCount", 0),
+                "totalItemCount": response.data.get("totalItemCount", 0),
+                "isHidden": response.data.get("isHidden", False),
             }
 
             return ActionResult(data={"folder": folder_data, "result": True}, cost_usd=0.0)
@@ -669,9 +669,9 @@ class MoveEmailAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "id": response["id"],
-                    "parentFolderId": response["parentFolderId"],
-                    "subject": response.get("subject", ""),
+                    "id": response.data["id"],
+                    "parentFolderId": response.data["parentFolderId"],
+                    "subject": response.data.get("subject", ""),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -696,12 +696,12 @@ class ReadEmailAction(ActionHandler):
 
             # Format email details
             email_details = {
-                "id": email_response["id"],
-                "subject": email_response.get("subject") or "",
-                "sender": email_response["sender"],
-                "receivedDateTime": email_response["receivedDateTime"],
-                "body": email_response.get("body", {}),
-                "hasAttachments": email_response.get("hasAttachments", False),
+                "id": email_response.data["id"],
+                "subject": email_response.data.get("subject") or "",
+                "sender": email_response.data["sender"],
+                "receivedDateTime": email_response.data["receivedDateTime"],
+                "body": email_response.data.get("body", {}),
+                "hasAttachments": email_response.data.get("hasAttachments", False),
             }
 
             attachments = []
@@ -710,7 +710,7 @@ class ReadEmailAction(ActionHandler):
                 # Get attachments
                 attachments_response = await context.fetch(f"{GRAPH_API_BASE}/me/messages/{email_id}/attachments")
 
-                for attachment in attachments_response.get("value", []):
+                for attachment in attachments_response.data.get("value", []):
                     attachment_id = attachment["id"]
                     attachment_name = attachment["name"]
                     attachment_size = attachment.get("size", 0)
@@ -765,7 +765,7 @@ class ReadContactsAction(ActionHandler):
             response = await context.fetch(api_url, params=params)
 
             # Format and filter contacts
-            all_contacts = response.get("value", [])
+            all_contacts = response.data.get("value", [])
             contacts = []
 
             for contact in all_contacts:
@@ -880,7 +880,7 @@ class SearchOneDriveFilesAction(ActionHandler):
 
             # Format search results
             files = []
-            for item in response.get("value", []):
+            for item in response.data.get("value", []):
                 file_item = {
                     "id": item["id"],
                     "name": item["name"],
@@ -917,10 +917,10 @@ class ReadOneDriveFileContentAction(ActionHandler):
                 f"{GRAPH_API_BASE}/me/drive/items/{file_id}", params=metadata_params
             )
 
-            file_name = metadata_response["name"]
-            file_size = metadata_response.get("size", 0)
-            mime_type = metadata_response.get("mimeType", "")
-            web_url = metadata_response.get("webUrl", "")
+            file_name = metadata_response.data["name"]
+            file_size = metadata_response.data.get("size", 0)
+            mime_type = metadata_response.data.get("mimeType", "")
+            web_url = metadata_response.data.get("webUrl", "")
 
             # Try to get file content
             content = None
@@ -1116,10 +1116,10 @@ class CreateDraftEmailAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "draft_id": response["id"],
-                    "subject": response.get("subject") or "",
-                    "created_datetime": response.get("createdDateTime") or "",
-                    "is_draft": response.get("isDraft", True),
+                    "draft_id": response.data["id"],
+                    "subject": response.data.get("subject") or "",
+                    "created_datetime": response.data.get("createdDateTime") or "",
+                    "is_draft": response.data.get("isDraft", True),
                 },
                 cost_usd=0.0,
             )
@@ -1271,11 +1271,11 @@ class DownloadEmailAttachmentAction(ActionHandler):
             )
 
             # Extract metadata
-            attachment_id_val = attachment_response["id"]
-            attachment_name = attachment_response.get("name") or ""
-            content_type = attachment_response.get("contentType") or "application/octet-stream"
-            size = attachment_response.get("size", 0)
-            is_inline = attachment_response.get("isInline", False)
+            attachment_id_val = attachment_response.data["id"]
+            attachment_name = attachment_response.data.get("name") or ""
+            content_type = attachment_response.data.get("contentType") or "application/octet-stream"
+            size = attachment_response.data.get("size", 0)
+            is_inline = attachment_response.data.get("isInline", False)
 
             # Get attachment content if requested
             content = ""
@@ -1295,8 +1295,8 @@ class DownloadEmailAttachmentAction(ActionHandler):
 
                 except Exception as content_error:
                     # If binary content fails, try getting contentBytes from attachment object
-                    if "contentBytes" in attachment_response:
-                        content = attachment_response["contentBytes"]
+                    if "contentBytes" in attachment_response.data:
+                        content = attachment_response.data["contentBytes"]
                         content_available = True
                     else:
                         content = ""
@@ -1399,8 +1399,8 @@ class SearchEmailsAction(ActionHandler):
             messages = []
             total_results = 0
 
-            if response.get("value") and len(response["value"]) > 0:
-                search_result = response["value"][0]
+            if response.data.get("value") and len(response.data["value"]) > 0:
+                search_result = response.data["value"][0]
                 hits = search_result.get("hitsContainers", [])
 
                 if hits:
@@ -1470,7 +1470,7 @@ class SearchSharePointSitesAction(ActionHandler):
 
             # Process search results according to API response format
             sites = []
-            for site in response.get("value", []):
+            for site in response.data.get("value", []):
                 sites.append(
                     {
                         "id": site.get("id") or "",
@@ -1518,19 +1518,19 @@ class GetSharePointSiteDetailsAction(ActionHandler):
 
             # Process response according to API documentation
             site_details = {
-                "id": response.get("id") or "",
-                "display_name": response.get("displayName") or "",
-                "name": response.get("name") or "",
-                "description": response.get("description") or "",
-                "web_url": response.get("webUrl") or "",
-                "created_datetime": response.get("createdDateTime") or "",
-                "last_modified_datetime": response.get("lastModifiedDateTime") or "",
-                "is_personal_site": response.get("isPersonalSite", False),
+                "id": response.data.get("id") or "",
+                "display_name": response.data.get("displayName") or "",
+                "name": response.data.get("name") or "",
+                "description": response.data.get("description") or "",
+                "web_url": response.data.get("webUrl") or "",
+                "created_datetime": response.data.get("createdDateTime") or "",
+                "last_modified_datetime": response.data.get("lastModifiedDateTime") or "",
+                "is_personal_site": response.data.get("isPersonalSite", False),
             }
 
             # Add additional metadata if available
-            if "siteCollection" in response:
-                site_details["site_collection"] = response["siteCollection"]
+            if "siteCollection" in response.data:
+                site_details["site_collection"] = response.data["siteCollection"]
 
             return ActionResult(data={"result": True, "site": site_details}, cost_usd=0.0)
 
@@ -1577,7 +1577,7 @@ class ListSharePointLibrariesAction(ActionHandler):
 
             # Process response according to API documentation
             libraries = []
-            for drive in response.get("value", []):
+            for drive in response.data.get("value", []):
                 library_data = {
                     "id": drive.get("id", ""),
                     "name": drive.get("name", ""),
@@ -1642,7 +1642,7 @@ class SearchSharePointDocumentsAction(ActionHandler):
             # GET /sites/{site-id}/drives
             drives_response = await context.fetch(f"{GRAPH_API_BASE}/sites/{site_id}/drives")
 
-            drives = drives_response.get("value", [])
+            drives = drives_response.data.get("value", [])
             if not drives:
                 return ActionResult(
                     data={
@@ -1679,7 +1679,7 @@ class SearchSharePointDocumentsAction(ActionHandler):
                     drive_response = await context.fetch(api_url, params=params)
 
                     # Process files from this drive
-                    for item in drive_response.get("value", []):
+                    for item in drive_response.data.get("value", []):
                         file_item = {
                             "id": item["id"],
                             "name": item["name"],
@@ -1763,10 +1763,10 @@ class ReadSharePointDocumentAction(ActionHandler):
 
             metadata_response = await context.fetch(metadata_url, params=metadata_params)
 
-            file_name = metadata_response["name"]
-            file_size = metadata_response.get("size", 0)
-            mime_type = metadata_response.get("mimeType", "")
-            web_url = metadata_response.get("webUrl", "")
+            file_name = metadata_response.data["name"]
+            file_size = metadata_response.data.get("size", 0)
+            mime_type = metadata_response.data.get("mimeType", "")
+            web_url = metadata_response.data.get("webUrl", "")
 
             # Try to get file content (reuse OneDrive logic)
             content = None
@@ -1939,7 +1939,7 @@ class ListSharePointPagesAction(ActionHandler):
 
             # Process response according to API documentation
             pages = []
-            for page in response.get("value", []):
+            for page in response.data.get("value", []):
                 page_data = {
                     "id": page.get("id", ""),
                     "name": page.get("name", ""),
@@ -2016,25 +2016,25 @@ class ReadSharePointPageContentAction(ActionHandler):
 
             # Process response according to API documentation
             page_data = {
-                "id": response.get("id", ""),
-                "name": response.get("name", ""),
-                "title": response.get("title", ""),
-                "web_url": response.get("webUrl", ""),
-                "page_layout": response.get("pageLayout", ""),
-                "created_datetime": response.get("createdDateTime", ""),
-                "last_modified_datetime": response.get("lastModifiedDateTime", ""),
+                "id": response.data.get("id", ""),
+                "name": response.data.get("name", ""),
+                "title": response.data.get("title", ""),
+                "web_url": response.data.get("webUrl", ""),
+                "page_layout": response.data.get("pageLayout", ""),
+                "created_datetime": response.data.get("createdDateTime", ""),
+                "last_modified_datetime": response.data.get("lastModifiedDateTime", ""),
             }
 
             # Add creator information if available
-            if "createdBy" in response and "user" in response["createdBy"]:
+            if "createdBy" in response.data and "user" in response.data["createdBy"]:
                 page_data["created_by"] = {
-                    "display_name": response["createdBy"]["user"].get("displayName", ""),
-                    "email": response["createdBy"]["user"].get("email", ""),
+                    "display_name": response.data["createdBy"]["user"].get("displayName", ""),
+                    "email": response.data["createdBy"]["user"].get("email", ""),
                 }
 
             # Add page content if available
-            if include_content and "canvasLayout" in response:
-                page_data["content"] = response["canvasLayout"]
+            if include_content and "canvasLayout" in response.data:
+                page_data["content"] = response.data["canvasLayout"]
 
             return ActionResult(
                 data={"result": True, "site_id": site_id, "page": page_data},
@@ -2068,7 +2068,7 @@ class ListSharePointSubsitesAction(ActionHandler):
 
             # Process response
             subsites = []
-            for site in response.get("value", []):
+            for site in response.data.get("value", []):
                 subsites.append(
                     {
                         "id": site.get("id", ""),
@@ -2088,7 +2088,7 @@ class ListSharePointSubsitesAction(ActionHandler):
                     "site_id": site_id,
                     "subsites": subsites,
                     "total_subsites": len(subsites),
-                    "has_more": "@odata.nextLink" in response,
+                    "has_more": "@odata.nextLink" in response.data,
                 },
                 cost_usd=0.0,
             )
@@ -2134,7 +2134,7 @@ class ListSharePointFolderContentsAction(ActionHandler):
 
             # Process response
             items = []
-            for item in response.get("value", []):
+            for item in response.data.get("value", []):
                 item_data = {
                     "id": item.get("id", ""),
                     "name": item.get("name", ""),
@@ -2173,7 +2173,7 @@ class ListSharePointFolderContentsAction(ActionHandler):
             }
 
             # Include pagination indicator
-            result["has_more"] = "@odata.nextLink" in response
+            result["has_more"] = "@odata.nextLink" in response.data
 
             return ActionResult(data=result, cost_usd=0.0)
 
@@ -2286,7 +2286,7 @@ class FindMeetingTimesAction(ActionHandler):
 
             # Process meeting time suggestions
             suggestions = []
-            for suggestion in response.get("meetingTimeSuggestions", []):
+            for suggestion in response.data.get("meetingTimeSuggestions", []):
                 time_slot = suggestion.get("meetingTimeSlot", {})
                 start_info = time_slot.get("start", {})
                 end_info = time_slot.get("end", {})
@@ -2326,7 +2326,7 @@ class FindMeetingTimesAction(ActionHandler):
             result_data = {"result": True, "meeting_time_suggestions": suggestions}
 
             # Include empty suggestions reason if no suggestions found
-            empty_reason = response.get("emptySuggestionsReason", "")
+            empty_reason = response.data.get("emptySuggestionsReason", "")
             if empty_reason:
                 result_data["empty_suggestions_reason"] = empty_reason
 
@@ -2359,7 +2359,7 @@ class GetScheduleAction(ActionHandler):
 
             # Process schedule responses
             schedules = []
-            for schedule in response.get("value", []):
+            for schedule in response.data.get("value", []):
                 schedule_data = {
                     "email": schedule.get("scheduleId", ""),
                     "availability_view": schedule.get("availabilityView", ""),
@@ -2424,8 +2424,8 @@ class ListRoomsAction(ActionHandler):
                 while next_url and len(all_items) < limit:
                     response = await context.fetch(next_url, params=params if is_first else None)
                     is_first = False
-                    all_items.extend(response.get("value", []))
-                    next_url = response.get("@odata.nextLink")
+                    all_items.extend(response.data.get("value", []))
+                    next_url = response.data.get("@odata.nextLink")
                 all_items = all_items[:limit]
 
                 rooms = []
@@ -2459,8 +2459,8 @@ class ListRoomsAction(ActionHandler):
                 while next_url and len(all_items) < limit:
                     response = await context.fetch(next_url, params=params if is_first else None)
                     is_first = False
-                    all_items.extend(response.get("value", []))
-                    next_url = response.get("@odata.nextLink")
+                    all_items.extend(response.data.get("value", []))
+                    next_url = response.data.get("@odata.nextLink")
                 all_items = all_items[:limit]
 
                 rooms = []
@@ -2493,8 +2493,8 @@ class ListRoomsAction(ActionHandler):
                 while next_url and len(all_items) < limit:
                     response = await context.fetch(next_url, params=params if is_first else None)
                     is_first = False
-                    all_items.extend(response.get("value", []))
-                    next_url = response.get("@odata.nextLink")
+                    all_items.extend(response.data.get("value", []))
+                    next_url = response.data.get("@odata.nextLink")
                 all_items = all_items[:limit]
 
                 rooms = []
@@ -2550,7 +2550,7 @@ class CheckRoomAvailabilityAction(ActionHandler):
             available_rooms = []
             unavailable_rooms = []
 
-            for schedule in response.get("value", []):
+            for schedule in response.data.get("value", []):
                 email = schedule.get("scheduleId", "")
                 schedule_items = schedule.get("scheduleItems", [])
 

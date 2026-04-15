@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -25,7 +25,7 @@ class ListWorkspacesAction(ActionHandler):
             response = await context.fetch(f"{POWERBI_API_BASE}/groups", params=params)
 
             workspaces = []
-            for workspace in response.get("value", []):
+            for workspace in response.data.get("value", []):
                 workspaces.append(
                     {
                         "id": workspace.get("id"),
@@ -36,10 +36,10 @@ class ListWorkspacesAction(ActionHandler):
                     }
                 )
 
-            return {"workspaces": workspaces, "result": True}
+            return ActionResult(data={"workspaces": workspaces, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"workspaces": [], "result": False, "error": str(e)}
+            return ActionResult(data={"workspaces": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("get_workspace")
@@ -50,10 +50,10 @@ class GetWorkspaceAction(ActionHandler):
 
             response = await context.fetch(f"{POWERBI_API_BASE}/groups/{workspace_id}")
 
-            return {"workspace": response, "result": True}
+            return ActionResult(data={"workspace": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"workspace": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"workspace": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("list_datasets")
@@ -70,7 +70,7 @@ class ListDatasetsAction(ActionHandler):
             response = await context.fetch(url)
 
             datasets = []
-            for dataset in response.get("value", []):
+            for dataset in response.data.get("value", []):
                 datasets.append(
                     {
                         "id": dataset.get("id"),
@@ -83,10 +83,10 @@ class ListDatasetsAction(ActionHandler):
                     }
                 )
 
-            return {"datasets": datasets, "result": True}
+            return ActionResult(data={"datasets": datasets, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"datasets": [], "result": False, "error": str(e)}
+            return ActionResult(data={"datasets": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("get_dataset")
@@ -103,10 +103,10 @@ class GetDatasetAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {"dataset": response, "result": True}
+            return ActionResult(data={"dataset": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"dataset": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"dataset": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("refresh_dataset")
@@ -164,10 +164,10 @@ class RefreshDatasetAction(ActionHandler):
             if hasattr(response, "headers") and "x-ms-request-id" in response.headers:
                 request_id = response.headers["x-ms-request-id"]
 
-            return {"result": True, "message": "Dataset refresh initiated successfully", "request_id": request_id}
+            return ActionResult(data={"result": True, "message": "Dataset refresh initiated successfully", "request_id": request_id}, cost_usd=0.0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("get_refresh_history")
@@ -188,7 +188,7 @@ class GetRefreshHistoryAction(ActionHandler):
             response = await context.fetch(url, params=params)
 
             refreshes = []
-            for refresh in response.get("value", []):
+            for refresh in response.data.get("value", []):
                 refreshes.append(
                     {
                         "refreshType": refresh.get("refreshType"),
@@ -199,10 +199,10 @@ class GetRefreshHistoryAction(ActionHandler):
                     }
                 )
 
-            return {"refreshes": refreshes, "result": True}
+            return ActionResult(data={"refreshes": refreshes, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"refreshes": [], "result": False, "error": str(e)}
+            return ActionResult(data={"refreshes": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("list_reports")
@@ -219,7 +219,7 @@ class ListReportsAction(ActionHandler):
             response = await context.fetch(url)
 
             reports = []
-            for report in response.get("value", []):
+            for report in response.data.get("value", []):
                 reports.append(
                     {
                         "id": report.get("id"),
@@ -230,10 +230,10 @@ class ListReportsAction(ActionHandler):
                     }
                 )
 
-            return {"reports": reports, "result": True}
+            return ActionResult(data={"reports": reports, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"reports": [], "result": False, "error": str(e)}
+            return ActionResult(data={"reports": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("get_report")
@@ -250,10 +250,10 @@ class GetReportAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {"report": response, "result": True}
+            return ActionResult(data={"report": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"report": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"report": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("get_report_datasources")
@@ -271,7 +271,7 @@ class GetReportDatasourcesAction(ActionHandler):
             response = await context.fetch(url)
 
             datasources = []
-            for datasource in response.get("value", []):
+            for datasource in response.data.get("value", []):
                 ds_data = {
                     "datasourceType": datasource.get("datasourceType"),
                     "datasourceId": datasource.get("datasourceId"),
@@ -286,10 +286,10 @@ class GetReportDatasourcesAction(ActionHandler):
 
                 datasources.append(ds_data)
 
-            return {"datasources": datasources, "result": True}
+            return ActionResult(data={"datasources": datasources, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"datasources": [], "result": False, "error": str(e)}
+            return ActionResult(data={"datasources": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("refresh_report")
@@ -307,10 +307,10 @@ class RefreshReportAction(ActionHandler):
                 report_url = f"{POWERBI_API_BASE}/reports/{report_id}"
 
             report_response = await context.fetch(report_url)
-            dataset_id = report_response.get("datasetId")
+            dataset_id = report_response.data.get("datasetId")
 
             if not dataset_id:
-                return {"result": False, "error": "Report does not have an associated dataset"}
+                return ActionResult(data={"result": False, "error": "Report does not have an associated dataset"}, cost_usd=0.0)
 
             # Now refresh the dataset
             if workspace_id:
@@ -322,14 +322,14 @@ class RefreshReportAction(ActionHandler):
 
             await context.fetch(refresh_url, method="POST", json=refresh_request)
 
-            return {
+            return ActionResult(data={
                 "result": True,
-                "message": f"Dataset refresh initiated successfully for report '{report_response.get('name')}'",
+                "message": f"Dataset refresh initiated successfully for report '{report_response.data.get('name')}'",
                 "dataset_id": dataset_id,
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("clone_report")
@@ -357,16 +357,16 @@ class CloneReportAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=clone_request)
 
-            return {
-                "id": response.get("id"),
-                "name": response.get("name"),
-                "webUrl": response.get("webUrl"),
-                "embedUrl": response.get("embedUrl"),
+            return ActionResult(data={
+                "id": response.data.get("id"),
+                "name": response.data.get("name"),
+                "webUrl": response.data.get("webUrl"),
+                "embedUrl": response.data.get("embedUrl"),
                 "result": True,
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("export_report")
@@ -386,10 +386,10 @@ class ExportReportAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=export_request)
 
-            return {"export_id": response.get("id"), "result": True, "message": "Export initiated successfully"}
+            return ActionResult(data={"export_id": response.data.get("id"), "result": True, "message": "Export initiated successfully"}, cost_usd=0.0)
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("get_export_status")
@@ -407,14 +407,14 @@ class GetExportStatusAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {
-                "status": response.get("status"),
-                "percentComplete": response.get("percentComplete", 0),
+            return ActionResult(data={
+                "status": response.data.get("status"),
+                "percentComplete": response.data.get("percentComplete", 0),
                 "result": True,
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"status": "Failed", "percentComplete": 0, "result": False, "error": str(e)}
+            return ActionResult(data={"status": "Failed", "percentComplete": 0, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("list_dashboards")
@@ -431,7 +431,7 @@ class ListDashboardsAction(ActionHandler):
             response = await context.fetch(url)
 
             dashboards = []
-            for dashboard in response.get("value", []):
+            for dashboard in response.data.get("value", []):
                 dashboards.append(
                     {
                         "id": dashboard.get("id"),
@@ -441,10 +441,10 @@ class ListDashboardsAction(ActionHandler):
                     }
                 )
 
-            return {"dashboards": dashboards, "result": True}
+            return ActionResult(data={"dashboards": dashboards, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"dashboards": [], "result": False, "error": str(e)}
+            return ActionResult(data={"dashboards": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("get_dashboard")
@@ -461,10 +461,10 @@ class GetDashboardAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {"dashboard": response, "result": True}
+            return ActionResult(data={"dashboard": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"dashboard": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"dashboard": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("get_dashboard_tiles")
@@ -482,7 +482,7 @@ class GetDashboardTilesAction(ActionHandler):
             response = await context.fetch(url)
 
             tiles = []
-            for tile in response.get("value", []):
+            for tile in response.data.get("value", []):
                 tiles.append(
                     {
                         "id": tile.get("id"),
@@ -493,10 +493,10 @@ class GetDashboardTilesAction(ActionHandler):
                     }
                 )
 
-            return {"tiles": tiles, "result": True}
+            return ActionResult(data={"tiles": tiles, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"tiles": [], "result": False, "error": str(e)}
+            return ActionResult(data={"tiles": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @powerbi.action("execute_queries")
@@ -516,7 +516,7 @@ class ExecuteQueriesAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=query_request)
 
-            return {"results": response.get("results", []), "result": True}
+            return ActionResult(data={"results": response.data.get("results", []), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"results": [], "result": False, "error": str(e)}
+            return ActionResult(data={"results": [], "result": False, "error": str(e)}, cost_usd=0.0)

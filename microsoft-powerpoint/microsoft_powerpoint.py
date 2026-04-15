@@ -121,7 +121,7 @@ class ListPresentationsAction(ActionHandler):
             else:
                 response = await context.fetch(base_url, method="GET", params=params)
 
-            items = response.get("value", [])
+            items = response.data.get("value", [])
             presentations = [
                 {
                     "id": item.get("id"),
@@ -133,7 +133,7 @@ class ListPresentationsAction(ActionHandler):
                 for item in items
             ]
 
-            next_page_token = response.get("@odata.nextLink")
+            next_page_token = response.data.get("@odata.nextLink")
 
             return ActionResult(
                 data={
@@ -172,15 +172,15 @@ class GetPresentationAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "id": response.get("id"),
-                    "name": response.get("name"),
-                    "size": response.get("size"),
-                    "webUrl": response.get("webUrl"),
-                    "createdDateTime": response.get("createdDateTime"),
-                    "lastModifiedDateTime": response.get("lastModifiedDateTime"),
-                    "createdBy": response.get("createdBy"),
-                    "lastModifiedBy": response.get("lastModifiedBy"),
-                    "parentReference": response.get("parentReference"),
+                    "id": response.data.get("id"),
+                    "name": response.data.get("name"),
+                    "size": response.data.get("size"),
+                    "webUrl": response.data.get("webUrl"),
+                    "createdDateTime": response.data.get("createdDateTime"),
+                    "lastModifiedDateTime": response.data.get("lastModifiedDateTime"),
+                    "createdBy": response.data.get("createdBy"),
+                    "lastModifiedBy": response.data.get("lastModifiedBy"),
+                    "parentReference": response.data.get("parentReference"),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -214,7 +214,7 @@ class GetSlidesAction(ActionHandler):
                         f"{GRAPH_API_BASE_URL}/me/drive/items/{presentation_id}/thumbnails",
                         method="GET",
                     )
-                    thumbnail_sets = thumbnails_response.get("value", [])
+                    thumbnail_sets = thumbnails_response.data.get("value", [])
                     if thumbnail_sets:
                         size_data = thumbnail_sets[0].get(thumbnail_size, thumbnail_sets[0].get("medium", {}))
                         thumbnail_data = {
@@ -305,7 +305,7 @@ class GetSlideAction(ActionHandler):
                         f"{GRAPH_API_BASE_URL}/me/drive/items/{presentation_id}/thumbnails",
                         method="GET",
                     )
-                    thumbnail_sets = thumbnails_response.get("value", [])
+                    thumbnail_sets = thumbnails_response.data.get("value", [])
                     if thumbnail_sets:
                         size_data = thumbnail_sets[0].get(thumbnail_size, thumbnail_sets[0].get("large", {}))
                         result_data["thumbnailUrl"] = size_data.get("url")
@@ -361,13 +361,13 @@ class CreatePresentationAction(ActionHandler):
                     json=copy_body,
                 )
 
-                if response.get("id"):
+                if response.data.get("id"):
                     return ActionResult(
                         data={
-                            "id": response.get("id"),
-                            "name": response.get("name"),
-                            "webUrl": response.get("webUrl"),
-                            "createdDateTime": response.get("createdDateTime"),
+                            "id": response.data.get("id"),
+                            "name": response.data.get("name"),
+                            "webUrl": response.data.get("webUrl"),
+                            "createdDateTime": response.data.get("createdDateTime"),
                             "result": True,
                         },
                         cost_usd=0.0,
@@ -387,10 +387,10 @@ class CreatePresentationAction(ActionHandler):
 
                 return ActionResult(
                     data={
-                        "id": response.get("id"),
-                        "name": response.get("name"),
-                        "webUrl": response.get("webUrl"),
-                        "createdDateTime": response.get("createdDateTime"),
+                        "id": response.data.get("id"),
+                        "name": response.data.get("name"),
+                        "webUrl": response.data.get("webUrl"),
+                        "createdDateTime": response.data.get("createdDateTime"),
                         "result": True,
                     },
                     cost_usd=0.0,
@@ -671,8 +671,8 @@ class ExportPdfAction(ActionHandler):
                 params={"$select": "name,parentReference"},
             )
 
-            original_name = file_info.get("name", "presentation.pptx")
-            parent_path = file_info.get("parentReference", {}).get("path", "/drive/root:").replace("/drive/root:", "")
+            original_name = file_info.data.get("name", "presentation.pptx")
+            parent_path = file_info.data.get("parentReference", {}).get("path", "/drive/root:").replace("/drive/root:", "")
 
             if output_name:
                 pdf_name = output_name if output_name.endswith(".pdf") else f"{output_name}.pdf"
@@ -700,17 +700,17 @@ class ExportPdfAction(ActionHandler):
             )
 
             download_response = await context.fetch(
-                f"{GRAPH_API_BASE_URL}/me/drive/items/{response.get('id')}",
+                f"{GRAPH_API_BASE_URL}/me/drive/items/{response.data.get('id')}",
                 method="GET",
             )
 
             return ActionResult(
                 data={
-                    "pdf_id": response.get("id"),
-                    "pdf_name": response.get("name"),
-                    "pdf_webUrl": response.get("webUrl"),
-                    "pdf_size": response.get("size"),
-                    "download_url": download_response.get("@microsoft.graph.downloadUrl"),
+                    "pdf_id": response.data.get("id"),
+                    "pdf_name": response.data.get("name"),
+                    "pdf_webUrl": response.data.get("webUrl"),
+                    "pdf_size": response.data.get("size"),
+                    "download_url": download_response.data.get("@microsoft.graph.downloadUrl"),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -761,7 +761,7 @@ class GetSlideImageAction(ActionHandler):
                 method="GET",
             )
 
-            thumbnail_sets = thumbnails_response.get("value", [])
+            thumbnail_sets = thumbnails_response.data.get("value", [])
 
             if not thumbnail_sets:
                 return ActionResult(

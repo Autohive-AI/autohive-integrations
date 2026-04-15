@@ -73,9 +73,9 @@ class GetPostsAction(ActionHandler):
             response = await context.fetch(
                 f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media", method="GET", params=params
             )
-            media_list = [_build_media_response(m) for m in response.get("data", [])]
+            media_list = [_build_media_response(m) for m in response.data.get("data", [])]
 
-            paging = response.get("paging", {})
+            paging = response.data.get("paging", {})
             cursors = paging.get("cursors", {})
             next_cursor = cursors.get("after") if paging.get("next") else None
 
@@ -127,7 +127,7 @@ class CreatePostAction(ActionHandler):
                 child_response = await context.fetch(
                     f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media", method="POST", data=child_data
                 )
-                child_container_ids.append(child_response.get("id"))
+                child_container_ids.append(child_response.data.get("id"))
 
             for container_id in child_container_ids:
                 await wait_for_media_container(context, container_id)
@@ -137,7 +137,7 @@ class CreatePostAction(ActionHandler):
                 method="POST",
                 data={"media_type": "CAROUSEL", "caption": caption, "children": ",".join(child_container_ids)},
             )
-            container_id = container_response.get("id")
+            container_id = container_response.data.get("id")
 
         elif media_type == "REELS":
             if not media_url:
@@ -148,7 +148,7 @@ class CreatePostAction(ActionHandler):
                 method="POST",
                 data={"media_type": "REELS", "video_url": media_url, "caption": caption},
             )
-            container_id = container_response.get("id")
+            container_id = container_response.data.get("id")
 
         elif media_type == "VIDEO":
             if not media_url:
@@ -159,7 +159,7 @@ class CreatePostAction(ActionHandler):
                 method="POST",
                 data={"media_type": "VIDEO", "video_url": media_url, "caption": caption},
             )
-            container_id = container_response.get("id")
+            container_id = container_response.data.get("id")
 
         else:
             if not media_url:
@@ -172,7 +172,7 @@ class CreatePostAction(ActionHandler):
             container_response = await context.fetch(
                 f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media", method="POST", data=data
             )
-            container_id = container_response.get("id")
+            container_id = container_response.data.get("id")
 
         await wait_for_media_container(context, container_id)
 
@@ -180,13 +180,13 @@ class CreatePostAction(ActionHandler):
             f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media_publish", method="POST", data={"creation_id": container_id}
         )
 
-        media_id = publish_response.get("id", "")
+        media_id = publish_response.data.get("id", "")
 
         media_details = await context.fetch(
             f"{INSTAGRAM_GRAPH_API_BASE}/{media_id}", method="GET", params={"fields": "permalink"}
         )
 
-        return ActionResult(data={"media_id": media_id, "permalink": media_details.get("permalink", "")})
+        return ActionResult(data={"media_id": media_id, "permalink": media_details.data.get("permalink", "")})
 
 
 @instagram.action("create_story")
@@ -214,7 +214,7 @@ class CreateStoryAction(ActionHandler):
         container_response = await context.fetch(
             f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media", method="POST", data=data
         )
-        container_id = container_response.get("id")
+        container_id = container_response.data.get("id")
 
         await wait_for_media_container(context, container_id)
 
@@ -222,4 +222,4 @@ class CreateStoryAction(ActionHandler):
             f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media_publish", method="POST", data={"creation_id": container_id}
         )
 
-        return ActionResult(data={"media_id": publish_response.get("id", "")})
+        return ActionResult(data={"media_id": publish_response.data.get("id", "")})

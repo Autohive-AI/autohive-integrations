@@ -151,8 +151,8 @@ class GetListsAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "lists": response.get("lists", []),
-                    "total_items": response.get("total_items", 0),
+                    "lists": response.data.get("lists", []),
+                    "total_items": response.data.get("total_items", 0),
                 },
                 cost_usd=0.0,
             )
@@ -203,7 +203,7 @@ class FindListAction(ActionHandler):
             # Search for matching list (case-insensitive)
             search_name = name.lower()
             matching_list = None
-            for lst in response.get("lists", []):
+            for lst in response.data.get("lists", []):
                 if search_name in lst.get("name", "").lower():
                     matching_list = lst
                     break
@@ -250,7 +250,7 @@ class GetListAction(ActionHandler):
             # Make rate-limited request
             response = await rate_limiter.make_request(context, url, method="GET")
 
-            return ActionResult(data={"result": True, "list": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "list": response.data}, cost_usd=0.0)
 
         except MailchimpRateLimitException as e:
             return ActionResult(
@@ -314,7 +314,7 @@ class CreateListAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "list": {"id": response.get("id"), "name": response.get("name")},
+                    "list": {"id": response.data.get("id"), "name": response.data.get("name")},
                 },
                 cost_usd=0.0,
             )
@@ -377,9 +377,9 @@ class AddMemberAction(ActionHandler):
                 data={
                     "result": True,
                     "member": {
-                        "id": response.get("id"),
-                        "email_address": response.get("email_address"),
-                        "status": response.get("status"),
+                        "id": response.data.get("id"),
+                        "email_address": response.data.get("email_address"),
+                        "status": response.data.get("status"),
                     },
                 },
                 cost_usd=0.0,
@@ -452,9 +452,9 @@ class UpdateMemberAction(ActionHandler):
                 data={
                     "result": True,
                     "member": {
-                        "id": response.get("id"),
-                        "email_address": response.get("email_address"),
-                        "status": response.get("status"),
+                        "id": response.data.get("id"),
+                        "email_address": response.data.get("email_address"),
+                        "status": response.data.get("status"),
                     },
                 },
                 cost_usd=0.0,
@@ -514,10 +514,10 @@ class GetMemberAction(ActionHandler):
                 data={
                     "result": True,
                     "member": {
-                        "id": response.get("id"),
-                        "email_address": response.get("email_address"),
-                        "status": response.get("status"),
-                        "merge_fields": response.get("merge_fields", {}),
+                        "id": response.data.get("id"),
+                        "email_address": response.data.get("email_address"),
+                        "status": response.data.get("status"),
+                        "merge_fields": response.data.get("merge_fields", {}),
                     },
                 },
                 cost_usd=0.0,
@@ -576,8 +576,8 @@ class GetListMembersAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "members": response.get("members", []),
-                    "total_items": response.get("total_items", 0),
+                    "members": response.data.get("members", []),
+                    "total_items": response.data.get("total_items", 0),
                 },
                 cost_usd=0.0,
             )
@@ -633,7 +633,7 @@ class FindCampaignAction(ActionHandler):
             # Search for matching campaign (case-insensitive in title or subject_line)
             search_query = query.lower()
             matching_campaign = None
-            for campaign in response.get("campaigns", []):
+            for campaign in response.data.get("campaigns", []):
                 settings = campaign.get("settings", {})
                 title = settings.get("title", "").lower()
                 subject_line = settings.get("subject_line", "").lower()
@@ -692,8 +692,8 @@ class GetCampaignsAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "campaigns": response.get("campaigns", []),
-                    "total_items": response.get("total_items", 0),
+                    "campaigns": response.data.get("campaigns", []),
+                    "total_items": response.data.get("total_items", 0),
                 },
                 cost_usd=0.0,
             )
@@ -777,9 +777,9 @@ class CreateCampaignAction(ActionHandler):
                 data={
                     "result": True,
                     "campaign": {
-                        "id": response.get("id"),
-                        "type": response.get("type"),
-                        "status": response.get("status"),
+                        "id": response.data.get("id"),
+                        "type": response.data.get("type"),
+                        "status": response.data.get("status"),
                     },
                 },
                 cost_usd=0.0,
@@ -819,7 +819,7 @@ class GetCampaignAction(ActionHandler):
             # Make rate-limited request
             response = await rate_limiter.make_request(context, url, method="GET")
 
-            return ActionResult(data={"result": True, "campaign": response}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "campaign": response.data}, cost_usd=0.0)
 
         except MailchimpRateLimitException as e:
             return ActionResult(
@@ -857,12 +857,12 @@ class MailchimpConnectedAccountHandler(ConnectedAccountHandler):
             # Extract relevant account information
             # Mailchimp returns: account_id, account_name, email, role, etc.
             return ConnectedAccountInfo(
-                email=response.get("email"),
-                username=response.get("username") or response.get("login_name"),
-                first_name=response.get("first_name"),
-                last_name=response.get("last_name"),
-                organization=response.get("account_name"),
-                user_id=response.get("account_id"),
+                email=response.data.get("email"),
+                username=response.data.get("username") or response.data.get("login_name"),
+                first_name=response.data.get("first_name"),
+                last_name=response.data.get("last_name"),
+                organization=response.data.get("account_name"),
+                user_id=response.data.get("account_id"),
             )
 
         except Exception as e:

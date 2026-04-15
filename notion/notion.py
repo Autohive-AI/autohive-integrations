@@ -54,11 +54,11 @@ class NotionSearchHandler(ActionHandler):
 
             return ActionResult(
                 data={
-                    "object": response.get("object", "list"),
-                    "results": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
-                    "type": response.get("type"),
+                    "object": response.data.get("object", "list"),
+                    "results": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
+                    "type": response.data.get("type"),
                 }
             )
 
@@ -92,7 +92,7 @@ class NotionGetPageHandler(ActionHandler):
                 url=f"https://api.notion.com/v1/pages/{page_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data={"page": response})
+            return ActionResult(data={"page": response.data})
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "page": None})
@@ -125,7 +125,7 @@ class NotionCreatePageHandler(ActionHandler):
                 url="https://api.notion.com/v1/pages", method="POST", headers=headers, json=create_body
             )
 
-            return ActionResult(data={"page": response})
+            return ActionResult(data={"page": response.data})
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "page": None})
@@ -158,7 +158,7 @@ class NotionCreateCommentHandler(ActionHandler):
                 url="https://api.notion.com/v1/comments", method="POST", headers=headers, json=comment_body
             )
 
-            return ActionResult(data={"comment": response})
+            return ActionResult(data={"comment": response.data})
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "comment": None})
@@ -188,9 +188,9 @@ class NotionGetCommentsHandler(ActionHandler):
             )
 
             result = {
-                "comments": response.get("results", []),
-                "has_more": response.get("has_more", False),
-                "next_cursor": response.get("next_cursor"),
+                "comments": response.data.get("results", []),
+                "has_more": response.data.get("has_more", False),
+                "next_cursor": response.data.get("next_cursor"),
             }
 
             if include_child_blocks_with_comments:
@@ -200,7 +200,7 @@ class NotionGetCommentsHandler(ActionHandler):
                     url=f"https://api.notion.com/v1/blocks/{block_id}/children", method="GET", headers=headers
                 )
 
-                for block in blocks_response.get("results", []):
+                for block in blocks_response.data.get("results", []):
                     child_block_id = block.get("id")
                     if child_block_id:
                         comments_response = await context.fetch(
@@ -209,7 +209,7 @@ class NotionGetCommentsHandler(ActionHandler):
                             headers=headers,
                             params={"block_id": child_block_id, "page_size": 1},
                         )
-                        if comments_response.get("results"):
+                        if comments_response.data.get("results"):
                             blocks_with_comments.append(
                                 {"block_id": child_block_id, "block_type": block.get("type"), "has_comments": True}
                             )
@@ -257,9 +257,9 @@ class NotionListDataSourcesHandler(ActionHandler):
             )
             return ActionResult(
                 data={
-                    "data_sources": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
+                    "data_sources": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
                 }
             )
         except Exception as e:
@@ -289,7 +289,7 @@ class NotionGetDataSourceHandler(ActionHandler):
             response = await context.fetch(
                 url=f"https://api.notion.com/v1/data_sources/{data_source_id}", method="GET", headers=headers
             )
-            return ActionResult(data={"data_source": response})
+            return ActionResult(data={"data_source": response.data})
         except Exception as e:
             return ActionResult(data={"error": str(e), "data_source": None})
 
@@ -346,10 +346,10 @@ class NotionQueryDataSourceHandler(ActionHandler):
 
             return ActionResult(
                 data={
-                    "results": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
-                    "type": response.get("type"),
+                    "results": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
+                    "type": response.data.get("type"),
                 }
             )
 
@@ -394,10 +394,10 @@ class NotionGetBlockChildrenHandler(ActionHandler):
 
             return ActionResult(
                 data={
-                    "blocks": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
-                    "type": response.get("type"),
+                    "blocks": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
+                    "type": response.data.get("type"),
                 }
             )
 
@@ -443,10 +443,10 @@ class NotionAppendBlockChildrenHandler(ActionHandler):
 
             return ActionResult(
                 data={
-                    "blocks": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
-                    "type": response.get("type"),
+                    "blocks": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
+                    "type": response.data.get("type"),
                 }
             )
 
@@ -490,7 +490,7 @@ class NotionGetPagePropertyHandler(ActionHandler):
 
             response = await context.fetch(url=url, method="GET", headers=headers, params=params)
 
-            return ActionResult(data={"property": response})
+            return ActionResult(data={"property": response.data})
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "property": None})
@@ -561,7 +561,7 @@ class NotionUpdateBlockHandler(ActionHandler):
                 url=f"https://api.notion.com/v1/blocks/{block_id}", method="PATCH", headers=headers, json=update_body
             )
 
-            return ActionResult(data={"block": response})
+            return ActionResult(data={"block": response.data})
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "block": None})
@@ -593,7 +593,7 @@ class NotionDeleteBlockHandler(ActionHandler):
                 url=f"https://api.notion.com/v1/blocks/{block_id}", method="DELETE", headers=headers
             )
 
-            return ActionResult(data={"block": response})
+            return ActionResult(data={"block": response.data})
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "block": None})
@@ -635,7 +635,7 @@ class NotionUpdatePageHandler(ActionHandler):
                 url=f"https://api.notion.com/v1/pages/{page_id}", method="PATCH", headers=headers, json=update_body
             )
 
-            return ActionResult(data={"page": response})
+            return ActionResult(data={"page": response.data})
 
         except Exception as e:
             return ActionResult(data={"error": str(e), "page": None})

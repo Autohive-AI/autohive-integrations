@@ -68,7 +68,7 @@ async def get_cloud_id(access_token: str, context: ExecutionContext) -> str:
     if jira_resource:
         return jira_resource["id"]
 
-    return resources[0]["id"]
+    return resources.data[0]["id"]
 
 
 def api_url(cloud_id: str, path: str) -> str:
@@ -222,9 +222,9 @@ class CreateIssueAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "issueId": body.get("id") if isinstance(body, dict) else None,
-                    "issueKey": body.get("key") if isinstance(body, dict) else None,
-                    "issueUrl": body.get("self") if isinstance(body, dict) else None,
+                    "issueId": body.data.get("id") if isinstance(body, dict) else None,
+                    "issueKey": body.data.get("key") if isinstance(body, dict) else None,
+                    "issueUrl": body.data.get("self") if isinstance(body, dict) else None,
                     "message": "Issue created successfully",
                 },
                 cost_usd=None,
@@ -261,7 +261,7 @@ class GetIssueAction(ActionHandler):
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}")
             body = await jira_request("GET", url, access_token, context, params=params or None)
 
-            fields_data = body.get("fields", {}) if isinstance(body, dict) else {}
+            fields_data = body.data.get("fields", {}) if isinstance(body, dict) else {}
             assignee = fields_data.get("assignee") or {}
             reporter = fields_data.get("reporter") or {}
             status = fields_data.get("status") or {}
@@ -272,8 +272,8 @@ class GetIssueAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "issueId": body.get("id"),
-                    "issueKey": body.get("key"),
+                    "issueId": body.data.get("id"),
+                    "issueKey": body.data.get("key"),
                     "summary": fields_data.get("summary"),
                     "description": fields_data.get("description"),
                     "status": status.get("name"),
@@ -295,7 +295,7 @@ class GetIssueAction(ActionHandler):
                     "subtasks": fields_data.get("subtasks", []),
                     "parent": fields_data.get("parent"),
                     "rawFields": fields_data,
-                    "issueUrl": body.get("self"),
+                    "issueUrl": body.data.get("self"),
                 },
                 cost_usd=None,
             )
@@ -462,7 +462,7 @@ class SearchIssuesAction(ActionHandler):
             body = await jira_request("POST", url, access_token, context, payload=payload)
 
             issues = []
-            for issue in body.get("issues") or []:
+            for issue in body.data.get("issues") or []:
                 f = issue.get("fields") or {}
                 status = f.get("status") or {}
                 assignee = f.get("assignee") or {}
@@ -488,9 +488,9 @@ class SearchIssuesAction(ActionHandler):
                 data={
                     "result": True,
                     "issues": issues,
-                    "total": body.get("total", len(issues)),
-                    "maxResults": body.get("maxResults", max_results),
-                    "nextPageToken": body.get("nextPageToken"),
+                    "total": body.data.get("total", len(issues)),
+                    "maxResults": body.data.get("maxResults", max_results),
+                    "nextPageToken": body.data.get("nextPageToken"),
                 },
                 cost_usd=None,
             )
@@ -518,7 +518,7 @@ class GetIssueTransitionsAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context)
 
             transitions = []
-            for t in body.get("transitions") or []:
+            for t in body.data.get("transitions") or []:
                 to_status = t.get("to") or {}
                 transitions.append(
                     {
@@ -700,7 +700,7 @@ class GetCommentsAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context, params=params)
 
             comments = []
-            for c in body.get("comments") or []:
+            for c in body.data.get("comments") or []:
                 author = c.get("author") or {}
                 comments.append(
                     {
@@ -718,8 +718,8 @@ class GetCommentsAction(ActionHandler):
                     "result": True,
                     "issueKey": issue_key,
                     "comments": comments,
-                    "total": body.get("total", len(comments)),
-                    "startAt": body.get("startAt", start_at),
+                    "total": body.data.get("total", len(comments)),
+                    "startAt": body.data.get("startAt", start_at),
                 },
                 cost_usd=None,
             )
@@ -848,7 +848,7 @@ class ListProjectsAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context, params=params)
 
             projects = []
-            for p in body.get("values") or []:
+            for p in body.data.get("values") or []:
                 lead = p.get("lead") or {}
                 projects.append(
                     {
@@ -868,8 +868,8 @@ class ListProjectsAction(ActionHandler):
                 data={
                     "result": True,
                     "projects": projects,
-                    "total": body.get("total", len(projects)),
-                    "startAt": body.get("startAt", start_at),
+                    "total": body.data.get("total", len(projects)),
+                    "startAt": body.data.get("startAt", start_at),
                 },
                 cost_usd=None,
             )
@@ -902,32 +902,32 @@ class GetProjectAction(ActionHandler):
             url = api_url(cloud_id, f"/project/{safe_path(project_key)}")
             body = await jira_request("GET", url, access_token, context, params=params or None)
 
-            lead = (body.get("lead") or {}) if isinstance(body, dict) else {}
+            lead = (body.data.get("lead") or {}) if isinstance(body, dict) else {}
 
             return ActionResult(
                 data={
                     "result": True,
-                    "projectId": body.get("id"),
-                    "projectKey": body.get("key"),
-                    "name": body.get("name"),
-                    "description": body.get("description"),
-                    "projectType": body.get("projectTypeKey"),
-                    "style": body.get("style"),
+                    "projectId": body.data.get("id"),
+                    "projectKey": body.data.get("key"),
+                    "name": body.data.get("name"),
+                    "description": body.data.get("description"),
+                    "projectType": body.data.get("projectTypeKey"),
+                    "style": body.data.get("style"),
                     "leadDisplayName": lead.get("displayName"),
                     "leadAccountId": lead.get("accountId"),
                     "issueTypes": [
-                        {"id": it.get("id"), "name": it.get("name")} for it in (body.get("issueTypes") or [])
+                        {"id": it.get("id"), "name": it.get("name")} for it in (body.data.get("issueTypes") or [])
                     ],
-                    "components": [{"id": c.get("id"), "name": c.get("name")} for c in (body.get("components") or [])],
+                    "components": [{"id": c.get("id"), "name": c.get("name")} for c in (body.data.get("components") or [])],
                     "versions": [
                         {
                             "id": v.get("id"),
                             "name": v.get("name"),
                             "released": v.get("released"),
                         }
-                        for v in (body.get("versions") or [])
+                        for v in (body.data.get("versions") or [])
                     ],
-                    "url": body.get("self"),
+                    "url": body.data.get("self"),
                 },
                 cost_usd=None,
             )
@@ -1012,7 +1012,7 @@ class GetProjectVersionsAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context, params=params)
 
             versions = []
-            for v in body.get("values") or []:
+            for v in body.data.get("values") or []:
                 versions.append(
                     {
                         "versionId": v.get("id"),
@@ -1031,8 +1031,8 @@ class GetProjectVersionsAction(ActionHandler):
                     "result": True,
                     "projectKey": project_key,
                     "versions": versions,
-                    "total": body.get("total", len(versions)),
-                    "startAt": body.get("startAt", start_at),
+                    "total": body.data.get("total", len(versions)),
+                    "startAt": body.data.get("startAt", start_at),
                 },
                 cost_usd=None,
             )
@@ -1081,8 +1081,8 @@ class CreateProjectVersionAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "versionId": body.get("id") if isinstance(body, dict) else None,
-                    "name": body.get("name") if isinstance(body, dict) else None,
+                    "versionId": body.data.get("id") if isinstance(body, dict) else None,
+                    "name": body.data.get("name") if isinstance(body, dict) else None,
                     "projectKey": project_key,
                     "message": "Version created successfully",
                 },
@@ -1113,13 +1113,13 @@ class GetCurrentUserAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "accountId": body.get("accountId") if isinstance(body, dict) else None,
-                    "displayName": body.get("displayName") if isinstance(body, dict) else None,
-                    "emailAddress": body.get("emailAddress") if isinstance(body, dict) else None,
-                    "active": body.get("active") if isinstance(body, dict) else None,
-                    "locale": body.get("locale") if isinstance(body, dict) else None,
-                    "timeZone": body.get("timeZone") if isinstance(body, dict) else None,
-                    "avatarUrls": body.get("avatarUrls") if isinstance(body, dict) else None,
+                    "accountId": body.data.get("accountId") if isinstance(body, dict) else None,
+                    "displayName": body.data.get("displayName") if isinstance(body, dict) else None,
+                    "emailAddress": body.data.get("emailAddress") if isinstance(body, dict) else None,
+                    "active": body.data.get("active") if isinstance(body, dict) else None,
+                    "locale": body.data.get("locale") if isinstance(body, dict) else None,
+                    "timeZone": body.data.get("timeZone") if isinstance(body, dict) else None,
+                    "avatarUrls": body.data.get("avatarUrls") if isinstance(body, dict) else None,
                 },
                 cost_usd=None,
             )
@@ -1151,12 +1151,12 @@ class GetUserAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "accountId": body.get("accountId") if isinstance(body, dict) else None,
-                    "displayName": body.get("displayName") if isinstance(body, dict) else None,
-                    "emailAddress": body.get("emailAddress") if isinstance(body, dict) else None,
-                    "active": body.get("active") if isinstance(body, dict) else None,
-                    "timeZone": body.get("timeZone") if isinstance(body, dict) else None,
-                    "avatarUrls": body.get("avatarUrls") if isinstance(body, dict) else None,
+                    "accountId": body.data.get("accountId") if isinstance(body, dict) else None,
+                    "displayName": body.data.get("displayName") if isinstance(body, dict) else None,
+                    "emailAddress": body.data.get("emailAddress") if isinstance(body, dict) else None,
+                    "active": body.data.get("active") if isinstance(body, dict) else None,
+                    "timeZone": body.data.get("timeZone") if isinstance(body, dict) else None,
+                    "avatarUrls": body.data.get("avatarUrls") if isinstance(body, dict) else None,
                 },
                 cost_usd=None,
             )
@@ -1241,7 +1241,7 @@ class ListBoardsAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context, params=params)
 
             boards = []
-            for b in body.get("values") or []:
+            for b in body.data.get("values") or []:
                 location = b.get("location") or {}
                 boards.append(
                     {
@@ -1258,8 +1258,8 @@ class ListBoardsAction(ActionHandler):
                 data={
                     "result": True,
                     "boards": boards,
-                    "total": body.get("total", len(boards)),
-                    "startAt": body.get("startAt", start_at),
+                    "total": body.data.get("total", len(boards)),
+                    "startAt": body.data.get("startAt", start_at),
                 },
                 cost_usd=None,
             )
@@ -1295,7 +1295,7 @@ class GetSprintsAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context, params=params)
 
             sprints = []
-            for s in body.get("values") or []:
+            for s in body.data.get("values") or []:
                 sprints.append(
                     {
                         "sprintId": s.get("id"),
@@ -1314,8 +1314,8 @@ class GetSprintsAction(ActionHandler):
                     "result": True,
                     "boardId": board_id,
                     "sprints": sprints,
-                    "total": body.get("total", len(sprints)),
-                    "startAt": body.get("startAt", start_at),
+                    "total": body.data.get("total", len(sprints)),
+                    "startAt": body.data.get("startAt", start_at),
                 },
                 cost_usd=None,
             )
@@ -1356,7 +1356,7 @@ class GetSprintIssuesAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context, params=params)
 
             issues = []
-            for issue in body.get("issues") or []:
+            for issue in body.data.get("issues") or []:
                 f = issue.get("fields") or {}
                 status = f.get("status") or {}
                 assignee = f.get("assignee") or {}
@@ -1380,8 +1380,8 @@ class GetSprintIssuesAction(ActionHandler):
                     "result": True,
                     "sprintId": sprint_id,
                     "issues": issues,
-                    "total": body.get("total", len(issues)),
-                    "startAt": body.get("startAt", start_at),
+                    "total": body.data.get("total", len(issues)),
+                    "startAt": body.data.get("startAt", start_at),
                 },
                 cost_usd=None,
             )
@@ -1434,18 +1434,18 @@ class AddWorklogAction(ActionHandler):
             url = api_url(cloud_id, f"/issue/{safe_path(issue_key)}/worklog")
             body = await jira_request("POST", url, access_token, context, params=params, payload=payload)
 
-            author = (body.get("author") or {}) if isinstance(body, dict) else {}
+            author = (body.data.get("author") or {}) if isinstance(body, dict) else {}
 
             return ActionResult(
                 data={
                     "result": True,
-                    "worklogId": body.get("id") if isinstance(body, dict) else None,
+                    "worklogId": body.data.get("id") if isinstance(body, dict) else None,
                     "issueKey": issue_key,
-                    "timeSpent": body.get("timeSpent") if isinstance(body, dict) else None,
-                    "timeSpentSeconds": body.get("timeSpentSeconds") if isinstance(body, dict) else None,
+                    "timeSpent": body.data.get("timeSpent") if isinstance(body, dict) else None,
+                    "timeSpentSeconds": body.data.get("timeSpentSeconds") if isinstance(body, dict) else None,
                     "authorDisplayName": author.get("displayName"),
                     "authorAccountId": author.get("accountId"),
-                    "started": body.get("started") if isinstance(body, dict) else None,
+                    "started": body.data.get("started") if isinstance(body, dict) else None,
                     "message": "Worklog added successfully",
                 },
                 cost_usd=None,
@@ -1479,7 +1479,7 @@ class GetWorklogsAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context, params=params)
 
             worklogs = []
-            for w in body.get("worklogs") or []:
+            for w in body.data.get("worklogs") or []:
                 author = w.get("author") or {}
                 worklogs.append(
                     {
@@ -1499,8 +1499,8 @@ class GetWorklogsAction(ActionHandler):
                     "result": True,
                     "issueKey": issue_key,
                     "worklogs": worklogs,
-                    "total": body.get("total", len(worklogs)),
-                    "startAt": body.get("startAt", start_at),
+                    "total": body.data.get("total", len(worklogs)),
+                    "startAt": body.data.get("startAt", start_at),
                 },
                 cost_usd=None,
             )
@@ -1573,7 +1573,7 @@ class GetIssueLinkTypesAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context)
 
             link_types = []
-            for lt in body.get("issueLinkTypes") or []:
+            for lt in body.data.get("issueLinkTypes") or []:
                 link_types.append(
                     {
                         "id": lt.get("id"),
@@ -1651,7 +1651,7 @@ class GetWatchersAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context)
 
             watchers = []
-            for w in body.get("watchers") or []:
+            for w in body.data.get("watchers") or []:
                 watchers.append(
                     {
                         "accountId": w.get("accountId"),
@@ -1664,8 +1664,8 @@ class GetWatchersAction(ActionHandler):
                 data={
                     "result": True,
                     "issueKey": issue_key,
-                    "watchCount": body.get("watchCount", len(watchers)) if isinstance(body, dict) else len(watchers),
-                    "isWatching": body.get("isWatching") if isinstance(body, dict) else None,
+                    "watchCount": body.data.get("watchCount", len(watchers)) if isinstance(body, dict) else len(watchers),
+                    "isWatching": body.data.get("isWatching") if isinstance(body, dict) else None,
                     "watchers": watchers,
                 },
                 cost_usd=None,
@@ -1836,7 +1836,7 @@ class GetIssueChangelogAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context, params=params)
 
             changelog = []
-            for entry in body.get("values") or []:
+            for entry in body.data.get("values") or []:
                 author = entry.get("author") or {}
                 items = []
                 for item in entry.get("items") or []:
@@ -1865,8 +1865,8 @@ class GetIssueChangelogAction(ActionHandler):
                     "result": True,
                     "issueKey": issue_key,
                     "changelog": changelog,
-                    "total": body.get("total", len(changelog)),
-                    "startAt": body.get("startAt", start_at),
+                    "total": body.data.get("total", len(changelog)),
+                    "startAt": body.data.get("startAt", start_at),
                 },
                 cost_usd=None,
             )
@@ -1917,10 +1917,10 @@ class BulkCreateIssuesAction(ActionHandler):
             body = await jira_request("POST", url, access_token, context, payload=payload)
 
             created = []
-            for issue in body.get("issues") or []:
+            for issue in body.data.get("issues") or []:
                 created.append({"issueId": issue.get("id"), "issueKey": issue.get("key")})
 
-            errors = body.get("errors", []) if isinstance(body, dict) else []
+            errors = body.data.get("errors", []) if isinstance(body, dict) else []
 
             return ActionResult(
                 data={
@@ -1969,7 +1969,7 @@ class GetBoardIssuesAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context, params=params)
 
             issues = []
-            for issue in body.get("issues") or []:
+            for issue in body.data.get("issues") or []:
                 f = issue.get("fields") or {}
                 status = f.get("status") or {}
                 assignee = f.get("assignee") or {}
@@ -1993,8 +1993,8 @@ class GetBoardIssuesAction(ActionHandler):
                     "result": True,
                     "boardId": board_id,
                     "issues": issues,
-                    "total": body.get("total", len(issues)),
-                    "startAt": body.get("startAt", start_at),
+                    "total": body.data.get("total", len(issues)),
+                    "startAt": body.data.get("startAt", start_at),
                 },
                 cost_usd=None,
             )
@@ -2035,7 +2035,7 @@ class GetBacklogIssuesAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context, params=params)
 
             issues = []
-            for issue in body.get("issues") or []:
+            for issue in body.data.get("issues") or []:
                 f = issue.get("fields") or {}
                 status = f.get("status") or {}
                 assignee = f.get("assignee") or {}
@@ -2055,8 +2055,8 @@ class GetBacklogIssuesAction(ActionHandler):
                     "result": True,
                     "boardId": board_id,
                     "issues": issues,
-                    "total": body.get("total", len(issues)),
-                    "startAt": body.get("startAt", start_at),
+                    "total": body.data.get("total", len(issues)),
+                    "startAt": body.data.get("startAt", start_at),
                 },
                 cost_usd=None,
             )
@@ -2140,9 +2140,9 @@ class CreateSprintAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "sprintId": body.get("id") if isinstance(body, dict) else None,
-                    "name": body.get("name") if isinstance(body, dict) else None,
-                    "state": body.get("state") if isinstance(body, dict) else None,
+                    "sprintId": body.data.get("id") if isinstance(body, dict) else None,
+                    "name": body.data.get("name") if isinstance(body, dict) else None,
+                    "state": body.data.get("state") if isinstance(body, dict) else None,
                     "boardId": board_id,
                     "message": "Sprint created successfully",
                 },
@@ -2200,8 +2200,8 @@ class UpdateSprintAction(ActionHandler):
                 data={
                     "result": True,
                     "sprintId": sprint_id,
-                    "name": body.get("name") if isinstance(body, dict) else None,
-                    "state": body.get("state") if isinstance(body, dict) else None,
+                    "name": body.data.get("name") if isinstance(body, dict) else None,
+                    "state": body.data.get("state") if isinstance(body, dict) else None,
                     "message": "Sprint updated successfully",
                 },
                 cost_usd=None,
@@ -2316,7 +2316,7 @@ class ListDashboardsAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context, params=params)
 
             dashboards = []
-            for d in body.get("dashboards", []) if isinstance(body, dict) else []:
+            for d in body.data.get("dashboards", []) if isinstance(body, dict) else []:
                 dashboards.append(
                     {
                         "id": d.get("id"),
@@ -2332,8 +2332,8 @@ class ListDashboardsAction(ActionHandler):
                 data={
                     "result": True,
                     "dashboards": dashboards,
-                    "total": body.get("total") if isinstance(body, dict) else None,
-                    "startAt": body.get("startAt") if isinstance(body, dict) else None,
+                    "total": body.data.get("total") if isinstance(body, dict) else None,
+                    "startAt": body.data.get("startAt") if isinstance(body, dict) else None,
                     "count": len(dashboards),
                 },
                 cost_usd=None,
@@ -2364,16 +2364,16 @@ class GetDashboardAction(ActionHandler):
             return ActionResult(
                 data={
                     "result": True,
-                    "id": body.get("id"),
-                    "name": body.get("name"),
-                    "self": body.get("self"),
-                    "view": body.get("view"),
-                    "isFavourite": body.get("isFavourite"),
-                    "owner": body.get("owner", {}).get("displayName") if isinstance(body.get("owner"), dict) else None,
-                    "popularity": body.get("popularity"),
-                    "rank": body.get("rank"),
-                    "sharePermissions": body.get("sharePermissions", []),
-                    "editPermissions": body.get("editPermissions", []),
+                    "id": body.data.get("id"),
+                    "name": body.data.get("name"),
+                    "self": body.data.get("self"),
+                    "view": body.data.get("view"),
+                    "isFavourite": body.data.get("isFavourite"),
+                    "owner": body.data.get("owner", {}).get("displayName") if isinstance(body.data.get("owner"), dict) else None,
+                    "popularity": body.data.get("popularity"),
+                    "rank": body.data.get("rank"),
+                    "sharePermissions": body.data.get("sharePermissions", []),
+                    "editPermissions": body.data.get("editPermissions", []),
                 },
                 cost_usd=None,
             )
@@ -2420,7 +2420,7 @@ class SearchDashboardsAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context, params=params)
 
             dashboards = []
-            for d in body.get("values", []) if isinstance(body, dict) else []:
+            for d in body.data.get("values", []) if isinstance(body, dict) else []:
                 dashboards.append(
                     {
                         "id": d.get("id"),
@@ -2436,8 +2436,8 @@ class SearchDashboardsAction(ActionHandler):
                 data={
                     "result": True,
                     "dashboards": dashboards,
-                    "total": body.get("total") if isinstance(body, dict) else None,
-                    "startAt": body.get("startAt") if isinstance(body, dict) else None,
+                    "total": body.data.get("total") if isinstance(body, dict) else None,
+                    "startAt": body.data.get("startAt") if isinstance(body, dict) else None,
                     "count": len(dashboards),
                 },
                 cost_usd=None,
@@ -2466,7 +2466,7 @@ class GetDashboardGadgetsAction(ActionHandler):
             body = await jira_request("GET", url, access_token, context)
 
             gadgets = []
-            for g in body.get("gadgets", []) if isinstance(body, dict) else []:
+            for g in body.data.get("gadgets", []) if isinstance(body, dict) else []:
                 gadgets.append(
                     {
                         "id": g.get("id"),

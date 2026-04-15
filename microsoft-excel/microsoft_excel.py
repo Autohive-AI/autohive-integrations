@@ -55,7 +55,7 @@ class ListWorkbooks(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params)
 
-            items = response.get("value", [])
+            items = response.data.get("value", [])
 
             workbooks = []
             for item in items:
@@ -73,7 +73,7 @@ class ListWorkbooks(ActionHandler):
                     )
 
             result_data = {"workbooks": workbooks, "result": True}
-            next_link = response.get("@odata.nextLink")
+            next_link = response.data.get("@odata.nextLink")
             if next_link:
                 result_data["next_page_token"] = next_link
 
@@ -105,7 +105,7 @@ class GetWorkbook(ActionHandler):
             worksheets = []
             try:
                 ws_data = await context.fetch(worksheets_url, method="GET")
-                for ws in ws_data.get("value", []):
+                for ws in ws_data.data.get("value", []):
                     worksheets.append(
                         {
                             "id": ws.get("id"),
@@ -123,7 +123,7 @@ class GetWorkbook(ActionHandler):
             tables = []
             try:
                 tables_data = await context.fetch(tables_url, method="GET")
-                for table in tables_data.get("value", []):
+                for table in tables_data.data.get("value", []):
                     tables.append(
                         {
                             "id": table.get("id"),
@@ -142,7 +142,7 @@ class GetWorkbook(ActionHandler):
             named_ranges = []
             try:
                 names_data = await context.fetch(names_url, method="GET")
-                for name in names_data.get("value", []):
+                for name in names_data.data.get("value", []):
                     named_ranges.append(
                         {
                             "name": name.get("name"),
@@ -157,10 +157,10 @@ class GetWorkbook(ActionHandler):
             return ActionResult(
                 data={
                     "workbook": {
-                        "id": file_data.get("id"),
-                        "name": file_data.get("name"),
-                        "webUrl": file_data.get("webUrl"),
-                        "lastModifiedDateTime": file_data.get("lastModifiedDateTime"),
+                        "id": file_data.data.get("id"),
+                        "name": file_data.data.get("name"),
+                        "webUrl": file_data.data.get("webUrl"),
+                        "lastModifiedDateTime": file_data.data.get("lastModifiedDateTime"),
                     },
                     "worksheets": worksheets,
                     "tables": tables,
@@ -190,7 +190,7 @@ class ListWorksheets(ActionHandler):
             response = await context.fetch(url, method="GET")
 
             worksheets = []
-            for ws in response.get("value", []):
+            for ws in response.data.get("value", []):
                 worksheets.append(
                     {
                         "id": ws.get("id"),
@@ -230,16 +230,16 @@ class ReadRange(ActionHandler):
             )
             response = await context.fetch(url, method="GET")
 
-            values = response.get("values", [])
-            formulas = response.get("formulas", []) if value_render_option == "FORMULA" else []
-            number_format = response.get("numberFormat", [])
+            values = response.data.get("values", [])
+            formulas = response.data.get("formulas", []) if value_render_option == "FORMULA" else []
+            number_format = response.data.get("numberFormat", [])
 
             row_count = len(values)
             column_count = len(values[0]) if values else 0
 
             return ActionResult(
                 data={
-                    "range": response.get("address", range_address),
+                    "range": response.data.get("address", range_address),
                     "values": values,
                     "formulas": formulas,
                     "number_format": number_format,
@@ -284,7 +284,7 @@ class WriteRange(ActionHandler):
 
             return ActionResult(
                 data={
-                    "updated_range": response.get("address", range_address),
+                    "updated_range": response.data.get("address", range_address),
                     "updated_rows": row_count,
                     "updated_columns": column_count,
                     "updated_cells": row_count * column_count,
@@ -319,7 +319,7 @@ class ListTables(ActionHandler):
             response = await context.fetch(url, method="GET")
 
             tables = []
-            for table in response.get("value", []):
+            for table in response.data.get("value", []):
                 tables.append(
                     {
                         "id": table.get("id"),
@@ -359,7 +359,7 @@ class GetTableData(ActionHandler):
             # Get headers
             header_url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/tables/{encoded_table}/headerRowRange"
             header_data = await context.fetch(header_url, method="GET")
-            all_headers = header_data.get("values", [[]])[0]
+            all_headers = header_data.data.get("values", [[]])[0]
 
             # Validate select_columns if specified
             if select_columns:
@@ -376,7 +376,7 @@ class GetTableData(ActionHandler):
             # Get rows
             rows_url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/tables/{encoded_table}/dataBodyRange"
             rows_data = await context.fetch(rows_url, method="GET")
-            all_rows = rows_data.get("values", [])
+            all_rows = rows_data.data.get("values", [])
 
             # Check max_rows safety limit
             if max_rows and len(all_rows) > max_rows:
@@ -457,7 +457,7 @@ class AddTableRow(ActionHandler):
             table_range = ""
             try:
                 range_data = await context.fetch(range_url, method="GET")
-                table_range = range_data.get("address", "")
+                table_range = range_data.data.get("address", "")
             except Exception:  # nosec B110
                 # API error handled - rows were added, range info is optional
                 pass
@@ -500,9 +500,9 @@ class GetUsedRange(ActionHandler):
                 url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/worksheets/{encoded_ws}/usedRange"
 
             response = await context.fetch(url, method="GET")
-            values = response.get("values", [])
-            row_count = response.get("rowCount", len(values))
-            column_count = response.get("columnCount", len(values[0]) if values else 0)
+            values = response.data.get("values", [])
+            row_count = response.data.get("rowCount", len(values))
+            column_count = response.data.get("columnCount", len(values[0]) if values else 0)
             cell_count = row_count * column_count
 
             # Check max_cells safety limit
@@ -521,7 +521,7 @@ class GetUsedRange(ActionHandler):
 
             return ActionResult(
                 data={
-                    "range": response.get("address", ""),
+                    "range": response.data.get("address", ""),
                     "row_count": row_count,
                     "column_count": column_count,
                     "values": values,
@@ -555,10 +555,10 @@ class CreateWorksheet(ActionHandler):
             return ActionResult(
                 data={
                     "worksheet": {
-                        "id": response.get("id"),
-                        "name": response.get("name"),
-                        "position": response.get("position"),
-                        "visibility": response.get("visibility"),
+                        "id": response.data.get("id"),
+                        "name": response.data.get("name"),
+                        "position": response.data.get("position"),
+                        "visibility": response.data.get("visibility"),
                     },
                     "result": True,
                 },
@@ -617,9 +617,9 @@ class CreateTable(ActionHandler):
             return ActionResult(
                 data={
                     "table": {
-                        "id": response.get("id"),
-                        "name": response.get("name"),
-                        "showHeaders": response.get("showHeaders"),
+                        "id": response.data.get("id"),
+                        "name": response.data.get("name"),
+                        "showHeaders": response.data.get("showHeaders"),
                     },
                     "result": True,
                 },
@@ -654,7 +654,7 @@ class UpdateTableRow(ActionHandler):
             body = {"values": [values]}
             response = await context.fetch(url, method="PATCH", json=body)
 
-            return ActionResult(data={"updated_row": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"updated_row": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -751,7 +751,7 @@ class ApplyFilter(ActionHandler):
             columns_url = f"{GRAPH_BASE_URL}/me/drive/items/{workbook_id}/workbook/tables/{encoded_table}/columns"
             columns_data = await context.fetch(columns_url, method="GET")
 
-            columns = columns_data.get("value", [])
+            columns = columns_data.data.get("value", [])
             if column_index < 0 or column_index >= len(columns):
                 return ActionResult(
                     data={
