@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any, List
 import base64
 import io
@@ -213,4 +213,7 @@ class ConvertToJsonAction(ActionHandler):
         base_name = file_name.rsplit(".", 1)[0] if "." in file_name else file_name
         output_filename = f"{base_name}.json"
 
-        return {"file": {"content": content_b64, "name": output_filename, "contentType": "application/json"}}
+        return ActionResult(
+            data={"file": {"content": content_b64, "name": output_filename, "contentType": "application/json"}},
+            cost_usd=0,
+        )
