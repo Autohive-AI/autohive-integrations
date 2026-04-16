@@ -331,3 +331,8 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 ## Template
 
 Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) in the SDK repo as the starting point for new integrations.
+
+## Testing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on running and writing unit tests.
+
