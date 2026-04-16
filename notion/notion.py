@@ -1,4 +1,9 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+)
 from typing import Dict, Any
 
 # API Version constant for Notion API
@@ -44,12 +49,18 @@ class NotionSearchHandler(ActionHandler):
             search_body["start_cursor"] = inputs["start_cursor"]
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the search request to Notion API
         try:
             response = await context.fetch(
-                url="https://api.notion.com/v1/search", method="POST", headers=headers, json=search_body
+                url="https://api.notion.com/v1/search",
+                method="POST",
+                headers=headers,
+                json=search_body,
             )
 
             return ActionResult(
@@ -63,7 +74,14 @@ class NotionSearchHandler(ActionHandler):
             )
 
         except Exception as e:
-            return ActionResult(data={"object": "list", "error": str(e), "results": [], "has_more": False})
+            return ActionResult(
+                data={
+                    "object": "list",
+                    "error": str(e),
+                    "results": [],
+                    "has_more": False,
+                }
+            )
 
 
 @notion.action("get_notion_page")
@@ -89,7 +107,9 @@ class NotionGetPageHandler(ActionHandler):
         # Make the get page request to Notion API
         try:
             response = await context.fetch(
-                url=f"https://api.notion.com/v1/pages/{page_id}", method="GET", headers=headers
+                url=f"https://api.notion.com/v1/pages/{page_id}",
+                method="GET",
+                headers=headers,
             )
 
             return ActionResult(data={"page": response})
@@ -117,12 +137,18 @@ class NotionCreatePageHandler(ActionHandler):
         create_body = {"parent": inputs["parent"], "properties": inputs["properties"]}
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the create page request to Notion API
         try:
             response = await context.fetch(
-                url="https://api.notion.com/v1/pages", method="POST", headers=headers, json=create_body
+                url="https://api.notion.com/v1/pages",
+                method="POST",
+                headers=headers,
+                json=create_body,
             )
 
             return ActionResult(data={"page": response})
@@ -150,12 +176,18 @@ class NotionCreateCommentHandler(ActionHandler):
         comment_body = {"parent": inputs["parent"], "rich_text": inputs["rich_text"]}
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the create comment request to Notion API
         try:
             response = await context.fetch(
-                url="https://api.notion.com/v1/comments", method="POST", headers=headers, json=comment_body
+                url="https://api.notion.com/v1/comments",
+                method="POST",
+                headers=headers,
+                json=comment_body,
             )
 
             return ActionResult(data={"comment": response})
@@ -184,7 +216,10 @@ class NotionGetCommentsHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url="https://api.notion.com/v1/comments", method="GET", headers=headers, params=params
+                url="https://api.notion.com/v1/comments",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
             result = {
@@ -197,7 +232,9 @@ class NotionGetCommentsHandler(ActionHandler):
                 blocks_with_comments = []
 
                 blocks_response = await context.fetch(
-                    url=f"https://api.notion.com/v1/blocks/{block_id}/children", method="GET", headers=headers
+                    url=f"https://api.notion.com/v1/blocks/{block_id}/children",
+                    method="GET",
+                    headers=headers,
                 )
 
                 for block in blocks_response.get("results", []):
@@ -211,7 +248,11 @@ class NotionGetCommentsHandler(ActionHandler):
                         )
                         if comments_response.get("results"):
                             blocks_with_comments.append(
-                                {"block_id": child_block_id, "block_type": block.get("type"), "has_comments": True}
+                                {
+                                    "block_id": child_block_id,
+                                    "block_type": block.get("type"),
+                                    "has_comments": True,
+                                }
                             )
 
                 result["child_blocks_with_comments"] = blocks_with_comments
@@ -287,7 +328,9 @@ class NotionGetDataSourceHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"https://api.notion.com/v1/data_sources/{data_source_id}", method="GET", headers=headers
+                url=f"https://api.notion.com/v1/data_sources/{data_source_id}",
+                method="GET",
+                headers=headers,
             )
             return ActionResult(data={"data_source": response})
         except Exception as e:
@@ -333,7 +376,10 @@ class NotionQueryDataSourceHandler(ActionHandler):
             query_body["start_cursor"] = inputs["start_cursor"]
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the query request to Notion API
         try:
@@ -430,7 +476,10 @@ class NotionAppendBlockChildrenHandler(ActionHandler):
             append_body["after"] = inputs["after"]
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the append block children request to Notion API
         try:
@@ -553,12 +602,18 @@ class NotionUpdateBlockHandler(ActionHandler):
         }
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the update block request to Notion API
         try:
             response = await context.fetch(
-                url=f"https://api.notion.com/v1/blocks/{block_id}", method="PATCH", headers=headers, json=update_body
+                url=f"https://api.notion.com/v1/blocks/{block_id}",
+                method="PATCH",
+                headers=headers,
+                json=update_body,
             )
 
             return ActionResult(data={"block": response})
@@ -590,7 +645,9 @@ class NotionDeleteBlockHandler(ActionHandler):
         # Make the delete block request to Notion API
         try:
             response = await context.fetch(
-                url=f"https://api.notion.com/v1/blocks/{block_id}", method="DELETE", headers=headers
+                url=f"https://api.notion.com/v1/blocks/{block_id}",
+                method="DELETE",
+                headers=headers,
             )
 
             return ActionResult(data={"block": response})
@@ -627,12 +684,18 @@ class NotionUpdatePageHandler(ActionHandler):
         }
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the update page request to Notion API
         try:
             response = await context.fetch(
-                url=f"https://api.notion.com/v1/pages/{page_id}", method="PATCH", headers=headers, json=update_body
+                url=f"https://api.notion.com/v1/pages/{page_id}",
+                method="PATCH",
+                headers=headers,
+                json=update_body,
             )
 
             return ActionResult(data={"page": response})

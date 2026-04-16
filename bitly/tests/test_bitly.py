@@ -51,7 +51,11 @@ async def test_shorten_url():
 
 async def test_create_bitlink():
     """Test creating a bitlink with options."""
-    inputs = {"long_url": "https://www.example.com/another/url", "title": "Test Link", "tags": ["test", "autohive"]}
+    inputs = {
+        "long_url": "https://www.example.com/another/url",
+        "title": "Test Link",
+        "tags": ["test", "autohive"],
+    }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:

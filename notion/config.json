@@ -1,6 +1,6 @@
 {
     "name": "Notion",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Enhanced integration with Notion API featuring database querying, block management, page property operations, and advanced search capabilities",
     "entry_point": "notion.py",
     "auth": {

@@ -222,7 +222,12 @@ async def test_get_comments_handler_empty_optional_params():
     """Test NotionGetCommentsHandler ignores empty optional params"""
     handler = NotionGetCommentsHandler()
 
-    mock_response = {"object": "list", "results": [], "next_cursor": None, "has_more": False}
+    mock_response = {
+        "object": "list",
+        "results": [],
+        "next_cursor": None,
+        "has_more": False,
+    }
 
     mock_context = MagicMock()
     mock_context.fetch = AsyncMock(return_value=mock_response)
@@ -243,7 +248,12 @@ async def test_get_comments_handler_empty_optional_params():
 async def test_new_actions():
     """Test that the new update/delete actions are properly configured"""
 
-    new_actions = ["update_notion_block", "delete_notion_block", "update_notion_page", "get_notion_comments"]
+    new_actions = [
+        "update_notion_block",
+        "delete_notion_block",
+        "update_notion_page",
+        "get_notion_comments",
+    ]
 
     with open("config.json", "r") as f:
         config = json.load(f)
