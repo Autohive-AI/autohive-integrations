@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 import json
 import base64
@@ -52,10 +52,10 @@ class ListSharedFolders(ActionHandler):
             if current_offset + page_size < total_count:
                 response_data["nextPageToken"] = str(current_offset + page_size)
 
-            return response_data
+            return ActionResult(data=response_data, cost_usd=0.0)
 
         except Exception as e:
-            return {"folders": [], "result": False, "error": str(e)}
+            return ActionResult(data={"folders": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @box.action("list_files")
@@ -114,10 +114,10 @@ class ListFiles(ActionHandler):
             if "next_marker" in data:
                 response_data["nextPageToken"] = data["next_marker"]
 
-            return response_data
+            return ActionResult(data=response_data, cost_usd=0.0)
 
         except Exception as e:
-            return {"files": [], "result": False, "error": str(e)}
+            return ActionResult(data={"files": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @box.action("list_folder_contents")
@@ -176,10 +176,10 @@ class ListFolderContents(ActionHandler):
             if "next_marker" in data:
                 response_data["nextPageToken"] = data["next_marker"]
 
-            return response_data
+            return ActionResult(data=response_data, cost_usd=0.0)
 
         except Exception as e:
-            return {"items": [], "result": False, "error": str(e)}
+            return ActionResult(data={"items": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @box.action("get_file")
@@ -238,19 +238,19 @@ class GetFile(ActionHandler):
                 "parents": [metadata.get("parent", {}).get("id", "")] if metadata.get("parent") else [],
             }
 
-            return {
+            return ActionResult(data={
                 "file": {"name": file_name, "content": content_base64, "contentType": content_type},
                 "metadata": structured_metadata,
                 "result": True,
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {
+            return ActionResult(data={
                 "file": {"name": "", "content": "", "contentType": ""},
                 "metadata": {"id": file_id},
                 "result": False,
                 "error": str(e),
-            }
+            }, cost_usd=0.0)
 
 
 @box.action("upload_file")
@@ -324,7 +324,7 @@ class UploadFile(ActionHandler):
                         }
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Polling Trigger Handlers ----

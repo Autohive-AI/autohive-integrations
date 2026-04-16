@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -149,10 +149,10 @@ class GetChannels(ActionHandler):
             for raw_channel in items:
                 channels.append(HeartbeatDataParser.parse_channel(raw_channel))
 
-            return {"channels": channels, "result": True}
+            return ActionResult(data={"channels": channels, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"channels": [], "result": False, "error": str(e)}
+            return ActionResult(data={"channels": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @heartbeat.action("get_heartbeat_channel")
@@ -167,13 +167,13 @@ class GetChannel(ActionHandler):
                 headers=get_auth_headers(context),
             )
 
-            return {
+            return ActionResult(data={
                 "channel": HeartbeatDataParser.parse_channel(response),
                 "result": True,
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"channel": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"channel": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @heartbeat.action("get_heartbeat_channel_threads")
@@ -194,10 +194,10 @@ class GetChannelThreads(ActionHandler):
             for raw_thread in items:
                 threads.append(HeartbeatDataParser.parse_thread(raw_thread))
 
-            return {"threads": threads, "result": True}
+            return ActionResult(data={"threads": threads, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"threads": [], "result": False, "error": str(e)}
+            return ActionResult(data={"threads": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @heartbeat.action("get_heartbeat_thread")
@@ -212,13 +212,13 @@ class GetThread(ActionHandler):
                 headers=get_auth_headers(context),
             )
 
-            return {
+            return ActionResult(data={
                 "thread": HeartbeatDataParser.parse_thread(response),
                 "result": True,
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"thread": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"thread": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @heartbeat.action("get_heartbeat_users")
@@ -237,10 +237,10 @@ class GetUsers(ActionHandler):
             for raw_user in items:
                 users.append(HeartbeatDataParser.parse_user(raw_user))
 
-            return {"users": users, "result": True}
+            return ActionResult(data={"users": users, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"users": [], "result": False, "error": str(e)}
+            return ActionResult(data={"users": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @heartbeat.action("get_heartbeat_user")
@@ -255,10 +255,10 @@ class GetUser(ActionHandler):
                 headers=get_auth_headers(context),
             )
 
-            return {"user": HeartbeatDataParser.parse_user(response), "result": True}
+            return ActionResult(data={"user": HeartbeatDataParser.parse_user(response), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"user": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @heartbeat.action("get_heartbeat_events")
@@ -277,10 +277,10 @@ class GetEvents(ActionHandler):
             for raw_event in items:
                 events.append(HeartbeatDataParser.parse_event(raw_event))
 
-            return {"events": events, "result": True}
+            return ActionResult(data={"events": events, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"events": [], "result": False, "error": str(e)}
+            return ActionResult(data={"events": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @heartbeat.action("get_heartbeat_event")
@@ -295,10 +295,10 @@ class GetEvent(ActionHandler):
                 headers=get_auth_headers(context),
             )
 
-            return {"event": HeartbeatDataParser.parse_event(response), "result": True}
+            return ActionResult(data={"event": HeartbeatDataParser.parse_event(response), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return {"event": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"event": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @heartbeat.action("create_heartbeat_comment")
@@ -331,13 +331,13 @@ class CreateComment(ActionHandler):
                 json=request_body,
             )
 
-            return {
+            return ActionResult(data={
                 "comment": HeartbeatDataParser.parse_comment(response),
                 "result": True,
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"comment": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"comment": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @heartbeat.action("create_heartbeat_thread")
@@ -362,13 +362,13 @@ class CreateThread(ActionHandler):
                 json=request_body,
             )
 
-            return {
+            return ActionResult(data={
                 "thread": HeartbeatDataParser.parse_thread(response),
                 "result": True,
-            }
+            }, cost_usd=0.0)
 
         except Exception as e:
-            return {"thread": {}, "result": False, "error": str(e)}
+            return ActionResult(data={"thread": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Polling Trigger Handlers ----
