@@ -18,6 +18,6 @@ jobs:
           fetch-depth: 0
 
       - name: Validate
-        uses: autohive-ai/autohive-integrations-tooling@2.0.2
+        uses: autohive-ai/autohive-integrations-tooling@2.0.3
         with:
           base_ref: origin/${{ github.base_ref }}
