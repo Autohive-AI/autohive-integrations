@@ -13,7 +13,7 @@ _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 
-from autohive_integrations_sdk.integration import ResultType, ValidationError  # noqa: E402
+from autohive_integrations_sdk.integration import ValidationError  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("shopify_customer_mod", os.path.join(_parent, "shopify_customer.py"))
 _mod = importlib.util.module_from_spec(_spec)
