@@ -94,7 +94,7 @@ class TestInputValidation:
             data = result.result.data
             assert data["result"] is False
             assert "required" in data.get("error", "").lower()
-        except Exception:
+        except Exception:  # nosec B110
             # SDK raised a validation error — also acceptable
             pass
 
