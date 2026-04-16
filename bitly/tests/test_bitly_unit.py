@@ -2,7 +2,9 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies")))
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
+)
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
@@ -20,7 +22,7 @@ def mock_context():
     ctx.fetch = AsyncMock(name="fetch")
     ctx.auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "test_token"},
+        "credentials": {"access_token": "test_token"},  # nosec B105
     }
     return ctx
 
@@ -73,13 +75,18 @@ class TestGetUser:
 
         assert result.result.data["result"] is True
         assert result.result.data["user"] == {"login": "testuser", "name": "Test"}
-        mock_context.fetch.assert_called_once_with(f"{BITLY_API_BASE_URL}/user", method="GET")
+        mock_context.fetch.assert_called_once_with(
+            f"{BITLY_API_BASE_URL}/user", method="GET"
+        )
 
 
 class TestShortenUrl:
     @pytest.mark.asyncio
     async def test_shorten_basic(self, mock_context):
-        mock_context.fetch.return_value = {"link": "https://bit.ly/short", "id": "bit.ly/short"}
+        mock_context.fetch.return_value = {
+            "link": "https://bit.ly/short",
+            "id": "bit.ly/short",
+        }
         inputs = {"long_url": "https://example.com/long"}
 
         result = await bitly.execute_action("shorten_url", inputs, mock_context)
@@ -95,7 +102,11 @@ class TestShortenUrl:
     @pytest.mark.asyncio
     async def test_shorten_with_domain_and_group(self, mock_context):
         mock_context.fetch.return_value = {"link": "https://cstm.ly/x"}
-        inputs = {"long_url": "https://example.com", "domain": "cstm.ly", "group_guid": "Ga1b2c"}
+        inputs = {
+            "long_url": "https://example.com",
+            "domain": "cstm.ly",
+            "group_guid": "Ga1b2c",
+        }
 
         result = await bitly.execute_action("shorten_url", inputs, mock_context)
 
@@ -109,7 +120,10 @@ class TestShortenUrl:
 class TestCreateBitlink:
     @pytest.mark.asyncio
     async def test_create_minimal(self, mock_context):
-        mock_context.fetch.return_value = {"link": "https://bit.ly/new", "id": "bit.ly/new"}
+        mock_context.fetch.return_value = {
+            "link": "https://bit.ly/new",
+            "id": "bit.ly/new",
+        }
         inputs = {"long_url": "https://example.com/page"}
 
         result = await bitly.execute_action("create_bitlink", inputs, mock_context)
@@ -145,7 +159,10 @@ class TestCreateBitlink:
 class TestGetBitlink:
     @pytest.mark.asyncio
     async def test_get_by_domain_path(self, mock_context):
-        mock_context.fetch.return_value = {"id": "bit.ly/abc", "long_url": "https://example.com"}
+        mock_context.fetch.return_value = {
+            "id": "bit.ly/abc",
+            "long_url": "https://example.com",
+        }
         inputs = {"bitlink": "bit.ly/abc"}
 
         result = await bitly.execute_action("get_bitlink", inputs, mock_context)
@@ -184,7 +201,12 @@ class TestUpdateBitlink:
     @pytest.mark.asyncio
     async def test_update_multiple_fields(self, mock_context):
         mock_context.fetch.return_value = {"id": "bit.ly/abc"}
-        inputs = {"bitlink": "bit.ly/abc", "title": "T", "tags": ["a"], "archived": True}
+        inputs = {
+            "bitlink": "bit.ly/abc",
+            "title": "T",
+            "tags": ["a"],
+            "archived": True,
+        }
 
         await bitly.execute_action("update_bitlink", inputs, mock_context)
 
@@ -265,10 +287,14 @@ class TestGetClicksSummary:
 
     @pytest.mark.asyncio
     async def test_get_summary_defaults(self, mock_context):
-        mock_context.fetch.return_value = {"total_clicks": 0, "unit": "day", "units": -1}
+        mock_context.fetch.return_value = {
+            "total_clicks": 0,
+            "unit": "day",
+            "units": -1,
+        }
         inputs = {"bitlink": "bit.ly/abc"}
 
-        result = await bitly.execute_action("get_clicks_summary", inputs, mock_context)
+        await bitly.execute_action("get_clicks_summary", inputs, mock_context)
 
         params = mock_context.fetch.call_args.kwargs["params"]
         assert params["unit"] == "day"
@@ -350,7 +376,9 @@ class TestListGroups:
 
         assert result.result.data["result"] is True
         assert result.result.data["groups"] == [{"guid": "G1", "name": "Default"}]
-        mock_context.fetch.assert_called_once_with(f"{BITLY_API_BASE_URL}/groups", method="GET")
+        mock_context.fetch.assert_called_once_with(
+            f"{BITLY_API_BASE_URL}/groups", method="GET"
+        )
 
 
 class TestGetGroup:
@@ -363,7 +391,9 @@ class TestGetGroup:
 
         assert result.result.data["result"] is True
         assert result.result.data["group"]["guid"] == "G1"
-        mock_context.fetch.assert_called_once_with(f"{BITLY_API_BASE_URL}/groups/G1", method="GET")
+        mock_context.fetch.assert_called_once_with(
+            f"{BITLY_API_BASE_URL}/groups/G1", method="GET"
+        )
 
 
 class TestListOrganizations:
@@ -396,7 +426,9 @@ class TestErrorHandling:
     async def test_shorten_url_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("API failure")
 
-        result = await bitly.execute_action("shorten_url", {"long_url": "https://example.com"}, mock_context)
+        result = await bitly.execute_action(
+            "shorten_url", {"long_url": "https://example.com"}, mock_context
+        )
 
         assert result.result.data["result"] is False
         assert result.result.data["bitlink"] == {}
@@ -405,7 +437,9 @@ class TestErrorHandling:
     async def test_get_clicks_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Timeout")
 
-        result = await bitly.execute_action("get_clicks", {"bitlink": "bit.ly/abc"}, mock_context)
+        result = await bitly.execute_action(
+            "get_clicks", {"bitlink": "bit.ly/abc"}, mock_context
+        )
 
         assert result.result.data["result"] is False
         assert result.result.data["clicks"] == []
@@ -414,7 +448,9 @@ class TestErrorHandling:
     async def test_list_bitlinks_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Server error")
 
-        result = await bitly.execute_action("list_bitlinks", {"group_guid": "G1"}, mock_context)
+        result = await bitly.execute_action(
+            "list_bitlinks", {"group_guid": "G1"}, mock_context
+        )
 
         assert result.result.data["result"] is False
         assert result.result.data["bitlinks"] == []
@@ -423,7 +459,9 @@ class TestErrorHandling:
     async def test_expand_bitlink_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Bad request")
 
-        result = await bitly.execute_action("expand_bitlink", {"bitlink": "bit.ly/abc"}, mock_context)
+        result = await bitly.execute_action(
+            "expand_bitlink", {"bitlink": "bit.ly/abc"}, mock_context
+        )
 
         assert result.result.data["result"] is False
         assert result.result.data["long_url"] == ""
@@ -432,7 +470,9 @@ class TestErrorHandling:
     async def test_get_clicks_summary_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Forbidden")
 
-        result = await bitly.execute_action("get_clicks_summary", {"bitlink": "bit.ly/abc"}, mock_context)
+        result = await bitly.execute_action(
+            "get_clicks_summary", {"bitlink": "bit.ly/abc"}, mock_context
+        )
 
         assert result.result.data["result"] is False
         assert result.result.data["total_clicks"] == 0

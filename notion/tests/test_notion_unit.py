@@ -42,12 +42,18 @@ pytestmark = pytest.mark.unit
 def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "test_token"}}  # nosec B105
+    ctx.auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "test_token"},
+    }  # nosec B105
     return ctx
 
 
 NOTION_HEADERS = {"Notion-Version": NOTION_API_VERSION}
-NOTION_HEADERS_JSON = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+NOTION_HEADERS_JSON = {
+    "Notion-Version": NOTION_API_VERSION,
+    "Content-Type": "application/json",
+}
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config.json")
 
@@ -126,7 +132,12 @@ class TestConfigValidation:
             config = json.load(f)
 
         actions = config["actions"]
-        for action_name in ["update_notion_block", "delete_notion_block", "update_notion_page", "get_notion_comments"]:
+        for action_name in [
+            "update_notion_block",
+            "delete_notion_block",
+            "update_notion_page",
+            "get_notion_comments",
+        ]:
             assert action_name in actions, f"{action_name} not in config.json"
             action_config = actions[action_name]
             assert "display_name" in action_config
@@ -154,7 +165,9 @@ class TestGetComments:
                     "id": "comment-123",
                     "discussion_id": "disc-456",
                     "created_time": "2024-01-15T10:00:00.000Z",
-                    "rich_text": [{"type": "text", "text": {"content": "Test comment"}}],
+                    "rich_text": [
+                        {"type": "text", "text": {"content": "Test comment"}}
+                    ],
                     "parent": {"type": "page_id", "page_id": "page-789"},
                 }
             ],
@@ -195,7 +208,11 @@ class TestGetComments:
             url="https://api.notion.com/v1/comments",
             method="GET",
             headers=NOTION_HEADERS,
-            params={"block_id": "page-123", "page_size": 2, "start_cursor": "prev-cursor"},
+            params={
+                "block_id": "page-123",
+                "page_size": 2,
+                "start_cursor": "prev-cursor",
+            },
         )
 
         assert result.data["has_more"] is True
@@ -290,7 +307,10 @@ class TestSearch:
         call_json = mock_context.fetch.call_args.kwargs["json"]
         assert call_json["query"] == "test"
         assert call_json["filter"] == {"value": "page", "property": "object"}
-        assert call_json["sort"] == {"direction": "descending", "timestamp": "last_edited_time"}
+        assert call_json["sort"] == {
+            "direction": "descending",
+            "timestamp": "last_edited_time",
+        }
         assert call_json["page_size"] == 10
         assert call_json["start_cursor"] == "abc"
 
@@ -316,7 +336,11 @@ class TestGetPage:
     async def test_get_page(self, mock_context):
         handler = NotionGetPageHandler()
 
-        page_data = {"id": "page-abc", "object": "page", "properties": {"Name": {"title": []}}}
+        page_data = {
+            "id": "page-abc",
+            "object": "page",
+            "properties": {"Name": {"title": []}},
+        }
         mock_context.fetch.return_value = page_data
 
         result = await handler.execute({"page_id": "page-abc"}, mock_context)
@@ -356,7 +380,9 @@ class TestCreatePage:
         created_page = {"id": "new-page-1", "object": "page"}
         mock_context.fetch.return_value = created_page
 
-        result = await handler.execute({"parent": parent, "properties": properties}, mock_context)
+        result = await handler.execute(
+            {"parent": parent, "properties": properties}, mock_context
+        )
 
         mock_context.fetch.assert_called_once_with(
             url="https://api.notion.com/v1/pages",
@@ -396,7 +422,9 @@ class TestCreateComment:
         created_comment = {"id": "comment-new", "object": "comment"}
         mock_context.fetch.return_value = created_comment
 
-        result = await handler.execute({"parent": parent, "rich_text": rich_text}, mock_context)
+        result = await handler.execute(
+            {"parent": parent, "rich_text": rich_text}, mock_context
+        )
 
         mock_context.fetch.assert_called_once_with(
             url="https://api.notion.com/v1/comments",
@@ -432,7 +460,10 @@ class TestGetBlockChildren:
         handler = NotionGetBlockChildrenHandler()
 
         mock_context.fetch.return_value = {
-            "results": [{"id": "block-1", "type": "paragraph"}, {"id": "block-2", "type": "heading_1"}],
+            "results": [
+                {"id": "block-1", "type": "paragraph"},
+                {"id": "block-2", "type": "heading_1"},
+            ],
             "has_more": False,
             "next_cursor": None,
             "type": "block",
@@ -492,12 +523,18 @@ class TestUpdateBlock:
     async def test_update_block(self, mock_context):
         handler = NotionUpdateBlockHandler()
 
-        updated_block = {"id": "block-1", "type": "paragraph", "paragraph": {"rich_text": []}}
+        updated_block = {
+            "id": "block-1",
+            "type": "paragraph",
+            "paragraph": {"rich_text": []},
+        }
         mock_context.fetch.return_value = updated_block
 
         inputs = {
             "block_id": "block-1",
-            "paragraph": {"rich_text": [{"type": "text", "text": {"content": "Updated text"}}]},
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": {"content": "Updated text"}}]
+            },
         }
 
         result = await handler.execute(inputs, mock_context)
@@ -517,7 +554,11 @@ class TestUpdateBlock:
         mock_context.fetch.return_value = {"id": "block-1"}
 
         await handler.execute(
-            {"block_id": "block-1", "paragraph": {"rich_text": []}, "invalid_key": "ignored"},
+            {
+                "block_id": "block-1",
+                "paragraph": {"rich_text": []},
+                "invalid_key": "ignored",
+            },
             mock_context,
         )
 
@@ -531,7 +572,9 @@ class TestUpdateBlock:
         handler = NotionUpdateBlockHandler()
         mock_context.fetch.side_effect = Exception("Conflict")
 
-        result = await handler.execute({"block_id": "block-1", "paragraph": {}}, mock_context)
+        result = await handler.execute(
+            {"block_id": "block-1", "paragraph": {}}, mock_context
+        )
 
         assert "error" in result.data
         assert result.data["block"] is None
@@ -585,7 +628,9 @@ class TestUpdatePage:
         mock_context.fetch.return_value = updated_page
 
         properties = {"Status": {"select": {"name": "Done"}}}
-        result = await handler.execute({"page_id": "page-1", "properties": properties}, mock_context)
+        result = await handler.execute(
+            {"page_id": "page-1", "properties": properties}, mock_context
+        )
 
         mock_context.fetch.assert_called_once_with(
             url="https://api.notion.com/v1/pages/page-1",
@@ -601,7 +646,9 @@ class TestUpdatePage:
         handler = NotionUpdatePageHandler()
         mock_context.fetch.return_value = {"id": "page-1", "archived": True}
 
-        result = await handler.execute({"page_id": "page-1", "archived": True}, mock_context)
+        result = await handler.execute(
+            {"page_id": "page-1", "archived": True}, mock_context
+        )
 
         call_json = mock_context.fetch.call_args.kwargs["json"]
         assert call_json["archived"] is True
@@ -627,7 +674,9 @@ class TestUpdatePage:
         handler = NotionUpdatePageHandler()
         mock_context.fetch.side_effect = Exception("Bad request")
 
-        result = await handler.execute({"page_id": "page-1", "properties": {}}, mock_context)
+        result = await handler.execute(
+            {"page_id": "page-1", "properties": {}}, mock_context
+        )
 
         assert "error" in result.data
         assert result.data["page"] is None
@@ -656,7 +705,9 @@ class TestErrorHandling:
             (NotionUpdatePageHandler, {"page_id": "x", "properties": {}}, "page"),
         ],
     )
-    async def test_handler_returns_error_on_exception(self, mock_context, handler_cls, inputs, error_key):
+    async def test_handler_returns_error_on_exception(
+        self, mock_context, handler_cls, inputs, error_key
+    ):
         mock_context.fetch.side_effect = Exception("boom")
 
         handler = handler_cls()
