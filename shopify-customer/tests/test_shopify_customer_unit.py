@@ -15,9 +15,7 @@ from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "shopify_customer_mod", os.path.join(_parent, "shopify_customer.py")
-)
+_spec = importlib.util.spec_from_file_location("shopify_customer_mod", os.path.join(_parent, "shopify_customer.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -185,9 +183,7 @@ class TestGetProfile:
             }
         }
 
-        result = await shopify_customer.execute_action(
-            "customer_get_profile", {}, mock_context
-        )
+        result = await shopify_customer.execute_action("customer_get_profile", {}, mock_context)
 
         assert result.result.data["success"] is True
         assert result.result.data["customer"]["email"] == "test@example.com"
@@ -196,9 +192,7 @@ class TestGetProfile:
     async def test_graphql_error(self, mock_context):
         mock_context.fetch.return_value = {"errors": [{"message": "Unauthorized"}]}
 
-        result = await shopify_customer.execute_action(
-            "customer_get_profile", {}, mock_context
-        )
+        result = await shopify_customer.execute_action("customer_get_profile", {}, mock_context)
 
         assert result.type == ResultType.VALIDATION_ERROR
 
@@ -235,9 +229,7 @@ class TestListAddresses:
             }
         }
 
-        result = await shopify_customer.execute_action(
-            "customer_list_addresses", {"first": 10}, mock_context
-        )
+        result = await shopify_customer.execute_action("customer_list_addresses", {"first": 10}, mock_context)
 
         assert result.result.data["success"] is True
         assert result.result.data["count"] == 1
@@ -338,9 +330,7 @@ class TestListOrders:
             }
         }
 
-        result = await shopify_customer.execute_action(
-            "customer_list_orders", {"first": 10}, mock_context
-        )
+        result = await shopify_customer.execute_action("customer_list_orders", {"first": 10}, mock_context)
 
         assert result.result.data["success"] is True
         assert result.result.data["count"] == 1
@@ -401,9 +391,7 @@ class TestSetDefaultAddress:
         mock_context.fetch.return_value = {
             "data": {
                 "customerDefaultAddressUpdate": {
-                    "customer": {
-                        "defaultAddress": {"id": "gid://shopify/CustomerAddress/1"}
-                    },
+                    "customer": {"defaultAddress": {"id": "gid://shopify/CustomerAddress/1"}},
                     "userErrors": [],
                 }
             }
@@ -416,10 +404,7 @@ class TestSetDefaultAddress:
         )
 
         assert result.result.data["success"] is True
-        assert (
-            result.result.data["default_address_id"]
-            == "gid://shopify/CustomerAddress/1"
-        )
+        assert result.result.data["default_address_id"] == "gid://shopify/CustomerAddress/1"
 
     @pytest.mark.asyncio
     async def test_user_error(self, mock_context):
@@ -427,9 +412,7 @@ class TestSetDefaultAddress:
             "data": {
                 "customerDefaultAddressUpdate": {
                     "customer": {"defaultAddress": None},
-                    "userErrors": [
-                        {"field": "addressId", "message": "Address not found"}
-                    ],
+                    "userErrors": [{"field": "addressId", "message": "Address not found"}],
                 }
             }
         }
@@ -465,9 +448,7 @@ class TestGenerateOAuthUrl:
         assert "authorization_url" in result.result.data
         assert "code_verifier" in result.result.data
         assert "state" in result.result.data
-        assert (
-            "/authentication/oauth/authorize" in result.result.data["authorization_url"]
-        )
+        assert "/authentication/oauth/authorize" in result.result.data["authorization_url"]
 
     @pytest.mark.asyncio
     async def test_missing_client_id(self, mock_context):
@@ -500,9 +481,7 @@ class TestErrorHandling:
     async def test_get_profile_fetch_exception(self, mock_context):
         mock_context.fetch.side_effect = RuntimeError("Connection refused")
 
-        result = await shopify_customer.execute_action(
-            "customer_get_profile", {}, mock_context
-        )
+        result = await shopify_customer.execute_action("customer_get_profile", {}, mock_context)
 
         assert result.type == ResultType.VALIDATION_ERROR
 
@@ -510,9 +489,7 @@ class TestErrorHandling:
     async def test_list_orders_fetch_exception(self, mock_context):
         mock_context.fetch.side_effect = RuntimeError("Timeout")
 
-        result = await shopify_customer.execute_action(
-            "customer_list_orders", {"first": 10}, mock_context
-        )
+        result = await shopify_customer.execute_action("customer_list_orders", {"first": 10}, mock_context)
 
         assert result.result.data["success"] is False
 

@@ -9,9 +9,7 @@ sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "hackernews_mod", os.path.join(_parent, "hackernews.py")
-)
+_spec = importlib.util.spec_from_file_location("hackernews_mod", os.path.join(_parent, "hackernews.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -150,9 +148,7 @@ class TestGetTopStories:
             {**SAMPLE_STORY, "id": 12346, "title": "Second story"},
         ]
 
-        result = await hackernews.execute_action(
-            "get_top_stories", {"limit": 2}, mock_context
-        )
+        result = await hackernews.execute_action("get_top_stories", {"limit": 2}, mock_context)
         data = result.result.data
 
         assert "stories" in data
@@ -165,9 +161,7 @@ class TestGetTopStories:
     async def test_empty_response(self, mock_context):
         mock_context.fetch.return_value = None
 
-        result = await hackernews.execute_action(
-            "get_top_stories", {"limit": 5}, mock_context
-        )
+        result = await hackernews.execute_action("get_top_stories", {"limit": 5}, mock_context)
         data = result.result.data
 
         assert data["stories"] == []
@@ -194,9 +188,7 @@ class TestGetBestStories:
             SAMPLE_STORY,
         ]
 
-        result = await hackernews.execute_action(
-            "get_best_stories", {"limit": 3}, mock_context
-        )
+        result = await hackernews.execute_action("get_best_stories", {"limit": 3}, mock_context)
         data = result.result.data
 
         assert "stories" in data
@@ -211,9 +203,7 @@ class TestGetNewStories:
             SAMPLE_STORY,
         ]
 
-        result = await hackernews.execute_action(
-            "get_new_stories", {"limit": 3}, mock_context
-        )
+        result = await hackernews.execute_action("get_new_stories", {"limit": 3}, mock_context)
         data = result.result.data
 
         assert "stories" in data
@@ -228,9 +218,7 @@ class TestGetAskHNStories:
             SAMPLE_STORY,
         ]
 
-        result = await hackernews.execute_action(
-            "get_ask_hn_stories", {"limit": 3}, mock_context
-        )
+        result = await hackernews.execute_action("get_ask_hn_stories", {"limit": 3}, mock_context)
         data = result.result.data
 
         assert "stories" in data
@@ -245,9 +233,7 @@ class TestGetShowHNStories:
             SAMPLE_STORY,
         ]
 
-        result = await hackernews.execute_action(
-            "get_show_hn_stories", {"limit": 3}, mock_context
-        )
+        result = await hackernews.execute_action("get_show_hn_stories", {"limit": 3}, mock_context)
         data = result.result.data
 
         assert "stories" in data
@@ -263,9 +249,7 @@ class TestGetJobStories:
             job_item,
         ]
 
-        result = await hackernews.execute_action(
-            "get_job_stories", {"limit": 3}, mock_context
-        )
+        result = await hackernews.execute_action("get_job_stories", {"limit": 3}, mock_context)
         data = result.result.data
 
         assert "jobs" in data
@@ -291,9 +275,7 @@ class TestGetStoryWithComments:
         ]
 
         inputs = {"story_id": 12345, "comment_limit": 5, "comment_depth": 2}
-        result = await hackernews.execute_action(
-            "get_story_with_comments", inputs, mock_context
-        )
+        result = await hackernews.execute_action("get_story_with_comments", inputs, mock_context)
         data = result.result.data
 
         assert data["story"]["id"] == 12345
@@ -309,9 +291,7 @@ class TestGetStoryWithComments:
         mock_context.fetch.return_value = None
 
         inputs = {"story_id": 99999}
-        result = await hackernews.execute_action(
-            "get_story_with_comments", inputs, mock_context
-        )
+        result = await hackernews.execute_action("get_story_with_comments", inputs, mock_context)
         data = result.result.data
 
         assert "error" in data
@@ -323,9 +303,7 @@ class TestGetStoryWithComments:
         mock_context.fetch.side_effect = [story_no_kids]
 
         inputs = {"story_id": 12345}
-        result = await hackernews.execute_action(
-            "get_story_with_comments", inputs, mock_context
-        )
+        result = await hackernews.execute_action("get_story_with_comments", inputs, mock_context)
         data = result.result.data
 
         assert data["story"]["id"] == 12345
@@ -341,9 +319,7 @@ class TestGetStoryWithComments:
         ]
 
         inputs = {"story_id": 12345, "comment_limit": 5, "comment_depth": 1}
-        result = await hackernews.execute_action(
-            "get_story_with_comments", inputs, mock_context
-        )
+        result = await hackernews.execute_action("get_story_with_comments", inputs, mock_context)
         data = result.result.data
 
         assert len(data["comments"]) == 1
@@ -355,9 +331,7 @@ class TestGetUserProfile:
     async def test_returns_profile(self, mock_context):
         mock_context.fetch.return_value = SAMPLE_USER
 
-        result = await hackernews.execute_action(
-            "get_user_profile", {"username": "dang"}, mock_context
-        )
+        result = await hackernews.execute_action("get_user_profile", {"username": "dang"}, mock_context)
         data = result.result.data
 
         assert data["id"] == "dang"
@@ -370,9 +344,7 @@ class TestGetUserProfile:
     async def test_user_not_found(self, mock_context):
         mock_context.fetch.return_value = None
 
-        result = await hackernews.execute_action(
-            "get_user_profile", {"username": "nonexistent_user_xyz"}, mock_context
-        )
+        result = await hackernews.execute_action("get_user_profile", {"username": "nonexistent_user_xyz"}, mock_context)
         data = result.result.data
 
         assert "error" in data
@@ -383,9 +355,7 @@ class TestGetUserProfile:
         user = {k: v for k, v in SAMPLE_USER.items() if k != "about"}
         mock_context.fetch.return_value = user
 
-        result = await hackernews.execute_action(
-            "get_user_profile", {"username": "dang"}, mock_context
-        )
+        result = await hackernews.execute_action("get_user_profile", {"username": "dang"}, mock_context)
         data = result.result.data
 
         assert "about" not in data
@@ -394,9 +364,7 @@ class TestGetUserProfile:
     async def test_fetch_error_handled(self, mock_context):
         mock_context.fetch.side_effect = Exception("Network error")
 
-        result = await hackernews.execute_action(
-            "get_user_profile", {"username": "dang"}, mock_context
-        )
+        result = await hackernews.execute_action("get_user_profile", {"username": "dang"}, mock_context)
         data = result.result.data
 
         assert "error" in data

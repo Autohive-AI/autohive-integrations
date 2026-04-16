@@ -165,9 +165,7 @@ class TestGetComments:
                     "id": "comment-123",
                     "discussion_id": "disc-456",
                     "created_time": "2024-01-15T10:00:00.000Z",
-                    "rich_text": [
-                        {"type": "text", "text": {"content": "Test comment"}}
-                    ],
+                    "rich_text": [{"type": "text", "text": {"content": "Test comment"}}],
                     "parent": {"type": "page_id", "page_id": "page-789"},
                 }
             ],
@@ -380,9 +378,7 @@ class TestCreatePage:
         created_page = {"id": "new-page-1", "object": "page"}
         mock_context.fetch.return_value = created_page
 
-        result = await handler.execute(
-            {"parent": parent, "properties": properties}, mock_context
-        )
+        result = await handler.execute({"parent": parent, "properties": properties}, mock_context)
 
         mock_context.fetch.assert_called_once_with(
             url="https://api.notion.com/v1/pages",
@@ -422,9 +418,7 @@ class TestCreateComment:
         created_comment = {"id": "comment-new", "object": "comment"}
         mock_context.fetch.return_value = created_comment
 
-        result = await handler.execute(
-            {"parent": parent, "rich_text": rich_text}, mock_context
-        )
+        result = await handler.execute({"parent": parent, "rich_text": rich_text}, mock_context)
 
         mock_context.fetch.assert_called_once_with(
             url="https://api.notion.com/v1/comments",
@@ -532,9 +526,7 @@ class TestUpdateBlock:
 
         inputs = {
             "block_id": "block-1",
-            "paragraph": {
-                "rich_text": [{"type": "text", "text": {"content": "Updated text"}}]
-            },
+            "paragraph": {"rich_text": [{"type": "text", "text": {"content": "Updated text"}}]},
         }
 
         result = await handler.execute(inputs, mock_context)
@@ -572,9 +564,7 @@ class TestUpdateBlock:
         handler = NotionUpdateBlockHandler()
         mock_context.fetch.side_effect = Exception("Conflict")
 
-        result = await handler.execute(
-            {"block_id": "block-1", "paragraph": {}}, mock_context
-        )
+        result = await handler.execute({"block_id": "block-1", "paragraph": {}}, mock_context)
 
         assert "error" in result.data
         assert result.data["block"] is None
@@ -628,9 +618,7 @@ class TestUpdatePage:
         mock_context.fetch.return_value = updated_page
 
         properties = {"Status": {"select": {"name": "Done"}}}
-        result = await handler.execute(
-            {"page_id": "page-1", "properties": properties}, mock_context
-        )
+        result = await handler.execute({"page_id": "page-1", "properties": properties}, mock_context)
 
         mock_context.fetch.assert_called_once_with(
             url="https://api.notion.com/v1/pages/page-1",
@@ -646,9 +634,7 @@ class TestUpdatePage:
         handler = NotionUpdatePageHandler()
         mock_context.fetch.return_value = {"id": "page-1", "archived": True}
 
-        result = await handler.execute(
-            {"page_id": "page-1", "archived": True}, mock_context
-        )
+        result = await handler.execute({"page_id": "page-1", "archived": True}, mock_context)
 
         call_json = mock_context.fetch.call_args.kwargs["json"]
         assert call_json["archived"] is True
@@ -674,9 +660,7 @@ class TestUpdatePage:
         handler = NotionUpdatePageHandler()
         mock_context.fetch.side_effect = Exception("Bad request")
 
-        result = await handler.execute(
-            {"page_id": "page-1", "properties": {}}, mock_context
-        )
+        result = await handler.execute({"page_id": "page-1", "properties": {}}, mock_context)
 
         assert "error" in result.data
         assert result.data["page"] is None
@@ -705,9 +689,7 @@ class TestErrorHandling:
             (NotionUpdatePageHandler, {"page_id": "x", "properties": {}}, "page"),
         ],
     )
-    async def test_handler_returns_error_on_exception(
-        self, mock_context, handler_cls, inputs, error_key
-    ):
+    async def test_handler_returns_error_on_exception(self, mock_context, handler_cls, inputs, error_key):
         mock_context.fetch.side_effect = Exception("boom")
 
         handler = handler_cls()

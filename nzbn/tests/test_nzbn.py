@@ -51,7 +51,12 @@ async def test_search_entities_with_filters():
     """Test searching with entity type filter."""
     print("\n=== Test: Search Entities with Filters ===")
 
-    inputs = {"search_term": "Limited", "entity_type": "LTD", "entity_status": "Registered", "page_size": 3}
+    inputs = {
+        "search_term": "Limited",
+        "entity_type": "LTD",
+        "entity_status": "Registered",
+        "page_size": 3,
+    }
 
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:

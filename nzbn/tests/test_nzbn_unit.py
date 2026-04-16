@@ -8,9 +8,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies")))
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -122,9 +120,7 @@ class TestInputValidation:
 
     @pytest.mark.asyncio
     async def test_get_entity_trading_names_missing_nzbn(self, mock_context):
-        await self._assert_rejects_missing_field(
-            mock_context, "get_entity_trading_names"
-        )
+        await self._assert_rejects_missing_field(mock_context, "get_entity_trading_names")
 
     @pytest.mark.asyncio
     async def test_get_company_details_missing_nzbn(self, mock_context):
@@ -136,9 +132,7 @@ class TestInputValidation:
 
     @pytest.mark.asyncio
     async def test_get_entity_industry_classifications_missing_nzbn(self, mock_context):
-        await self._assert_rejects_missing_field(
-            mock_context, "get_entity_industry_classifications"
-        )
+        await self._assert_rejects_missing_field(mock_context, "get_entity_industry_classifications")
 
     @pytest.mark.asyncio
     async def test_get_changes_missing_event_type(self, mock_context):
@@ -166,17 +160,13 @@ class TestSearchEntities:
             },
         }
 
-        result = await nzbn.execute_action(
-            "search_entities", {"search_term": "Xero"}, mock_context
-        )
+        result = await nzbn.execute_action("search_entities", {"search_term": "Xero"}, mock_context)
         data = result.result.data
 
         assert data["result"] is True
         assert data["totalItems"] == 1
         assert data["items"][0]["entityName"] == "Xero Limited"
-        mock_make_request.assert_called_once_with(
-            mock_context, "GET", "/entities", {"search-term": "Xero"}
-        )
+        mock_make_request.assert_called_once_with(mock_context, "GET", "/entities", {"search-term": "Xero"})
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.make_request")
@@ -213,9 +203,7 @@ class TestSearchEntities:
             "error": "Bad request - validation failed",
         }
 
-        result = await nzbn.execute_action(
-            "search_entities", {"search_term": "test"}, mock_context
-        )
+        result = await nzbn.execute_action("search_entities", {"search_term": "test"}, mock_context)
         data = result.result.data
 
         assert data["result"] is False
@@ -237,25 +225,19 @@ class TestGetEntity:
             },
         }
 
-        result = await nzbn.execute_action(
-            "get_entity", {"nzbn": TEST_NZBN}, mock_context
-        )
+        result = await nzbn.execute_action("get_entity", {"nzbn": TEST_NZBN}, mock_context)
         data = result.result.data
 
         assert data["result"] is True
         assert data["entity"]["entityName"] == "Xero Limited"
-        mock_make_request.assert_called_once_with(
-            mock_context, "GET", f"/entities/{TEST_NZBN}"
-        )
+        mock_make_request.assert_called_once_with(mock_context, "GET", f"/entities/{TEST_NZBN}")
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.make_request")
     async def test_get_entity_not_found(self, mock_make_request, mock_context):
         mock_make_request.return_value = {"success": False, "error": "Entity not found"}
 
-        result = await nzbn.execute_action(
-            "get_entity", {"nzbn": "0000000000000"}, mock_context
-        )
+        result = await nzbn.execute_action("get_entity", {"nzbn": "0000000000000"}, mock_context)
         data = result.result.data
 
         assert data["result"] is False
@@ -288,9 +270,7 @@ class TestGetEntitySummary:
             },
         }
 
-        result = await nzbn.execute_action(
-            "get_entity_summary", {"nzbn": TEST_NZBN}, mock_context
-        )
+        result = await nzbn.execute_action("get_entity_summary", {"nzbn": TEST_NZBN}, mock_context)
         data = result.result.data
 
         assert data["result"] is True
@@ -313,9 +293,7 @@ class TestGetEntitySummary:
             },
         }
 
-        result = await nzbn.execute_action(
-            "get_entity_summary", {"nzbn": TEST_NZBN}, mock_context
-        )
+        result = await nzbn.execute_action("get_entity_summary", {"nzbn": TEST_NZBN}, mock_context)
         data = result.result.data
 
         assert data["result"] is True
@@ -338,9 +316,7 @@ class TestGetEntityAddresses:
             },
         }
 
-        result = await nzbn.execute_action(
-            "get_entity_addresses", {"nzbn": TEST_NZBN}, mock_context
-        )
+        result = await nzbn.execute_action("get_entity_addresses", {"nzbn": TEST_NZBN}, mock_context)
         data = result.result.data
 
         assert data["result"] is True
@@ -351,9 +327,7 @@ class TestGetEntityAddresses:
     async def test_addresses_with_type_filter(self, mock_make_request, mock_context):
         mock_make_request.return_value = {
             "success": True,
-            "data": {
-                "items": [{"addressType": "REGISTERED", "address1": "123 Main St"}]
-            },
+            "data": {"items": [{"addressType": "REGISTERED", "address1": "123 Main St"}]},
         }
 
         await nzbn.execute_action(
@@ -378,9 +352,7 @@ class TestGetEntityRoles:
             "data": {"items": [{"roleName": "Director", "firstName": "Jane"}]},
         }
 
-        result = await nzbn.execute_action(
-            "get_entity_roles", {"nzbn": TEST_NZBN}, mock_context
-        )
+        result = await nzbn.execute_action("get_entity_roles", {"nzbn": TEST_NZBN}, mock_context)
         data = result.result.data
 
         assert data["result"] is True
@@ -399,9 +371,7 @@ class TestGetEntityTradingNames:
             "data": {"items": [{"name": "Xero NZ"}]},
         }
 
-        result = await nzbn.execute_action(
-            "get_entity_trading_names", {"nzbn": TEST_NZBN}, mock_context
-        )
+        result = await nzbn.execute_action("get_entity_trading_names", {"nzbn": TEST_NZBN}, mock_context)
         data = result.result.data
 
         assert data["result"] is True
@@ -419,9 +389,7 @@ class TestGetCompanyDetails:
             "data": {"companyNumber": "1234567", "annualReturnFilingMonth": 3},
         }
 
-        result = await nzbn.execute_action(
-            "get_company_details", {"nzbn": TEST_NZBN}, mock_context
-        )
+        result = await nzbn.execute_action("get_company_details", {"nzbn": TEST_NZBN}, mock_context)
         data = result.result.data
 
         assert data["result"] is True
@@ -439,9 +407,7 @@ class TestGetEntityGstNumbers:
             "data": {"items": [{"gstNumber": "123-456-789"}]},
         }
 
-        result = await nzbn.execute_action(
-            "get_entity_gst_numbers", {"nzbn": TEST_NZBN}, mock_context
-        )
+        result = await nzbn.execute_action("get_entity_gst_numbers", {"nzbn": TEST_NZBN}, mock_context)
         data = result.result.data
 
         assert data["result"] is True
@@ -453,9 +419,7 @@ class TestGetEntityIndustryClassifications:
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.make_request")
-    async def test_industry_classifications_success(
-        self, mock_make_request, mock_context
-    ):
+    async def test_industry_classifications_success(self, mock_make_request, mock_context):
         mock_make_request.return_value = {
             "success": True,
             "data": {
@@ -468,9 +432,7 @@ class TestGetEntityIndustryClassifications:
             },
         }
 
-        result = await nzbn.execute_action(
-            "get_entity_industry_classifications", {"nzbn": TEST_NZBN}, mock_context
-        )
+        result = await nzbn.execute_action("get_entity_industry_classifications", {"nzbn": TEST_NZBN}, mock_context)
         data = result.result.data
 
         assert data["result"] is True
@@ -492,9 +454,7 @@ class TestGetChanges:
             },
         }
 
-        result = await nzbn.execute_action(
-            "get_changes", {"change_event_type": "NewRegistration"}, mock_context
-        )
+        result = await nzbn.execute_action("get_changes", {"change_event_type": "NewRegistration"}, mock_context)
         data = result.result.data
 
         assert data["result"] is True
@@ -537,9 +497,7 @@ class TestMakeRequest:
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.get_headers")
-    async def test_make_request_success_dict_response(
-        self, mock_get_headers, mock_context
-    ):
+    async def test_make_request_success_dict_response(self, mock_get_headers, mock_context):
         mock_get_headers.return_value = {
             "Authorization": "Bearer tok",
             "Accept": "application/json",
@@ -611,9 +569,7 @@ class TestGetHeaders:
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.get_oauth_token")
     @patch("nzbn.nzbn.SUBSCRIPTION_KEY", "test-sub-key")
-    async def test_headers_include_subscription_key(
-        self, mock_get_oauth_token, mock_context
-    ):
+    async def test_headers_include_subscription_key(self, mock_get_oauth_token, mock_context):
         mock_get_oauth_token.return_value = "tok_abc"
 
         headers = await get_headers(mock_context)
@@ -645,9 +601,7 @@ class TestErrorHandling:
     async def test_search_entities_exception(self, mock_make_request, mock_context):
         mock_make_request.side_effect = RuntimeError("connection refused")
 
-        result = await nzbn.execute_action(
-            "search_entities", {"search_term": "test"}, mock_context
-        )
+        result = await nzbn.execute_action("search_entities", {"search_term": "test"}, mock_context)
         data = result.result.data
 
         assert data["result"] is False
@@ -658,9 +612,7 @@ class TestErrorHandling:
     async def test_get_entity_exception(self, mock_make_request, mock_context):
         mock_make_request.side_effect = RuntimeError("timeout")
 
-        result = await nzbn.execute_action(
-            "get_entity", {"nzbn": TEST_NZBN}, mock_context
-        )
+        result = await nzbn.execute_action("get_entity", {"nzbn": TEST_NZBN}, mock_context)
         data = result.result.data
 
         assert data["result"] is False
@@ -671,9 +623,7 @@ class TestErrorHandling:
     async def test_get_changes_exception(self, mock_make_request, mock_context):
         mock_make_request.side_effect = RuntimeError("server error")
 
-        result = await nzbn.execute_action(
-            "get_changes", {"change_event_type": "NewRegistration"}, mock_context
-        )
+        result = await nzbn.execute_action("get_changes", {"change_event_type": "NewRegistration"}, mock_context)
         data = result.result.data
 
         assert data["result"] is False

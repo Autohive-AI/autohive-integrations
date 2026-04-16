@@ -136,7 +136,9 @@ class UpdateBitlinkAction(ActionHandler):
                 body["archived"] = inputs["archived"]
 
             response = await context.fetch(
-                f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}", method="PATCH", json=body
+                f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}",
+                method="PATCH",
+                json=body,
             )
 
             return ActionResult(data={"bitlink": response, "result": True}, cost_usd=0.0)
@@ -153,9 +155,16 @@ class ExpandBitlinkAction(ActionHandler):
         try:
             bitlink = normalize_bitlink(inputs["bitlink"])
 
-            response = await context.fetch(f"{BITLY_API_BASE_URL}/expand", method="POST", json={"bitlink_id": bitlink})
+            response = await context.fetch(
+                f"{BITLY_API_BASE_URL}/expand",
+                method="POST",
+                json={"bitlink_id": bitlink},
+            )
 
-            return ActionResult(data={"long_url": response.get("long_url", ""), "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"long_url": response.get("long_url", ""), "result": True},
+                cost_usd=0.0,
+            )
 
         except Exception as e:
             return ActionResult(data={"long_url": "", "result": False, "error": str(e)}, cost_usd=0.0)
@@ -179,7 +188,9 @@ class GetClicksAction(ActionHandler):
             }
 
             response = await context.fetch(
-                f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}/clicks", method="GET", params=params
+                f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}/clicks",
+                method="GET",
+                params=params,
             )
 
             clicks = response.get("link_clicks", [])
@@ -205,7 +216,9 @@ class GetClicksSummaryAction(ActionHandler):
             }
 
             response = await context.fetch(
-                f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}/clicks/summary", method="GET", params=params
+                f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}/clicks/summary",
+                method="GET",
+                params=params,
             )
 
             return ActionResult(
@@ -220,7 +233,14 @@ class GetClicksSummaryAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(
-                data={"total_clicks": 0, "unit": "", "units": 0, "result": False, "error": str(e)}, cost_usd=0.0
+                data={
+                    "total_clicks": 0,
+                    "unit": "",
+                    "units": 0,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
             )
 
 
@@ -238,7 +258,11 @@ class ListBitlinksAction(ActionHandler):
                 group_guid = user_response.get("default_group_guid")
                 if not group_guid:
                     return ActionResult(
-                        data={"bitlinks": [], "result": False, "error": "No default_group_guid found for user"},
+                        data={
+                            "bitlinks": [],
+                            "result": False,
+                            "error": "No default_group_guid found for user",
+                        },
                         cost_usd=0.0,
                     )
 
@@ -332,4 +356,7 @@ class ListOrganizationsAction(ActionHandler):
             return ActionResult(data={"organizations": organizations, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"organizations": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"organizations": [], "result": False, "error": str(e)},
+                cost_usd=0.0,
+            )

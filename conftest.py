@@ -56,6 +56,7 @@ Integration.load = _patched_load  # type: ignore[assignment]
 # .env file loading (stdlib-only, no third-party dependency)
 # ---------------------------------------------------------------------------
 
+
 def _load_dotenv(path: Path) -> None:
     """Load a .env file into os.environ (simple key=value, ignores comments)."""
     if not path.is_file():
@@ -78,6 +79,7 @@ _load_dotenv(Path(__file__).parent / ".env")
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_context() -> MagicMock:
