@@ -98,12 +98,19 @@ source .venv/bin/activate
 uv pip install -r requirements-test.txt
 ```
 
+Each integration pins its own SDK version in its `requirements.txt`. Install the dependencies for the integration(s) you want to test:
+
+```bash
+uv pip install -r hackernews/requirements.txt
+```
+
 If you don't have [uv](https://docs.astral.sh/uv/), you can use any Python 3.13+ interpreter directly:
 
 ```bash
 python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-test.txt
+pip install -r hackernews/requirements.txt
 ```
 
 ### Running unit tests
@@ -111,12 +118,26 @@ pip install -r requirements-test.txt
 Unit tests are mocked — no API credentials or network access needed.
 
 ```bash
-# Run all unit tests across the repo
+# Run all unit tests (if all integrations share the same SDK version)
 pytest
 
 # Run tests for a single integration
 pytest hackernews/
+```
 
+If integrations pin different SDK versions, run them separately to ensure each uses its own pinned version:
+
+```bash
+uv pip install -r bitly/requirements.txt
+pytest bitly/
+
+uv pip install -r notion/requirements.txt
+pytest notion/
+```
+
+Other useful commands:
+
+```bash
 # Run a specific test file
 pytest hackernews/tests/test_hackernews_unit.py
 
