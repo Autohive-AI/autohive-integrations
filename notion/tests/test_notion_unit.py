@@ -44,8 +44,8 @@ def mock_context():
     ctx.fetch = AsyncMock(name="fetch")
     ctx.auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "test_token"},
-    }  # nosec B105
+        "credentials": {"access_token": "test_token"},  # nosec B105
+    }
     return ctx
 
 
