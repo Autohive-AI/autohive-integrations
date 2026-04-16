@@ -7,4 +7,7 @@
 .idea/
 
 */.env
+.env
+.venv/
+.coverage
 /.agents

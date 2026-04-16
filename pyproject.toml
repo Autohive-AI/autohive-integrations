@@ -1,0 +1,25 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["."]
+python_files = ["test_*_unit.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: Pure unit tests — mocked, no credentials needed, safe for CI",
+    "integration: Integration tests — require real API credentials",
+]
+# --import-mode=importlib: avoids __init__.py package resolution issues
+# -m unit: only run CI-safe mocked tests by default
+addopts = "--import-mode=importlib -m unit --tb=short"
+
+norecursedirs = ["dependencies", "__pycache__", ".git", ".ruff_cache"]
+
+# Environment variables for integration tests are loaded from .env
+# by the root conftest.py (stdlib-only, no plugin dependency).
+
+[tool.coverage.run]
+omit = ["*/tests/*", "conftest.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
