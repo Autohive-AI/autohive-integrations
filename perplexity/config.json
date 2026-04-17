@@ -1,0 +1,97 @@
+{
+  "name": "Perplexity",
+  "display_name": "Perplexity",
+  "version": "1.1.0",
+  "description": "Search the web with Perplexity's AI-powered search API. Get ranked, structured results from billions of webpages with advanced filtering options.",
+  "entry_point": "perplexity.py",
+  "supports_billing": true,
+  "actions": {
+    "search_web": {
+      "display_name": "Search Web",
+      "description": "Search the web using Perplexity's search API. Returns ranked, structured results with titles, URLs, snippets, and dates. Supports filtering by country, controlling result count, and multi-query searches.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "A single search query"
+              },
+              {
+                "type": "array",
+                "description": "Multiple search queries for comprehensive research",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "Search query or queries. Can be a single string or an array of strings for multi-query search."
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum number of search results to return per query",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 20
+          },
+          "content_depth": {
+            "type": "string",
+            "description": "How much content to extract from each webpage. 'quick' extracts brief snippets, 'default' extracts moderate content, 'detailed' extracts comprehensive content for in-depth research.",
+            "enum": ["quick", "default", "detailed"],
+            "default": "default"
+          },
+          "country": {
+            "type": "string",
+            "description": "Two-letter ISO country code to filter search results by geographic location (e.g., 'US', 'GB', 'DE', 'FR', 'JP'). Leave empty for global results.",
+            "pattern": "^[A-Z]{2}$"
+          }
+        },
+        "required": ["query"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "description": "Array of search results with structured information",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "description": "Title of the webpage or article"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Full URL of the search result"
+                },
+                "snippet": {
+                  "type": "string",
+                  "description": "Content excerpt from the page"
+                },
+                "date": {
+                  "type": ["string", "null"],
+                  "description": "Publication date of the content (format: YYYY-MM-DD). May be null if date is unavailable."
+                },
+                "last_updated": {
+                  "type": ["string", "null"],
+                  "description": "Last updated date of the content (format: YYYY-MM-DD). May be null if date is unavailable."
+                }
+              }
+            }
+          },
+          "id": {
+            "type": "string",
+            "description": "Unique request identifier"
+          },
+          "total_results": {
+            "type": "integer",
+            "description": "Total number of results returned"
+          }
+        },
+        "required": ["results"]
+      }
+    }
+  }
+}
