@@ -1,4 +1,9 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+)
 from typing import Dict, Any
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -21,7 +26,9 @@ def build_credentials(context: ExecutionContext) -> Credentials:
         print(f"Debug - context.auth content: {context.auth}")
         raise ValueError(f"No access token found in authentication context: {e}")
 
-    creds = Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")  # nosec B106
+    creds = Credentials(
+        token=access_token, token_uri="https://oauth2.googleapis.com/token"
+    )  # nosec B106
     return creds
 
 
@@ -42,7 +49,9 @@ def build_mybusiness_service(context: ExecutionContext):
     credentials = build_credentials(context)
     # Use specific discovery document URL for mybusiness v4 API
     discovery_url = "https://developers.google.com/static/my-business/samples/mybusiness_google_rest_v4p9.json"
-    return build("mybusiness", "v4", credentials=credentials, discoveryServiceUrl=discovery_url)
+    return build(
+        "mybusiness", "v4", credentials=credentials, discoveryServiceUrl=discovery_url
+    )
 
 
 def format_address(storefront_address: Dict[str, Any]) -> str:
@@ -87,12 +96,23 @@ class ListAccounts(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"accounts": accounts, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"accounts": accounts, "result": True}, cost_usd=0.0
+            )
 
         except HttpError as e:
-            return ActionResult(data={"accounts": [], "result": False, "error": f"Google API error: {str(e)}"}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "accounts": [],
+                    "result": False,
+                    "error": f"Google API error: {str(e)}",
+                },
+                cost_usd=0.0,
+            )
         except Exception as e:
-            return ActionResult(data={"accounts": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"accounts": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @reviews.action("list_locations")
@@ -105,7 +125,11 @@ class ListLocations(ActionHandler):
             # List locations for the account with required readMask
             # Adding phoneNumbers to complete location data
             read_mask = "name,title,storefrontAddress,phoneNumbers"
-            request = service.accounts().locations().list(parent=account_name, readMask=read_mask)
+            request = (
+                service.accounts()
+                .locations()
+                .list(parent=account_name, readMask=read_mask)
+            )
             response = request.execute()
 
             locations = []
@@ -138,12 +162,23 @@ class ListLocations(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"locations": locations, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"locations": locations, "result": True}, cost_usd=0.0
+            )
 
         except HttpError as e:
-            return ActionResult(data={"locations": [], "result": False, "error": f"Google API error: {str(e)}"}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "locations": [],
+                    "result": False,
+                    "error": f"Google API error: {str(e)}",
+                },
+                cost_usd=0.0,
+            )
         except Exception as e:
-            return ActionResult(data={"locations": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"locations": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @reviews.action("list_reviews")
@@ -157,24 +192,28 @@ class ListReviews(ActionHandler):
             if not location_name.startswith("accounts/"):
                 return ActionResult(
                     data={
-                    "reviews": [],
-                    "result": False,
-                    "error": (
-                        f"Invalid location_name format: '{location_name}'. "
-                        "Expected format: 'accounts/{account_id}/locations/{location_id}'"
-                    ),
-                },
+                        "reviews": [],
+                        "result": False,
+                        "error": (
+                            f"Invalid location_name format: '{location_name}'. "
+                            "Expected format: 'accounts/{account_id}/locations/{location_id}'"
+                        ),
+                    },
                     cost_usd=0.0,
                 )
 
             # List reviews for the location
-            request = service.accounts().locations().reviews().list(parent=location_name)
+            request = (
+                service.accounts().locations().reviews().list(parent=location_name)
+            )
             response = request.execute()
 
             reviews = []
             for review in response.get("reviews", []):
                 reviewer = review.get("reviewer", {})
-                reviewer_info = {"displayName": reviewer.get("displayName", "Anonymous")}
+                reviewer_info = {
+                    "displayName": reviewer.get("displayName", "Anonymous")
+                }
 
                 review_reply = None
                 if "reviewReply" in review:
@@ -200,9 +239,18 @@ class ListReviews(ActionHandler):
             return ActionResult(data={"reviews": reviews, "result": True}, cost_usd=0.0)
 
         except HttpError as e:
-            return ActionResult(data={"reviews": [], "result": False, "error": f"Google API error: {str(e)}"}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "reviews": [],
+                    "result": False,
+                    "error": f"Google API error: {str(e)}",
+                },
+                cost_usd=0.0,
+            )
         except Exception as e:
-            return ActionResult(data={"reviews": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"reviews": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @reviews.action("reply_to_review")
@@ -215,19 +263,30 @@ class ReplyToReview(ActionHandler):
 
             reply_body = {"comment": reply_comment}
 
-            request = service.accounts().locations().reviews().updateReply(name=review_name, body=reply_body)
+            request = (
+                service.accounts()
+                .locations()
+                .reviews()
+                .updateReply(name=review_name, body=reply_body)
+            )
             response = request.execute()
 
             return ActionResult(
                 data={
-                "reviewReply": {"comment": response.get("comment", ""), "updateTime": response.get("updateTime", "")},
-                "result": True,
-            },
+                    "reviewReply": {
+                        "comment": response.get("comment", ""),
+                        "updateTime": response.get("updateTime", ""),
+                    },
+                    "result": True,
+                },
                 cost_usd=0.0,
             )
 
         except HttpError as e:
-            return ActionResult(data={"result": False, "error": f"Google API error: {str(e)}"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": f"Google API error: {str(e)}"},
+                cost_usd=0.0,
+            )
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
@@ -239,12 +298,17 @@ class DeleteReviewReply(ActionHandler):
             service = build_mybusiness_service(context)
             review_name = inputs["review_name"]
 
-            request = service.accounts().locations().reviews().deleteReply(name=review_name)
+            request = (
+                service.accounts().locations().reviews().deleteReply(name=review_name)
+            )
             request.execute()
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
         except HttpError as e:
-            return ActionResult(data={"result": False, "error": f"Google API error: {str(e)}"}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "error": f"Google API error: {str(e)}"},
+                cost_usd=0.0,
+            )
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
