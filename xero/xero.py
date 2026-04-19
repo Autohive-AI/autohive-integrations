@@ -1319,11 +1319,6 @@ class AttachFileToInvoiceAction(ActionHandler):
 
         try:
             # Debug: Log what inputs we're receiving
-            print(f"DEBUG attach_file_to_invoice: Received inputs keys: {list(inputs.keys())}")
-            for key, value in inputs.items():
-                if "file" in key.lower():
-                    print(f"DEBUG attach_file_to_invoice: {key} = {type(value)} - {value}")
-
             # Get file object from inputs
             file_obj = inputs.get("file")
             files_arr = inputs.get("files")
@@ -1331,7 +1326,6 @@ class AttachFileToInvoiceAction(ActionHandler):
                 file_obj = files_arr[0]
 
             if not file_obj or not isinstance(file_obj, dict):
-                # Debug: Show what we actually received
                 available_keys = [k for k in inputs.keys() if "file" in k.lower()]
                 raise ValueError(
                     f"file object is required. Available file-related keys: {available_keys}. "
@@ -1341,12 +1335,21 @@ class AttachFileToInvoiceAction(ActionHandler):
             # Extract file data from file object
             content_b64 = file_obj.get("content")
             if not content_b64:
-                raise ValueError("file object missing content")
+                raise ValueError("file object missing 'content' (expected base64-encoded data)")
+
+            file_name = file_obj.get("name", "").strip()
+            if not file_name:
+                raise ValueError("file object missing 'name'")
+
+            content_type = file_obj.get("contentType", "").strip()
+            if not content_type:
+                raise ValueError("file object missing 'contentType' (e.g. 'application/pdf', 'image/png')")
 
             # Decode the base64 file content
-            file_bytes = base64.b64decode(content_b64)
-            file_name = file_obj.get("name", "attachment")
-            content_type = file_obj.get("contentType", "application/octet-stream")
+            try:
+                file_bytes = base64.b64decode(content_b64)
+            except Exception:
+                raise ValueError("file 'content' is not valid base64-encoded data")
 
             # Prepare the attachment payload
             # Xero expects file data as raw bytes, not JSON
@@ -1519,8 +1522,11 @@ class GetAttachmentsAction(ActionHandler):
             raise ValueError("guid is required")
 
         try:
+            # Remap Bills -> Invoices (Xero has no /Bills/ endpoint; bills use /Invoices/)
+            api_endpoint = "Invoices" if endpoint == "Bills" else endpoint
+
             # Build URL for getting attachments list
-            url = f"https://api.xero.com/api.xro/2.0/{endpoint}/{guid}/Attachments"
+            url = f"https://api.xero.com/api.xro/2.0/{api_endpoint}/{guid}/Attachments"
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
@@ -1583,8 +1589,11 @@ class GetAttachmentContentAction(ActionHandler):
             raise ValueError("file_name is required")
 
         try:
+            # Remap Bills -> Invoices (Xero has no /Bills/ endpoint; bills use /Invoices/)
+            api_endpoint = "Invoices" if endpoint == "Bills" else endpoint
+
             # Build URL for getting attachment content
-            url = f"https://api.xero.com/api.xro/2.0/{endpoint}/{guid}/Attachments/{file_name}"
+            url = f"https://api.xero.com/api.xro/2.0/{api_endpoint}/{guid}/Attachments/{file_name}"
 
             # For attachment content download, we need to handle binary data manually
             # Similar to how Box integration handles file content
@@ -1600,23 +1609,42 @@ class GetAttachmentContentAction(ActionHandler):
                     if "access_token" in credentials:
                         headers["Authorization"] = f"Bearer {credentials['access_token']}"
 
-                async with session.get(url, headers=headers) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        return ActionResult(
-                            data={
-                                "file": {"name": file_name, "content": "", "contentType": ""},
-                                "success": False,
-                                "error": f"Xero API error getting attachment content: {response.status} - {error_text}",
-                            }
-                        )
+                # Retry with backoff on 404 — Xero storage can lag after upload
+                max_retries = 3
+                retry_delay = 2
+                last_error_text = ""
+                file_content = None
+                content_type = None
 
-                    # Read binary content and encode as base64
-                    file_content = await response.read()
-                    content_base64 = base64.b64encode(file_content).decode("utf-8")
+                for attempt in range(max_retries):
+                    async with session.get(url, headers=headers) as response:
+                        if response.status == 200:
+                            file_content = await response.read()
+                            content_type = response.headers.get("content-type", "application/octet-stream")
+                            break
+                        elif response.status == 404 and attempt < max_retries - 1:
+                            last_error_text = await response.text()
+                            await asyncio.sleep(retry_delay)
+                        else:
+                            last_error_text = await response.text()
+                            return ActionResult(
+                                data={
+                                    "file": {"name": file_name, "content": "", "contentType": ""},
+                                    "success": False,
+                                    "error": f"Xero API error getting attachment content: {response.status} - {last_error_text}",
+                                }
+                            )
 
-                    # Determine content type from response headers
-                    content_type = response.headers.get("content-type", "application/octet-stream")
+                if file_content is None:
+                    return ActionResult(
+                        data={
+                            "file": {"name": file_name, "content": "", "contentType": ""},
+                            "success": False,
+                            "error": f"Attachment not found after {max_retries} attempts (404) - {last_error_text}",
+                        }
+                    )
+
+                content_base64 = base64.b64encode(file_content).decode("utf-8")
 
             return ActionResult(
                 data={
