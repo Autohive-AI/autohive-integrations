@@ -1337,11 +1337,11 @@ class AttachFileToInvoiceAction(ActionHandler):
             if not content_b64:
                 raise ValueError("file object missing 'content' (expected base64-encoded data)")
 
-            file_name = file_obj.get("name", "").strip()
+            file_name = (file_obj.get("name") or "").strip()
             if not file_name:
                 raise ValueError("file object missing 'name'")
 
-            content_type = file_obj.get("contentType", "").strip()
+            content_type = (file_obj.get("contentType") or "").strip()
             if not content_type:
                 raise ValueError("file object missing 'contentType' (e.g. 'application/pdf', 'image/png')")
 
