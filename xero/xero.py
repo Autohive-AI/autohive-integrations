@@ -1437,12 +1437,21 @@ class AttachFileToBillAction(ActionHandler):
             # Extract file data from file object
             content_b64 = file_obj.get("content")
             if not content_b64:
-                raise ValueError("file object missing content")
+                raise ValueError("file object missing 'content' (expected base64-encoded data)")
+
+            file_name = (file_obj.get("name") or "").strip()
+            if not file_name:
+                raise ValueError("file object missing 'name'")
+
+            content_type = (file_obj.get("contentType") or "").strip()
+            if not content_type:
+                raise ValueError("file object missing 'contentType' (e.g. 'application/pdf', 'image/png')")
 
             # Decode the base64 file content
-            file_bytes = base64.b64decode(content_b64)
-            file_name = file_obj.get("name", "attachment")
-            content_type = file_obj.get("contentType", "application/octet-stream")
+            try:
+                file_bytes = base64.b64decode(content_b64)
+            except Exception:
+                raise ValueError("file 'content' is not valid base64-encoded data")
 
             # Prepare the attachment payload
             # Xero expects file data as raw bytes, not JSON
