@@ -26,9 +26,7 @@ def build_credentials(context: ExecutionContext) -> Credentials:
         print(f"Debug - context.auth content: {context.auth}")
         raise ValueError(f"No access token found in authentication context: {e}")
 
-    creds = Credentials(
-        token=access_token, token_uri="https://oauth2.googleapis.com/token"
-    )  # nosec B106
+    creds = Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")  # nosec B106
     return creds
 
 
@@ -49,9 +47,7 @@ def build_mybusiness_service(context: ExecutionContext):
     credentials = build_credentials(context)
     # Use specific discovery document URL for mybusiness v4 API
     discovery_url = "https://developers.google.com/static/my-business/samples/mybusiness_google_rest_v4p9.json"
-    return build(
-        "mybusiness", "v4", credentials=credentials, discoveryServiceUrl=discovery_url
-    )
+    return build("mybusiness", "v4", credentials=credentials, discoveryServiceUrl=discovery_url)
 
 
 def format_address(storefront_address: Dict[str, Any]) -> str:
@@ -96,9 +92,7 @@ class ListAccounts(ActionHandler):
                     }
                 )
 
-            return ActionResult(
-                data={"accounts": accounts, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"accounts": accounts, "result": True}, cost_usd=0.0)
 
         except HttpError as e:
             return ActionResult(
@@ -110,9 +104,7 @@ class ListAccounts(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"accounts": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"accounts": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @reviews.action("list_locations")
@@ -125,11 +117,7 @@ class ListLocations(ActionHandler):
             # List locations for the account with required readMask
             # Adding phoneNumbers to complete location data
             read_mask = "name,title,storefrontAddress,phoneNumbers"
-            request = (
-                service.accounts()
-                .locations()
-                .list(parent=account_name, readMask=read_mask)
-            )
+            request = service.accounts().locations().list(parent=account_name, readMask=read_mask)
             response = request.execute()
 
             locations = []
@@ -162,9 +150,7 @@ class ListLocations(ActionHandler):
                     }
                 )
 
-            return ActionResult(
-                data={"locations": locations, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"locations": locations, "result": True}, cost_usd=0.0)
 
         except HttpError as e:
             return ActionResult(
@@ -176,9 +162,7 @@ class ListLocations(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"locations": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"locations": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @reviews.action("list_reviews")
@@ -203,17 +187,13 @@ class ListReviews(ActionHandler):
                 )
 
             # List reviews for the location
-            request = (
-                service.accounts().locations().reviews().list(parent=location_name)
-            )
+            request = service.accounts().locations().reviews().list(parent=location_name)
             response = request.execute()
 
             reviews = []
             for review in response.get("reviews", []):
                 reviewer = review.get("reviewer", {})
-                reviewer_info = {
-                    "displayName": reviewer.get("displayName", "Anonymous")
-                }
+                reviewer_info = {"displayName": reviewer.get("displayName", "Anonymous")}
 
                 review_reply = None
                 if "reviewReply" in review:
@@ -248,9 +228,7 @@ class ListReviews(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"reviews": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"reviews": [], "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @reviews.action("reply_to_review")
@@ -263,12 +241,7 @@ class ReplyToReview(ActionHandler):
 
             reply_body = {"comment": reply_comment}
 
-            request = (
-                service.accounts()
-                .locations()
-                .reviews()
-                .updateReply(name=review_name, body=reply_body)
-            )
+            request = service.accounts().locations().reviews().updateReply(name=review_name, body=reply_body)
             response = request.execute()
 
             return ActionResult(
@@ -298,9 +271,7 @@ class DeleteReviewReply(ActionHandler):
             service = build_mybusiness_service(context)
             review_name = inputs["review_name"]
 
-            request = (
-                service.accounts().locations().reviews().deleteReply(name=review_name)
-            )
+            request = service.accounts().locations().reviews().deleteReply(name=review_name)
             request.execute()
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
