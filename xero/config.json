@@ -1,6 +1,6 @@
 {
     "name": "Xero",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "description": "Xero accounting integration for invoice and bill management, purchase orders, reporting, file attachments, and PDF invoice retrieval",
     "entry_point": "xero.py",
     "supports_connected_account": true,
@@ -1472,7 +1472,7 @@
                     },
                     "endpoint": {
                         "type": "string",
-                        "description": "The endpoint type (e.g., 'Invoices', 'Bills', 'BankTransactions')",
+                        "description": "The endpoint type. Use 'Invoices' for sales invoices or 'Bills' for purchase bills (Bills is automatically remapped to Invoices internally, as Xero uses a single /Invoices/ endpoint for both). Use 'BankTransactions' for bank transactions.",
                         "enum": [
                             "Invoices",
                             "Bills",
@@ -1513,7 +1513,7 @@
                     },
                     "endpoint": {
                         "type": "string",
-                        "description": "The endpoint type (e.g., 'Invoices', 'Bills', 'BankTransactions')",
+                        "description": "The endpoint type. Use 'Invoices' for sales invoices or 'Bills' for purchase bills (Bills is automatically remapped to Invoices internally, as Xero uses a single /Invoices/ endpoint for both). Use 'BankTransactions' for bank transactions.",
                         "enum": [
                             "Invoices",
                             "Bills",
