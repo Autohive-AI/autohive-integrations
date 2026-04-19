@@ -1631,7 +1631,10 @@ class GetAttachmentContentAction(ActionHandler):
                                 data={
                                     "file": {"name": file_name, "content": "", "contentType": ""},
                                     "success": False,
-                                    "error": f"Xero API error getting attachment content: {response.status} - {last_error_text}",
+                                    "error": (
+                                        f"Xero API error getting attachment content: "
+                                        f"{response.status} - {last_error_text}"
+                                    ),
                                 }
                             )
 
