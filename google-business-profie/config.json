@@ -1,6 +1,6 @@
 {
     "name": "Google Business Profile",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Manage Google Business Profile reviews using official Google API - read reviews and reply to customers",
     "entry_point": "reviews.py",
     "auth": {
