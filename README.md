@@ -1,4 +1,5 @@
 # Integrations by Autohive
+
 This repository hosts Autohive integrations made and maintained by the Autohive team.
 
 ## Getting Started
