@@ -1324,7 +1324,6 @@
                             }
                         },
                         "required": [
-                            "content",
                             "name",
                             "contentType"
                         ]
@@ -1349,7 +1348,6 @@
                                 }
                             },
                             "required": [
-                                "content",
                                 "name",
                                 "contentType"
                             ]
@@ -1409,7 +1407,6 @@
                             }
                         },
                         "required": [
-                            "content",
                             "name",
                             "contentType"
                         ]
@@ -1434,7 +1431,6 @@
                                 }
                             },
                             "required": [
-                                "content",
                                 "name",
                                 "contentType"
                             ]
