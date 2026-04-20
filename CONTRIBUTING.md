@@ -85,6 +85,17 @@ ruff format my-integration
 
 ## Running Tests
 
+Unit tests and integration tests are **run separately** — they use different file naming, markers, and discovery rules so they never interfere with each other.
+
+| | Unit tests | Integration tests |
+|---|---|---|
+| **File naming** | `test_*_unit.py` | `test_*_integration.py` |
+| **Marker** | `@pytest.mark.unit` | `@pytest.mark.integration` |
+| **Auto-discovered** | Yes (via `python_files` in `pyproject.toml`) | No — must pass the file path explicitly |
+| **Runs in CI** | Yes | No |
+| **Needs credentials** | No (fully mocked) | Yes (real API calls) |
+| **Default `pytest`** | ✅ Selected by `-m unit` in `addopts` | ❌ Excluded by `-m unit` in `addopts` |
+
 Tests use [pytest](https://docs.pytest.org/) and run from the repo root. They use the same Python environment as the tooling (see [Local Validation](#local-validation) above).
 
 ### Prerequisites
@@ -115,14 +126,20 @@ pip install -r hackernews/requirements.txt
 
 ### Running unit tests
 
-Unit tests are mocked — no API credentials or network access needed.
+Unit tests are mocked — no API credentials or network access needed. They are auto-discovered by pytest from `test_*_unit.py` files.
 
 ```bash
-# Run all unit tests (if all integrations share the same SDK version)
+# Run unit tests for a single integration
+pytest hackernews/
+
+# Run a specific test file
+pytest hackernews/tests/test_hackernews_unit.py
+
+# Run all unit tests (only if all integrations share the same SDK version)
 pytest
 
-# Run tests for a single integration
-pytest hackernews/
+# Verbose output
+pytest hackernews/ -v
 ```
 
 If integrations pin different SDK versions, run them separately to ensure each uses its own pinned version:
@@ -135,35 +152,32 @@ uv pip install -r notion/requirements.txt
 pytest notion/
 ```
 
-Other useful commands:
-
-```bash
-# Run a specific test file
-pytest hackernews/tests/test_hackernews_unit.py
-
-# Verbose output
-pytest hackernews/ -v
-```
-
 The default `pytest` command only runs tests marked `unit` (configured in `pyproject.toml`).
 
 ### Running integration tests
 
-Integration tests call real APIs and require credentials. Set up a `.env` file in the repo root (see `.env.example` for the template):
+Integration tests call real APIs and require credentials. They are **not** auto-discovered — you must pass the test file path explicitly and override the marker filter.
+
+Set up a `.env` file in the repo root (see `.env.example` for the template):
 
 ```bash
 cp .env.example .env
 # Edit .env and add your test credentials
 ```
 
-Then run with the `integration` marker:
+Then run by passing the file path directly with `-m integration`:
 
 ```bash
 # Run integration tests for one integration
-pytest -m integration hackernews/
+pytest perplexity/tests/test_perplexity_integration.py -m integration
+```
 
-# Run both unit and integration tests
-pytest -m "unit or integration" hackernews/
+> **Why the explicit file path?** `pyproject.toml` restricts `python_files` to `test_*_unit.py`, so `pytest -m integration perplexity/` will **not** discover `test_*_integration.py` files. You must name the file directly.
+
+To run both unit and integration tests together:
+
+```bash
+pytest perplexity/tests/test_perplexity_unit.py perplexity/tests/test_perplexity_integration.py -m "unit or integration"
 ```
 
 Integration tests will `pytest.skip()` if the required environment variables are missing.
@@ -171,7 +185,7 @@ Integration tests will `pytest.skip()` if the required environment variables are
 ### Coverage
 
 ```bash
-# Coverage for a single integration
+# Coverage for a single integration (unit tests only)
 pytest --cov=hackernews hackernews/
 
 # Coverage for multiple integrations
@@ -185,7 +199,9 @@ Coverage is configured in `pyproject.toml` to exclude test files — only integr
 
 ### Writing tests for a new integration
 
-New test files go in `<integration>/tests/test_<name>_unit.py`. Follow this template:
+#### Unit tests
+
+Unit test files go in `<integration>/tests/test_<name>_unit.py`. This naming is required for auto-discovery.
 
 ```python
 import os
@@ -217,7 +233,32 @@ class TestMyAction:
         assert result.result.data["data"] == "value"
 ```
 
-Key conventions:
+#### Integration tests (optional)
+
+Integration test files go in `<integration>/tests/test_<name>_integration.py`. They are excluded from CI by both naming and marker.
+
+```python
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
+@pytest.fixture
+def live_context():
+    api_key = os.environ.get("MY_API_KEY", "")
+    if not api_key:
+        pytest.skip("MY_API_KEY not set")
+    # ... set up context with real credentials ...
+
+
+class TestMyAction:
+    async def test_real_api_call(self, live_context):
+        result = await my_integration.execute_action("my_action", {"input": "x"}, live_context)
+        assert "data" in result.result.data
+```
+
+#### Shared conventions
+
 - Use `pytestmark = pytest.mark.unit` at module level for mocked tests
 - Use `pytestmark = pytest.mark.integration` for tests that hit real APIs
 - Mock `context.fetch` return values to simulate API responses
@@ -233,10 +274,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 ### Test markers
 
-| Marker | Purpose | Needs credentials? | Runs by default? |
-|--------|---------|-------------------|-----------------|
-| `unit` | Mocked tests, no network | No | Yes |
-| `integration` | Real API calls | Yes (via `.env`) | No |
+| Marker | Purpose | Needs credentials? | Runs in CI? | Auto-discovered? |
+|--------|---------|-------------------|-------------|-----------------|
+| `unit` | Mocked tests, no network | No | Yes | Yes (`test_*_unit.py`) |
+| `integration` | Real API calls | Yes (via `.env`) | No | No (explicit file path) |
 
 ## Integration Structure
 
