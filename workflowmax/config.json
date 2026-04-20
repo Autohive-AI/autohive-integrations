@@ -1,0 +1,963 @@
+{
+  "name": "WorkflowMax",
+  "display_name": "WorkflowMax",
+  "version": "1.0.0",
+  "description": "WorkflowMax integration for managing clients, jobs, timesheets, invoices, quotes, tasks, staff, leads, costs, and purchase orders.",
+  "entry_point": "workflowmax.py",
+  "auth": {
+    "type": "platform",
+    "provider": "workflowmax",
+    "scopes": [
+      "openid",
+      "profile",
+      "email",
+      "workflowmax",
+      "offline_access"
+    ]
+  },
+  "actions": {
+    "list_clients": {
+      "display_name": "List Clients",
+      "description": "List all clients in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination (1-based)."
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of results per page."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "clients": {"type": "array", "items": {"type": "object"}},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "get_client": {
+      "display_name": "Get Client",
+      "description": "Get a client by their UUID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "description": "The UUID of the client to retrieve."
+          }
+        },
+        "required": ["uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "client": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "create_client": {
+      "display_name": "Create Client",
+      "description": "Create a new client in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the client."
+          },
+          "email": {
+            "type": "string",
+            "description": "The email address of the client."
+          },
+          "phone": {
+            "type": "string",
+            "description": "The phone number of the client."
+          },
+          "address": {
+            "type": "string",
+            "description": "The street address of the client."
+          },
+          "city": {
+            "type": "string",
+            "description": "The city of the client."
+          },
+          "region": {
+            "type": "string",
+            "description": "The region or state of the client."
+          },
+          "country": {
+            "type": "string",
+            "description": "The country of the client."
+          },
+          "postal_code": {
+            "type": "string",
+            "description": "The postal/zip code of the client."
+          }
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "client": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "update_client": {
+      "display_name": "Update Client",
+      "description": "Update an existing client in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "description": "The UUID of the client to update."
+          },
+          "name": {
+            "type": "string",
+            "description": "The updated name of the client."
+          },
+          "email": {
+            "type": "string",
+            "description": "The updated email address."
+          },
+          "phone": {
+            "type": "string",
+            "description": "The updated phone number."
+          },
+          "address": {
+            "type": "string",
+            "description": "The updated street address."
+          },
+          "city": {
+            "type": "string",
+            "description": "The updated city."
+          },
+          "region": {
+            "type": "string",
+            "description": "The updated region or state."
+          },
+          "country": {
+            "type": "string",
+            "description": "The updated country."
+          },
+          "postal_code": {
+            "type": "string",
+            "description": "The updated postal/zip code."
+          }
+        },
+        "required": ["uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "client": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "list_client_contacts": {
+      "display_name": "List Client Contacts",
+      "description": "List all contacts for a specific client.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "client_uuid": {
+            "type": "string",
+            "description": "The UUID of the client whose contacts to retrieve."
+          }
+        },
+        "required": ["client_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "contacts": {"type": "array", "items": {"type": "object"}},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "create_client_contact": {
+      "display_name": "Create Client Contact",
+      "description": "Create a new contact for a specific client.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "client_uuid": {
+            "type": "string",
+            "description": "The UUID of the client to add the contact to."
+          },
+          "name": {
+            "type": "string",
+            "description": "The full name of the contact."
+          },
+          "email": {
+            "type": "string",
+            "description": "The email address of the contact."
+          },
+          "phone": {
+            "type": "string",
+            "description": "The phone number of the contact."
+          },
+          "mobile": {
+            "type": "string",
+            "description": "The mobile number of the contact."
+          }
+        },
+        "required": ["client_uuid", "name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "contact": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "list_jobs": {
+      "display_name": "List Jobs",
+      "description": "List all jobs in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination (1-based)."
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of results per page."
+          },
+          "last_modified": {
+            "type": "string",
+            "description": "Filter jobs modified after this ISO 8601 timestamp."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "jobs": {"type": "array", "items": {"type": "object"}},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "get_job": {
+      "display_name": "Get Job",
+      "description": "Get a job by its identifier (UUID or job number).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "description": "The UUID or job number of the job to retrieve."
+          }
+        },
+        "required": ["identifier"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "job": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "create_job": {
+      "display_name": "Create Job",
+      "description": "Create a new job in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the job."
+          },
+          "client_uuid": {
+            "type": "string",
+            "description": "The UUID of the client this job belongs to."
+          },
+          "description": {
+            "type": "string",
+            "description": "A description of the job."
+          },
+          "start_date": {
+            "type": "string",
+            "description": "The start date of the job (ISO 8601 format)."
+          },
+          "due_date": {
+            "type": "string",
+            "description": "The due date of the job (ISO 8601 format)."
+          },
+          "category_uuid": {
+            "type": "string",
+            "description": "The UUID of the job category."
+          }
+        },
+        "required": ["name", "client_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "job": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "update_job": {
+      "display_name": "Update Job",
+      "description": "Update an existing job in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "description": "The UUID or job number of the job to update."
+          },
+          "name": {
+            "type": "string",
+            "description": "The updated name of the job."
+          },
+          "description": {
+            "type": "string",
+            "description": "The updated description of the job."
+          },
+          "start_date": {
+            "type": "string",
+            "description": "The updated start date (ISO 8601 format)."
+          },
+          "due_date": {
+            "type": "string",
+            "description": "The updated due date (ISO 8601 format)."
+          },
+          "state": {
+            "type": "string",
+            "description": "The updated status of the job (e.g. 'Active', 'Completed')."
+          }
+        },
+        "required": ["identifier"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "job": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "list_timesheets": {
+      "display_name": "List Timesheets",
+      "description": "List timesheet entries in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "description": "Start date for filtering timesheets (ISO 8601 format)."
+          },
+          "to_date": {
+            "type": "string",
+            "description": "End date for filtering timesheets (ISO 8601 format)."
+          },
+          "staff_uuid": {
+            "type": "string",
+            "description": "Filter timesheets by staff member UUID."
+          },
+          "job_uuid": {
+            "type": "string",
+            "description": "Filter timesheets by job UUID."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "timesheets": {"type": "array", "items": {"type": "object"}},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "add_timesheet": {
+      "display_name": "Add Timesheet",
+      "description": "Log a timesheet entry against a job and task.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_uuid": {
+            "type": "string",
+            "description": "The UUID of the job to log time against."
+          },
+          "task_uuid": {
+            "type": "string",
+            "description": "The UUID of the task to log time against."
+          },
+          "staff_uuid": {
+            "type": "string",
+            "description": "The UUID of the staff member logging time."
+          },
+          "minutes": {
+            "type": "integer",
+            "description": "The number of minutes to log."
+          },
+          "date": {
+            "type": "string",
+            "description": "The date of the time entry (ISO 8601 format)."
+          },
+          "note": {
+            "type": "string",
+            "description": "An optional note for the time entry."
+          }
+        },
+        "required": ["job_uuid", "task_uuid", "staff_uuid", "minutes", "date"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "timesheet": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "list_invoices": {
+      "display_name": "List Invoices",
+      "description": "List invoices in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "description": "Start date for filtering invoices (ISO 8601 format)."
+          },
+          "to_date": {
+            "type": "string",
+            "description": "End date for filtering invoices (ISO 8601 format)."
+          },
+          "client_uuid": {
+            "type": "string",
+            "description": "Filter invoices by client UUID."
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter invoices by status (e.g. 'Draft', 'Approved', 'Paid')."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "invoices": {"type": "array", "items": {"type": "object"}},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "get_invoice": {
+      "display_name": "Get Invoice",
+      "description": "Get an invoice by its UUID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "description": "The UUID of the invoice to retrieve."
+          }
+        },
+        "required": ["uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "invoice": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "create_invoice": {
+      "display_name": "Create Invoice",
+      "description": "Create a new invoice in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "client_uuid": {
+            "type": "string",
+            "description": "The UUID of the client to invoice."
+          },
+          "job_uuid": {
+            "type": "string",
+            "description": "The UUID of the job to invoice."
+          },
+          "date": {
+            "type": "string",
+            "description": "The invoice date (ISO 8601 format)."
+          },
+          "due_date": {
+            "type": "string",
+            "description": "The due date for payment (ISO 8601 format)."
+          },
+          "description": {
+            "type": "string",
+            "description": "A description for the invoice."
+          },
+          "amount": {
+            "type": "number",
+            "description": "The invoice amount (excluding tax)."
+          }
+        },
+        "required": ["client_uuid", "date", "amount"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "invoice": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "list_quotes": {
+      "display_name": "List Quotes",
+      "description": "List quotes in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "description": "Start date for filtering quotes (ISO 8601 format)."
+          },
+          "to_date": {
+            "type": "string",
+            "description": "End date for filtering quotes (ISO 8601 format)."
+          },
+          "client_uuid": {
+            "type": "string",
+            "description": "Filter quotes by client UUID."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "quotes": {"type": "array", "items": {"type": "object"}},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "create_quote": {
+      "display_name": "Create Quote",
+      "description": "Create a new quote in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_uuid": {
+            "type": "string",
+            "description": "The UUID of the job to quote for."
+          },
+          "date": {
+            "type": "string",
+            "description": "The quote date (ISO 8601 format)."
+          },
+          "expiry_date": {
+            "type": "string",
+            "description": "The expiry date of the quote (ISO 8601 format)."
+          },
+          "description": {
+            "type": "string",
+            "description": "A description for the quote."
+          },
+          "amount": {
+            "type": "number",
+            "description": "The quoted amount (excluding tax)."
+          }
+        },
+        "required": ["job_uuid", "date", "amount"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "quote": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "list_tasks": {
+      "display_name": "List Tasks",
+      "description": "List tasks across all jobs in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_uuid": {
+            "type": "string",
+            "description": "Filter tasks by job UUID."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "tasks": {"type": "array", "items": {"type": "object"}},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "create_task": {
+      "display_name": "Create Task",
+      "description": "Create a new task in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the task."
+          },
+          "job_uuid": {
+            "type": "string",
+            "description": "The UUID of the job this task belongs to."
+          },
+          "description": {
+            "type": "string",
+            "description": "A description of the task."
+          },
+          "estimated_minutes": {
+            "type": "integer",
+            "description": "The estimated time in minutes for the task."
+          },
+          "start_date": {
+            "type": "string",
+            "description": "The start date of the task (ISO 8601 format)."
+          },
+          "due_date": {
+            "type": "string",
+            "description": "The due date of the task (ISO 8601 format)."
+          }
+        },
+        "required": ["name", "job_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "task": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "update_task": {
+      "display_name": "Update Task",
+      "description": "Update an existing task in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "description": "The UUID of the task to update."
+          },
+          "name": {
+            "type": "string",
+            "description": "The updated name of the task."
+          },
+          "description": {
+            "type": "string",
+            "description": "The updated description of the task."
+          },
+          "estimated_minutes": {
+            "type": "integer",
+            "description": "The updated estimated time in minutes."
+          },
+          "due_date": {
+            "type": "string",
+            "description": "The updated due date (ISO 8601 format)."
+          },
+          "completed": {
+            "type": "boolean",
+            "description": "Whether the task is completed."
+          }
+        },
+        "required": ["uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "task": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "list_staff": {
+      "display_name": "List Staff",
+      "description": "List all staff members in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "staff": {"type": "array", "items": {"type": "object"}},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "get_staff": {
+      "display_name": "Get Staff Member",
+      "description": "Get a staff member by their UUID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "description": "The UUID of the staff member to retrieve."
+          }
+        },
+        "required": ["uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "staff_member": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "list_leads": {
+      "display_name": "List Leads",
+      "description": "List all leads in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination (1-based)."
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of results per page."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "leads": {"type": "array", "items": {"type": "object"}},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "create_lead": {
+      "display_name": "Create Lead",
+      "description": "Create a new lead in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the lead."
+          },
+          "client_uuid": {
+            "type": "string",
+            "description": "The UUID of an existing client associated with the lead."
+          },
+          "contact_name": {
+            "type": "string",
+            "description": "The name of the contact for the lead."
+          },
+          "email": {
+            "type": "string",
+            "description": "The email address for the lead."
+          },
+          "phone": {
+            "type": "string",
+            "description": "The phone number for the lead."
+          },
+          "description": {
+            "type": "string",
+            "description": "A description of the lead opportunity."
+          }
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "lead": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "list_costs": {
+      "display_name": "List Costs",
+      "description": "List costs in WorkflowMax, optionally filtered by job.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_uuid": {
+            "type": "string",
+            "description": "Filter costs by job UUID."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "costs": {"type": "array", "items": {"type": "object"}},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "create_cost": {
+      "display_name": "Create Cost",
+      "description": "Add a cost entry to a job in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_uuid": {
+            "type": "string",
+            "description": "The UUID of the job to add the cost to."
+          },
+          "description": {
+            "type": "string",
+            "description": "A description of the cost."
+          },
+          "quantity": {
+            "type": "number",
+            "description": "The quantity for the cost entry."
+          },
+          "unit_cost": {
+            "type": "number",
+            "description": "The unit cost amount."
+          },
+          "unit_price": {
+            "type": "number",
+            "description": "The unit price (sell price)."
+          },
+          "supplier_uuid": {
+            "type": "string",
+            "description": "The UUID of the supplier for this cost."
+          },
+          "date": {
+            "type": "string",
+            "description": "The date of the cost entry (ISO 8601 format)."
+          }
+        },
+        "required": ["job_uuid", "description", "unit_cost"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "cost": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "list_purchase_orders": {
+      "display_name": "List Purchase Orders",
+      "description": "List purchase orders in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "description": "Start date for filtering purchase orders (ISO 8601 format)."
+          },
+          "to_date": {
+            "type": "string",
+            "description": "End date for filtering purchase orders (ISO 8601 format)."
+          },
+          "supplier_uuid": {
+            "type": "string",
+            "description": "Filter purchase orders by supplier UUID."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "purchase_orders": {"type": "array", "items": {"type": "object"}},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "create_purchase_order": {
+      "display_name": "Create Purchase Order",
+      "description": "Create a new purchase order in WorkflowMax.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "supplier_uuid": {
+            "type": "string",
+            "description": "The UUID of the supplier for the purchase order."
+          },
+          "job_uuid": {
+            "type": "string",
+            "description": "The UUID of the job associated with this purchase order."
+          },
+          "date": {
+            "type": "string",
+            "description": "The purchase order date (ISO 8601 format)."
+          },
+          "delivery_date": {
+            "type": "string",
+            "description": "The expected delivery date (ISO 8601 format)."
+          },
+          "description": {
+            "type": "string",
+            "description": "A description for the purchase order."
+          },
+          "amount": {
+            "type": "number",
+            "description": "The total amount of the purchase order."
+          }
+        },
+        "required": ["supplier_uuid", "date", "amount"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "purchase_order": {"type": "object"},
+          "error": {"type": "string"}
+        }
+      }
+    }
+  }
+}
