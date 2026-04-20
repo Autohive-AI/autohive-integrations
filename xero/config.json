@@ -1360,8 +1360,7 @@
                 },
                 "required": [
                     "tenant_id",
-                    "invoice_id",
-                    "file"
+                    "invoice_id"
                 ]
             },
             "output_schema": {
@@ -1443,8 +1442,7 @@
                 },
                 "required": [
                     "tenant_id",
-                    "bill_id",
-                    "file"
+                    "bill_id"
                 ]
             },
             "output_schema": {
