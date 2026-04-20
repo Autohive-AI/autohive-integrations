@@ -1,7 +1,7 @@
 {
     "name": "Google Chat",
     "display_name": "Google Chat",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Send messages, manage spaces, and interact with Google Chat conversations as a user",
     "entry_point": "google_chat.py",
     "auth": {

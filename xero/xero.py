@@ -12,6 +12,33 @@ import base64
 
 import aiohttp
 
+
+async def _resolve_file_bytes(file_obj: dict) -> bytes:
+    """Resolve file bytes from a file object that has either 'content' (base64) or 'url' (pre-signed S3)."""
+    content_b64 = file_obj.get("content")
+    if content_b64:
+        try:
+            return base64.b64decode(content_b64)
+        except Exception:
+            raise ValueError("file 'content' is not valid base64-encoded data")
+
+    url = file_obj.get("url")
+    if url:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    raise ValueError(f"Failed to download file from url: HTTP {resp.status}")
+                return await resp.read()
+
+    file_id = file_obj.get("fileId")
+    if file_id is not None:
+        raise ValueError(
+            f"File content could not be resolved (fileId={file_id}, ownerType={file_obj.get('ownerType')}) — "
+            "the platform failed to inject file content before tool execution"
+        )
+    raise ValueError("file object missing 'content' (base64) or 'url' — ensure a file is attached to the message")
+
+
 # Create the integration using the config.json
 xero = Integration.load()
 
@@ -1319,11 +1346,6 @@ class AttachFileToInvoiceAction(ActionHandler):
 
         try:
             # Debug: Log what inputs we're receiving
-            print(f"DEBUG attach_file_to_invoice: Received inputs keys: {list(inputs.keys())}")
-            for key, value in inputs.items():
-                if "file" in key.lower():
-                    print(f"DEBUG attach_file_to_invoice: {key} = {type(value)} - {value}")
-
             # Get file object from inputs
             file_obj = inputs.get("file")
             files_arr = inputs.get("files")
@@ -1331,7 +1353,6 @@ class AttachFileToInvoiceAction(ActionHandler):
                 file_obj = files_arr[0]
 
             if not file_obj or not isinstance(file_obj, dict):
-                # Debug: Show what we actually received
                 available_keys = [k for k in inputs.keys() if "file" in k.lower()]
                 raise ValueError(
                     f"file object is required. Available file-related keys: {available_keys}. "
@@ -1339,14 +1360,15 @@ class AttachFileToInvoiceAction(ActionHandler):
                 )
 
             # Extract file data from file object
-            content_b64 = file_obj.get("content")
-            if not content_b64:
-                raise ValueError("file object missing content")
+            file_name = (file_obj.get("name") or "").strip()
+            if not file_name:
+                raise ValueError("file object missing 'name'")
 
-            # Decode the base64 file content
-            file_bytes = base64.b64decode(content_b64)
-            file_name = file_obj.get("name", "attachment")
-            content_type = file_obj.get("contentType", "application/octet-stream")
+            content_type = (file_obj.get("contentType") or "").strip()
+            if not content_type:
+                raise ValueError("file object missing 'contentType' (e.g. 'application/pdf', 'image/png')")
+
+            file_bytes = await _resolve_file_bytes(file_obj)
 
             # Prepare the attachment payload
             # Xero expects file data as raw bytes, not JSON
@@ -1432,14 +1454,15 @@ class AttachFileToBillAction(ActionHandler):
                 raise ValueError("file object is required")
 
             # Extract file data from file object
-            content_b64 = file_obj.get("content")
-            if not content_b64:
-                raise ValueError("file object missing content")
+            file_name = (file_obj.get("name") or "").strip()
+            if not file_name:
+                raise ValueError("file object missing 'name'")
 
-            # Decode the base64 file content
-            file_bytes = base64.b64decode(content_b64)
-            file_name = file_obj.get("name", "attachment")
-            content_type = file_obj.get("contentType", "application/octet-stream")
+            content_type = (file_obj.get("contentType") or "").strip()
+            if not content_type:
+                raise ValueError("file object missing 'contentType' (e.g. 'application/pdf', 'image/png')")
+
+            file_bytes = await _resolve_file_bytes(file_obj)
 
             # Prepare the attachment payload
             # Xero expects file data as raw bytes, not JSON
@@ -1519,8 +1542,10 @@ class GetAttachmentsAction(ActionHandler):
             raise ValueError("guid is required")
 
         try:
+            api_endpoint = endpoint
+
             # Build URL for getting attachments list
-            url = f"https://api.xero.com/api.xro/2.0/{endpoint}/{guid}/Attachments"
+            url = f"https://api.xero.com/api.xro/2.0/{api_endpoint}/{guid}/Attachments"
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
@@ -1583,8 +1608,10 @@ class GetAttachmentContentAction(ActionHandler):
             raise ValueError("file_name is required")
 
         try:
+            api_endpoint = endpoint
+
             # Build URL for getting attachment content
-            url = f"https://api.xero.com/api.xro/2.0/{endpoint}/{guid}/Attachments/{file_name}"
+            url = f"https://api.xero.com/api.xro/2.0/{api_endpoint}/{guid}/Attachments/{file_name}"
 
             # For attachment content download, we need to handle binary data manually
             # Similar to how Box integration handles file content
@@ -1611,12 +1638,19 @@ class GetAttachmentContentAction(ActionHandler):
                             }
                         )
 
-                    # Read binary content and encode as base64
                     file_content = await response.read()
-                    content_base64 = base64.b64encode(file_content).decode("utf-8")
-
-                    # Determine content type from response headers
                     content_type = response.headers.get("content-type", "application/octet-stream")
+
+                if file_content is None:
+                    return ActionResult(
+                        data={
+                            "file": {"name": file_name, "content": "", "contentType": ""},
+                            "success": False,
+                            "error": "No content returned from Xero API",
+                        }
+                    )
+
+                content_base64 = base64.b64encode(file_content).decode("utf-8")
 
             return ActionResult(
                 data={

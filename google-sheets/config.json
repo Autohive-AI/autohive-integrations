@@ -1,7 +1,7 @@
 {
   "name": "Google Sheets",
   "display_name": "Google Sheets",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "entry_point": "google_sheets.py",
   "description": "Read and write Google Sheets with safe, deterministic operations and basic formatting.",
   "auth": {

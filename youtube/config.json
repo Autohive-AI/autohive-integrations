@@ -1,7 +1,7 @@
 {
     "name": "YouTube",
     "display_name": "YouTube",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Complete YouTube Data API v3 integration for managing videos, channels, playlists, comments, and more.",
     "entry_point": "youtube.py",
     "auth": {
