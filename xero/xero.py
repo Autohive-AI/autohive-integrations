@@ -12,6 +12,33 @@ import base64
 
 import aiohttp
 
+
+async def _resolve_file_bytes(file_obj: dict) -> bytes:
+    """Resolve file bytes from a file object that has either 'content' (base64) or 'url' (pre-signed S3)."""
+    content_b64 = file_obj.get("content")
+    if content_b64:
+        try:
+            return base64.b64decode(content_b64)
+        except Exception:
+            raise ValueError("file 'content' is not valid base64-encoded data")
+
+    url = file_obj.get("url")
+    if url:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    raise ValueError(f"Failed to download file from url: HTTP {resp.status}")
+                return await resp.read()
+
+    file_id = file_obj.get("fileId")
+    if file_id is not None:
+        raise ValueError(
+            f"File content could not be resolved (fileId={file_id}, ownerType={file_obj.get('ownerType')}) — "
+            "the platform failed to inject file content before tool execution"
+        )
+    raise ValueError("file object missing 'content' (base64) or 'url' — ensure a file is attached to the message")
+
+
 # Create the integration using the config.json
 xero = Integration.load()
 
@@ -1333,10 +1360,6 @@ class AttachFileToInvoiceAction(ActionHandler):
                 )
 
             # Extract file data from file object
-            content_b64 = file_obj.get("content")
-            if not content_b64:
-                raise ValueError("file object missing 'content' (expected base64-encoded data)")
-
             file_name = (file_obj.get("name") or "").strip()
             if not file_name:
                 raise ValueError("file object missing 'name'")
@@ -1345,11 +1368,7 @@ class AttachFileToInvoiceAction(ActionHandler):
             if not content_type:
                 raise ValueError("file object missing 'contentType' (e.g. 'application/pdf', 'image/png')")
 
-            # Decode the base64 file content
-            try:
-                file_bytes = base64.b64decode(content_b64)
-            except Exception:
-                raise ValueError("file 'content' is not valid base64-encoded data")
+            file_bytes = await _resolve_file_bytes(file_obj)
 
             # Prepare the attachment payload
             # Xero expects file data as raw bytes, not JSON
@@ -1435,10 +1454,6 @@ class AttachFileToBillAction(ActionHandler):
                 raise ValueError("file object is required")
 
             # Extract file data from file object
-            content_b64 = file_obj.get("content")
-            if not content_b64:
-                raise ValueError("file object missing 'content' (expected base64-encoded data)")
-
             file_name = (file_obj.get("name") or "").strip()
             if not file_name:
                 raise ValueError("file object missing 'name'")
@@ -1447,11 +1462,7 @@ class AttachFileToBillAction(ActionHandler):
             if not content_type:
                 raise ValueError("file object missing 'contentType' (e.g. 'application/pdf', 'image/png')")
 
-            # Decode the base64 file content
-            try:
-                file_bytes = base64.b64decode(content_b64)
-            except Exception:
-                raise ValueError("file 'content' is not valid base64-encoded data")
+            file_bytes = await _resolve_file_bytes(file_obj)
 
             # Prepare the attachment payload
             # Xero expects file data as raw bytes, not JSON
