@@ -1629,41 +1629,26 @@ class GetAttachmentContentAction(ActionHandler):
                     if "access_token" in credentials:
                         headers["Authorization"] = f"Bearer {credentials['access_token']}"
 
-                # Retry with backoff on 404 — Xero storage can lag after upload
-                max_retries = 3
-                retry_delay = 2
-                last_error_text = ""
-                file_content = None
-                content_type = None
+                async with session.get(url, headers=headers) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        return ActionResult(
+                            data={
+                                "file": {"name": file_name, "content": "", "contentType": ""},
+                                "success": False,
+                                "error": f"Xero API error getting attachment content: {response.status} - {error_text}",
+                            }
+                        )
 
-                for attempt in range(max_retries):
-                    async with session.get(url, headers=headers) as response:
-                        if response.status == 200:
-                            file_content = await response.read()
-                            content_type = response.headers.get("content-type", "application/octet-stream")
-                            break
-                        elif response.status == 404 and attempt < max_retries - 1:
-                            last_error_text = await response.text()
-                            await asyncio.sleep(retry_delay)
-                        else:
-                            last_error_text = await response.text()
-                            return ActionResult(
-                                data={
-                                    "file": {"name": file_name, "content": "", "contentType": ""},
-                                    "success": False,
-                                    "error": (
-                                        f"Xero API error getting attachment content: "
-                                        f"{response.status} - {last_error_text}"
-                                    ),
-                                }
-                            )
+                    file_content = await response.read()
+                    content_type = response.headers.get("content-type", "application/octet-stream")
 
                 if file_content is None:
                     return ActionResult(
                         data={
                             "file": {"name": file_name, "content": "", "contentType": ""},
                             "success": False,
-                            "error": f"Attachment not found after {max_retries} attempts (404) - {last_error_text}",
+                            "error": "No content returned from Xero API",
                         }
                     )
 
