@@ -26,17 +26,47 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "id": {"type": "string", "description": "Instagram account ID"},
-                    "username": {"type": "string", "description": "Instagram username"},
-                    "name": {"type": "string", "description": "Display name"},
-                    "biography": {"type": "string", "description": "Account bio"},
-                    "followers_count": {"type": "integer", "description": "Number of followers"},
-                    "following_count": {"type": "integer", "description": "Number of accounts followed"},
-                    "media_count": {"type": "integer", "description": "Total number of media posts"},
-                    "profile_picture_url": {"type": "string", "description": "URL of the profile picture"},
-                    "website": {"type": "string", "description": "Website URL from profile"}
+                    "id": {
+                        "type": "string",
+                        "description": "Instagram account ID"
+                    },
+                    "username": {
+                        "type": "string",
+                        "description": "Instagram username"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Display name"
+                    },
+                    "biography": {
+                        "type": "string",
+                        "description": "Account bio"
+                    },
+                    "followers_count": {
+                        "type": "integer",
+                        "description": "Number of followers"
+                    },
+                    "following_count": {
+                        "type": "integer",
+                        "description": "Number of accounts followed"
+                    },
+                    "media_count": {
+                        "type": "integer",
+                        "description": "Total number of media posts"
+                    },
+                    "profile_picture_url": {
+                        "type": "string",
+                        "description": "URL of the profile picture"
+                    },
+                    "website": {
+                        "type": "string",
+                        "description": "Website URL from profile"
+                    }
                 },
-                "required": ["id", "username"]
+                "required": [
+                    "id",
+                    "username"
+                ]
             }
         },
         "get_posts": {
@@ -70,24 +100,62 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string", "description": "Post ID"},
-                                "media_type": {"type": "string", "enum": ["IMAGE", "VIDEO", "CAROUSEL_ALBUM", "REELS"], "description": "Type of post"},
-                                "caption": {"type": "string", "description": "Post caption"},
-                                "permalink": {"type": "string", "description": "Direct link to the post"},
-                                "timestamp": {"type": "string", "description": "ISO 8601 timestamp"},
-                                "thumbnail_url": {"type": "string", "description": "Thumbnail URL (for videos)"},
-                                "media_url": {"type": "string", "description": "URL of the media file"},
-                                "like_count": {"type": "integer", "description": "Number of likes"},
-                                "comments_count": {"type": "integer", "description": "Number of comments"}
+                                "id": {
+                                    "type": "string",
+                                    "description": "Post ID"
+                                },
+                                "media_type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "IMAGE",
+                                        "VIDEO",
+                                        "CAROUSEL_ALBUM",
+                                        "REELS"
+                                    ],
+                                    "description": "Type of post"
+                                },
+                                "caption": {
+                                    "type": "string",
+                                    "description": "Post caption"
+                                },
+                                "permalink": {
+                                    "type": "string",
+                                    "description": "Direct link to the post"
+                                },
+                                "timestamp": {
+                                    "type": "string",
+                                    "description": "ISO 8601 timestamp"
+                                },
+                                "thumbnail_url": {
+                                    "type": "string",
+                                    "description": "Thumbnail URL (for videos)"
+                                },
+                                "media_url": {
+                                    "type": "string",
+                                    "description": "URL of the media file"
+                                },
+                                "like_count": {
+                                    "type": "integer",
+                                    "description": "Number of likes"
+                                },
+                                "comments_count": {
+                                    "type": "integer",
+                                    "description": "Number of comments"
+                                }
                             }
                         }
                     },
                     "next_cursor": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Pagination cursor to fetch the next page. Null if no more results."
                     }
                 },
-                "required": ["media"]
+                "required": [
+                    "media"
+                ]
             }
         },
         "create_post": {
@@ -98,7 +166,12 @@
                 "properties": {
                     "media_type": {
                         "type": "string",
-                        "enum": ["IMAGE", "VIDEO", "REELS", "CAROUSEL"],
+                        "enum": [
+                            "IMAGE",
+                            "VIDEO",
+                            "REELS",
+                            "CAROUSEL"
+                        ],
                         "description": "Type of post to publish"
                     },
                     "media_url": {
@@ -111,7 +184,9 @@
                     },
                     "children": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "Required for CAROUSEL: Array of media URLs for carousel items"
                     },
                     "alt_text": {
@@ -119,15 +194,25 @@
                         "description": "Optional: Alt text for accessibility (images only)"
                     }
                 },
-                "required": ["media_type"]
+                "required": [
+                    "media_type"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "media_id": {"type": "string", "description": "ID of the created post"},
-                    "permalink": {"type": "string", "description": "Direct link to the post"}
+                    "media_id": {
+                        "type": "string",
+                        "description": "ID of the created post"
+                    },
+                    "permalink": {
+                        "type": "string",
+                        "description": "Direct link to the post"
+                    }
                 },
-                "required": ["media_id"]
+                "required": [
+                    "media_id"
+                ]
             }
         },
         "create_story": {
@@ -138,7 +223,10 @@
                 "properties": {
                     "media_type": {
                         "type": "string",
-                        "enum": ["IMAGE", "VIDEO"],
+                        "enum": [
+                            "IMAGE",
+                            "VIDEO"
+                        ],
                         "description": "Type of story media"
                     },
                     "media_url": {
@@ -146,14 +234,22 @@
                         "description": "Public URL of the media file"
                     }
                 },
-                "required": ["media_type", "media_url"]
+                "required": [
+                    "media_type",
+                    "media_url"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "media_id": {"type": "string", "description": "ID of the created story"}
+                    "media_id": {
+                        "type": "string",
+                        "description": "ID of the created story"
+                    }
                 },
-                "required": ["media_id"]
+                "required": [
+                    "media_id"
+                ]
             }
         },
         "get_comments": {
@@ -176,7 +272,9 @@
                         "description": "Optional: Pagination cursor from a previous response to fetch the next page of results."
                     }
                 },
-                "required": ["media_id"]
+                "required": [
+                    "media_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -187,21 +285,48 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string", "description": "Comment ID"},
-                                "text": {"type": "string", "description": "Comment text"},
-                                "username": {"type": "string", "description": "Commenter's username"},
-                                "timestamp": {"type": "string", "description": "ISO 8601 timestamp"},
-                                "like_count": {"type": "integer", "description": "Number of likes on the comment"},
+                                "id": {
+                                    "type": "string",
+                                    "description": "Comment ID"
+                                },
+                                "text": {
+                                    "type": "string",
+                                    "description": "Comment text"
+                                },
+                                "username": {
+                                    "type": "string",
+                                    "description": "Commenter's username"
+                                },
+                                "timestamp": {
+                                    "type": "string",
+                                    "description": "ISO 8601 timestamp"
+                                },
+                                "like_count": {
+                                    "type": "integer",
+                                    "description": "Number of likes on the comment"
+                                },
                                 "replies": {
                                     "type": "array",
                                     "description": "Replies to this comment",
                                     "items": {
                                         "type": "object",
                                         "properties": {
-                                            "id": {"type": "string", "description": "Reply ID"},
-                                            "text": {"type": "string", "description": "Reply text"},
-                                            "username": {"type": "string", "description": "Replier's username"},
-                                            "timestamp": {"type": "string", "description": "ISO 8601 timestamp"}
+                                            "id": {
+                                                "type": "string",
+                                                "description": "Reply ID"
+                                            },
+                                            "text": {
+                                                "type": "string",
+                                                "description": "Reply text"
+                                            },
+                                            "username": {
+                                                "type": "string",
+                                                "description": "Replier's username"
+                                            },
+                                            "timestamp": {
+                                                "type": "string",
+                                                "description": "ISO 8601 timestamp"
+                                            }
                                         }
                                     }
                                 }
@@ -209,11 +334,16 @@
                         }
                     },
                     "next_cursor": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Pagination cursor to fetch the next page. Null if no more results."
                     }
                 },
-                "required": ["comments"]
+                "required": [
+                    "comments"
+                ]
             }
         },
         "manage_comment": {
@@ -228,7 +358,11 @@
                     },
                     "action": {
                         "type": "string",
-                        "enum": ["reply", "hide", "unhide"],
+                        "enum": [
+                            "reply",
+                            "hide",
+                            "unhide"
+                        ],
                         "description": "Action to perform: 'reply' to respond, 'hide'/'unhide' to toggle visibility"
                     },
                     "message": {
@@ -236,16 +370,31 @@
                         "description": "Required for 'reply' action: Your reply text"
                     }
                 },
-                "required": ["comment_id", "action"]
+                "required": [
+                    "comment_id",
+                    "action"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean", "description": "Whether the action succeeded"},
-                    "action_taken": {"type": "string", "description": "The action that was performed"},
-                    "reply_id": {"type": "string", "description": "ID of the reply comment (if action was 'reply')"}
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether the action succeeded"
+                    },
+                    "action_taken": {
+                        "type": "string",
+                        "description": "The action that was performed"
+                    },
+                    "reply_id": {
+                        "type": "string",
+                        "description": "ID of the reply comment (if action was 'reply')"
+                    }
                 },
-                "required": ["success", "action_taken"]
+                "required": [
+                    "success",
+                    "action_taken"
+                ]
             }
         },
         "delete_comment": {
@@ -259,15 +408,25 @@
                         "description": "The ID of the comment to delete"
                     }
                 },
-                "required": ["comment_id"]
+                "required": [
+                    "comment_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean", "description": "Whether the comment was deleted"},
-                    "deleted_comment_id": {"type": "string", "description": "ID of the deleted comment"}
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether the comment was deleted"
+                    },
+                    "deleted_comment_id": {
+                        "type": "string",
+                        "description": "ID of the deleted comment"
+                    }
                 },
-                "required": ["success"]
+                "required": [
+                    "success"
+                ]
             }
         },
         "get_insights": {
@@ -278,7 +437,10 @@
                 "properties": {
                     "target_type": {
                         "type": "string",
-                        "enum": ["account", "media"],
+                        "enum": [
+                            "account",
+                            "media"
+                        ],
                         "description": "Type of insights: 'account' for overall analytics, 'media' for specific post metrics"
                     },
                     "target_id": {
@@ -287,32 +449,55 @@
                     },
                     "metrics": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "Specific metrics to retrieve. Defaults to common metrics if omitted."
                     },
                     "period": {
                         "type": "string",
-                        "enum": ["day", "week", "days_28", "lifetime"],
+                        "enum": [
+                            "day",
+                            "week",
+                            "days_28",
+                            "lifetime"
+                        ],
                         "description": "Time period for insights (default: 'days_28'). 'lifetime' only for posts.",
                         "default": "days_28"
                     }
                 },
-                "required": ["target_type"]
+                "required": [
+                    "target_type"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "target_type": {"type": "string", "description": "Whether these are account or post insights"},
-                    "target_id": {"type": "string", "description": "The account or post ID"},
-                    "period": {"type": "string", "description": "Time period for the data"},
+                    "target_type": {
+                        "type": "string",
+                        "description": "Whether these are account or post insights"
+                    },
+                    "target_id": {
+                        "type": "string",
+                        "description": "The account or post ID"
+                    },
+                    "period": {
+                        "type": "string",
+                        "description": "Time period for the data"
+                    },
                     "metrics": {
                         "type": "object",
                         "description": "Key-value pairs of metric names and their values",
                         "additionalProperties": true
                     }
                 },
-                "required": ["target_type", "period", "metrics"]
+                "required": [
+                    "target_type",
+                    "period",
+                    "metrics"
+                ]
             }
         }
-    }
+    },
+    "display_name": "Instagram"
 }

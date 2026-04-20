@@ -57,7 +57,10 @@
                                     "description": "Whether the channel is private"
                                 }
                             },
-                            "required": ["id", "name"]
+                            "required": [
+                                "id",
+                                "name"
+                            ]
                         }
                     },
                     "result": {
@@ -69,7 +72,10 @@
                         "description": "Error message if the action failed"
                     }
                 },
-                "required": ["channels", "result"]
+                "required": [
+                    "channels",
+                    "result"
+                ]
             }
         },
         "get_heartbeat_channel": {
@@ -83,7 +89,9 @@
                         "description": "The ID of the channel to retrieve"
                     }
                 },
-                "required": ["channel_id"]
+                "required": [
+                    "channel_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -113,7 +121,10 @@
                                 "description": "Whether the channel is private"
                             }
                         },
-                        "required": ["id", "name"]
+                        "required": [
+                            "id",
+                            "name"
+                        ]
                     },
                     "result": {
                         "type": "boolean",
@@ -124,7 +135,10 @@
                         "description": "Error message if the action failed"
                     }
                 },
-                "required": ["channel", "result"]
+                "required": [
+                    "channel",
+                    "result"
+                ]
             }
         },
         "get_heartbeat_channel_threads": {
@@ -138,7 +152,9 @@
                         "description": "The ID of the channel to get threads from"
                     }
                 },
-                "required": ["channel_id"]
+                "required": [
+                    "channel_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -214,10 +230,19 @@
                                             "description": "User creation timestamp"
                                         }
                                     },
-                                    "required": ["id", "name", "email"]
+                                    "required": [
+                                        "id",
+                                        "name",
+                                        "email"
+                                    ]
                                 }
                             },
-                            "required": ["id", "title", "channelID", "authorID"]
+                            "required": [
+                                "id",
+                                "title",
+                                "channelID",
+                                "authorID"
+                            ]
                         }
                     },
                     "result": {
@@ -229,7 +254,10 @@
                         "description": "Error message if the action failed"
                     }
                 },
-                "required": ["threads", "result"]
+                "required": [
+                    "threads",
+                    "result"
+                ]
             }
         },
         "get_heartbeat_thread": {
@@ -243,7 +271,9 @@
                         "description": "The ID of the thread to retrieve"
                     }
                 },
-                "required": ["thread_id"]
+                "required": [
+                    "thread_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -317,10 +347,19 @@
                                         "description": "User creation timestamp"
                                     }
                                 },
-                                "required": ["id", "name", "email"]
+                                "required": [
+                                    "id",
+                                    "name",
+                                    "email"
+                                ]
                             }
                         },
-                        "required": ["id", "title", "channelID", "authorID"]
+                        "required": [
+                            "id",
+                            "title",
+                            "channelID",
+                            "authorID"
+                        ]
                     },
                     "result": {
                         "type": "boolean",
@@ -331,7 +370,10 @@
                         "description": "Error message if the action failed"
                     }
                 },
-                "required": ["thread", "result"]
+                "required": [
+                    "thread",
+                    "result"
+                ]
             }
         },
         "get_heartbeat_users": {
@@ -376,7 +418,11 @@
                                     "description": "User creation timestamp"
                                 }
                             },
-                            "required": ["id", "email", "name"]
+                            "required": [
+                                "id",
+                                "email",
+                                "name"
+                            ]
                         }
                     },
                     "result": {
@@ -388,7 +434,10 @@
                         "description": "Error message if the action failed"
                     }
                 },
-                "required": ["users", "result"]
+                "required": [
+                    "users",
+                    "result"
+                ]
             }
         },
         "get_heartbeat_user": {
@@ -402,7 +451,9 @@
                         "description": "The ID of the user to retrieve"
                     }
                 },
-                "required": ["user_id"]
+                "required": [
+                    "user_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -436,7 +487,11 @@
                                 "description": "User creation timestamp"
                             }
                         },
-                        "required": ["id", "email", "name"]
+                        "required": [
+                            "id",
+                            "email",
+                            "name"
+                        ]
                     },
                     "result": {
                         "type": "boolean",
@@ -447,7 +502,10 @@
                         "description": "Error message if the action failed"
                     }
                 },
-                "required": ["user", "result"]
+                "required": [
+                    "user",
+                    "result"
+                ]
             }
         },
         "get_heartbeat_events": {
@@ -496,7 +554,11 @@
                                     "description": "Event creation timestamp"
                                 }
                             },
-                            "required": ["id", "title", "startTime"]
+                            "required": [
+                                "id",
+                                "title",
+                                "startTime"
+                            ]
                         }
                     },
                     "result": {
@@ -508,7 +570,10 @@
                         "description": "Error message if the action failed"
                     }
                 },
-                "required": ["events", "result"]
+                "required": [
+                    "events",
+                    "result"
+                ]
             }
         },
         "get_heartbeat_event": {
@@ -522,7 +587,9 @@
                         "description": "The ID of the event to retrieve"
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -560,7 +627,11 @@
                                 "description": "Event creation timestamp"
                             }
                         },
-                        "required": ["id", "title", "startTime"]
+                        "required": [
+                            "id",
+                            "title",
+                            "startTime"
+                        ]
                     },
                     "result": {
                         "type": "boolean",
@@ -571,7 +642,10 @@
                         "description": "Error message if the action failed"
                     }
                 },
-                "required": ["event", "result"]
+                "required": [
+                    "event",
+                    "result"
+                ]
             }
         },
         "create_heartbeat_comment": {
@@ -597,7 +671,10 @@
                         "description": "The ID of the admin user to create the comment as. Only admin users can be chosen. If not provided, will use the API key owner (optional)"
                     }
                 },
-                "required": ["thread_id", "content"]
+                "required": [
+                    "thread_id",
+                    "content"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -663,10 +740,19 @@
                                         "description": "User creation timestamp"
                                     }
                                 },
-                                "required": ["id", "name", "email"]
+                                "required": [
+                                    "id",
+                                    "name",
+                                    "email"
+                                ]
                             }
                         },
-                        "required": ["id", "content", "threadID", "authorID"]
+                        "required": [
+                            "id",
+                            "content",
+                            "threadID",
+                            "authorID"
+                        ]
                     },
                     "result": {
                         "type": "boolean",
@@ -677,7 +763,10 @@
                         "description": "Error message if the action failed"
                     }
                 },
-                "required": ["comment", "result"]
+                "required": [
+                    "comment",
+                    "result"
+                ]
             }
         },
         "create_heartbeat_thread": {
@@ -699,7 +788,10 @@
                         "description": "The ID of the admin user to create the thread as. Only admin users can be chosen. If not provided, will use the API key owner (optional)"
                     }
                 },
-                "required": ["channel_id", "content"]
+                "required": [
+                    "channel_id",
+                    "content"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -773,10 +865,19 @@
                                         "description": "User creation timestamp"
                                     }
                                 },
-                                "required": ["id", "name", "email"]
+                                "required": [
+                                    "id",
+                                    "name",
+                                    "email"
+                                ]
                             }
                         },
-                        "required": ["id", "title", "channelID", "authorID"]
+                        "required": [
+                            "id",
+                            "title",
+                            "channelID",
+                            "authorID"
+                        ]
                     },
                     "result": {
                         "type": "boolean",
@@ -787,8 +888,12 @@
                         "description": "Error message if the action failed"
                     }
                 },
-                "required": ["thread", "result"]
+                "required": [
+                    "thread",
+                    "result"
+                ]
             }
         }
-    }
+    },
+    "display_name": "Heartbeat"
 }

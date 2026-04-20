@@ -1,2 +1,2 @@
-autohive-integrations-sdk
+autohive-integrations-sdk~=2.0.0
 requests>=2.31.0

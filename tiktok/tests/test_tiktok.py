@@ -358,7 +358,7 @@ class TestBuildPostStatus:
             "status": data.get("status", ""),
             "fail_reason": data.get("fail_reason", ""),
             "publicaly_available_post_id": post_ids,  # TikTok's actual field name
-            "publicly_available_post_id": post_ids,   # Correctly spelled alias
+            "publicly_available_post_id": post_ids,  # Correctly spelled alias
             "uploaded_bytes": data.get("uploaded_bytes", 0),
             "error_code": data.get("error_code", ""),
         }
@@ -395,6 +395,7 @@ class TestCheckApiResponse:
 
     class TikTokAPIError(Exception):
         """Local exception class for testing."""
+
         def __init__(self, message, error_code="", log_id=""):
             super().__init__(message)
             self.error_code = error_code
@@ -419,7 +420,9 @@ class TestCheckApiResponse:
 
                 message = error.get("message") or error.get("description") or str(error)
                 log_id = error.get("log_id", "")
-                raise self.TikTokAPIError(f"TikTok API error: {message} (code: {code}, log_id: {log_id})", error_code=code, log_id=log_id)
+                raise self.TikTokAPIError(
+                    f"TikTok API error: {message} (code: {code}, log_id: {log_id})", error_code=code, log_id=log_id
+                )
             elif error:
                 raise self.TikTokAPIError(f"TikTok API error: {error}")
 
@@ -433,20 +436,13 @@ class TestCheckApiResponse:
 
     def test_success_response_with_ok_code(self):
         """Test successful response with error.code = 'ok'."""
-        response = {
-            "data": {"user": {"open_id": "123"}},
-            "error": {"code": "ok", "message": "", "log_id": "abc123"}
-        }
+        response = {"data": {"user": {"open_id": "123"}}, "error": {"code": "ok", "message": "", "log_id": "abc123"}}
         result = self._check_api_response(response)
         assert result["user"]["open_id"] == "123"
 
     def test_error_code_format(self):
         """Test error_code/error_message format."""
-        response = {
-            "error_code": "invalid_token",
-            "error_message": "Token has expired",
-            "log_id": "xyz789"
-        }
+        response = {"error_code": "invalid_token", "error_message": "Token has expired", "log_id": "xyz789"}
         with pytest.raises(self.TikTokAPIError) as exc_info:
             self._check_api_response(response)
         assert exc_info.value.error_code == "invalid_token"
@@ -456,7 +452,7 @@ class TestCheckApiResponse:
         """Test standard error object format."""
         response = {
             "data": {},
-            "error": {"code": "rate_limit_exceeded", "message": "Too many requests", "log_id": "rl123"}
+            "error": {"code": "rate_limit_exceeded", "message": "Too many requests", "log_id": "rl123"},
         }
         with pytest.raises(self.TikTokAPIError) as exc_info:
             self._check_api_response(response)

@@ -1,55 +1,62 @@
 {
-  "name": "Supadata - Transcribe",
-  "version": "1.0.0",
-  "description": "Get transcripts from YouTube, TikTok, Instagram, X (Twitter) videos using Supadata",
-  "entry_point": "supadata_transcribe.py",
-  "auth": {
-    "type": "custom",
-    "title": "Supadata API Key",
-    "fields": {
-      "type": "object",
-      "properties": {
-        "api_key": {
-          "type": "string",
-          "format": "password",
-          "help_text": "Your Supadata API key for video transcript extraction"
+    "name": "Supadata - Transcribe",
+    "version": "1.0.0",
+    "description": "Get transcripts from YouTube, TikTok, Instagram, X (Twitter) videos using Supadata",
+    "entry_point": "supadata_transcribe.py",
+    "auth": {
+        "type": "custom",
+        "title": "Supadata API Key",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "help_text": "Your Supadata API key for video transcript extraction"
+                }
+            }
         }
-      }
-    }
-  },
-  "actions": {
-    "get_transcript": {
-      "display_name": "Get Video Transcript",
-      "description": "Fetches the timestamped transcript for a video from YouTube, TikTok, Instagram, or X (Twitter) URLs in SRT format",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "video_url": {
-            "type": "string",
-            "description": "Video URL from YouTube, TikTok, Instagram, X (Twitter) or public file URL"
-          }
-        },
-        "required": ["video_url"]
-      },
-      "output_schema": {
-        "type": "object",
-        "properties": {
-          "transcript": {
-            "type": "string",
-            "description": "The video transcript text formatted with timestamps in SRT format"
-          },
-          "language": {
-            "type": "string",
-            "description": "Detected language of the transcript (ISO 639-1 code)"
-          },
-          "available_languages": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "List of available language codes for the transcript"
-          }
-        },
-        "required": ["transcript"]
-      }
-    }
-  }
+    },
+    "actions": {
+        "get_transcript": {
+            "display_name": "Get Video Transcript",
+            "description": "Fetches the timestamped transcript for a video from YouTube, TikTok, Instagram, or X (Twitter) URLs in SRT format",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "video_url": {
+                        "type": "string",
+                        "description": "Video URL from YouTube, TikTok, Instagram, X (Twitter) or public file URL"
+                    }
+                },
+                "required": [
+                    "video_url"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "transcript": {
+                        "type": "string",
+                        "description": "The video transcript text formatted with timestamps in SRT format"
+                    },
+                    "language": {
+                        "type": "string",
+                        "description": "Detected language of the transcript (ISO 639-1 code)"
+                    },
+                    "available_languages": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "List of available language codes for the transcript"
+                    }
+                },
+                "required": [
+                    "transcript"
+                ]
+            }
+        }
+    },
+    "display_name": "Supadata - Transcribe"
 }

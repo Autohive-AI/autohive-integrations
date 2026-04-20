@@ -4,10 +4,9 @@ Tests individual functions and utilities without full integration testing.
 """
 
 import sys
-import os
 
 # Import from context.py which properly loads the module
-from context import doc_maker, doc_maker_functions
+from context import doc_maker_functions
 
 # Extract the functions we want to test
 detect_placeholder_patterns = doc_maker_functions.detect_placeholder_patterns
@@ -64,10 +63,10 @@ class TestResult:
         """Return test summary"""
         total = self.passed + self.failed
         return {
-            'passed': self.passed,
-            'failed': self.failed,
-            'total': total,
-            'success_rate': (self.passed / total * 100) if total > 0 else 0
+            "passed": self.passed,
+            "failed": self.failed,
+            "total": total,
+            "success_rate": (self.passed / total * 100) if total > 0 else 0,
         }
 
 
@@ -143,51 +142,24 @@ async def test_has_markdown_formatting():
     result = TestResult()
 
     # Test various markdown formats
-    result.assert_true(
-        has_markdown_formatting("**bold text**"),
-        "Detect bold formatting"
-    )
+    result.assert_true(has_markdown_formatting("**bold text**"), "Detect bold formatting")
 
-    result.assert_true(
-        has_markdown_formatting("*italic text*"),
-        "Detect italic formatting"
-    )
+    result.assert_true(has_markdown_formatting("*italic text*"), "Detect italic formatting")
 
-    result.assert_true(
-        has_markdown_formatting("`code text`"),
-        "Detect code formatting"
-    )
+    result.assert_true(has_markdown_formatting("`code text`"), "Detect code formatting")
 
-    result.assert_true(
-        has_markdown_formatting("~~strikethrough~~"),
-        "Detect strikethrough formatting"
-    )
+    result.assert_true(has_markdown_formatting("~~strikethrough~~"), "Detect strikethrough formatting")
 
-    result.assert_true(
-        has_markdown_formatting("__underline__"),
-        "Detect underline formatting"
-    )
+    result.assert_true(has_markdown_formatting("__underline__"), "Detect underline formatting")
 
-    result.assert_true(
-        has_markdown_formatting("Text with\nline break"),
-        "Detect line break"
-    )
+    result.assert_true(has_markdown_formatting("Text with\nline break"), "Detect line break")
 
-    result.assert_true(
-        has_markdown_formatting("**bold** and *italic*"),
-        "Detect mixed formatting"
-    )
+    result.assert_true(has_markdown_formatting("**bold** and *italic*"), "Detect mixed formatting")
 
     # Test plain text (should be False)
-    result.assert_false(
-        has_markdown_formatting("Plain text without formatting"),
-        "Plain text has no formatting"
-    )
+    result.assert_false(has_markdown_formatting("Plain text without formatting"), "Plain text has no formatting")
 
-    result.assert_false(
-        has_markdown_formatting("Just regular words"),
-        "Regular text has no formatting"
-    )
+    result.assert_false(has_markdown_formatting("Just regular words"), "Regular text has no formatting")
 
     return result.summary()
 
@@ -198,67 +170,46 @@ async def test_is_likely_placeholder_context():
     result = TestResult()
 
     # Test standalone words (likely placeholders)
-    result.assert_true(
-        is_likely_placeholder_context("name", "name"),
-        "Standalone word is placeholder context"
-    )
+    result.assert_true(is_likely_placeholder_context("name", "name"), "Standalone word is placeholder context")
 
     # Test form field patterns
-    result.assert_true(
-        is_likely_placeholder_context("Name: ___", "Name"),
-        "Form field is placeholder context"
-    )
+    result.assert_true(is_likely_placeholder_context("Name: ___", "Name"), "Form field is placeholder context")
 
     result.assert_true(
-        is_likely_placeholder_context("Date: ---", "Date"),
-        "Form field with dashes is placeholder context"
+        is_likely_placeholder_context("Date: ---", "Date"), "Form field with dashes is placeholder context"
     )
 
     # Test surrounded by placeholder indicators
-    result.assert_true(
-        is_likely_placeholder_context("{{name}}", "name"),
-        "Braced word is placeholder context"
-    )
+    result.assert_true(is_likely_placeholder_context("{{name}}", "name"), "Braced word is placeholder context")
 
     result.assert_true(
-        is_likely_placeholder_context("[project name]", "project name"),
-        "Bracketed phrase is placeholder context"
+        is_likely_placeholder_context("[project name]", "project name"), "Bracketed phrase is placeholder context"
     )
 
     # Test instruction phrases
     result.assert_true(
-        is_likely_placeholder_context("insert data here", "data"),
-        "Instruction phrase is placeholder context"
+        is_likely_placeholder_context("insert data here", "data"), "Instruction phrase is placeholder context"
     )
 
     result.assert_true(
         is_likely_placeholder_context("add your name here", "name"),
-        "Instruction with placeholder word is placeholder context"
+        "Instruction with placeholder word is placeholder context",
     )
 
     # Test content text (should NOT be placeholder context)
     result.assert_false(
-        is_likely_placeholder_context(
-            "The project name should be descriptive and clear.",
-            "name"
-        ),
-        "Word in content sentence is NOT placeholder context"
+        is_likely_placeholder_context("The project name should be descriptive and clear.", "name"),
+        "Word in content sentence is NOT placeholder context",
     )
 
     result.assert_false(
-        is_likely_placeholder_context(
-            "Please review the customer's data before proceeding.",
-            "data"
-        ),
-        "Word in instruction sentence is NOT placeholder context"
+        is_likely_placeholder_context("Please review the customer's data before proceeding.", "data"),
+        "Word in instruction sentence is NOT placeholder context",
     )
 
     result.assert_false(
-        is_likely_placeholder_context(
-            "The date for the meeting has been set.",
-            "date"
-        ),
-        "Word in complete sentence is NOT placeholder context"
+        is_likely_placeholder_context("The date for the meeting has been set.", "date"),
+        "Word in complete sentence is NOT placeholder context",
     )
 
     return result.summary()
@@ -272,7 +223,7 @@ async def test_analyze_replacement_safety():
     # Test safe placeholder matches only
     safe_matches = [
         {"type": "paragraph", "index": 0, "content": "Name: ___"},
-        {"type": "paragraph", "index": 1, "content": "Date: ___"}
+        {"type": "paragraph", "index": 1, "content": "Date: ___"},
     ]
 
     analysis = analyze_replacement_safety("___", safe_matches)
@@ -284,7 +235,7 @@ async def test_analyze_replacement_safety():
     unsafe_matches = [
         {"type": "paragraph", "index": 0, "content": "The name of the project is important."},
         {"type": "paragraph", "index": 1, "content": "Please update the name field."},
-        {"type": "paragraph", "index": 2, "content": "The customer name should be verified."}
+        {"type": "paragraph", "index": 2, "content": "The customer name should be verified."},
     ]
 
     analysis = analyze_replacement_safety("name", unsafe_matches)
@@ -296,7 +247,7 @@ async def test_analyze_replacement_safety():
         {"type": "paragraph", "index": 0, "content": "Name: placeholder"},  # Safe
         {"type": "paragraph", "index": 1, "content": "The name should be clear"},  # Unsafe
         {"type": "paragraph", "index": 2, "content": "Company Name: ___"},  # Safe
-        {"type": "paragraph", "index": 3, "content": "Update the project name"}  # Unsafe
+        {"type": "paragraph", "index": 3, "content": "Update the project name"},  # Unsafe
     ]
 
     analysis = analyze_replacement_safety("name", mixed_matches)
@@ -310,9 +261,9 @@ async def test_analyze_replacement_safety():
 
 async def run_unit_tests():
     """Run all unit tests"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("  UNIT TESTS - Doc Maker Core Functions")
-    print("="*70)
+    print("=" * 70)
 
     all_results = []
 
@@ -323,14 +274,14 @@ async def run_unit_tests():
     all_results.append(await test_analyze_replacement_safety())
 
     # Calculate totals
-    total_passed = sum(r['passed'] for r in all_results)
-    total_failed = sum(r['failed'] for r in all_results)
+    total_passed = sum(r["passed"] for r in all_results)
+    total_failed = sum(r["failed"] for r in all_results)
     total_tests = total_passed + total_failed
 
     # Print summary
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("  UNIT TEST SUMMARY")
-    print("="*70)
+    print("=" * 70)
     print(f"\nTotal Tests Run: {total_tests}")
     print(f"Passed: {total_passed}")
     print(f"Failed: {total_failed}")
@@ -340,14 +291,11 @@ async def run_unit_tests():
     else:
         print(f"\n[FAILED] {total_failed} UNIT TEST(S) FAILED")
 
-    return {
-        'passed': total_passed,
-        'failed': total_failed,
-        'total': total_tests
-    }
+    return {"passed": total_passed, "failed": total_failed, "total": total_tests}
 
 
 if __name__ == "__main__":
     import asyncio
+
     result = asyncio.run(run_unit_tests())
-    sys.exit(0 if result['failed'] == 0 else 1)
+    sys.exit(0 if result["failed"] == 0 else 1)

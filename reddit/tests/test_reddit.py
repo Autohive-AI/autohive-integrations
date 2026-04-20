@@ -10,7 +10,15 @@ class MockExecutionContext:
         self.auth = {}  # OAuth handled by SDK
         self._responses = responses
 
-    async def fetch(self, url: str, method: str = "GET", params: Optional[Dict[str, Any]] = None, data: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None, **kwargs):
+    async def fetch(
+        self,
+        url: str,
+        method: str = "GET",
+        params: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        **kwargs,
+    ):
         # Route by endpoint for simplicity
         if "search" in url and method == "GET":
             return self._responses.get("GET /search", {"data": {"children": []}})
@@ -21,7 +29,10 @@ class MockExecutionContext:
         if url.endswith("/new") and method == "GET":
             return self._responses.get("GET /new", {"data": {"children": []}})
         if url.endswith("/api/comment") and method == "POST":
-            return self._responses.get("POST /api/comment", {"json": {"data": {"things": [{"data": {"id": "abc123", "permalink": "/r/test/comments/abc123/"}}]}}})
+            return self._responses.get(
+                "POST /api/comment",
+                {"json": {"data": {"things": [{"data": {"id": "abc123", "permalink": "/r/test/comments/abc123/"}}]}}},
+            )
         return {}
 
 
@@ -40,7 +51,7 @@ async def test_search_subreddit_basic():
                             "score": 100,
                             "num_comments": 5,
                             "created_utc": 1640995200.0,
-                            "permalink": "/r/test/comments/post1/"
+                            "permalink": "/r/test/comments/post1/",
                         }
                     },
                     {
@@ -53,20 +64,18 @@ async def test_search_subreddit_basic():
                             "score": 50,
                             "num_comments": 2,
                             "created_utc": 1640995300.0,
-                            "permalink": "/r/test/comments/post2/"
+                            "permalink": "/r/test/comments/post2/",
                         }
-                    }
+                    },
                 ]
             }
         }
     }
     context = MockExecutionContext(responses)
-    result = await reddit.execute_action("search_subreddit", {
-        "subreddit": "test", 
-        "query": "python",
-        "limit": 10
-    }, context)
-    
+    result = await reddit.execute_action(
+        "search_subreddit", {"subreddit": "test", "query": "python", "limit": 10}, context
+    )
+
     assert "posts" in result
     assert len(result["posts"]) == 2
     assert result["posts"][0]["id"] == "post1"
@@ -89,7 +98,7 @@ async def test_search_subreddit_no_query():
                             "score": 500,
                             "num_comments": 20,
                             "created_utc": 1640995400.0,
-                            "permalink": "/r/test/comments/hot1/"
+                            "permalink": "/r/test/comments/hot1/",
                         }
                     }
                 ]
@@ -97,11 +106,8 @@ async def test_search_subreddit_no_query():
         }
     }
     context = MockExecutionContext(responses)
-    result = await reddit.execute_action("search_subreddit", {
-        "subreddit": "test",
-        "sort": "hot"
-    }, context)
-    
+    result = await reddit.execute_action("search_subreddit", {"subreddit": "test", "sort": "hot"}, context)
+
     assert "posts" in result
     assert len(result["posts"]) == 1
     assert result["posts"][0]["id"] == "hot1"
@@ -123,7 +129,7 @@ async def test_search_subreddit_with_sort_and_time_filter():
                             "score": 1000,
                             "num_comments": 50,
                             "created_utc": 1640995500.0,
-                            "permalink": "/r/test/comments/top1/"
+                            "permalink": "/r/test/comments/top1/",
                         }
                     }
                 ]
@@ -131,32 +137,20 @@ async def test_search_subreddit_with_sort_and_time_filter():
         }
     }
     context = MockExecutionContext(responses)
-    result = await reddit.execute_action("search_subreddit", {
-        "subreddit": "test",
-        "sort": "top",
-        "time_filter": "week",
-        "limit": 5
-    }, context)
-    
+    result = await reddit.execute_action(
+        "search_subreddit", {"subreddit": "test", "sort": "top", "time_filter": "week", "limit": 5}, context
+    )
+
     assert "posts" in result
     assert len(result["posts"]) == 1
     assert result["posts"][0]["score"] == 1000
 
 
 async def test_search_subreddit_empty_results():
-    responses = {
-        "GET /search": {
-            "data": {
-                "children": []
-            }
-        }
-    }
+    responses = {"GET /search": {"data": {"children": []}}}
     context = MockExecutionContext(responses)
-    result = await reddit.execute_action("search_subreddit", {
-        "subreddit": "emptysub",
-        "query": "nonexistent"
-    }, context)
-    
+    result = await reddit.execute_action("search_subreddit", {"subreddit": "emptysub", "query": "nonexistent"}, context)
+
     assert "posts" in result
     assert len(result["posts"]) == 0
 
@@ -165,45 +159,28 @@ async def test_post_comment_success():
     responses = {
         "POST /api/comment": {
             "json": {
-                "data": {
-                    "things": [
-                        {
-                            "data": {
-                                "id": "comment123",
-                                "permalink": "/r/test/comments/post1/comment123/"
-                            }
-                        }
-                    ]
-                }
+                "data": {"things": [{"data": {"id": "comment123", "permalink": "/r/test/comments/post1/comment123/"}}]}
             }
         }
     }
     context = MockExecutionContext(responses)
-    result = await reddit.execute_action("post_comment", {
-        "parent_id": "t3_post1",
-        "text": "This is a test comment"
-    }, context)
-    
-    assert result["success"] == True
+    result = await reddit.execute_action(
+        "post_comment", {"parent_id": "t3_post1", "text": "This is a test comment"}, context
+    )
+
+    assert result["success"]
     assert result["comment_id"] == "comment123"
     assert result["permalink"] == "https://reddit.com/r/test/comments/post1/comment123/"
 
 
 async def test_post_comment_with_error():
-    responses = {
-        "POST /api/comment": {
-            "json": {
-                "errors": [["THREAD_LOCKED", "thread is archived", None]]
-            }
-        }
-    }
+    responses = {"POST /api/comment": {"json": {"errors": [["THREAD_LOCKED", "thread is archived", None]]}}}
     context = MockExecutionContext(responses)
-    result = await reddit.execute_action("post_comment", {
-        "parent_id": "t3_archived_post",
-        "text": "This should fail"
-    }, context)
-    
-    assert result["success"] == False
+    result = await reddit.execute_action(
+        "post_comment", {"parent_id": "t3_archived_post", "text": "This should fail"}, context
+    )
+
+    assert not result["success"]
     assert "error" in result
     assert "THREAD_LOCKED" in result["error"]
 
@@ -213,11 +190,8 @@ async def test_search_subreddit_missing_data():
         "GET /search": {}  # Missing data structure
     }
     context = MockExecutionContext(responses)
-    result = await reddit.execute_action("search_subreddit", {
-        "subreddit": "test",
-        "query": "python"
-    }, context)
-    
+    result = await reddit.execute_action("search_subreddit", {"subreddit": "test", "query": "python"}, context)
+
     assert "posts" in result
     assert len(result["posts"]) == 0
 

@@ -1,34 +1,35 @@
 # rss-reader.py
-from autohive_integrations_sdk import (
-    Integration, ExecutionContext, ActionHandler
-)
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
 from typing import Dict, Any
 import feedparser
 
 # Create the integration using the config.json
 rss_reader = Integration.load()
 
+
 def build_http_basic_auth_url(url: str, user_name: str, password: str) -> str:
     """
     Build a URL with HTTP basic authentication.
     """
-    if url.startswith('http://'):
-        protocol = 'http://'
+    if url.startswith("http://"):
+        protocol = "http://"
         domain_part = url[7:]  # Remove 'http://'
-    elif url.startswith('https://'):
-        protocol = 'https://'
+    elif url.startswith("https://"):
+        protocol = "https://"
         domain_part = url[8:]  # Remove 'https://'
     else:
-        protocol = 'http://'
+        protocol = "http://"
         domain_part = url
 
     return f"{protocol}{user_name}:{password}@{domain_part}"
+
 
 def build_api_token_header(api_token: str) -> str:
     """
     Build a header with API token authentication.
     """
     return {"Authorization": f"Bearer {api_token}"}
+
 
 # ---- Action Handlers ----
 @rss_reader.action("get_feed")
@@ -54,27 +55,25 @@ class GetFeedAction(ActionHandler):
         else:
             # No authentication provided or required
             response = await context.fetch(feed_url)
-            
+
         # Parse feed
         feed = feedparser.parse(response)
 
         # Check for parsing errors
-        if hasattr(feed, 'bozo_exception'):
+        if hasattr(feed, "bozo_exception"):
             raise Exception(f"Failed to parse feed [{feed_url}] with error: {str(feed.bozo_exception)}")
 
         # Extract entries
         entries = []
         for entry in feed.entries[:limit]:
-            entries.append({
-                "title": entry.get("title", ""),
-                "link": entry.get("link", ""),
-                "description": entry.get("description", ""),
-                "published": entry.get("published", ""),
-                "author": entry.get("author", "")
-            })
+            entries.append(
+                {
+                    "title": entry.get("title", ""),
+                    "link": entry.get("link", ""),
+                    "description": entry.get("description", ""),
+                    "published": entry.get("published", ""),
+                    "author": entry.get("author", ""),
+                }
+            )
 
-        return {
-            "feed_title": feed.feed.get("title", ""),
-            "feed_link": feed.feed.get("link", ""),
-            "entries": entries
-        }
+        return {"feed_title": feed.feed.get("title", ""), "feed_link": feed.feed.get("link", ""), "entries": entries}

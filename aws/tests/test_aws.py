@@ -44,14 +44,10 @@ async def test_get_findings():
 async def test_get_finding_details():
     """Test retrieving details for a specific Security Hub finding."""
     print("\n=== Testing get_finding_details ===")
-    inputs = {
-        "finding_arn": "arn:aws:securityhub:us-east-1:123456789012:finding/example"
-    }
+    inputs = {"finding_arn": "arn:aws:securityhub:us-east-1:123456789012:finding/example"}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "get_finding_details", inputs, context
-            )
+            result = await integration.execute_action("get_finding_details", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -69,9 +65,7 @@ async def test_update_finding_workflow():
     }
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "update_finding_workflow", inputs, context
-            )
+            result = await integration.execute_action("update_finding_workflow", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -118,9 +112,7 @@ async def test_list_guardduty_findings():
     inputs = {"detector_id": "YOUR_DETECTOR_ID", "max_results": 10}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "list_guardduty_findings", inputs, context
-            )
+            result = await integration.execute_action("list_guardduty_findings", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -134,9 +126,7 @@ async def test_get_guardduty_finding_details():
     inputs = {"detector_id": "YOUR_DETECTOR_ID", "finding_ids": ["example-finding-id"]}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "get_guardduty_finding_details", inputs, context
-            )
+            result = await integration.execute_action("get_guardduty_finding_details", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -150,9 +140,7 @@ async def test_archive_findings():
     inputs = {"detector_id": "YOUR_DETECTOR_ID", "finding_ids": ["example-finding-id"]}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "archive_findings", inputs, context
-            )
+            result = await integration.execute_action("archive_findings", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -198,9 +186,7 @@ async def test_get_metric_data():
     }
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "get_metric_data", inputs, context
-            )
+            result = await integration.execute_action("get_metric_data", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -214,9 +200,7 @@ async def test_describe_alarms():
     inputs = {"max_records": 10}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "describe_alarms", inputs, context
-            )
+            result = await integration.execute_action("describe_alarms", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -230,9 +214,7 @@ async def test_get_alarm_history():
     inputs = {"max_records": 10}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "get_alarm_history", inputs, context
-            )
+            result = await integration.execute_action("get_alarm_history", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -250,9 +232,7 @@ async def test_set_alarm_state():
     }
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "set_alarm_state", inputs, context
-            )
+            result = await integration.execute_action("set_alarm_state", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -271,9 +251,7 @@ async def test_describe_log_groups():
     inputs = {"limit": 10}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "describe_log_groups", inputs, context
-            )
+            result = await integration.execute_action("describe_log_groups", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -287,9 +265,7 @@ async def test_filter_log_events():
     inputs = {"log_group_name": "/aws/lambda/test-function", "limit": 10}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "filter_log_events", inputs, context
-            )
+            result = await integration.execute_action("filter_log_events", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -340,9 +316,7 @@ async def test_describe_trails():
     inputs = {}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "describe_trails", inputs, context
-            )
+            result = await integration.execute_action("describe_trails", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -356,9 +330,7 @@ async def test_get_trail_status():
     inputs = {"trail_name": "management-events"}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "get_trail_status", inputs, context
-            )
+            result = await integration.execute_action("get_trail_status", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:
@@ -372,9 +344,7 @@ async def test_get_event_selectors():
     inputs = {"trail_name": "management-events"}
     async with ExecutionContext(auth=TEST_AUTH) as context:
         try:
-            result = await integration.execute_action(
-                "get_event_selectors", inputs, context
-            )
+            result = await integration.execute_action("get_event_selectors", inputs, context)
             print(f"Result: {result}")
             return result
         except Exception as e:

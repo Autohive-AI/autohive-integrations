@@ -34,15 +34,29 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string", "description": "Unique Page ID"},
-                                "name": {"type": "string", "description": "Page name"},
-                                "category": {"type": "string", "description": "Page category (e.g., Business, Brand)"},
-                                "followers_count": {"type": "integer", "description": "Number of page followers"}
+                                "id": {
+                                    "type": "string",
+                                    "description": "Unique Page ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Page name"
+                                },
+                                "category": {
+                                    "type": "string",
+                                    "description": "Page category (e.g., Business, Brand)"
+                                },
+                                "followers_count": {
+                                    "type": "integer",
+                                    "description": "Number of page followers"
+                                }
                             }
                         }
                     }
                 },
-                "required": ["pages"]
+                "required": [
+                    "pages"
+                ]
             }
         },
         "get_posts": {
@@ -65,7 +79,9 @@
                         "default": 25
                     }
                 },
-                "required": ["page_id"]
+                "required": [
+                    "page_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -76,20 +92,52 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string", "description": "Post ID"},
-                                "message": {"type": "string", "description": "Post text content"},
-                                "created_time": {"type": "string", "description": "ISO 8601 timestamp"},
-                                "permalink_url": {"type": "string", "description": "Direct link to the post"},
-                                "shares_count": {"type": "integer", "description": "Number of shares"},
-                                "likes_count": {"type": "integer", "description": "Number of likes"},
-                                "comments_count": {"type": "integer", "description": "Number of comments"},
-                                "media_type": {"type": "string", "description": "Type of media: text, photo, video, or link"},
-                                "media_url": {"type": ["string", "null"], "description": "URL of attached media if applicable"}
+                                "id": {
+                                    "type": "string",
+                                    "description": "Post ID"
+                                },
+                                "message": {
+                                    "type": "string",
+                                    "description": "Post text content"
+                                },
+                                "created_time": {
+                                    "type": "string",
+                                    "description": "ISO 8601 timestamp"
+                                },
+                                "permalink_url": {
+                                    "type": "string",
+                                    "description": "Direct link to the post"
+                                },
+                                "shares_count": {
+                                    "type": "integer",
+                                    "description": "Number of shares"
+                                },
+                                "likes_count": {
+                                    "type": "integer",
+                                    "description": "Number of likes"
+                                },
+                                "comments_count": {
+                                    "type": "integer",
+                                    "description": "Number of comments"
+                                },
+                                "media_type": {
+                                    "type": "string",
+                                    "description": "Type of media: text, photo, video, or link"
+                                },
+                                "media_url": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "URL of attached media if applicable"
+                                }
                             }
                         }
                     }
                 },
-                "required": ["posts"]
+                "required": [
+                    "posts"
+                ]
             }
         },
         "create_post": {
@@ -108,7 +156,12 @@
                     },
                     "media_type": {
                         "type": "string",
-                        "enum": ["text", "photo", "video", "link"],
+                        "enum": [
+                            "text",
+                            "photo",
+                            "video",
+                            "link"
+                        ],
                         "description": "Type of post: 'text' (default), 'photo', 'video', or 'link'",
                         "default": "text"
                     },
@@ -121,17 +174,34 @@
                         "description": "Optional: Schedule post for future. ISO 8601 format (e.g., 2024-12-25T10:00:00Z) or UNIX timestamp. Must be 10 min to 75 days from now."
                     }
                 },
-                "required": ["page_id", "message"]
+                "required": [
+                    "page_id",
+                    "message"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "post_id": {"type": "string", "description": "ID of the created post"},
-                    "permalink_url": {"type": "string", "description": "Direct link to the post"},
-                    "is_scheduled": {"type": "boolean", "description": "Whether the post is scheduled"},
-                    "scheduled_time": {"type": "integer", "description": "Scheduled publish time as Unix timestamp if applicable"}
+                    "post_id": {
+                        "type": "string",
+                        "description": "ID of the created post"
+                    },
+                    "permalink_url": {
+                        "type": "string",
+                        "description": "Direct link to the post"
+                    },
+                    "is_scheduled": {
+                        "type": "boolean",
+                        "description": "Whether the post is scheduled"
+                    },
+                    "scheduled_time": {
+                        "type": "integer",
+                        "description": "Scheduled publish time as Unix timestamp if applicable"
+                    }
                 },
-                "required": ["post_id"]
+                "required": [
+                    "post_id"
+                ]
             }
         },
         "delete_post": {
@@ -149,15 +219,26 @@
                         "description": "The ID of the post to delete"
                     }
                 },
-                "required": ["page_id", "post_id"]
+                "required": [
+                    "page_id",
+                    "post_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean", "description": "Whether the post was deleted"},
-                    "deleted_post_id": {"type": "string", "description": "ID of the deleted post"}
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether the post was deleted"
+                    },
+                    "deleted_post_id": {
+                        "type": "string",
+                        "description": "ID of the deleted post"
+                    }
                 },
-                "required": ["success"]
+                "required": [
+                    "success"
+                ]
             }
         },
         "get_comments": {
@@ -181,7 +262,9 @@
                         "default": false
                     }
                 },
-                "required": ["post_id"]
+                "required": [
+                    "post_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -192,19 +275,45 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string", "description": "Comment ID"},
-                                "message": {"type": "string", "description": "Comment text"},
-                                "from_name": {"type": "string", "description": "Commenter's name"},
-                                "from_id": {"type": "string", "description": "Commenter's user ID"},
-                                "created_time": {"type": "string", "description": "ISO 8601 timestamp"},
-                                "is_hidden": {"type": "boolean", "description": "Whether comment is hidden"},
-                                "reply_count": {"type": "integer", "description": "Number of replies"}
+                                "id": {
+                                    "type": "string",
+                                    "description": "Comment ID"
+                                },
+                                "message": {
+                                    "type": "string",
+                                    "description": "Comment text"
+                                },
+                                "from_name": {
+                                    "type": "string",
+                                    "description": "Commenter's name"
+                                },
+                                "from_id": {
+                                    "type": "string",
+                                    "description": "Commenter's user ID"
+                                },
+                                "created_time": {
+                                    "type": "string",
+                                    "description": "ISO 8601 timestamp"
+                                },
+                                "is_hidden": {
+                                    "type": "boolean",
+                                    "description": "Whether comment is hidden"
+                                },
+                                "reply_count": {
+                                    "type": "integer",
+                                    "description": "Number of replies"
+                                }
                             }
                         }
                     },
-                    "total_count": {"type": "integer", "description": "Total number of comments on the post"}
+                    "total_count": {
+                        "type": "integer",
+                        "description": "Total number of comments on the post"
+                    }
                 },
-                "required": ["comments"]
+                "required": [
+                    "comments"
+                ]
             }
         },
         "manage_comment": {
@@ -223,7 +332,13 @@
                     },
                     "action": {
                         "type": "string",
-                        "enum": ["reply", "hide", "unhide", "like", "unlike"],
+                        "enum": [
+                            "reply",
+                            "hide",
+                            "unhide",
+                            "like",
+                            "unlike"
+                        ],
                         "description": "Action to perform: 'reply' to respond, 'hide'/'unhide' to toggle visibility, 'like'/'unlike' to react as your Page"
                     },
                     "message": {
@@ -231,17 +346,36 @@
                         "description": "Required for 'reply' action: Your reply text"
                     }
                 },
-                "required": ["page_id", "comment_id", "action"]
+                "required": [
+                    "page_id",
+                    "comment_id",
+                    "action"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean", "description": "Whether the action succeeded"},
-                    "action_taken": {"type": "string", "description": "The action that was performed"},
-                    "reply_id": {"type": "string", "description": "ID of the reply comment (if action was 'reply')"},
-                    "is_hidden": {"type": "boolean", "description": "Current hidden state (if action was 'hide' or 'unhide')"}
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether the action succeeded"
+                    },
+                    "action_taken": {
+                        "type": "string",
+                        "description": "The action that was performed"
+                    },
+                    "reply_id": {
+                        "type": "string",
+                        "description": "ID of the reply comment (if action was 'reply')"
+                    },
+                    "is_hidden": {
+                        "type": "boolean",
+                        "description": "Current hidden state (if action was 'hide' or 'unhide')"
+                    }
                 },
-                "required": ["success", "action_taken"]
+                "required": [
+                    "success",
+                    "action_taken"
+                ]
             }
         },
         "delete_comment": {
@@ -259,15 +393,26 @@
                         "description": "The ID of the comment to delete"
                     }
                 },
-                "required": ["page_id", "comment_id"]
+                "required": [
+                    "page_id",
+                    "comment_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean", "description": "Whether the comment was deleted"},
-                    "deleted_comment_id": {"type": "string", "description": "ID of the deleted comment"}
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether the comment was deleted"
+                    },
+                    "deleted_comment_id": {
+                        "type": "string",
+                        "description": "ID of the deleted comment"
+                    }
                 },
-                "required": ["success"]
+                "required": [
+                    "success"
+                ]
             }
         },
         "get_insights": {
@@ -278,7 +423,10 @@
                 "properties": {
                     "target_type": {
                         "type": "string",
-                        "enum": ["page", "post"],
+                        "enum": [
+                            "page",
+                            "post"
+                        ],
                         "description": "Type of insights: 'page' for overall Page analytics, 'post' for specific post metrics"
                     },
                     "target_id": {
@@ -287,32 +435,55 @@
                     },
                     "metrics": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "Specific metrics to retrieve. Defaults to common metrics if omitted."
                     },
                     "period": {
                         "type": "string",
-                        "enum": ["day", "week", "days_28"],
+                        "enum": [
+                            "day",
+                            "week",
+                            "days_28"
+                        ],
                         "description": "Time period for page insights (default: 'days_28'). Ignored for post insights.",
                         "default": "days_28"
                     }
                 },
-                "required": ["target_type", "target_id"]
+                "required": [
+                    "target_type",
+                    "target_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "target_type": {"type": "string", "description": "Whether these are page or post insights"},
-                    "target_id": {"type": "string", "description": "The Page or Post ID"},
-                    "period": {"type": "string", "description": "Time period for the data"},
+                    "target_type": {
+                        "type": "string",
+                        "description": "Whether these are page or post insights"
+                    },
+                    "target_id": {
+                        "type": "string",
+                        "description": "The Page or Post ID"
+                    },
+                    "period": {
+                        "type": "string",
+                        "description": "Time period for the data"
+                    },
                     "metrics": {
                         "type": "object",
                         "description": "Key-value pairs of metric names and their values",
                         "additionalProperties": true
                     }
                 },
-                "required": ["target_type", "target_id", "metrics"]
+                "required": [
+                    "target_type",
+                    "target_id",
+                    "metrics"
+                ]
             }
         }
-    }
+    },
+    "display_name": "Facebook"
 }

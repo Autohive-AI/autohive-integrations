@@ -38,18 +38,25 @@ VIDEO_LIST_ENDPOINT = f"{TIKTOK_API_BASE}/video/list/"
 # user.info.basic: open_id, union_id, avatar_url, avatar_url_100, avatar_large_url, display_name
 # user.info.profile: bio_description, profile_deep_link, profile_web_link, is_verified
 # user.info.stats: follower_count, following_count, likes_count, video_count
-BASIC_USER_INFO_FIELDS = [
-    "open_id", "union_id", "avatar_url", "avatar_url_100", "avatar_large_url", "display_name"
-]
+BASIC_USER_INFO_FIELDS = ["open_id", "union_id", "avatar_url", "avatar_url_100", "avatar_large_url", "display_name"]
 PROFILE_USER_INFO_FIELDS = ["bio_description", "profile_deep_link", "is_verified"]
 STATS_USER_INFO_FIELDS = ["follower_count", "following_count", "likes_count", "video_count"]
 ALL_USER_INFO_FIELDS = BASIC_USER_INFO_FIELDS + PROFILE_USER_INFO_FIELDS + STATS_USER_INFO_FIELDS
 
 # Video list fields
 VIDEO_FIELDS = [
-    "id", "title", "cover_image_url", "share_url", "create_time",
-    "duration", "width", "height", "like_count", "comment_count",
-    "share_count", "view_count"
+    "id",
+    "title",
+    "cover_image_url",
+    "share_url",
+    "create_time",
+    "duration",
+    "width",
+    "height",
+    "like_count",
+    "comment_count",
+    "share_count",
+    "view_count",
 ]
 
 # Chunk size limits (bytes)
@@ -66,6 +73,7 @@ MAX_CAPTION_LENGTH = 2200
 # Exceptions
 # =============================================================================
 
+
 class TikTokAPIError(Exception):
     """Exception raised for TikTok API errors."""
 
@@ -78,6 +86,7 @@ class TikTokAPIError(Exception):
 # =============================================================================
 # Response Helpers
 # =============================================================================
+
 
 def _check_api_response(response: Dict[str, Any]) -> Dict[str, Any]:
     """Check API response for errors and extract data.
@@ -112,9 +121,13 @@ def _check_api_response(response: Dict[str, Any]) -> Dict[str, Any]:
             elif code == "rate_limit_exceeded":
                 raise TikTokAPIError("Rate limit exceeded.", error_code=code, log_id=log_id)
             elif code == "scope_not_authorized":
-                raise TikTokAPIError(f"Required scope not authorized. Code: {code}, Log ID: {log_id}", error_code=code, log_id=log_id)
+                raise TikTokAPIError(
+                    f"Required scope not authorized. Code: {code}, Log ID: {log_id}", error_code=code, log_id=log_id
+                )
             else:
-                raise TikTokAPIError(f"TikTok API error: {message} (code: {code}, log_id: {log_id})", error_code=code, log_id=log_id)
+                raise TikTokAPIError(
+                    f"TikTok API error: {message} (code: {code}, log_id: {log_id})", error_code=code, log_id=log_id
+                )
         elif error:  # Non-empty non-dict error
             raise TikTokAPIError(f"TikTok API error: {error}")
 
@@ -191,7 +204,7 @@ def _build_post_status(data: Dict[str, Any]) -> Dict[str, Any]:
         "status": data.get("status", ""),
         "fail_reason": data.get("fail_reason", ""),
         "publicaly_available_post_id": post_ids,  # TikTok's actual field name
-        "publicly_available_post_id": post_ids,   # Correctly spelled alias
+        "publicly_available_post_id": post_ids,  # Correctly spelled alias
         "uploaded_bytes": data.get("uploaded_bytes", 0),
         "error_code": data.get("error_code", ""),
     }
@@ -200,6 +213,7 @@ def _build_post_status(data: Dict[str, Any]) -> Dict[str, Any]:
 # =============================================================================
 # Validation Helpers
 # =============================================================================
+
 
 def _validate_video_content(video_content_base64: Optional[str]) -> bytes:
     """Validate and decode base64 video content."""
@@ -314,6 +328,7 @@ tiktok = Integration.load()
 # Connected Account Handler
 # =============================================================================
 
+
 @tiktok.connected_account()
 class TikTokConnectedAccountHandler(ConnectedAccountHandler):
     """Handler for TikTok connected account information."""
@@ -340,6 +355,7 @@ class TikTokConnectedAccountHandler(ConnectedAccountHandler):
 # =============================================================================
 # Action Handlers
 # =============================================================================
+
 
 @tiktok.action("get_user_info")
 class GetUserInfoHandler(ActionHandler):
@@ -395,10 +411,7 @@ class CreateVideoPostHandler(ActionHandler):
         video_size = len(video_data)
         post_info = _build_post_info(inputs)
 
-        chunk_size = _validate_chunk_size(
-            inputs.get("chunk_size", DEFAULT_CHUNK_SIZE),
-            video_size
-        )
+        chunk_size = _validate_chunk_size(inputs.get("chunk_size", DEFAULT_CHUNK_SIZE), video_size)
 
         request_body = {
             "post_info": post_info,
@@ -422,10 +435,12 @@ class CreateVideoPostHandler(ActionHandler):
         access_token = context.auth.get("access_token", "")
         await _upload_video_chunks(upload_url, video_data, chunk_size, access_token)
 
-        return ActionResult(data={
-            "publish_id": publish_id,
-            "status": "PROCESSING_UPLOAD",
-        })
+        return ActionResult(
+            data={
+                "publish_id": publish_id,
+                "status": "PROCESSING_UPLOAD",
+            }
+        )
 
 
 @tiktok.action("upload_video_draft")
@@ -438,10 +453,7 @@ class UploadVideoDraftHandler(ActionHandler):
         video_size = len(video_data)
 
         # Calculate chunk size
-        chunk_size = _validate_chunk_size(
-            inputs.get("chunk_size", DEFAULT_CHUNK_SIZE),
-            video_size
-        )
+        chunk_size = _validate_chunk_size(inputs.get("chunk_size", DEFAULT_CHUNK_SIZE), video_size)
 
         # Initialize the upload with TikTok
         request_body: dict = {
@@ -466,10 +478,12 @@ class UploadVideoDraftHandler(ActionHandler):
         access_token = context.auth.get("access_token", "")
         await _upload_video_chunks(upload_url, video_data, chunk_size, access_token)
 
-        return ActionResult(data={
-            "publish_id": publish_id,
-            "status": "PROCESSING_UPLOAD",
-        })
+        return ActionResult(
+            data={
+                "publish_id": publish_id,
+                "status": "PROCESSING_UPLOAD",
+            }
+        )
 
 
 @tiktok.action("get_post_status")
@@ -509,11 +523,13 @@ class GetVideosHandler(ActionHandler):
         response = await context.fetch(VIDEO_LIST_ENDPOINT, method="POST", json=request_body)
         data = _check_api_response(response)
 
-        return ActionResult(data={
-            "videos": [_build_video(v) for v in data.get("videos", [])],
-            "cursor": data.get("cursor"),
-            "has_more": data.get("has_more", False),
-        })
+        return ActionResult(
+            data={
+                "videos": [_build_video(v) for v in data.get("videos", [])],
+                "cursor": data.get("cursor"),
+                "has_more": data.get("has_more", False),
+            }
+        )
 
 
 @tiktok.action("create_photo_post")

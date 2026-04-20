@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any, List, Optional
 
 google_docs = Integration.load()
@@ -7,33 +7,37 @@ google_docs = Integration.load()
 DOCS_API_BASE = "https://docs.googleapis.com/v1"
 
 
-def handle_api_error(error: Exception, message: str = "Google API error") -> Dict[str, Any]:
+def handle_api_error(error: Exception, message: str = "Google API error") -> ActionResult:
     """Handle API error responses."""
-    return {'result': False, 'error': f'{message}: {str(error)}'}
+    return ActionResult(data={"result": False, "error": f"{message}: {str(error)}"}, cost_usd=0)
 
 
 # ---- Action Handlers ----
+
 
 @google_docs.action("docs_create")
 class CreateDocument(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         """Create a new Google Doc."""
         try:
-            title = inputs.get('title', 'Untitled Document')
+            title = inputs.get("title", "Untitled Document")
             url = f"{DOCS_API_BASE}/documents"
-            payload = {'title': title}
+            payload = {"title": title}
 
-            document = await context.fetch(url, method="POST", json=payload)
+            document = (await context.fetch(url, method="POST", json=payload)).data
 
-            document_id = document.get('documentId')
+            document_id = document.get("documentId")
             document_url = f"https://docs.google.com/document/d/{document_id}/edit"
 
-            return {
-                'documentId': document_id,
-                'documentUrl': document_url,
-                'title': document.get('title'),
-                'result': True
-            }
+            return ActionResult(
+                data={
+                    "documentId": document_id,
+                    "documentUrl": document_url,
+                    "title": document.get("title"),
+                    "result": True,
+                },
+                cost_usd=0,
+            )
         except Exception as e:
             return handle_api_error(e, "Failed to create document")
 
@@ -43,26 +47,23 @@ class GetDocument(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         """Retrieve full document content."""
         try:
-            document_id = inputs['document_id']
-            include_tabs = inputs.get('include_tabs_content', True)
+            document_id = inputs["document_id"]
+            include_tabs = inputs.get("include_tabs_content", True)
 
             # Build the URL with query parameters
             url = f"{DOCS_API_BASE}/documents/{document_id}"
             params = {}
 
             if include_tabs:
-                params['includeTabsContent'] = 'true'
+                params["includeTabsContent"] = "true"
 
-            document = await context.fetch(url, method="GET", params=params)
+            document = (await context.fetch(url, method="GET", params=params)).data
 
-            return {
-                'document': document,
-                'result': True
-            }
+            return ActionResult(data={"document": document, "result": True}, cost_usd=0)
         except Exception as e:
-            error_result = handle_api_error(e, "Failed to get document")
-            error_result['document'] = {}
-            return error_result
+            return ActionResult(
+                data={"document": {}, "result": False, "error": f"Failed to get document: {str(e)}"}, cost_usd=0
+            )
 
 
 @google_docs.action("docs_insert_paragraphs")
@@ -83,17 +84,19 @@ class InsertParagraphs(ActionHandler):
         - tab_id: Optional tab ID if working with a specific tab
         """
         try:
-            document_id = inputs['document_id']
-            paragraphs = inputs['paragraphs']
-            tab_id = inputs.get('tab_id')
-            append = inputs.get('append', True)
+            document_id = inputs["document_id"]
+            paragraphs = inputs["paragraphs"]
+            tab_id = inputs.get("tab_id")
+            append = inputs.get("append", True)
 
             # Validate paragraphs is an array
             if not isinstance(paragraphs, list):
-                return {'result': False, 'error': 'paragraphs must be an array of strings'}
+                return ActionResult(
+                    data={"result": False, "error": "paragraphs must be an array of strings"}, cost_usd=0
+                )
 
             if not paragraphs:
-                return {'result': False, 'error': 'paragraphs array is empty'}
+                return ActionResult(data={"result": False, "error": "paragraphs array is empty"}, cost_usd=0)
 
             # Get insertion index
             if append:
@@ -102,28 +105,30 @@ class InsertParagraphs(ActionHandler):
                 params = {}
 
                 if tab_id:
-                    params['includeTabsContent'] = 'true'
-                    params['fields'] = 'tabs(tabId,documentTab/body/content(endIndex))'
+                    params["includeTabsContent"] = "true"
+                    params["fields"] = "tabs(tabId,documentTab/body/content(endIndex))"
                 else:
-                    params['fields'] = 'body/content(endIndex)'
+                    params["fields"] = "body/content(endIndex)"
 
-                document = await context.fetch(url, method="GET", params=params)
+                document = (await context.fetch(url, method="GET", params=params)).data
 
                 if tab_id:
                     index = None
-                    for tab in document.get('tabs', []):
-                        if tab.get('tabId') == tab_id:
-                            doc_tab = tab.get('documentTab', {})
-                            body = doc_tab.get('body', {})
-                            content = body.get('content', [])
-                            index = content[-1].get('endIndex', 1) - 1 if content else 1
+                    for tab in document.get("tabs", []):
+                        if tab.get("tabId") == tab_id:
+                            doc_tab = tab.get("documentTab", {})
+                            body = doc_tab.get("body", {})
+                            content = body.get("content", [])
+                            index = content[-1].get("endIndex", 1) - 1 if content else 1
                             break
                     if index is None:
-                        return {'result': False, 'error': f'Tab with ID {tab_id} not found'}
+                        return ActionResult(
+                            data={"result": False, "error": f"Tab with ID {tab_id} not found"}, cost_usd=0
+                        )
                 else:
-                    body = document.get('body', {})
-                    content = body.get('content', [])
-                    index = content[-1].get('endIndex', 1) - 1 if content else 1
+                    body = document.get("body", {})
+                    content = body.get("content", [])
+                    index = content[-1].get("endIndex", 1) - 1 if content else 1
             else:
                 # Insert at beginning
                 index = 1
@@ -133,31 +138,24 @@ class InsertParagraphs(ActionHandler):
             current_index = index
 
             for paragraph in paragraphs:
-                para_text = str(paragraph) + '\n\n'
-                insert_request = {
-                    'insertText': {
-                        'text': para_text,
-                        'location': {'index': current_index}
-                    }
-                }
+                para_text = str(paragraph) + "\n\n"
+                insert_request = {"insertText": {"text": para_text, "location": {"index": current_index}}}
 
                 if tab_id:
-                    insert_request['insertText']['location']['tabId'] = tab_id
+                    insert_request["insertText"]["location"]["tabId"] = tab_id
 
                 batch_requests.append(insert_request)
                 current_index += len(para_text)
 
             # Execute batch insert
             url = f"{DOCS_API_BASE}/documents/{document_id}:batchUpdate"
-            payload = {'requests': batch_requests}
+            payload = {"requests": batch_requests}
 
             await context.fetch(url, method="POST", json=payload)
 
-            return {
-                'result': True,
-                'paragraphs_inserted': len(paragraphs),
-                'inserted_at_index': index
-            }
+            return ActionResult(
+                data={"result": True, "paragraphs_inserted": len(paragraphs), "inserted_at_index": index}, cost_usd=0
+            )
         except Exception as e:
             return handle_api_error(e, "Failed to insert paragraphs")
 
@@ -223,26 +221,23 @@ class BatchUpdate(ActionHandler):
         - requests: Array of Google Docs API request objects
         """
         try:
-            document_id = inputs['document_id']
-            batch_requests = inputs['requests']
+            document_id = inputs["document_id"]
+            batch_requests = inputs["requests"]
 
             # Validate requests is a list of dicts
             if not isinstance(batch_requests, list) or not all(isinstance(r, dict) for r in batch_requests):
-                return {'result': False, 'error': 'requests must be an array of objects'}
+                return ActionResult(data={"result": False, "error": "requests must be an array of objects"}, cost_usd=0)
 
             url = f"{DOCS_API_BASE}/documents/{document_id}:batchUpdate"
-            payload = {'requests': batch_requests}
+            payload = {"requests": batch_requests}
 
-            result = await context.fetch(url, method="POST", json=payload)
+            result = (await context.fetch(url, method="POST", json=payload)).data
 
-            return {
-                'replies': result.get('replies', []),
-                'result': True
-            }
+            return ActionResult(data={"replies": result.get("replies", []), "result": True}, cost_usd=0)
         except Exception as e:
-            error_result = handle_api_error(e, "Failed to execute batch update")
-            error_result['replies'] = []
-            return error_result
+            return ActionResult(
+                data={"replies": [], "result": False, "error": f"Failed to execute batch update: {str(e)}"}, cost_usd=0
+            )
 
 
 @google_docs.action("docs_parse_structure")
@@ -250,92 +245,86 @@ class ParseStructure(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         """Parse document structure to identify headings, paragraphs, and their positions."""
         try:
-            document_id = inputs['document_id']
-            tab_id = inputs.get('tab_id')
+            document_id = inputs["document_id"]
+            tab_id = inputs.get("tab_id")
 
             # Fetch document with full content
             url = f"{DOCS_API_BASE}/documents/{document_id}"
             params = {}
 
             if tab_id:
-                params['includeTabsContent'] = 'true'
+                params["includeTabsContent"] = "true"
 
-            document = await context.fetch(url, method="GET", params=params)
+            document = (await context.fetch(url, method="GET", params=params)).data
 
             # Get the body content
             if tab_id:
                 # Find the specific tab
                 body = None
-                for tab in document.get('tabs', []):
-                    if tab.get('tabId') == tab_id:
-                        doc_tab = tab.get('documentTab', {})
-                        body = doc_tab.get('body', {})
+                for tab in document.get("tabs", []):
+                    if tab.get("tabId") == tab_id:
+                        doc_tab = tab.get("documentTab", {})
+                        body = doc_tab.get("body", {})
                         break
                 if body is None:
-                    return {'result': False, 'error': f'Tab with ID {tab_id} not found'}
+                    return ActionResult(data={"result": False, "error": f"Tab with ID {tab_id} not found"}, cost_usd=0)
             else:
-                body = document.get('body', {})
+                body = document.get("body", {})
 
-            content = body.get('content', [])
+            content = body.get("content", [])
 
             # Parse the structure
             structure = []
             for element in content:
                 # Skip elements without proper indices
-                start_index = element.get('startIndex')
-                end_index = element.get('endIndex')
+                start_index = element.get("startIndex")
+                end_index = element.get("endIndex")
 
                 if start_index is None or end_index is None:
                     continue
 
-                if 'paragraph' in element:
-                    paragraph = element['paragraph']
-                    para_style = paragraph.get('paragraphStyle', {})
-                    named_style = para_style.get('namedStyleType', 'NORMAL_TEXT')
+                if "paragraph" in element:
+                    paragraph = element["paragraph"]
+                    para_style = paragraph.get("paragraphStyle", {})
+                    named_style = para_style.get("namedStyleType", "NORMAL_TEXT")
 
                     # Extract text content
-                    text_content = ''
-                    for text_element in paragraph.get('elements', []):
-                        if 'textRun' in text_element:
-                            text_content += text_element['textRun'].get('content', '')
+                    text_content = ""
+                    for text_element in paragraph.get("elements", []):
+                        if "textRun" in text_element:
+                            text_content += text_element["textRun"].get("content", "")
 
                     # Determine if it's a heading or body paragraph
-                    element_type = 'heading' if named_style.startswith('HEADING') or named_style in ['TITLE', 'SUBTITLE'] else 'paragraph'
+                    element_type = (
+                        "heading"
+                        if named_style.startswith("HEADING") or named_style in ["TITLE", "SUBTITLE"]
+                        else "paragraph"
+                    )
 
                     structure_element = {
-                        'type': element_type,
-                        'style': named_style,
-                        'text': text_content.strip(),
-                        'startIndex': start_index,
-                        'endIndex': end_index
+                        "type": element_type,
+                        "style": named_style,
+                        "text": text_content.strip(),
+                        "startIndex": start_index,
+                        "endIndex": end_index,
                     }
 
                     # Add alignment if present
-                    if 'alignment' in para_style:
-                        structure_element['alignment'] = para_style['alignment']
+                    if "alignment" in para_style:
+                        structure_element["alignment"] = para_style["alignment"]
 
                     structure.append(structure_element)
-                elif 'table' in element:
-                    structure.append({
-                        'type': 'table',
-                        'startIndex': start_index,
-                        'endIndex': end_index
-                    })
-                elif 'sectionBreak' in element:
-                    structure.append({
-                        'type': 'section_break',
-                        'startIndex': start_index,
-                        'endIndex': end_index
-                    })
+                elif "table" in element:
+                    structure.append({"type": "table", "startIndex": start_index, "endIndex": end_index})
+                elif "sectionBreak" in element:
+                    structure.append({"type": "section_break", "startIndex": start_index, "endIndex": end_index})
 
-            return {
-                'structure': structure,
-                'result': True
-            }
+            return ActionResult(data={"structure": structure, "result": True}, cost_usd=0)
         except Exception as e:
-            error_result = handle_api_error(e, "Failed to parse document structure")
-            error_result['structure'] = []
-            return error_result
+            return ActionResult(
+                data={"structure": [], "result": False, "error": f"Failed to parse document structure: {str(e)}"},
+                cost_usd=0,
+            )
 
 
 @google_docs.action("docs_insert_markdown_content")
@@ -358,26 +347,22 @@ class InsertMarkdownContent(ActionHandler):
         - append: If true, append to end of document (default: True)
         """
         try:
-            document_id = inputs['document_id']
-            content = inputs['content']
-            tab_id = inputs.get('tab_id')
-            append = inputs.get('append', True)
+            document_id = inputs["document_id"]
+            content = inputs["content"]
+            tab_id = inputs.get("tab_id")
+            append = inputs.get("append", True)
 
             # Step 1: Parse content into structured elements
             elements = self._parse_markdown(content)
 
             if not elements:
-                return {'result': False, 'error': 'No content found to insert'}
+                return ActionResult(data={"result": False, "error": "No content found to insert"}, cost_usd=0)
 
             # Step 2: Get the insertion index
-            insertion_index = await self._get_insertion_index(
-                context, document_id, tab_id, append
-            )
+            insertion_index = await self._get_insertion_index(context, document_id, tab_id, append)
 
             # Step 3: Insert all content with styles in a single batch operation
-            result = await self._insert_and_style_content(
-                context, document_id, tab_id, elements, insertion_index
-            )
+            result = await self._insert_and_style_content(context, document_id, tab_id, elements, insertion_index)
 
             return result
 
@@ -397,7 +382,7 @@ class InsertMarkdownContent(ActionHandler):
         import re
 
         elements = []
-        lines = content.split('\n')
+        lines = content.split("\n")
         i = 0
 
         while i < len(lines):
@@ -410,7 +395,7 @@ class InsertMarkdownContent(ActionHandler):
                 continue
 
             # Check for headings (# to ######)
-            heading_match = re.match(r'^(#{1,6})\s+(.+)$', stripped)
+            heading_match = re.match(r"^(#{1,6})\s+(.+)$", stripped)
             if heading_match:
                 level = len(heading_match.group(1))
                 heading_text = heading_match.group(2)
@@ -418,12 +403,7 @@ class InsertMarkdownContent(ActionHandler):
                 # Parse inline formatting in heading
                 plain_text, formatting = self._parse_inline_formatting(heading_text)
 
-                elements.append({
-                    'type': 'heading',
-                    'level': level,
-                    'text': plain_text,
-                    'formatting': formatting
-                })
+                elements.append({"type": "heading", "level": level, "text": plain_text, "formatting": formatting})
                 i += 1
                 continue
 
@@ -434,14 +414,10 @@ class InsertMarkdownContent(ActionHandler):
                 i += 1
 
             if para_lines:
-                para_text = ' '.join(para_lines)
+                para_text = " ".join(para_lines)
                 plain_text, formatting = self._parse_inline_formatting(para_text)
 
-                elements.append({
-                    'type': 'paragraph',
-                    'text': plain_text,
-                    'formatting': formatting
-                })
+                elements.append({"type": "paragraph", "text": plain_text, "formatting": formatting})
 
         return elements
 
@@ -453,7 +429,6 @@ class InsertMarkdownContent(ActionHandler):
         - plain_text: text without markdown symbols
         - formatting: list of {type: 'bold'/'italic', start: int, end: int}
         """
-        import re
 
         formatting = []
         plain_text = ""
@@ -463,42 +438,34 @@ class InsertMarkdownContent(ActionHandler):
         i = 0
         while i < len(text):
             # Check for bold (**text**)
-            if i + 1 < len(text) and text[i:i+2] == '**':
+            if i + 1 < len(text) and text[i : i + 2] == "**":
                 # Find closing **
-                end = text.find('**', i + 2)
+                end = text.find("**", i + 2)
                 if end != -1:
-                    bold_text = text[i+2:end]
+                    bold_text = text[i + 2 : end]
                     start_pos = offset
                     plain_text += bold_text
                     end_pos = offset + len(bold_text)
-                    formatting.append({
-                        'type': 'bold',
-                        'start': start_pos,
-                        'end': end_pos
-                    })
+                    formatting.append({"type": "bold", "start": start_pos, "end": end_pos})
                     offset += len(bold_text)
                     i = end + 2
                     continue
 
             # Check for italic (*text*) - but not part of **
-            if text[i] == '*' and (i == 0 or text[i-1] != '*') and (i + 1 >= len(text) or text[i+1] != '*'):
+            if text[i] == "*" and (i == 0 or text[i - 1] != "*") and (i + 1 >= len(text) or text[i + 1] != "*"):
                 # Find closing *
                 end = i + 1
                 while end < len(text):
-                    if text[end] == '*' and (end + 1 >= len(text) or text[end+1] != '*'):
+                    if text[end] == "*" and (end + 1 >= len(text) or text[end + 1] != "*"):
                         break
                     end += 1
 
                 if end < len(text):
-                    italic_text = text[i+1:end]
+                    italic_text = text[i + 1 : end]
                     start_pos = offset
                     plain_text += italic_text
                     end_pos = offset + len(italic_text)
-                    formatting.append({
-                        'type': 'italic',
-                        'start': start_pos,
-                        'end': end_pos
-                    })
+                    formatting.append({"type": "italic", "start": start_pos, "end": end_pos})
                     offset += len(italic_text)
                     i = end + 1
                     continue
@@ -510,9 +477,9 @@ class InsertMarkdownContent(ActionHandler):
 
         return plain_text, formatting
 
-    async def _get_insertion_index(self, context: ExecutionContext,
-                                   document_id: str, tab_id: Optional[str],
-                                   append: bool) -> int:
+    async def _get_insertion_index(
+        self, context: ExecutionContext, document_id: str, tab_id: Optional[str], append: bool
+    ) -> int:
         """Get the index where content should be inserted."""
         if not append:
             return 1  # Insert at beginning
@@ -522,33 +489,37 @@ class InsertMarkdownContent(ActionHandler):
         params = {}
 
         if tab_id:
-            params['includeTabsContent'] = 'true'
-            params['fields'] = 'tabs(tabId,documentTab/body/content(endIndex))'
+            params["includeTabsContent"] = "true"
+            params["fields"] = "tabs(tabId,documentTab/body/content(endIndex))"
         else:
-            params['fields'] = 'body/content(endIndex)'
+            params["fields"] = "body/content(endIndex)"
 
         try:
-            document = await context.fetch(url, method="GET", params=params)
+            document = (await context.fetch(url, method="GET", params=params)).data
         except Exception:
             return 1  # Default to beginning on error
 
         if tab_id:
-            for tab in document.get('tabs', []):
-                if tab.get('tabId') == tab_id:
-                    doc_tab = tab.get('documentTab', {})
-                    body = doc_tab.get('body', {})
-                    content = body.get('content', [])
-                    return content[-1].get('endIndex', 1) - 1 if content else 1
+            for tab in document.get("tabs", []):
+                if tab.get("tabId") == tab_id:
+                    doc_tab = tab.get("documentTab", {})
+                    body = doc_tab.get("body", {})
+                    content = body.get("content", [])
+                    return content[-1].get("endIndex", 1) - 1 if content else 1
             return 1
         else:
-            body = document.get('body', {})
-            content = body.get('content', [])
-            return content[-1].get('endIndex', 1) - 1 if content else 1
+            body = document.get("body", {})
+            content = body.get("content", [])
+            return content[-1].get("endIndex", 1) - 1 if content else 1
 
-    async def _insert_and_style_content(self, context: ExecutionContext,
-                                        document_id: str, tab_id: Optional[str],
-                                        elements: List[Dict[str, Any]],
-                                        start_index: int) -> Dict[str, Any]:
+    async def _insert_and_style_content(
+        self,
+        context: ExecutionContext,
+        document_id: str,
+        tab_id: Optional[str],
+        elements: List[Dict[str, Any]],
+        start_index: int,
+    ) -> Dict[str, Any]:
         """
         Insert all content and apply styles in a single batch operation.
         """
@@ -558,12 +529,12 @@ class InsertMarkdownContent(ActionHandler):
 
             # Map heading level to Google Docs heading style
             heading_style_map = {
-                1: 'HEADING_1',
-                2: 'HEADING_2',
-                3: 'HEADING_3',
-                4: 'HEADING_4',
-                5: 'HEADING_5',
-                6: 'HEADING_6'
+                1: "HEADING_1",
+                2: "HEADING_2",
+                3: "HEADING_3",
+                4: "HEADING_4",
+                5: "HEADING_5",
+                6: "HEADING_6",
             }
 
             heading_count = 0
@@ -571,46 +542,36 @@ class InsertMarkdownContent(ActionHandler):
 
             # Build all insertion and styling requests
             for element in elements:
-                element_type = element['type']
-                text = element['text']
-                formatting = element.get('formatting', [])
+                element_type = element["type"]
+                text = element["text"]
+                formatting = element.get("formatting", [])
 
                 # Add newline for proper spacing
-                if element_type == 'heading':
-                    full_text = text + '\n'
+                if element_type == "heading":
+                    full_text = text + "\n"
                 else:
-                    full_text = text + '\n\n'
+                    full_text = text + "\n\n"
 
                 # Insert text
-                insert_request = {
-                    'insertText': {
-                        'text': full_text,
-                        'location': {'index': current_index}
-                    }
-                }
+                insert_request = {"insertText": {"text": full_text, "location": {"index": current_index}}}
                 if tab_id:
-                    insert_request['insertText']['location']['tabId'] = tab_id
+                    insert_request["insertText"]["location"]["tabId"] = tab_id
                 batch_requests.append(insert_request)
 
                 # Apply paragraph-level style for headings
-                if element_type == 'heading':
-                    level = element['level']
-                    heading_style = heading_style_map.get(level, 'HEADING_1')
+                if element_type == "heading":
+                    level = element["level"]
+                    heading_style = heading_style_map.get(level, "HEADING_1")
 
                     style_request = {
-                        'updateParagraphStyle': {
-                            'range': {
-                                'startIndex': current_index,
-                                'endIndex': current_index + len(full_text)
-                            },
-                            'paragraphStyle': {
-                                'namedStyleType': heading_style
-                            },
-                            'fields': 'namedStyleType'
+                        "updateParagraphStyle": {
+                            "range": {"startIndex": current_index, "endIndex": current_index + len(full_text)},
+                            "paragraphStyle": {"namedStyleType": heading_style},
+                            "fields": "namedStyleType",
                         }
                     }
                     if tab_id:
-                        style_request['updateParagraphStyle']['range']['tabId'] = tab_id
+                        style_request["updateParagraphStyle"]["range"]["tabId"] = tab_id
                     batch_requests.append(style_request)
                     heading_count += 1
                 else:
@@ -618,50 +579,49 @@ class InsertMarkdownContent(ActionHandler):
 
                 # Apply inline formatting (bold, italic)
                 for fmt in formatting:
-                    fmt_type = fmt['type']
-                    fmt_start = current_index + fmt['start']
-                    fmt_end = current_index + fmt['end']
+                    fmt_type = fmt["type"]
+                    fmt_start = current_index + fmt["start"]
+                    fmt_end = current_index + fmt["end"]
 
                     text_style = {}
                     fields = []
 
-                    if fmt_type == 'bold':
-                        text_style['bold'] = True
-                        fields.append('bold')
-                    elif fmt_type == 'italic':
-                        text_style['italic'] = True
-                        fields.append('italic')
+                    if fmt_type == "bold":
+                        text_style["bold"] = True
+                        fields.append("bold")
+                    elif fmt_type == "italic":
+                        text_style["italic"] = True
+                        fields.append("italic")
 
                     if text_style:
                         style_request = {
-                            'updateTextStyle': {
-                                'range': {
-                                    'startIndex': fmt_start,
-                                    'endIndex': fmt_end
-                                },
-                                'textStyle': text_style,
-                                'fields': ','.join(fields)
+                            "updateTextStyle": {
+                                "range": {"startIndex": fmt_start, "endIndex": fmt_end},
+                                "textStyle": text_style,
+                                "fields": ",".join(fields),
                             }
                         }
                         if tab_id:
-                            style_request['updateTextStyle']['range']['tabId'] = tab_id
+                            style_request["updateTextStyle"]["range"]["tabId"] = tab_id
                         batch_requests.append(style_request)
 
                 current_index += len(full_text)
 
             # Execute all insertions and styling in a single batch
             url = f"{DOCS_API_BASE}/documents/{document_id}:batchUpdate"
-            payload = {'requests': batch_requests}
+            payload = {"requests": batch_requests}
 
             await context.fetch(url, method="POST", json=payload)
 
-            return {
-                'result': True,
-                'headings_inserted': heading_count,
-                'paragraphs_inserted': paragraph_count,
-                'total_elements': len(elements)
-            }
+            return ActionResult(
+                data={
+                    "result": True,
+                    "headings_inserted": heading_count,
+                    "paragraphs_inserted": paragraph_count,
+                    "total_elements": len(elements),
+                },
+                cost_usd=0,
+            )
 
         except Exception as e:
             return handle_api_error(e, "Failed to insert and style content")
-

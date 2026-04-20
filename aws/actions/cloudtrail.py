@@ -22,13 +22,9 @@ class LookupEventsAction(ActionHandler):
                     for attr in inputs["lookup_attributes"]
                 ]
             if inputs.get("start_time"):
-                kwargs["StartTime"] = datetime.fromisoformat(
-                    inputs["start_time"].replace("Z", "+00:00")
-                )
+                kwargs["StartTime"] = datetime.fromisoformat(inputs["start_time"].replace("Z", "+00:00"))
             if inputs.get("end_time"):
-                kwargs["EndTime"] = datetime.fromisoformat(
-                    inputs["end_time"].replace("Z", "+00:00")
-                )
+                kwargs["EndTime"] = datetime.fromisoformat(inputs["end_time"].replace("Z", "+00:00"))
             if inputs.get("next_token"):
                 kwargs["NextToken"] = inputs["next_token"]
             response = await run_sync(client.lookup_events, **kwargs)
@@ -68,9 +64,7 @@ class GetTrailStatusAction(ActionHandler):
             client = create_boto3_client(context, "cloudtrail")
             kwargs = {"Name": inputs["trail_name"]}
             response = await run_sync(client.get_trail_status, **kwargs)
-            trail_status = {
-                k: v for k, v in response.items() if k != "ResponseMetadata"
-            }
+            trail_status = {k: v for k, v in response.items() if k != "ResponseMetadata"}
             return success_result({"trail_status": trail_status})
         except Exception as e:
             return error_result(e)
@@ -89,9 +83,7 @@ class GetEventSelectorsAction(ActionHandler):
                 {
                     "trail_arn": response.get("TrailARN"),
                     "event_selectors": response.get("EventSelectors", []),
-                    "advanced_event_selectors": response.get(
-                        "AdvancedEventSelectors", []
-                    ),
+                    "advanced_event_selectors": response.get("AdvancedEventSelectors", []),
                 }
             )
         except Exception as e:
