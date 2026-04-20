@@ -1542,8 +1542,7 @@ class GetAttachmentsAction(ActionHandler):
             raise ValueError("guid is required")
 
         try:
-            # Remap Bills -> Invoices (Xero has no /Bills/ endpoint; bills use /Invoices/)
-            api_endpoint = "Invoices" if endpoint == "Bills" else endpoint
+            api_endpoint = endpoint
 
             # Build URL for getting attachments list
             url = f"https://api.xero.com/api.xro/2.0/{api_endpoint}/{guid}/Attachments"
@@ -1609,8 +1608,7 @@ class GetAttachmentContentAction(ActionHandler):
             raise ValueError("file_name is required")
 
         try:
-            # Remap Bills -> Invoices (Xero has no /Bills/ endpoint; bills use /Invoices/)
-            api_endpoint = "Invoices" if endpoint == "Bills" else endpoint
+            api_endpoint = endpoint
 
             # Build URL for getting attachment content
             url = f"https://api.xero.com/api.xro/2.0/{api_endpoint}/{guid}/Attachments/{file_name}"
