@@ -32,6 +32,7 @@ sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
 from unittest.mock import MagicMock, AsyncMock  # noqa: E402
+from autohive_integrations_sdk import FetchResponse  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("bitly_mod", os.path.join(_parent, "bitly.py"))
 _mod = importlib.util.module_from_spec(_spec)
@@ -62,11 +63,19 @@ def live_context():
         merged_headers["Authorization"] = f"Bearer {ACCESS_TOKEN}"
         async with aiohttp.ClientSession() as session:
             async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
-                return await resp.json()
+                data = await resp.json()
+                return FetchResponse(
+                    status=resp.status,
+                    headers=dict(resp.headers),
+                    data=data,
+                )
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
-    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": ACCESS_TOKEN}}
+    ctx.auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": ACCESS_TOKEN},
+    }
     return ctx
 
 
@@ -191,7 +200,9 @@ class TestGetClicks:
         bitlink_id = bitlinks[0].get("id", bitlinks[0].get("link", ""))
 
         result = await bitly.execute_action(
-            "get_clicks", {"bitlink": bitlink_id, "unit": "day", "units": 7}, live_context
+            "get_clicks",
+            {"bitlink": bitlink_id, "unit": "day", "units": 7},
+            live_context,
         )
 
         data = result.result.data
@@ -210,7 +221,9 @@ class TestGetClicksSummary:
         bitlink_id = bitlinks[0].get("id", bitlinks[0].get("link", ""))
 
         result = await bitly.execute_action(
-            "get_clicks_summary", {"bitlink": bitlink_id, "unit": "day", "units": 30}, live_context
+            "get_clicks_summary",
+            {"bitlink": bitlink_id, "unit": "day", "units": 30},
+            live_context,
         )
 
         data = result.result.data

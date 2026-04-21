@@ -279,6 +279,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 | `unit` | Mocked tests, no network | No | Yes | Yes (`test_*_unit.py`) |
 | `integration` | Real API calls | Yes (via `.env`) | No | No (explicit file path) |
 
+## SDK Upgrades
+
+When upgrading an integration to a new SDK major version, the SDK repo provides agent skills to automate the migration. See the [skills directory](https://github.com/autohive-ai/integrations-sdk/tree/master/skills) in the SDK repo for setup instructions and available skills.
+
 ## Integration Structure
 
 See the SDK's [Integration Structure Reference](https://github.com/autohive-ai/integrations-sdk/blob/master/docs/manual/integration_structure.md) for directory layouts, required files, and the full `config.json` schema. The [Building Your First Integration](https://github.com/autohive-ai/integrations-sdk/blob/master/docs/manual/building_your_first_integration.md) tutorial covers the development workflow end-to-end, and [samples/template/](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) provides a ready-to-copy starter.

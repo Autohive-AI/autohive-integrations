@@ -27,6 +27,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
 )
 from typing import Dict, Any, Optional, Tuple
 import base64
@@ -117,10 +118,8 @@ async def get_oauth_token(context: ExecutionContext) -> Optional[str]:
 
     # Handle response
     token_data = None
-    if hasattr(response, "status_code") and response.status_code == 200:
-        token_data = response.json()
-    elif isinstance(response, dict):
-        token_data = response
+    if response.status == 200:
+        token_data = response.data
 
     if token_data and "access_token" in token_data:
         access_token = token_data["access_token"]
@@ -158,27 +157,24 @@ async def make_request(
 
     response = await context.fetch(url, method=method, headers=headers, params=params)
 
-    if hasattr(response, "status_code"):
-        if response.status_code == 200:
-            return {"success": True, "data": response.json()}
-        elif response.status_code == 304:
-            return {"success": True, "data": None, "not_modified": True}
-        elif response.status_code == 400:
-            error_data = response.json() if hasattr(response, "json") else {}
-            return {
-                "success": False,
-                "error": error_data.get("errorDescription", "Bad request - validation failed"),
-            }
-        elif response.status_code == 401:
-            return {"success": False, "error": "Unauthorized - invalid credentials"}
-        elif response.status_code == 403:
-            return {"success": False, "error": "Forbidden - insufficient permissions"}
-        elif response.status_code == 404:
-            return {"success": False, "error": "Entity not found"}
-        else:
-            return {"success": False, "error": f"API error: {response.status_code}"}
-
-    return {"success": True, "data": response}
+    if response.status == 200:
+        return {"success": True, "data": response.data}
+    elif response.status == 304:
+        return {"success": True, "data": None, "not_modified": True}
+    elif response.status == 400:
+        error_data = response.data if isinstance(response.data, dict) else {}
+        return {
+            "success": False,
+            "error": error_data.get("errorDescription", "Bad request - validation failed"),
+        }
+    elif response.status == 401:
+        return {"success": False, "error": "Unauthorized - invalid credentials"}
+    elif response.status == 403:
+        return {"success": False, "error": "Forbidden - insufficient permissions"}
+    elif response.status == 404:
+        return {"success": False, "error": "Entity not found"}
+    else:
+        return {"success": False, "error": f"API error: {response.status}"}
 
 
 # =============================================================================
@@ -194,10 +190,7 @@ class SearchEntitiesAction(ActionHandler):
         try:
             search_term = inputs.get("search_term", "")
             if not search_term:
-                return ActionResult(
-                    data={"result": False, "error": "search_term is required"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="search_term is required")
 
             params = {"search-term": search_term}
 
@@ -213,10 +206,7 @@ class SearchEntitiesAction(ActionHandler):
             result = await make_request(context, "GET", "/entities", params)
 
             if not result["success"]:
-                return ActionResult(
-                    data={"result": False, "error": result["error"], "items": []},
-                    cost_usd=0.0,
-                )
+                return ActionError(message=result["error"])
 
             data = result["data"]
             return ActionResult(
@@ -230,7 +220,7 @@ class SearchEntitiesAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e), "items": []}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @nzbn.action("get_entity")
@@ -241,16 +231,16 @@ class GetEntityAction(ActionHandler):
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
-                return ActionResult(data={"result": False, "error": "nzbn is required"}, cost_usd=0.0)
+                return ActionError(message="nzbn is required")
 
             result = await make_request(context, "GET", f"/entities/{nzbn_id}")
 
             if not result["success"]:
-                return ActionResult(data={"result": False, "error": result["error"]}, cost_usd=0.0)
+                return ActionError(message=result["error"])
 
             return ActionResult(data={"result": True, "entity": result["data"]}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @nzbn.action("get_entity_summary")
@@ -261,12 +251,12 @@ class GetEntitySummaryAction(ActionHandler):
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
-                return ActionResult(data={"result": False, "error": "nzbn is required"}, cost_usd=0.0)
+                return ActionError(message="nzbn is required")
 
             result = await make_request(context, "GET", f"/entities/{nzbn_id}")
 
             if not result["success"]:
-                return ActionResult(data={"result": False, "error": result["error"]}, cost_usd=0.0)
+                return ActionError(message=result["error"])
 
             # Extract only essential fields to save LLM tokens
             entity_data = result["data"]
@@ -304,7 +294,7 @@ class GetEntitySummaryAction(ActionHandler):
 
             return ActionResult(data={"result": True, "summary": summary}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @nzbn.action("get_entity_addresses")
@@ -315,14 +305,7 @@ class GetEntityAddressesAction(ActionHandler):
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "nzbn is required",
-                        "addresses": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="nzbn is required")
 
             params = {}
             if inputs.get("address_type"):
@@ -336,15 +319,12 @@ class GetEntityAddressesAction(ActionHandler):
             )
 
             if not result["success"]:
-                return ActionResult(
-                    data={"result": False, "error": result["error"], "addresses": []},
-                    cost_usd=0.0,
-                )
+                return ActionError(message=result["error"])
 
             addresses = result["data"] if isinstance(result["data"], list) else result["data"].get("items", [])
             return ActionResult(data={"result": True, "addresses": addresses}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e), "addresses": []}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @nzbn.action("get_entity_roles")
@@ -355,23 +335,17 @@ class GetEntityRolesAction(ActionHandler):
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
-                return ActionResult(
-                    data={"result": False, "error": "nzbn is required", "roles": []},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="nzbn is required")
 
             result = await make_request(context, "GET", f"/entities/{nzbn_id}/roles")
 
             if not result["success"]:
-                return ActionResult(
-                    data={"result": False, "error": result["error"], "roles": []},
-                    cost_usd=0.0,
-                )
+                return ActionError(message=result["error"])
 
             roles = result["data"] if isinstance(result["data"], list) else result["data"].get("items", [])
             return ActionResult(data={"result": True, "roles": roles}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e), "roles": []}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @nzbn.action("get_entity_trading_names")
@@ -382,34 +356,17 @@ class GetEntityTradingNamesAction(ActionHandler):
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "nzbn is required",
-                        "tradingNames": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="nzbn is required")
 
             result = await make_request(context, "GET", f"/entities/{nzbn_id}/trading-names")
 
             if not result["success"]:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": result["error"],
-                        "tradingNames": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message=result["error"])
 
             trading_names = result["data"] if isinstance(result["data"], list) else result["data"].get("items", [])
             return ActionResult(data={"result": True, "tradingNames": trading_names}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e), "tradingNames": []},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @nzbn.action("get_company_details")
@@ -420,16 +377,16 @@ class GetCompanyDetailsAction(ActionHandler):
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
-                return ActionResult(data={"result": False, "error": "nzbn is required"}, cost_usd=0.0)
+                return ActionError(message="nzbn is required")
 
             result = await make_request(context, "GET", f"/entities/{nzbn_id}/company-details")
 
             if not result["success"]:
-                return ActionResult(data={"result": False, "error": result["error"]}, cost_usd=0.0)
+                return ActionError(message=result["error"])
 
             return ActionResult(data={"result": True, "companyDetails": result["data"]}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @nzbn.action("get_entity_gst_numbers")
@@ -440,27 +397,17 @@ class GetEntityGstNumbersAction(ActionHandler):
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "nzbn is required",
-                        "gstNumbers": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="nzbn is required")
 
             result = await make_request(context, "GET", f"/entities/{nzbn_id}/gst-numbers")
 
             if not result["success"]:
-                return ActionResult(
-                    data={"result": False, "error": result["error"], "gstNumbers": []},
-                    cost_usd=0.0,
-                )
+                return ActionError(message=result["error"])
 
             gst_numbers = result["data"] if isinstance(result["data"], list) else result["data"].get("items", [])
             return ActionResult(data={"result": True, "gstNumbers": gst_numbers}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e), "gstNumbers": []}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @nzbn.action("get_entity_industry_classifications")
@@ -471,26 +418,12 @@ class GetEntityIndustryClassificationsAction(ActionHandler):
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "nzbn is required",
-                        "industryClassifications": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="nzbn is required")
 
             result = await make_request(context, "GET", f"/entities/{nzbn_id}/industry-classifications")
 
             if not result["success"]:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": result["error"],
-                        "industryClassifications": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message=result["error"])
 
             classifications = result["data"] if isinstance(result["data"], list) else result["data"].get("items", [])
             return ActionResult(
@@ -498,10 +431,7 @@ class GetEntityIndustryClassificationsAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e), "industryClassifications": []},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @nzbn.action("get_changes")
@@ -512,14 +442,7 @@ class GetChangesAction(ActionHandler):
         try:
             change_event_type = inputs.get("change_event_type", "")
             if not change_event_type:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "change_event_type is required",
-                        "changes": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="change_event_type is required")
 
             params = {"change-event-type": change_event_type}
 
@@ -535,10 +458,7 @@ class GetChangesAction(ActionHandler):
             result = await make_request(context, "GET", "/entities/changes", params)
 
             if not result["success"]:
-                return ActionResult(
-                    data={"result": False, "error": result["error"], "changes": []},
-                    cost_usd=0.0,
-                )
+                return ActionError(message=result["error"])
 
             data = result["data"]
             changes = data.get("items", []) if isinstance(data, dict) else data
@@ -551,4 +471,4 @@ class GetChangesAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e), "changes": []}, cost_usd=0.0)
+            return ActionError(message=str(e))

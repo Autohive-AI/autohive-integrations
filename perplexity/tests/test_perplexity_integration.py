@@ -22,6 +22,7 @@ sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
 from unittest.mock import MagicMock, AsyncMock  # noqa: E402
+from autohive_integrations_sdk import FetchResponse  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("perplexity_mod", os.path.join(_parent, "perplexity.py"))
 _mod = importlib.util.module_from_spec(_spec)
@@ -50,7 +51,8 @@ def live_context():
     async def real_fetch(url, *, method="GET", json=None, headers=None, **kwargs):
         async with aiohttp.ClientSession() as session:
             async with session.request(method, url, json=json, headers=headers) as resp:
-                return await resp.json()
+                data = await resp.json()
+                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
@@ -89,7 +91,9 @@ class TestMaxResults:
     @pytest.mark.asyncio
     async def test_respects_max_results(self, live_context):
         result = await perplexity.execute_action(
-            "search_web", {"query": "artificial intelligence", "max_results": 3}, live_context
+            "search_web",
+            {"query": "artificial intelligence", "max_results": 3},
+            live_context,
         )
 
         data = result.result.data
@@ -110,7 +114,9 @@ class TestContentDepth:
     @pytest.mark.asyncio
     async def test_quick_depth(self, live_context):
         result = await perplexity.execute_action(
-            "search_web", {"query": "climate change", "max_results": 2, "content_depth": "quick"}, live_context
+            "search_web",
+            {"query": "climate change", "max_results": 2, "content_depth": "quick"},
+            live_context,
         )
 
         data = result.result.data
@@ -119,7 +125,13 @@ class TestContentDepth:
     @pytest.mark.asyncio
     async def test_detailed_depth(self, live_context):
         result = await perplexity.execute_action(
-            "search_web", {"query": "quantum computing", "max_results": 2, "content_depth": "detailed"}, live_context
+            "search_web",
+            {
+                "query": "quantum computing",
+                "max_results": 2,
+                "content_depth": "detailed",
+            },
+            live_context,
         )
 
         data = result.result.data
@@ -130,7 +142,9 @@ class TestCountryFilter:
     @pytest.mark.asyncio
     async def test_country_filter_us(self, live_context):
         result = await perplexity.execute_action(
-            "search_web", {"query": "tech companies", "max_results": 5, "country": "US"}, live_context
+            "search_web",
+            {"query": "tech companies", "max_results": 5, "country": "US"},
+            live_context,
         )
 
         data = result.result.data
@@ -141,7 +155,9 @@ class TestMultiQuery:
     @pytest.mark.asyncio
     async def test_multi_query(self, live_context):
         result = await perplexity.execute_action(
-            "search_web", {"query": ["machine learning", "deep learning"], "max_results": 3}, live_context
+            "search_web",
+            {"query": ["machine learning", "deep learning"], "max_results": 3},
+            live_context,
         )
 
         data = result.result.data
@@ -153,7 +169,12 @@ class TestAllParametersCombined:
     async def test_all_params(self, live_context):
         result = await perplexity.execute_action(
             "search_web",
-            {"query": "renewable energy", "max_results": 5, "content_depth": "default", "country": "GB"},
+            {
+                "query": "renewable energy",
+                "max_results": 5,
+                "content_depth": "default",
+                "country": "GB",
+            },
             live_context,
         )
 

@@ -1,6 +1,7 @@
 import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
+from autohive_integrations_sdk import FetchResponse
 from notion import notion
 from notion.notion import NotionGetCommentsHandler
 
@@ -156,7 +157,7 @@ async def test_get_comments_handler_basic():
     }
 
     mock_context = MagicMock()
-    mock_context.fetch = AsyncMock(return_value=mock_response)
+    mock_context.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data=mock_response))
 
     inputs = {"block_id": "page-789"}
     result = await handler.execute(inputs, mock_context)
@@ -186,7 +187,7 @@ async def test_get_comments_handler_with_pagination():
     }
 
     mock_context = MagicMock()
-    mock_context.fetch = AsyncMock(return_value=mock_response)
+    mock_context.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data=mock_response))
 
     inputs = {"block_id": "page-123", "page_size": 2, "start_cursor": "prev-cursor"}
     result = await handler.execute(inputs, mock_context)
@@ -208,14 +209,15 @@ async def test_get_comments_handler_error():
     handler = NotionGetCommentsHandler()
 
     mock_context = MagicMock()
-    mock_context.fetch = AsyncMock(side_effect=Exception("API rate limit exceeded"))
+    mock_context.fetch = AsyncMock(side_effect=Exception("API rate limit exceeded"))  # noqa: E501
 
     inputs = {"block_id": "page-789"}
 
     result = await handler.execute(inputs, mock_context)
-    assert "error" in result.data
-    assert "API rate limit exceeded" in result.data["error"]
-    assert result.data["comments"] == []
+    from autohive_integrations_sdk import ActionError
+
+    assert isinstance(result, ActionError)
+    assert "API rate limit exceeded" in result.message
 
 
 async def test_get_comments_handler_empty_optional_params():
@@ -230,7 +232,7 @@ async def test_get_comments_handler_empty_optional_params():
     }
 
     mock_context = MagicMock()
-    mock_context.fetch = AsyncMock(return_value=mock_response)
+    mock_context.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data=mock_response))
 
     # Pass empty/None values for optional params
     inputs = {"block_id": "page-123", "page_size": None, "start_cursor": ""}

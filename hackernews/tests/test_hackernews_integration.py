@@ -21,6 +21,7 @@ sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
 from unittest.mock import MagicMock, AsyncMock  # noqa: E402
+from autohive_integrations_sdk import FetchResponse, ResultType  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("hackernews_mod", os.path.join(_parent, "hackernews.py"))
 _mod = importlib.util.module_from_spec(_spec)
@@ -39,7 +40,12 @@ def live_context():
     async def real_fetch(url, *, method="GET", json=None, headers=None, **kwargs):
         async with aiohttp.ClientSession() as session:
             async with session.request(method, url, json=json, headers=headers) as resp:
-                return await resp.json(content_type=None)
+                data = await resp.json(content_type=None)
+                return FetchResponse(
+                    status=resp.status,
+                    headers=dict(resp.headers),
+                    data=data,
+                )
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
@@ -135,7 +141,9 @@ class TestGetStoryWithComments:
         story_id = top.result.data["stories"][0]["id"]
 
         result = await hackernews.execute_action(
-            "get_story_with_comments", {"story_id": story_id, "comment_limit": 3, "comment_depth": 1}, live_context
+            "get_story_with_comments",
+            {"story_id": story_id, "comment_limit": 3, "comment_depth": 1},
+            live_context,
         )
 
         data = result.result.data
@@ -158,7 +166,9 @@ class TestGetStoryWithComments:
             pytest.skip("No stories with comments found in top 5")
 
         result = await hackernews.execute_action(
-            "get_story_with_comments", {"story_id": story_id, "comment_limit": 2, "comment_depth": 1}, live_context
+            "get_story_with_comments",
+            {"story_id": story_id, "comment_limit": 2, "comment_depth": 1},
+            live_context,
         )
 
         comments = result.result.data["comments"]
@@ -184,8 +194,10 @@ class TestGetUserProfile:
 
     async def test_nonexistent_user(self, live_context):
         result = await hackernews.execute_action(
-            "get_user_profile", {"username": "this_user_definitely_does_not_exist_99999"}, live_context
+            "get_user_profile",
+            {"username": "this_user_definitely_does_not_exist_99999"},
+            live_context,
         )
 
-        data = result.result.data
-        assert "error" in data
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message is not None

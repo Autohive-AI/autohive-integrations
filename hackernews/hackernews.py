@@ -1,4 +1,5 @@
 from autohive_integrations_sdk import (
+    ActionError,
     Integration,
     ExecutionContext,
     ActionHandler,
@@ -18,7 +19,8 @@ HN_USER_URL = "https://news.ycombinator.com/user?id="
 async def fetch_json(context: ExecutionContext, url: str) -> Optional[Any]:
     """Fetch JSON from a URL, returning None on error."""
     try:
-        return await context.fetch(url, method="GET")
+        response = await context.fetch(url, method="GET")
+        return response.data
     except Exception:
         return None
 
@@ -147,7 +149,7 @@ class GetTopStoriesAction(ActionHandler):
             result = await fetch_stories_list(context, "topstories", limit)
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"stories": [], "count": 0, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_best_stories")
@@ -160,7 +162,7 @@ class GetBestStoriesAction(ActionHandler):
             result = await fetch_stories_list(context, "beststories", limit)
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"stories": [], "count": 0, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_new_stories")
@@ -173,7 +175,7 @@ class GetNewStoriesAction(ActionHandler):
             result = await fetch_stories_list(context, "newstories", limit)
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"stories": [], "count": 0, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_ask_hn_stories")
@@ -186,7 +188,7 @@ class GetAskHNStoriesAction(ActionHandler):
             result = await fetch_stories_list(context, "askstories", limit)
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"stories": [], "count": 0, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_show_hn_stories")
@@ -199,7 +201,7 @@ class GetShowHNStoriesAction(ActionHandler):
             result = await fetch_stories_list(context, "showstories", limit)
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"stories": [], "count": 0, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_job_stories")
@@ -212,7 +214,7 @@ class GetJobStoriesAction(ActionHandler):
             result = await fetch_stories_list(context, "jobstories", limit, output_key="jobs")
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"jobs": [], "count": 0, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_story_with_comments")
@@ -228,7 +230,7 @@ class GetStoryWithCommentsAction(ActionHandler):
             story = await fetch_item(context, story_id)
 
             if not story:
-                return ActionResult(data={"error": f"Story with ID {story_id} not found"}, cost_usd=0.0)
+                return ActionError(message=f"Story with ID {story_id} not found")
 
             comments = []
             if story.get("kids"):
@@ -249,7 +251,7 @@ class GetStoryWithCommentsAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_user_profile")
@@ -263,7 +265,7 @@ class GetUserProfileAction(ActionHandler):
             user = await fetch_json(context, f"{BASE_URL}/user/{username}.json")
 
             if not user:
-                return ActionResult(data={"error": f"User '{username}' not found"}, cost_usd=0.0)
+                return ActionError(message=f"User '{username}' not found")
 
             result = {
                 "id": user.get("id"),
@@ -279,4 +281,4 @@ class GetUserProfileAction(ActionHandler):
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))

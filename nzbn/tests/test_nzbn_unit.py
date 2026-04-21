@@ -13,6 +13,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../d
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from autohive_integrations_sdk import FetchResponse, ResultType  # noqa: E402
+
 from nzbn.nzbn import (
     nzbn,
     _get_cached_token,
@@ -88,15 +90,8 @@ class TestInputValidation:
 
     async def _assert_rejects_missing_field(self, mock_context, action, inputs=None):
         """Assert that calling an action with missing required fields fails."""
-        try:
-            result = await nzbn.execute_action(action, inputs or {}, mock_context)
-            # Handler returned an error result instead of the SDK raising
-            data = result.result.data
-            assert data["result"] is False
-            assert "required" in data.get("error", "").lower()
-        except Exception:  # nosec B110
-            # SDK raised a validation error — also acceptable
-            pass
+        result = await nzbn.execute_action(action, inputs or {}, mock_context)
+        assert result.type in (ResultType.ACTION_ERROR, ResultType.VALIDATION_ERROR)
 
     @pytest.mark.asyncio
     async def test_search_entities_missing_search_term(self, mock_context):
@@ -204,10 +199,9 @@ class TestSearchEntities:
         }
 
         result = await nzbn.execute_action("search_entities", {"search_term": "test"}, mock_context)
-        data = result.result.data
 
-        assert data["result"] is False
-        assert "Bad request" in data["error"]
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Bad request" in result.result.message
 
 
 class TestGetEntity:
@@ -238,10 +232,9 @@ class TestGetEntity:
         mock_make_request.return_value = {"success": False, "error": "Entity not found"}
 
         result = await nzbn.execute_action("get_entity", {"nzbn": "0000000000000"}, mock_context)
-        data = result.result.data
 
-        assert data["result"] is False
-        assert "not found" in data["error"].lower()
+        assert result.type == ResultType.ACTION_ERROR
+        assert "not found" in result.result.message.lower()
 
 
 class TestGetEntitySummary:
@@ -502,7 +495,9 @@ class TestMakeRequest:
             "Authorization": "Bearer tok",
             "Accept": "application/json",
         }
-        mock_context.fetch.return_value = {"nzbn": TEST_NZBN, "entityName": "Test"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"nzbn": TEST_NZBN, "entityName": "Test"}
+        )
 
         result = await make_request(mock_context, "GET", f"/entities/{TEST_NZBN}")
 
@@ -513,9 +508,7 @@ class TestMakeRequest:
     @patch("nzbn.nzbn.get_headers")
     async def test_make_request_http_404(self, mock_get_headers, mock_context):
         mock_get_headers.return_value = {"Authorization": "Bearer tok"}
-        response = MagicMock()
-        response.status_code = 404
-        mock_context.fetch.return_value = response
+        mock_context.fetch.return_value = FetchResponse(status=404, headers={}, data=None)
 
         result = await make_request(mock_context, "GET", "/entities/0000000000000")
 
@@ -526,9 +519,7 @@ class TestMakeRequest:
     @patch("nzbn.nzbn.get_headers")
     async def test_make_request_http_401(self, mock_get_headers, mock_context):
         mock_get_headers.return_value = {}
-        response = MagicMock()
-        response.status_code = 401
-        mock_context.fetch.return_value = response
+        mock_context.fetch.return_value = FetchResponse(status=401, headers={}, data=None)
 
         result = await make_request(mock_context, "GET", "/entities/test")
 
@@ -539,10 +530,7 @@ class TestMakeRequest:
     @patch("nzbn.nzbn.get_headers")
     async def test_make_request_http_200(self, mock_get_headers, mock_context):
         mock_get_headers.return_value = {}
-        response = MagicMock()
-        response.status_code = 200
-        response.json.return_value = {"entityName": "OK Corp"}
-        mock_context.fetch.return_value = response
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"entityName": "OK Corp"})
 
         result = await make_request(mock_context, "GET", "/entities/test")
 
@@ -553,9 +541,7 @@ class TestMakeRequest:
     @patch("nzbn.nzbn.get_headers")
     async def test_make_request_http_304(self, mock_get_headers, mock_context):
         mock_get_headers.return_value = {}
-        response = MagicMock()
-        response.status_code = 304
-        mock_context.fetch.return_value = response
+        mock_context.fetch.return_value = FetchResponse(status=304, headers={}, data=None)
 
         result = await make_request(mock_context, "GET", "/entities/test")
 
@@ -602,10 +588,9 @@ class TestErrorHandling:
         mock_make_request.side_effect = RuntimeError("connection refused")
 
         result = await nzbn.execute_action("search_entities", {"search_term": "test"}, mock_context)
-        data = result.result.data
 
-        assert data["result"] is False
-        assert "connection refused" in data["error"]
+        assert result.type == ResultType.ACTION_ERROR
+        assert "connection refused" in result.result.message
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.make_request")
@@ -613,10 +598,9 @@ class TestErrorHandling:
         mock_make_request.side_effect = RuntimeError("timeout")
 
         result = await nzbn.execute_action("get_entity", {"nzbn": TEST_NZBN}, mock_context)
-        data = result.result.data
 
-        assert data["result"] is False
-        assert "timeout" in data["error"]
+        assert result.type == ResultType.ACTION_ERROR
+        assert "timeout" in result.result.message
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.make_request")
@@ -624,7 +608,6 @@ class TestErrorHandling:
         mock_make_request.side_effect = RuntimeError("server error")
 
         result = await nzbn.execute_action("get_changes", {"change_event_type": "NewRegistration"}, mock_context)
-        data = result.result.data
 
-        assert data["result"] is False
-        assert "server error" in data["error"]
+        assert result.type == ResultType.ACTION_ERROR
+        assert "server error" in result.result.message

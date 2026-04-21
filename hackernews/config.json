@@ -1,6 +1,6 @@
 {
     "name": "Hacker News",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Read-only integration with Hacker News API for fetching top stories, news, and discussions.",
     "entry_point": "hackernews.py",
     "actions": {

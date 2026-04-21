@@ -4,7 +4,13 @@ This integration provides web search capabilities using Perplexity's Search API.
 """
 
 import os
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ActionError,
+)
 from typing import Dict, Any
 
 # Load the integration from config.json
@@ -12,10 +18,11 @@ perplexity = Integration.load()
 
 
 async def parse_response(response):
-    """Parse the response from context.fetch()"""
-    if hasattr(response, "json"):
-        return await response.json()
-    return response
+    """Parse the response from context.fetch() — returns the body data.
+
+    SDK 2.0.0: context.fetch() returns a FetchResponse with .data attribute.
+    """
+    return response.data
 
 
 @perplexity.action("search_web")
@@ -43,13 +50,7 @@ class SearchWebActionHandler(ActionHandler):
         try:
             api_key = os.environ.get("PERPLEXITY_API_KEY", "")
             if not api_key:
-                return ActionResult(
-                    data={
-                        "results": [],
-                        "total_results": 0,
-                        "error": "PERPLEXITY_API_KEY environment variable is not set or empty.",
-                    }
-                )
+                return ActionError(message="PERPLEXITY_API_KEY environment variable is not set or empty.")
 
             query = inputs["query"]
 
@@ -74,7 +75,10 @@ class SearchWebActionHandler(ActionHandler):
                 "https://api.perplexity.ai/search",
                 method="POST",
                 json=payload,
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
             )
 
             # Parse the response
@@ -87,38 +91,23 @@ class SearchWebActionHandler(ActionHandler):
             return ActionResult(data=result, cost_usd=0.005)
 
         except KeyError as e:
-            return ActionResult(
-                data={"results": [], "total_results": 0, "error": f"Missing required input field: {str(e)}"}
-            )
+            return ActionError(message=f"Missing required input field: {str(e)}")
 
         except Exception as e:
             error_message = str(e)
 
             if "429" in error_message or "rate limit" in error_message.lower():
-                return ActionResult(
-                    data={
-                        "results": [],
-                        "total_results": 0,
-                        "error": "Rate limit exceeded. Please wait a moment and try again. Perplexity allows 3 requests per second.",  # noqa: E501
-                    }
+                return ActionError(
+                    message="Rate limit exceeded. Please wait a moment and try again. Perplexity allows 3 requests per second.",  # noqa: E501
+                    cost_usd=0.005,
                 )
             elif "401" in error_message or "unauthorized" in error_message.lower():
-                return ActionResult(
-                    data={
-                        "results": [],
-                        "total_results": 0,
-                        "error": "Invalid API key. Please check your PERPLEXITY_API_KEY environment variable.",
-                    }
+                return ActionError(
+                    message="Invalid API key. Please check your PERPLEXITY_API_KEY environment variable.",
                 )
             elif "403" in error_message or "forbidden" in error_message.lower():
-                return ActionResult(
-                    data={
-                        "results": [],
-                        "total_results": 0,
-                        "error": "Access forbidden. Please ensure you have purchased API credits at https://www.perplexity.ai/settings/api",  # noqa: E501
-                    }
+                return ActionError(
+                    message="Access forbidden. Please ensure you have purchased API credits at https://www.perplexity.ai/settings/api",  # noqa: E501
                 )
             else:
-                return ActionResult(
-                    data={"results": [], "total_results": 0, "error": f"Failed to search: {error_message}"}
-                )
+                return ActionError(message=f"Failed to search: {error_message}")
