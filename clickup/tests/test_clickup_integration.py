@@ -22,15 +22,25 @@ Never runs in CI — the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
+import importlib
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
+sys.path.insert(0, _parent)
+sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
 from unittest.mock import MagicMock, AsyncMock  # noqa: E402
 
-from clickup.clickup import clickup  # noqa: E402
+_spec = importlib.util.spec_from_file_location(
+    "clickup_mod", os.path.join(_parent, "clickup.py")
+)
+_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+
+clickup = _mod.clickup
 
 pytestmark = pytest.mark.integration
 
@@ -128,6 +138,7 @@ async def _get_first_list_id(live_context):
 
 
 class TestGetAuthorizedTeams:
+    @pytest.mark.asyncio
     async def test_returns_teams(self, live_context):
         result = await clickup.execute_action("get_authorized_teams", {}, live_context)
 
@@ -136,6 +147,7 @@ class TestGetAuthorizedTeams:
         assert "teams" in data
         assert len(data["teams"]) > 0
 
+    @pytest.mark.asyncio
     async def test_team_structure(self, live_context):
         result = await clickup.execute_action("get_authorized_teams", {}, live_context)
 
@@ -150,6 +162,7 @@ class TestGetAuthorizedTeams:
 
 
 class TestGetSpaces:
+    @pytest.mark.asyncio
     async def test_returns_spaces(self, live_context):
         team_id = await _get_first_team_id(live_context)
 
@@ -162,6 +175,7 @@ class TestGetSpaces:
         assert "spaces" in data
         assert len(data["spaces"]) > 0
 
+    @pytest.mark.asyncio
     async def test_space_structure(self, live_context):
         team_id = await _get_first_team_id(live_context)
 
@@ -175,6 +189,7 @@ class TestGetSpaces:
 
 
 class TestGetSpace:
+    @pytest.mark.asyncio
     async def test_returns_space(self, live_context):
         space_id = await _get_first_space_id(live_context)
 
@@ -193,6 +208,7 @@ class TestGetSpace:
 
 
 class TestGetFolders:
+    @pytest.mark.asyncio
     async def test_returns_folders(self, live_context):
         space_id = await _get_first_space_id(live_context)
 
@@ -206,6 +222,7 @@ class TestGetFolders:
 
 
 class TestGetFolder:
+    @pytest.mark.asyncio
     async def test_returns_folder(self, live_context):
         folder_id = await _get_first_folder_id(live_context)
 
@@ -224,6 +241,7 @@ class TestGetFolder:
 
 
 class TestGetLists:
+    @pytest.mark.asyncio
     async def test_returns_lists(self, live_context):
         folder_id = await _get_first_folder_id(live_context)
 
@@ -237,6 +255,7 @@ class TestGetLists:
 
 
 class TestGetList:
+    @pytest.mark.asyncio
     async def test_returns_list(self, live_context):
         list_id = await _get_first_list_id(live_context)
 
@@ -255,6 +274,7 @@ class TestGetList:
 
 
 class TestGetTasks:
+    @pytest.mark.asyncio
     async def test_returns_tasks(self, live_context):
         list_id = await _get_first_list_id(live_context)
 
@@ -268,6 +288,7 @@ class TestGetTasks:
 
 
 class TestGetTask:
+    @pytest.mark.asyncio
     async def test_returns_task(self, live_context):
         list_id = await _get_first_list_id(live_context)
 
@@ -295,6 +316,7 @@ class TestGetTask:
 
 
 class TestGetTaskComments:
+    @pytest.mark.asyncio
     async def test_returns_comments(self, live_context):
         list_id = await _get_first_list_id(live_context)
 

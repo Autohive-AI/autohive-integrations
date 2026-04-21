@@ -5,16 +5,26 @@ Uses pytest + mock context pattern (mock_context fixture from root conftest.py).
 Covers all 23 actions with mocked context.fetch calls.
 """
 
+import importlib
 import json
 import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
+_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
+sys.path.insert(0, _parent)
+sys.path.insert(0, _deps)
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import pytest  # noqa: E402
 
-from clickup.clickup import clickup
+_spec = importlib.util.spec_from_file_location(
+    "clickup_mod", os.path.join(_parent, "clickup.py")
+)
+_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+
+clickup = _mod.clickup
 
 pytestmark = pytest.mark.unit
 
