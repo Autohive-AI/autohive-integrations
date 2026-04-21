@@ -554,8 +554,11 @@ class TestGetHeaders:
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.get_oauth_token")
-    @patch("nzbn.nzbn.SUBSCRIPTION_KEY", "test-sub-key")
-    async def test_headers_include_subscription_key(self, mock_get_oauth_token, mock_context):
+    @patch(
+        "nzbn.nzbn._get_credentials",
+        return_value={"client_id": "cid", "client_secret": "csec", "subscription_key": "test-sub-key"},  # nosec B105
+    )
+    async def test_headers_include_subscription_key(self, mock_get_creds, mock_get_oauth_token, mock_context):
         mock_get_oauth_token.return_value = "tok_abc"
 
         headers = await get_headers(mock_context)
@@ -566,12 +569,22 @@ class TestGetHeaders:
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.get_oauth_token")
-    async def test_headers_without_token(self, mock_get_oauth_token, mock_context):
+    @patch(
+        "nzbn.nzbn._get_credentials",
+        return_value={"client_id": "cid", "client_secret": "csec", "subscription_key": "sub-key"},  # nosec B105
+    )
+    async def test_headers_without_token(self, mock_get_creds, mock_get_oauth_token, mock_context):
         mock_get_oauth_token.return_value = None
 
         headers = await get_headers(mock_context)
 
         assert "Authorization" not in headers
+
+    @pytest.mark.asyncio
+    @patch("nzbn.nzbn._get_credentials", return_value={"client_id": "", "client_secret": "", "subscription_key": ""})  # nosec B105
+    async def test_headers_fail_fast_on_missing_credentials(self, mock_get_creds, mock_context):
+        with pytest.raises(ValueError, match="Missing required environment variable"):
+            await get_headers(mock_context)
 
 
 # =============================================================================

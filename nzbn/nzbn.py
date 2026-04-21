@@ -45,18 +45,23 @@ TOKEN_URL = "https://login.microsoftonline.com/b2cessmapprd.onmicrosoft.com/oaut
 PRODUCTION_SCOPE = "https://api.business.govt.nz/gateway/.default"
 
 # =============================================================================
-# Credentials Configuration
+# Credentials
 #
-# IMPORTANT: These placeholders MUST be replaced at deployment time.
-# Secrets should be injected via environment variables or secrets management.
+# Read at runtime (not import time) so that:
+# 1. Environment variables set after import are picked up
+# 2. No module-level SECRET variables (avoids bandit warnings)
+# 3. Easy to mock in tests via @patch("nzbn.nzbn._get_credentials")
 # =============================================================================
 
-# OAuth App Credentials (Autohive's registered NZBN application)
-OAUTH_CLIENT_ID = os.environ.get("NZBN_CLIENT_ID", "")
-OAUTH_CLIENT_SECRET = os.environ.get("NZBN_CLIENT_SECRET", "")
 
-# NZBN API Subscription Key (Autohive's enterprise subscription)
-SUBSCRIPTION_KEY = os.environ.get("NZBN_SUBSCRIPTION_KEY", "")
+def _get_credentials() -> Dict[str, str]:
+    """Read NZBN credentials from environment variables at call time."""
+    return {
+        "client_id": os.environ.get("NZBN_CLIENT_ID", ""),
+        "client_secret": os.environ.get("NZBN_CLIENT_SECRET", ""),
+        "subscription_key": os.environ.get("NZBN_SUBSCRIPTION_KEY", ""),
+    }
+
 
 # =============================================================================
 # OAuth Token Cache
@@ -83,7 +88,7 @@ def _cache_token(cache_key: str, token: str, expires_in: int) -> None:
     _token_cache[cache_key] = (token, time.time() + expires_in)
 
 
-async def get_oauth_token(context: ExecutionContext) -> Optional[str]:
+async def get_oauth_token(context: ExecutionContext, client_id: str, client_secret: str) -> Optional[str]:
     """
     Get OAuth access token using 2-legged client credentials flow.
 
@@ -97,11 +102,7 @@ async def get_oauth_token(context: ExecutionContext) -> Optional[str]:
     if cached_token:
         return cached_token
 
-    # Validate credentials are configured
-    if not OAUTH_CLIENT_ID or not OAUTH_CLIENT_SECRET:
-        return None
-
-    auth_string = f"{OAUTH_CLIENT_ID}:{OAUTH_CLIENT_SECRET}"
+    auth_string = f"{client_id}:{client_secret}"
     auth_bytes = base64.b64encode(auth_string.encode()).decode()
 
     headers = {
@@ -131,14 +132,33 @@ async def get_oauth_token(context: ExecutionContext) -> Optional[str]:
 
 
 async def get_headers(context: ExecutionContext) -> Dict[str, str]:
-    """Build headers for NZBN API requests with OAuth token and subscription key."""
+    """Build headers for NZBN API requests with OAuth token and subscription key.
+
+    Reads credentials from environment variables at call time and fails fast
+    with a clear error if any are missing.
+    """
+    creds = _get_credentials()
+
+    missing = [
+        name
+        for name, key in [
+            ("NZBN_CLIENT_ID", "client_id"),
+            ("NZBN_CLIENT_SECRET", "client_secret"),
+            ("NZBN_SUBSCRIPTION_KEY", "subscription_key"),
+        ]
+        if not creds[key]
+    ]
+
+    if missing:
+        raise ValueError(f"Missing required environment variable(s): {', '.join(missing)}")
+
     headers = {
-        "Ocp-Apim-Subscription-Key": SUBSCRIPTION_KEY,
+        "Ocp-Apim-Subscription-Key": creds["subscription_key"],
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
 
-    access_token = await get_oauth_token(context)
+    access_token = await get_oauth_token(context, creds["client_id"], creds["client_secret"])
     if access_token:
         headers["Authorization"] = f"Bearer {access_token}"
 
