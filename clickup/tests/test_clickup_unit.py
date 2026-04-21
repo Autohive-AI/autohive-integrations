@@ -1,738 +1,873 @@
-# Testbed for ClickUp integration
-import asyncio
-from context import clickup
-from autohive_integrations_sdk import ExecutionContext
+"""
+Unit tests for ClickUp integration.
+
+Uses pytest + mock context pattern (mock_context fixture from root conftest.py).
+Covers all 23 actions with mocked context.fetch calls.
+"""
+
+import json
+import os
+import sys
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from clickup.clickup import clickup
+
+pytestmark = pytest.mark.unit
+
+CLICKUP_API_BASE_URL = "https://api.clickup.com/api/v2"
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config.json")
 
 
-async def test_get_authorized_teams():
-    """Test getting authorized teams/workspaces."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
+# ---------------------------------------------------------------------------
+# Config validation
+# ---------------------------------------------------------------------------
 
-    inputs = {}
 
-    async with ExecutionContext(auth=auth) as context:
-        try:
+class TestConfigValidation:
+    def test_actions_match_handlers(self):
+        with open(CONFIG_PATH, "r") as f:
+            config = json.load(f)
+
+        defined_actions = set(config.get("actions", {}).keys())
+        registered_actions = set(clickup._action_handlers.keys())
+
+        missing_handlers = defined_actions - registered_actions
+        extra_handlers = registered_actions - defined_actions
+
+        assert not missing_handlers, f"Missing handlers for actions: {missing_handlers}"
+        assert not extra_handlers, f"Extra handlers without config: {extra_handlers}"
+
+
+# ---------------------------------------------------------------------------
+# Team/Workspace actions
+# ---------------------------------------------------------------------------
+
+
+class TestGetAuthorizedTeams:
+    @pytest.mark.asyncio
+    async def test_returns_teams(self, mock_context):
+        mock_context.fetch.return_value = {
+            "teams": [{"id": "t1", "name": "Workspace 1"}]
+        }
+
+        result = await clickup.execute_action("get_authorized_teams", {}, mock_context)
+
+        assert result.result.data["result"] is True
+        assert result.result.data["teams"] == [{"id": "t1", "name": "Workspace 1"}]
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/team", method="GET"
+        )
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Network error")
+
+        result = await clickup.execute_action("get_authorized_teams", {}, mock_context)
+
+        assert result.result.data["result"] is False
+        assert "Network error" in result.result.data["error"]
+        assert result.result.data["teams"] == []
+
+
+# ---------------------------------------------------------------------------
+# Space actions
+# ---------------------------------------------------------------------------
+
+
+class TestGetSpaces:
+    @pytest.mark.asyncio
+    async def test_returns_spaces(self, mock_context):
+        mock_context.fetch.return_value = {"spaces": [{"id": "s1", "name": "Space 1"}]}
+
+        result = await clickup.execute_action(
+            "get_spaces", {"team_id": "t1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert result.result.data["spaces"] == [{"id": "s1", "name": "Space 1"}]
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/team/t1/space", method="GET", params=None
+        )
+
+    @pytest.mark.asyncio
+    async def test_with_archived(self, mock_context):
+        mock_context.fetch.return_value = {"spaces": []}
+
+        await clickup.execute_action(
+            "get_spaces", {"team_id": "t1", "archived": True}, mock_context
+        )
+
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/team/t1/space",
+            method="GET",
+            params={"archived": "true"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Timeout")
+
+        result = await clickup.execute_action(
+            "get_spaces", {"team_id": "t1"}, mock_context
+        )
+
+        assert result.result.data["result"] is False
+        assert result.result.data["spaces"] == []
+
+
+class TestGetSpace:
+    @pytest.mark.asyncio
+    async def test_returns_space(self, mock_context):
+        mock_context.fetch.return_value = {"id": "s1", "name": "My Space"}
+
+        result = await clickup.execute_action(
+            "get_space", {"space_id": "s1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert result.result.data["space"] == {"id": "s1", "name": "My Space"}
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/space/s1", method="GET"
+        )
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Not found")
+
+        result = await clickup.execute_action(
+            "get_space", {"space_id": "s1"}, mock_context
+        )
+
+        assert result.result.data["result"] is False
+        assert result.result.data["space"] == {}
+
+
+# ---------------------------------------------------------------------------
+# Folder actions
+# ---------------------------------------------------------------------------
+
+
+class TestCreateFolder:
+    @pytest.mark.asyncio
+    async def test_creates_folder(self, mock_context):
+        mock_context.fetch.return_value = {"id": "f1", "name": "New Folder"}
+
+        result = await clickup.execute_action(
+            "create_folder", {"space_id": "s1", "name": "New Folder"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert result.result.data["folder"] == {"id": "f1", "name": "New Folder"}
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/space/s1/folder",
+            method="POST",
+            json={"name": "New Folder"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Forbidden")
+
+        result = await clickup.execute_action(
+            "create_folder", {"space_id": "s1", "name": "Fail"}, mock_context
+        )
+
+        assert result.result.data["result"] is False
+        assert result.result.data["folder"] == {}
+
+
+class TestGetFolder:
+    @pytest.mark.asyncio
+    async def test_returns_folder(self, mock_context):
+        mock_context.fetch.return_value = {"id": "f1", "name": "Folder 1"}
+
+        result = await clickup.execute_action(
+            "get_folder", {"folder_id": "f1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert result.result.data["folder"]["id"] == "f1"
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/folder/f1", method="GET"
+        )
+
+
+class TestUpdateFolder:
+    @pytest.mark.asyncio
+    async def test_updates_folder(self, mock_context):
+        mock_context.fetch.return_value = {"id": "f1", "name": "Renamed"}
+
+        result = await clickup.execute_action(
+            "update_folder", {"folder_id": "f1", "name": "Renamed"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert result.result.data["folder"]["name"] == "Renamed"
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/folder/f1", method="PUT", json={"name": "Renamed"}
+        )
+
+
+class TestDeleteFolder:
+    @pytest.mark.asyncio
+    async def test_deletes_folder(self, mock_context):
+        mock_context.fetch.return_value = None
+
+        result = await clickup.execute_action(
+            "delete_folder", {"folder_id": "f1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/folder/f1", method="DELETE"
+        )
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Server error")
+
+        result = await clickup.execute_action(
+            "delete_folder", {"folder_id": "f1"}, mock_context
+        )
+
+        assert result.result.data["result"] is False
+
+
+class TestGetFolders:
+    @pytest.mark.asyncio
+    async def test_returns_folders(self, mock_context):
+        mock_context.fetch.return_value = {"folders": [{"id": "f1"}, {"id": "f2"}]}
+
+        result = await clickup.execute_action(
+            "get_folders", {"space_id": "s1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert len(result.result.data["folders"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_with_archived(self, mock_context):
+        mock_context.fetch.return_value = {"folders": []}
+
+        await clickup.execute_action(
+            "get_folders", {"space_id": "s1", "archived": False}, mock_context
+        )
+
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/space/s1/folder",
+            method="GET",
+            params={"archived": "false"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Error")
+
+        result = await clickup.execute_action(
+            "get_folders", {"space_id": "s1"}, mock_context
+        )
+
+        assert result.result.data["result"] is False
+        assert result.result.data["folders"] == []
+
+
+# ---------------------------------------------------------------------------
+# List actions
+# ---------------------------------------------------------------------------
+
+
+class TestCreateList:
+    @pytest.mark.asyncio
+    async def test_creates_list_in_folder(self, mock_context):
+        mock_context.fetch.return_value = {"id": "l1", "name": "My List"}
+
+        result = await clickup.execute_action(
+            "create_list", {"folder_id": "f1", "name": "My List"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert result.result.data["list"]["name"] == "My List"
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/folder/f1/list",
+            method="POST",
+            json={"name": "My List"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_creates_list_in_space(self, mock_context):
+        mock_context.fetch.return_value = {"id": "l2", "name": "Space List"}
+
+        result = await clickup.execute_action(
+            "create_list", {"space_id": "s1", "name": "Space List"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/space/s1/list",
+            method="POST",
+            json={"name": "Space List"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_missing_parent_returns_error(self, mock_context):
+        result = await clickup.execute_action(
+            "create_list", {"name": "Orphan"}, mock_context
+        )
+
+        assert result.result.data["result"] is False
+        assert "folder_id or space_id" in result.result.data["error"]
+
+    @pytest.mark.asyncio
+    async def test_with_optional_fields(self, mock_context):
+        mock_context.fetch.return_value = {"id": "l3"}
+
+        await clickup.execute_action(
+            "create_list",
+            {
+                "folder_id": "f1",
+                "name": "Detailed",
+                "content": "Description",
+                "priority": 2,
+            },
+            mock_context,
+        )
+
+        call_json = mock_context.fetch.call_args.kwargs["json"]
+        assert call_json["name"] == "Detailed"
+        assert call_json["content"] == "Description"
+        assert call_json["priority"] == 2
+
+
+class TestGetList:
+    @pytest.mark.asyncio
+    async def test_returns_list(self, mock_context):
+        mock_context.fetch.return_value = {"id": "l1", "name": "List 1"}
+
+        result = await clickup.execute_action(
+            "get_list", {"list_id": "l1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert result.result.data["list"]["id"] == "l1"
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/list/l1", method="GET"
+        )
+
+
+class TestUpdateList:
+    @pytest.mark.asyncio
+    async def test_updates_list(self, mock_context):
+        mock_context.fetch.return_value = {"id": "l1", "name": "Updated"}
+
+        result = await clickup.execute_action(
+            "update_list", {"list_id": "l1", "name": "Updated"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        call_json = mock_context.fetch.call_args.kwargs["json"]
+        assert call_json["name"] == "Updated"
+
+
+class TestDeleteList:
+    @pytest.mark.asyncio
+    async def test_deletes_list(self, mock_context):
+        mock_context.fetch.return_value = None
+
+        result = await clickup.execute_action(
+            "delete_list", {"list_id": "l1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/list/l1", method="DELETE"
+        )
+
+
+class TestGetLists:
+    @pytest.mark.asyncio
+    async def test_returns_lists_from_folder(self, mock_context):
+        mock_context.fetch.return_value = {"lists": [{"id": "l1"}, {"id": "l2"}]}
+
+        result = await clickup.execute_action(
+            "get_lists", {"folder_id": "f1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert len(result.result.data["lists"]) == 2
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/folder/f1/list", method="GET", params=None
+        )
+
+    @pytest.mark.asyncio
+    async def test_returns_lists_from_space(self, mock_context):
+        mock_context.fetch.return_value = {"lists": []}
+
+        result = await clickup.execute_action(
+            "get_lists", {"space_id": "s1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/space/s1/list", method="GET", params=None
+        )
+
+    @pytest.mark.asyncio
+    async def test_missing_parent_returns_error(self, mock_context):
+        result = await clickup.execute_action("get_lists", {}, mock_context)
+
+        assert result.result.data["result"] is False
+        assert result.result.data["lists"] == []
+
+
+# ---------------------------------------------------------------------------
+# Task actions
+# ---------------------------------------------------------------------------
+
+
+class TestCreateTask:
+    @pytest.mark.asyncio
+    async def test_creates_task(self, mock_context):
+        mock_context.fetch.return_value = {"id": "task1", "name": "New Task"}
+
+        result = await clickup.execute_action(
+            "create_task", {"list_id": "l1", "name": "New Task"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert result.result.data["task"]["name"] == "New Task"
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/list/l1/task",
+            method="POST",
+            json={"name": "New Task"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_with_optional_fields(self, mock_context):
+        mock_context.fetch.return_value = {"id": "task2"}
+
+        await clickup.execute_action(
+            "create_task",
+            {
+                "list_id": "l1",
+                "name": "Detailed Task",
+                "description": "A description",
+                "priority": 1,
+                "status": "In Progress",
+                "tags": ["urgent"],
+            },
+            mock_context,
+        )
+
+        call_json = mock_context.fetch.call_args.kwargs["json"]
+        assert call_json["name"] == "Detailed Task"
+        assert call_json["description"] == "A description"
+        assert call_json["priority"] == 1
+        assert call_json["status"] == "In Progress"
+        assert call_json["tags"] == ["urgent"]
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("API error")
+
+        result = await clickup.execute_action(
+            "create_task", {"list_id": "l1", "name": "Fail"}, mock_context
+        )
+
+        assert result.result.data["result"] is False
+        assert result.result.data["task"] == {}
+
+
+class TestGetTask:
+    @pytest.mark.asyncio
+    async def test_returns_task(self, mock_context):
+        mock_context.fetch.return_value = {"id": "task1", "name": "My Task"}
+
+        result = await clickup.execute_action(
+            "get_task", {"task_id": "task1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert result.result.data["task"]["id"] == "task1"
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/task/task1", method="GET", params=None
+        )
+
+    @pytest.mark.asyncio
+    async def test_with_subtasks(self, mock_context):
+        mock_context.fetch.return_value = {"id": "task1", "subtasks": []}
+
+        await clickup.execute_action(
+            "get_task", {"task_id": "task1", "include_subtasks": True}, mock_context
+        )
+
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/task/task1",
+            method="GET",
+            params={"include_subtasks": "true"},
+        )
+
+
+class TestUpdateTask:
+    @pytest.mark.asyncio
+    async def test_updates_task(self, mock_context):
+        mock_context.fetch.return_value = {"id": "task1", "name": "Updated"}
+
+        result = await clickup.execute_action(
+            "update_task",
+            {"task_id": "task1", "name": "Updated", "status": "Complete"},
+            mock_context,
+        )
+
+        assert result.result.data["result"] is True
+        call_json = mock_context.fetch.call_args.kwargs["json"]
+        assert call_json["name"] == "Updated"
+        assert call_json["status"] == "Complete"
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/task/task1", method="PUT", json=call_json
+        )
+
+
+class TestDeleteTask:
+    @pytest.mark.asyncio
+    async def test_deletes_task(self, mock_context):
+        mock_context.fetch.return_value = None
+
+        result = await clickup.execute_action(
+            "delete_task", {"task_id": "task1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/task/task1", method="DELETE"
+        )
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Not found")
+
+        result = await clickup.execute_action(
+            "delete_task", {"task_id": "task1"}, mock_context
+        )
+
+        assert result.result.data["result"] is False
+
+
+class TestGetTasks:
+    @pytest.mark.asyncio
+    async def test_returns_tasks(self, mock_context):
+        mock_context.fetch.return_value = {"tasks": [{"id": "t1"}, {"id": "t2"}]}
+
+        result = await clickup.execute_action(
+            "get_tasks", {"list_id": "l1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert len(result.result.data["tasks"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_with_filters(self, mock_context):
+        mock_context.fetch.return_value = {"tasks": []}
+
+        await clickup.execute_action(
+            "get_tasks",
+            {
+                "list_id": "l1",
+                "archived": True,
+                "page": 2,
+                "order_by": "created",
+                "reverse": True,
+            },
+            mock_context,
+        )
+
+        params = mock_context.fetch.call_args.kwargs["params"]
+        assert params["archived"] == "true"
+        assert params["page"] == 2
+        assert params["order_by"] == "created"
+        assert params["reverse"] == "true"
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Error")
+
+        result = await clickup.execute_action(
+            "get_tasks", {"list_id": "l1"}, mock_context
+        )
+
+        assert result.result.data["result"] is False
+        assert result.result.data["tasks"] == []
+
+
+# ---------------------------------------------------------------------------
+# Attachment action
+# ---------------------------------------------------------------------------
+
+
+class TestCreateTaskAttachment:
+    @pytest.fixture
+    def mock_context_with_auth(self, mock_context):
+        mock_context.auth = {
+            "credentials": {"access_token": "test_token"},  # nosec B105
+        }
+        return mock_context
+
+    @pytest.mark.asyncio
+    async def test_missing_file_content(self, mock_context_with_auth):
+        inputs = {
+            "workspace_id": "w1",
+            "task_id": "task1",
+            "file": {"name": "empty.txt", "content": "", "contentType": "text/plain"},
+        }
+
+        result = await clickup.execute_action(
+            "create_task_attachment", inputs, mock_context_with_auth
+        )
+
+        assert result.result.data["result"] is False
+        assert "no content" in result.result.data["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_invalid_base64(self, mock_context_with_auth):
+        inputs = {
+            "workspace_id": "w1",
+            "task_id": "task1",
+            "file": {
+                "name": "bad.txt",
+                "content": "!!!invalid!!!",
+                "contentType": "text/plain",
+            },
+        }
+
+        result = await clickup.execute_action(
+            "create_task_attachment", inputs, mock_context_with_auth
+        )
+
+        assert result.result.data["result"] is False
+        assert (
+            "decode" in result.result.data["error"].lower()
+            or "base64" in result.result.data["error"].lower()
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_auth_token(self, mock_context):
+        mock_context.auth = {}
+
+        inputs = {
+            "workspace_id": "w1",
+            "task_id": "task1",
+            "file": {
+                "name": "test.txt",
+                "content": "dGVzdA==",
+                "contentType": "text/plain",
+            },
+        }
+
+        result = await clickup.execute_action(
+            "create_task_attachment", inputs, mock_context
+        )
+
+        assert result.result.data["result"] is False
+        assert (
+            "authentication" in result.result.data["error"].lower()
+            or "token" in result.result.data["error"].lower()
+        )
+
+    @pytest.mark.asyncio
+    async def test_successful_upload(self, mock_context_with_auth):
+        inputs = {
+            "workspace_id": "w1",
+            "task_id": "task1",
+            "file": {
+                "name": "test.txt",
+                "content": "dGVzdA==",
+                "contentType": "text/plain",
+            },
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.json = AsyncMock(
+            return_value={"id": "att1", "url": "https://example.com/att1"}
+        )
+        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_resp.__aexit__ = AsyncMock(return_value=False)
+
+        mock_session = MagicMock()
+        mock_session.post = MagicMock(return_value=mock_resp)
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("aiohttp.ClientSession", return_value=mock_session):
             result = await clickup.execute_action(
-                "get_authorized_teams", inputs, context
+                "create_task_attachment", inputs, mock_context_with_auth
             )
-            print(f"Get Authorized Teams Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "teams" in result, "Response missing 'teams' field"
-            return result
-        except Exception as e:
-            print(f"Error testing get_authorized_teams: {e}")
-            return None
 
-
-async def test_get_spaces():
-    """Test getting spaces in a team."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"team_id": "your_team_id_here"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("get_spaces", inputs, context)
-            print(f"Get Spaces Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "spaces" in result, "Response missing 'spaces' field"
-            return result
-        except Exception as e:
-            print(f"Error testing get_spaces: {e}")
-            return None
-
-
-async def test_get_space():
-    """Test getting a specific space."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"space_id": "your_space_id_here"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("get_space", inputs, context)
-            print(f"Get Space Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "space" in result, "Response missing 'space' field"
-            return result
-        except Exception as e:
-            print(f"Error testing get_space: {e}")
-            return None
-
-
-async def test_create_folder():
-    """Test creating a folder."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"space_id": "your_space_id_here", "name": "Test Folder via API"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("create_folder", inputs, context)
-            print(f"Create Folder Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "folder" in result, "Response missing 'folder' field"
-            return result
-        except Exception as e:
-            print(f"Error testing create_folder: {e}")
-            return None
-
-
-async def test_get_folder():
-    """Test getting a specific folder."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"folder_id": "your_folder_id_here"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("get_folder", inputs, context)
-            print(f"Get Folder Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "folder" in result, "Response missing 'folder' field"
-            return result
-        except Exception as e:
-            print(f"Error testing get_folder: {e}")
-            return None
-
-
-async def test_update_folder():
-    """Test updating a folder."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"folder_id": "your_folder_id_here", "name": "Updated Folder Name"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("update_folder", inputs, context)
-            print(f"Update Folder Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "folder" in result, "Response missing 'folder' field"
-            return result
-        except Exception as e:
-            print(f"Error testing update_folder: {e}")
-            return None
-
-
-async def test_get_folders():
-    """Test getting folders in a space."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"space_id": "your_space_id_here"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("get_folders", inputs, context)
-            print(f"Get Folders Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "folders" in result, "Response missing 'folders' field"
-            return result
-        except Exception as e:
-            print(f"Error testing get_folders: {e}")
-            return None
-
-
-async def test_delete_folder():
-    """Test deleting a folder."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"folder_id": "your_folder_id_here"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("delete_folder", inputs, context)
-            print(f"Delete Folder Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            return result
-        except Exception as e:
-            print(f"Error testing delete_folder: {e}")
-            return None
-
-
-async def test_create_list():
-    """Test creating a list."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"folder_id": "your_folder_id_here", "name": "Test List via API"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("create_list", inputs, context)
-            print(f"Create List Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "list" in result, "Response missing 'list' field"
-            return result
-        except Exception as e:
-            print(f"Error testing create_list: {e}")
-            return None
-
-
-async def test_get_list():
-    """Test getting a specific list."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"list_id": "your_list_id_here"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("get_list", inputs, context)
-            print(f"Get List Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "list" in result, "Response missing 'list' field"
-            return result
-        except Exception as e:
-            print(f"Error testing get_list: {e}")
-            return None
-
-
-async def test_update_list():
-    """Test updating a list."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"list_id": "your_list_id_here", "name": "Updated List Name"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("update_list", inputs, context)
-            print(f"Update List Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "list" in result, "Response missing 'list' field"
-            return result
-        except Exception as e:
-            print(f"Error testing update_list: {e}")
-            return None
-
-
-async def test_get_lists():
-    """Test getting lists in a folder."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"folder_id": "your_folder_id_here"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("get_lists", inputs, context)
-            print(f"Get Lists Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "lists" in result, "Response missing 'lists' field"
-            return result
-        except Exception as e:
-            print(f"Error testing get_lists: {e}")
-            return None
-
-
-async def test_delete_list():
-    """Test deleting a list."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"list_id": "your_list_id_here"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("delete_list", inputs, context)
-            print(f"Delete List Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            return result
-        except Exception as e:
-            print(f"Error testing delete_list: {e}")
-            return None
-
-
-async def test_create_task():
-    """Test creating a task."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {
-        "list_id": "your_list_id_here",
-        "name": "Test Task via API",
-        "description": "This is a test task created via ClickUp API integration",
-        "priority": 3,
-    }
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("create_task", inputs, context)
-            print(f"Create Task Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "task" in result, "Response missing 'task' field"
-            return result
-        except Exception as e:
-            print(f"Error testing create_task: {e}")
-            return None
-
-
-async def test_get_task():
-    """Test getting a specific task."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"task_id": "your_task_id_here"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("get_task", inputs, context)
-            print(f"Get Task Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "task" in result, "Response missing 'task' field"
-            return result
-        except Exception as e:
-            print(f"Error testing get_task: {e}")
-            return None
-
-
-async def test_update_task():
-    """Test updating a task."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {
-        "task_id": "your_task_id_here",
-        "name": "Updated Task Name",
-        "status": "Complete",
-    }
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("update_task", inputs, context)
-            print(f"Update Task Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "task" in result, "Response missing 'task' field"
-            return result
-        except Exception as e:
-            print(f"Error testing update_task: {e}")
-            return None
-
-
-async def test_get_tasks():
-    """Test getting tasks from a list."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"list_id": "your_list_id_here"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("get_tasks", inputs, context)
-            print(f"Get Tasks Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "tasks" in result, "Response missing 'tasks' field"
-            return result
-        except Exception as e:
-            print(f"Error testing get_tasks: {e}")
-            return None
-
-
-async def test_delete_task():
-    """Test deleting a task."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"task_id": "your_task_id_here"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("delete_task", inputs, context)
-            print(f"Delete Task Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            return result
-        except Exception as e:
-            print(f"Error testing delete_task: {e}")
-            return None
-
-
-async def test_create_task_attachment():
-    """Test uploading a file attachment to a task."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    # Small base64-encoded PNG (1x1 transparent pixel) used as the test payload.
-    png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-
-    inputs = {
-        "workspace_id": "your_workspace_id_here",
-        "task_id": "your_task_id_here",
-        "file": {
-            "name": "pixel.png",
-            "content": png_b64,
-            "contentType": "image/png",
-        },
-    }
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
+        assert result.result.data["result"] is True
+        assert result.result.data["attachment"] == {
+            "id": "att1",
+            "url": "https://example.com/att1",
+        }
+
+    @pytest.mark.asyncio
+    async def test_http_error_response(self, mock_context_with_auth):
+        inputs = {
+            "workspace_id": "w1",
+            "task_id": "task1",
+            "file": {
+                "name": "test.txt",
+                "content": "dGVzdA==",
+                "contentType": "text/plain",
+            },
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.status = 404
+        mock_resp.text = AsyncMock(return_value="Not Found or Authorized")
+        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_resp.__aexit__ = AsyncMock(return_value=False)
+
+        mock_session = MagicMock()
+        mock_session.post = MagicMock(return_value=mock_resp)
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("aiohttp.ClientSession", return_value=mock_session):
             result = await clickup.execute_action(
-                "create_task_attachment", inputs, context
+                "create_task_attachment", inputs, mock_context_with_auth
             )
-            print(f"Create Task Attachment Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "attachment" in result, "Response missing 'attachment' field"
-            return result
-        except Exception as e:
-            print(f"Error testing create_task_attachment: {e}")
-            return None
+
+        assert result.result.data["result"] is False
+        assert "404" in result.result.data["error"]
 
 
-async def test_create_task_comment():
-    """Test creating a comment on a task."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {
-        "task_id": "your_task_id_here",
-        "comment_text": "This is a test comment via API",
-    }
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action(
-                "create_task_comment", inputs, context
-            )
-            print(f"Create Task Comment Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "comment" in result, "Response missing 'comment' field"
-            return result
-        except Exception as e:
-            print(f"Error testing create_task_comment: {e}")
-            return None
+# ---------------------------------------------------------------------------
+# Comment actions
+# ---------------------------------------------------------------------------
 
 
-async def test_get_task_comments():
-    """Test getting comments from a task."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
+class TestCreateTaskComment:
+    @pytest.mark.asyncio
+    async def test_creates_comment(self, mock_context):
+        mock_context.fetch.return_value = {"id": "c1", "comment_text": "Hello"}
 
-    inputs = {"task_id": "your_task_id_here"}
+        result = await clickup.execute_action(
+            "create_task_comment",
+            {"task_id": "task1", "comment_text": "Hello"},
+            mock_context,
+        )
 
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("get_task_comments", inputs, context)
-            print(f"Get Task Comments Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "comments" in result, "Response missing 'comments' field"
-            return result
-        except Exception as e:
-            print(f"Error testing get_task_comments: {e}")
-            return None
+        assert result.result.data["result"] is True
+        assert result.result.data["comment"]["id"] == "c1"
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/task/task1/comment",
+            method="POST",
+            json={"comment_text": "Hello"},
+        )
 
+    @pytest.mark.asyncio
+    async def test_with_optional_fields(self, mock_context):
+        mock_context.fetch.return_value = {"id": "c2"}
 
-async def test_update_comment():
-    """Test updating a comment."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
+        await clickup.execute_action(
+            "create_task_comment",
+            {
+                "task_id": "task1",
+                "comment_text": "Note",
+                "assignee": 123,
+                "notify_all": True,
+            },
+            mock_context,
+        )
 
-    inputs = {
-        "comment_id": "your_comment_id_here",
-        "comment_text": "Updated comment text",
-    }
+        call_json = mock_context.fetch.call_args.kwargs["json"]
+        assert call_json["assignee"] == 123
+        assert call_json["notify_all"] is True
 
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("update_comment", inputs, context)
-            print(f"Update Comment Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            assert "comment" in result, "Response missing 'comment' field"
-            return result
-        except Exception as e:
-            print(f"Error testing update_comment: {e}")
-            return None
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Error")
 
+        result = await clickup.execute_action(
+            "create_task_comment",
+            {"task_id": "task1", "comment_text": "Fail"},
+            mock_context,
+        )
 
-async def test_delete_comment():
-    """Test deleting a comment."""
-    auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {
-            "access_token": "your_access_token_here"  # nosec B105
-        },
-    }
-
-    inputs = {"comment_id": "your_comment_id_here"}
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await clickup.execute_action("delete_comment", inputs, context)
-            print(f"Delete Comment Result: {result}")
-            assert result.get("result"), (
-                f"Action failed: {result.get('error', 'Unknown error')}"
-            )
-            return result
-        except Exception as e:
-            print(f"Error testing delete_comment: {e}")
-            return None
+        assert result.result.data["result"] is False
+        assert result.result.data["comment"] == {}
 
 
-async def main():
-    print("Testing ClickUp Integration - 23 Actions")
-    print("=" * 60)
-    print()
-    print("NOTE: Replace placeholders with actual values:")
-    print("  - your_access_token_here: Your OAuth access token")
-    print("  - your_team_id_here: Your team/workspace ID")
-    print("  - your_workspace_id_here: Your workspace ID (same as team_id)")
-    print("  - your_space_id_here: Your space ID")
-    print("  - your_folder_id_here: Your folder ID")
-    print("  - your_list_id_here: Your list ID")
-    print("  - your_task_id_here: Your task ID")
-    print("  - your_comment_id_here: Your comment ID")
-    print()
-    print("To get IDs:")
-    print("  Teams: Use get_authorized_teams action")
-    print("  Spaces: Use get_spaces action with team_id")
-    print("  Folders: Use get_folders action with space_id")
-    print("  Lists: Use get_lists action with folder_id or space_id")
-    print("  Tasks: Use get_tasks action with list_id")
-    print()
-    print("=" * 60)
-    print()
+class TestGetTaskComments:
+    @pytest.mark.asyncio
+    async def test_returns_comments(self, mock_context):
+        mock_context.fetch.return_value = {"comments": [{"id": "c1"}, {"id": "c2"}]}
 
-    # Test team/workspace actions (1)
-    print("1. Testing get_authorized_teams...")
-    await test_get_authorized_teams()
-    print()
+        result = await clickup.execute_action(
+            "get_task_comments", {"task_id": "task1"}, mock_context
+        )
 
-    # Test space actions (2)
-    print("2. Testing get_spaces...")
-    await test_get_spaces()
-    print()
+        assert result.result.data["result"] is True
+        assert len(result.result.data["comments"]) == 2
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/task/task1/comment", method="GET"
+        )
 
-    print("3. Testing get_space...")
-    await test_get_space()
-    print()
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Error")
 
-    # Test folder actions (5)
-    print("4. Testing create_folder...")
-    await test_create_folder()
-    print()
+        result = await clickup.execute_action(
+            "get_task_comments", {"task_id": "task1"}, mock_context
+        )
 
-    print("5. Testing get_folder...")
-    await test_get_folder()
-    print()
-
-    print("6. Testing update_folder...")
-    await test_update_folder()
-    print()
-
-    print("7. Testing get_folders...")
-    await test_get_folders()
-    print()
-
-    print("8. Testing delete_folder...")
-    await test_delete_folder()
-    print()
-
-    # Test list actions (5)
-    print("9. Testing create_list...")
-    await test_create_list()
-    print()
-
-    print("10. Testing get_list...")
-    await test_get_list()
-    print()
-
-    print("11. Testing update_list...")
-    await test_update_list()
-    print()
-
-    print("12. Testing get_lists...")
-    await test_get_lists()
-    print()
-
-    print("13. Testing delete_list...")
-    await test_delete_list()
-    print()
-
-    # Test task actions (5)
-    print("14. Testing create_task...")
-    await test_create_task()
-    print()
-
-    print("15. Testing get_task...")
-    await test_get_task()
-    print()
-
-    print("16. Testing update_task...")
-    await test_update_task()
-    print()
-
-    print("17. Testing get_tasks...")
-    await test_get_tasks()
-    print()
-
-    print("18. Testing delete_task...")
-    await test_delete_task()
-    print()
-
-    print("19. Testing create_task_attachment...")
-    await test_create_task_attachment()
-    print()
-
-    # Test comment actions (4)
-    print("20. Testing create_task_comment...")
-    await test_create_task_comment()
-    print()
-
-    print("21. Testing get_task_comments...")
-    await test_get_task_comments()
-    print()
-
-    print("22. Testing update_comment...")
-    await test_update_comment()
-    print()
-
-    print("23. Testing delete_comment...")
-    await test_delete_comment()
-    print()
-
-    print("=" * 60)
-    print("Testing completed - 23 actions total!")
-    print("=" * 60)
+        assert result.result.data["result"] is False
+        assert result.result.data["comments"] == []
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+class TestUpdateComment:
+    @pytest.mark.asyncio
+    async def test_updates_comment(self, mock_context):
+        mock_context.fetch.return_value = {"id": "c1", "comment_text": "Updated"}
+
+        result = await clickup.execute_action(
+            "update_comment",
+            {"comment_id": "c1", "comment_text": "Updated"},
+            mock_context,
+        )
+
+        assert result.result.data["result"] is True
+        assert result.result.data["comment"]["comment_text"] == "Updated"
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/comment/c1",
+            method="PUT",
+            json={"comment_text": "Updated"},
+        )
+
+
+class TestDeleteComment:
+    @pytest.mark.asyncio
+    async def test_deletes_comment(self, mock_context):
+        mock_context.fetch.return_value = None
+
+        result = await clickup.execute_action(
+            "delete_comment", {"comment_id": "c1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        mock_context.fetch.assert_called_once_with(
+            f"{CLICKUP_API_BASE_URL}/comment/c1", method="DELETE"
+        )
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Error")
+
+        result = await clickup.execute_action(
+            "delete_comment", {"comment_id": "c1"}, mock_context
+        )
+
+        assert result.result.data["result"] is False
