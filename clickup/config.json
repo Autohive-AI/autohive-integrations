@@ -280,6 +280,51 @@
                 "required": ["tasks", "result"]
             }
         },
+        "create_task_attachment": {
+            "display_name": "Create Task Attachment",
+            "description": "Uploads a file attachment to a task using the v3 Attachments API.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "The ID of the workspace/team that owns the task"
+                    },
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the task to attach the file to"
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "File to upload. Upload a file directly in the conversation to attach it.",
+                        "format": "file"
+                    },
+                    "filename": {
+                        "type": "string",
+                        "description": "Optional override for the attachment filename"
+                    }
+                },
+                "required": ["workspace_id", "task_id", "file"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "attachment": {
+                        "type": "object",
+                        "description": "Created attachment details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": ["attachment", "result"]
+            }
+        },
         "create_list": {
             "display_name": "Create List",
             "description": "Creates a new list in a folder or space.",

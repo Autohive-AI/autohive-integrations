@@ -1,5 +1,8 @@
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
+import base64
+import io
+import aiohttp
 
 # Create the integration using the config.json
 clickup = Integration.load()
@@ -156,6 +159,119 @@ class GetTasksAction(ActionHandler):
 
         except Exception as e:
             return ActionResult(data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0)
+
+
+@clickup.action("create_task_attachment")
+class CreateTaskAttachmentAction(ActionHandler):
+    """Upload a file attachment to a task using the v3 Attachments API."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            # Required path parameters for the v3 endpoint. workspace_id must match the
+            # workspace that owns the task — a mismatch causes ClickUp to return 404.
+            workspace_id = inputs["workspace_id"]
+            task_id = inputs["task_id"]
+
+            # The Autohive platform delivers file attachments from chat as an object
+            # with `name`, `content` (base64), and `contentType` fields.
+            file_obj = inputs["file"]
+
+            # Optional `filename` input overrides the filename used in the upload; falls
+            # back to the uploaded file's own name.
+            default_filename = file_obj.get("name", "attachment")
+            filename = inputs.get("filename") or default_filename
+            content_b64 = file_obj.get("content", "")
+            content_type = file_obj.get("contentType", "application/octet-stream")
+
+            if not content_b64:
+                return ActionResult(
+                    data={"attachment": {}, "result": False, "error": f"File '{filename}' has no content provided"},
+                    cost_usd=0.0,
+                )
+
+            # Strip whitespace/newlines and re-pad — base64 coming through transport
+            # layers is sometimes reformatted and loses padding, which trips the strict
+            # decoder below.
+            content_b64_cleaned = (
+                content_b64.strip().replace("\n", "").replace("\r", "").replace(" ", "").replace("\t", "")
+            )
+            padding_needed = len(content_b64_cleaned) % 4
+            if padding_needed != 0:
+                content_b64_cleaned += "=" * (4 - padding_needed)
+
+            try:
+                file_bytes = base64.b64decode(content_b64_cleaned, validate=True)
+            except Exception as e:
+                return ActionResult(
+                    data={
+                        "attachment": {},
+                        "result": False,
+                        "error": f"Failed to decode file '{filename}': {str(e)}. Content must be valid base64.",
+                    },
+                    cost_usd=0.0,
+                )
+
+            if not file_bytes:
+                return ActionResult(
+                    data={"attachment": {}, "result": False, "error": f"File '{filename}' decoded to empty content"},
+                    cost_usd=0.0,
+                )
+
+            # context.fetch serialises request bodies as JSON and can't build multipart
+            # form-data, so we pull the OAuth token from context and send the request via
+            # raw aiohttp. See the same pattern in front/front.py and box/box.py.
+            auth_token = None
+            if context.auth and "credentials" in context.auth:
+                auth_token = context.auth["credentials"].get("access_token")
+
+            if not auth_token:
+                return ActionResult(
+                    data={"attachment": {}, "result": False, "error": "No authentication token available"},
+                    cost_usd=0.0,
+                )
+
+            # ClickUp v3 Attachments endpoint. The path nests under /tasks/{task_id} —
+            # the ClickUp docs describe the path template as
+            # /workspaces/{workspace_id}/{entity_type}/{entity_id}/attachments with
+            # entity_type = "tasks" for tasks (or "custom_fields" for file-type custom
+            # fields, which this action doesn't expose).
+            url = f"https://api.clickup.com/api/v3/workspaces/{workspace_id}/tasks/{task_id}/attachments"
+
+            # Build multipart/form-data body. ClickUp v2 used the field name "attachment"
+            # for the file part; v3 docs don't explicitly state the field name, so we
+            # inherit the v2 convention. If a 400 comes back complaining about the file
+            # field, try "file" instead.
+            form = aiohttp.FormData()
+            bio = io.BytesIO(file_bytes)
+            bio.seek(0)
+            form.add_field("attachment", bio, filename=filename, content_type=content_type)
+            # v3 supports an optional body field that overrides the stored filename
+            # independently of the multipart part's filename.
+            if inputs.get("filename"):
+                form.add_field("filename", inputs["filename"])
+
+            headers = {"Authorization": f"Bearer {auth_token}"}
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, data=form, headers=headers) as resp:
+                    if resp.status >= 400:
+                        # ClickUp 404 "Not Found or Authorized" usually means workspace_id
+                        # and task_id don't match, or the OAuth user lacks access.
+                        error_text = await resp.text()
+                        return ActionResult(
+                            data={
+                                "attachment": {},
+                                "result": False,
+                                "error": f"HTTP {resp.status}: {error_text} (url={url})",
+                            },
+                            cost_usd=0.0,
+                        )
+                    response_data = await resp.json()
+
+            return ActionResult(data={"attachment": response_data, "result": True}, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionResult(data={"attachment": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- List Handlers ----
