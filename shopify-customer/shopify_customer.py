@@ -459,12 +459,12 @@ class GetProfileHandler(ActionHandler):
         self, inputs: Dict[str, Any], context: ExecutionContext
     ) -> ActionResult:
         try:
-            response = await execute_graphql(context, QUERY_GET_PROFILE)
+            gql_result = await execute_graphql(context, QUERY_GET_PROFILE)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], customer=None)
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], customer=None)
 
-            customer = response.get("data", {}).get("customer")
+            customer = gql_result.get("data", {}).get("customer")
             if not customer:
                 return error_response("Customer not found", customer=None)
 
@@ -499,14 +499,14 @@ class UpdateProfileHandler(ActionHandler):
                 return error_response("No fields to update", customer=None)
 
             variables = {"input": customer_input}
-            response = await execute_graphql(
+            gql_result = await execute_graphql(
                 context, MUTATION_UPDATE_PROFILE, variables
             )
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], customer=None)
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], customer=None)
 
-            data = response.get("data", {}).get("customerUpdate", {})
+            data = gql_result.get("data", {}).get("customerUpdate", {})
             user_errors = data.get("userErrors", [])
 
             if user_errors:
@@ -532,12 +532,12 @@ class ListAddressesHandler(ActionHandler):
         try:
             variables = {"first": inputs.get("first", 20), "after": inputs.get("after")}
 
-            response = await execute_graphql(context, QUERY_LIST_ADDRESSES, variables)
+            gql_result = await execute_graphql(context, QUERY_LIST_ADDRESSES, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], addresses=[])
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], addresses=[])
 
-            data = response.get("data", {}).get("customer", {})
+            data = gql_result.get("data", {}).get("customer", {})
             addresses = extract_edges(data, "addresses")
             page_info = data.get("addresses", {}).get("pageInfo", {})
             default_address_id = (
@@ -589,14 +589,14 @@ class CreateAddressHandler(ActionHandler):
                     address_input[graphql_field] = inputs[input_field]
 
             variables = {"address": address_input}
-            response = await execute_graphql(
+            gql_result = await execute_graphql(
                 context, MUTATION_CREATE_ADDRESS, variables
             )
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], address=None)
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], address=None)
 
-            data = response.get("data", {}).get("customerAddressCreate", {})
+            data = gql_result.get("data", {}).get("customerAddressCreate", {})
             user_errors = data.get("userErrors", [])
 
             if user_errors:
@@ -642,14 +642,14 @@ class UpdateAddressHandler(ActionHandler):
                 return error_response("No fields to update", address=None)
 
             variables = {"addressId": address_id, "address": address_input}
-            response = await execute_graphql(
+            gql_result = await execute_graphql(
                 context, MUTATION_UPDATE_ADDRESS, variables
             )
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], address=None)
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], address=None)
 
-            data = response.get("data", {}).get("customerAddressUpdate", {})
+            data = gql_result.get("data", {}).get("customerAddressUpdate", {})
             user_errors = data.get("userErrors", [])
 
             if user_errors:
@@ -673,14 +673,14 @@ class DeleteAddressHandler(ActionHandler):
                 return error_response("address_id is required")
 
             variables = {"addressId": address_id}
-            response = await execute_graphql(
+            gql_result = await execute_graphql(
                 context, MUTATION_DELETE_ADDRESS, variables
             )
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"])
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"])
 
-            data = response.get("data", {}).get("customerAddressDelete", {})
+            data = gql_result.get("data", {}).get("customerAddressDelete", {})
             user_errors = data.get("userErrors", [])
 
             if user_errors:
@@ -706,14 +706,14 @@ class SetDefaultAddressHandler(ActionHandler):
                 return error_response("address_id is required")
 
             variables = {"addressId": address_id}
-            response = await execute_graphql(
+            gql_result = await execute_graphql(
                 context, MUTATION_SET_DEFAULT_ADDRESS, variables
             )
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"])
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"])
 
-            data = response.get("data", {}).get("customerDefaultAddressUpdate", {})
+            data = gql_result.get("data", {}).get("customerDefaultAddressUpdate", {})
             user_errors = data.get("userErrors", [])
 
             if user_errors:
@@ -740,12 +740,12 @@ class ListOrdersHandler(ActionHandler):
         try:
             variables = {"first": inputs.get("first", 10), "after": inputs.get("after")}
 
-            response = await execute_graphql(context, QUERY_LIST_ORDERS, variables)
+            gql_result = await execute_graphql(context, QUERY_LIST_ORDERS, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], orders=[])
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], orders=[])
 
-            data = response.get("data", {}).get("customer", {})
+            data = gql_result.get("data", {}).get("customer", {})
             orders = extract_edges(data, "orders")
             page_info = data.get("orders", {}).get("pageInfo", {})
 
@@ -772,12 +772,12 @@ class GetOrderHandler(ActionHandler):
                 return error_response("order_id is required", order=None)
 
             variables = {"orderId": order_id}
-            response = await execute_graphql(context, QUERY_GET_ORDER, variables)
+            gql_result = await execute_graphql(context, QUERY_GET_ORDER, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], order=None)
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], order=None)
 
-            order = response.get("data", {}).get("customer", {}).get("order")
+            order = gql_result.get("data", {}).get("customer", {}).get("order")
             if not order:
                 return error_response("Order not found", order=None)
 
