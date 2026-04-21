@@ -420,6 +420,42 @@ async def test_delete_task():
             return None
 
 
+async def test_create_task_attachment():
+    """Test uploading a file attachment to a task."""
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {
+            "access_token": "your_access_token_here"  # nosec B105
+        },
+    }
+
+    # Small base64-encoded PNG (1x1 transparent pixel) used as the test payload.
+    png_b64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    )
+
+    inputs = {
+        "workspace_id": "your_workspace_id_here",
+        "task_id": "your_task_id_here",
+        "file": {
+            "name": "pixel.png",
+            "content": png_b64,
+            "contentType": "image/png",
+        },
+    }
+
+    async with ExecutionContext(auth=auth) as context:
+        try:
+            result = await clickup.execute_action("create_task_attachment", inputs, context)
+            print(f"Create Task Attachment Result: {result}")
+            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert "attachment" in result, "Response missing 'attachment' field"
+            return result
+        except Exception as e:
+            print(f"Error testing create_task_attachment: {e}")
+            return None
+
+
 async def test_create_task_comment():
     """Test creating a comment on a task."""
     auth = {
@@ -512,12 +548,13 @@ async def test_delete_comment():
 
 
 async def main():
-    print("Testing ClickUp Integration - 22 Actions")
+    print("Testing ClickUp Integration - 23 Actions")
     print("=" * 60)
     print()
     print("NOTE: Replace placeholders with actual values:")
     print("  - your_access_token_here: Your OAuth access token")
     print("  - your_team_id_here: Your team/workspace ID")
+    print("  - your_workspace_id_here: Your workspace ID (same as team_id)")
     print("  - your_space_id_here: Your space ID")
     print("  - your_folder_id_here: Your folder ID")
     print("  - your_list_id_here: Your list ID")
@@ -611,25 +648,29 @@ async def main():
     await test_delete_task()
     print()
 
+    print("19. Testing create_task_attachment...")
+    await test_create_task_attachment()
+    print()
+
     # Test comment actions (4)
-    print("19. Testing create_task_comment...")
+    print("20. Testing create_task_comment...")
     await test_create_task_comment()
     print()
 
-    print("20. Testing get_task_comments...")
+    print("21. Testing get_task_comments...")
     await test_get_task_comments()
     print()
 
-    print("21. Testing update_comment...")
+    print("22. Testing update_comment...")
     await test_update_comment()
     print()
 
-    print("22. Testing delete_comment...")
+    print("23. Testing delete_comment...")
     await test_delete_comment()
     print()
 
     print("=" * 60)
-    print("Testing completed - 22 actions total!")
+    print("Testing completed - 23 actions total!")
     print("=" * 60)
 
 
