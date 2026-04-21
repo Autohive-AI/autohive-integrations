@@ -24,9 +24,7 @@ import pytest  # noqa: E402
 from unittest.mock import MagicMock, AsyncMock  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "perplexity_mod", os.path.join(_parent, "perplexity.py")
-)
+_spec = importlib.util.spec_from_file_location("perplexity_mod", os.path.join(_parent, "perplexity.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -54,9 +52,7 @@ def live_context():
         async with aiohttp.ClientSession() as session:
             async with session.request(method, url, json=json, headers=headers) as resp:
                 data = await resp.json()
-                return FetchResponse(
-                    status=resp.status, headers=dict(resp.headers), data=data
-                )
+                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
@@ -67,9 +63,7 @@ def live_context():
 class TestBasicSearch:
     @pytest.mark.asyncio
     async def test_simple_query_returns_results(self, live_context):
-        result = await perplexity.execute_action(
-            "search_web", {"query": "Python programming language"}, live_context
-        )
+        result = await perplexity.execute_action("search_web", {"query": "Python programming language"}, live_context)
 
         data = result.result.data
         assert "results" in data
@@ -78,9 +72,7 @@ class TestBasicSearch:
 
     @pytest.mark.asyncio
     async def test_result_structure(self, live_context):
-        result = await perplexity.execute_action(
-            "search_web", {"query": "what is pytest"}, live_context
-        )
+        result = await perplexity.execute_action("search_web", {"query": "what is pytest"}, live_context)
 
         data = result.result.data
         first_result = data["results"][0]
@@ -90,9 +82,7 @@ class TestBasicSearch:
 
     @pytest.mark.asyncio
     async def test_cost_is_set(self, live_context):
-        result = await perplexity.execute_action(
-            "search_web", {"query": "test"}, live_context
-        )
+        result = await perplexity.execute_action("search_web", {"query": "test"}, live_context)
 
         assert result.result.cost_usd == 0.005
 

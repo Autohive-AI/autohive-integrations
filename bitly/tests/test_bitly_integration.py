@@ -34,9 +34,7 @@ import pytest  # noqa: E402
 from unittest.mock import MagicMock, AsyncMock  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "bitly_mod", os.path.join(_parent, "bitly.py")
-)
+_spec = importlib.util.spec_from_file_location("bitly_mod", os.path.join(_parent, "bitly.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -60,15 +58,11 @@ def live_context():
 
     import aiohttp
 
-    async def real_fetch(
-        url, *, method="GET", json=None, headers=None, params=None, **kwargs
-    ):
+    async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
         merged_headers = dict(headers or {})
         merged_headers["Authorization"] = f"Bearer {ACCESS_TOKEN}"
         async with aiohttp.ClientSession() as session:
-            async with session.request(
-                method, url, json=json, headers=merged_headers, params=params
-            ) as resp:
+            async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
                 data = await resp.json()
                 return FetchResponse(
                     status=resp.status,
@@ -126,9 +120,7 @@ class TestGetGroup:
         groups_result = await bitly.execute_action("list_groups", {}, live_context)
         group_guid = groups_result.result.data["groups"][0]["guid"]
 
-        result = await bitly.execute_action(
-            "get_group", {"group_guid": group_guid}, live_context
-        )
+        result = await bitly.execute_action("get_group", {"group_guid": group_guid}, live_context)
 
         data = result.result.data
         assert data["result"] is True
@@ -160,9 +152,7 @@ class TestListBitlinks:
 class TestGetBitlink:
     async def test_fetches_bitlink_details(self, live_context):
         # First get a real bitlink from the account
-        list_result = await bitly.execute_action(
-            "list_bitlinks", {"size": 1}, live_context
-        )
+        list_result = await bitly.execute_action("list_bitlinks", {"size": 1}, live_context)
         bitlinks = list_result.result.data["bitlinks"]
 
         if not bitlinks:
@@ -170,9 +160,7 @@ class TestGetBitlink:
 
         bitlink_id = bitlinks[0].get("id", bitlinks[0].get("link", ""))
 
-        result = await bitly.execute_action(
-            "get_bitlink", {"bitlink": bitlink_id}, live_context
-        )
+        result = await bitly.execute_action("get_bitlink", {"bitlink": bitlink_id}, live_context)
 
         data = result.result.data
         assert data["result"] is True
@@ -182,9 +170,7 @@ class TestGetBitlink:
 
 class TestExpandBitlink:
     async def test_expands_to_long_url(self, live_context):
-        list_result = await bitly.execute_action(
-            "list_bitlinks", {"size": 1}, live_context
-        )
+        list_result = await bitly.execute_action("list_bitlinks", {"size": 1}, live_context)
         bitlinks = list_result.result.data["bitlinks"]
 
         if not bitlinks:
@@ -192,9 +178,7 @@ class TestExpandBitlink:
 
         bitlink_id = bitlinks[0].get("id", bitlinks[0].get("link", ""))
 
-        result = await bitly.execute_action(
-            "expand_bitlink", {"bitlink": bitlink_id}, live_context
-        )
+        result = await bitly.execute_action("expand_bitlink", {"bitlink": bitlink_id}, live_context)
 
         data = result.result.data
         assert data["result"] is True
@@ -207,9 +191,7 @@ class TestExpandBitlink:
 
 class TestGetClicks:
     async def test_returns_click_data(self, live_context):
-        list_result = await bitly.execute_action(
-            "list_bitlinks", {"size": 1}, live_context
-        )
+        list_result = await bitly.execute_action("list_bitlinks", {"size": 1}, live_context)
         bitlinks = list_result.result.data["bitlinks"]
 
         if not bitlinks:
@@ -230,9 +212,7 @@ class TestGetClicks:
 
 class TestGetClicksSummary:
     async def test_returns_summary(self, live_context):
-        list_result = await bitly.execute_action(
-            "list_bitlinks", {"size": 1}, live_context
-        )
+        list_result = await bitly.execute_action("list_bitlinks", {"size": 1}, live_context)
         bitlinks = list_result.result.data["bitlinks"]
 
         if not bitlinks:

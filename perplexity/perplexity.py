@@ -50,9 +50,7 @@ class SearchWebActionHandler(ActionHandler):
         try:
             api_key = os.environ.get("PERPLEXITY_API_KEY", "")
             if not api_key:
-                return ActionError(
-                    message="PERPLEXITY_API_KEY environment variable is not set or empty."
-                )
+                return ActionError(message="PERPLEXITY_API_KEY environment variable is not set or empty.")
 
             query = inputs["query"]
 
@@ -67,9 +65,7 @@ class SearchWebActionHandler(ActionHandler):
             if "content_depth" in inputs:
                 token_mapping = {"quick": 512, "default": 2048, "detailed": 8192}
                 content_depth_value = inputs["content_depth"]
-                payload["max_tokens_per_page"] = token_mapping.get(
-                    content_depth_value, 2048
-                )
+                payload["max_tokens_per_page"] = token_mapping.get(content_depth_value, 2048)
 
             if "country" in inputs and inputs["country"]:
                 payload["country"] = inputs["country"]

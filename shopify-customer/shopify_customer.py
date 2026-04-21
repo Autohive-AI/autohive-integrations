@@ -77,9 +77,7 @@ def build_headers(context: ExecutionContext) -> Dict[str, str]:
     }
 
 
-async def execute_graphql(
-    context: ExecutionContext, query: str, variables: Dict[str, Any] = None
-) -> Dict[str, Any]:
+async def execute_graphql(context: ExecutionContext, query: str, variables: Dict[str, Any] = None) -> Dict[str, Any]:
     """Execute a GraphQL query against the Customer Account API.
 
     Returns the parsed JSON response body.
@@ -126,11 +124,7 @@ def extract_edges(data: Dict, path: str) -> List[Dict]:
 def generate_pkce_pair() -> tuple:
     """Generate PKCE code_verifier and code_challenge pair."""
     code_verifier = secrets.token_urlsafe(32)
-    code_challenge = (
-        base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest())
-        .decode()
-        .rstrip("=")
-    )
+    code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest()).decode().rstrip("=")
     return code_verifier, code_challenge
 
 
@@ -455,9 +449,7 @@ mutation SetDefaultAddress($addressId: ID!) {
 class GetProfileHandler(ActionHandler):
     """Get customer's own profile."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             gql_result = await execute_graphql(context, QUERY_GET_PROFILE)
 
@@ -477,9 +469,7 @@ class GetProfileHandler(ActionHandler):
 class UpdateProfileHandler(ActionHandler):
     """Update customer's profile."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             customer_input = {}
 
@@ -499,9 +489,7 @@ class UpdateProfileHandler(ActionHandler):
                 return error_response("No fields to update", customer=None)
 
             variables = {"input": customer_input}
-            gql_result = await execute_graphql(
-                context, MUTATION_UPDATE_PROFILE, variables
-            )
+            gql_result = await execute_graphql(context, MUTATION_UPDATE_PROFILE, variables)
 
             if "errors" in gql_result:
                 return error_response(gql_result["errors"][0]["message"], customer=None)
@@ -526,9 +514,7 @@ class UpdateProfileHandler(ActionHandler):
 class ListAddressesHandler(ActionHandler):
     """List customer's saved addresses."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             variables = {"first": inputs.get("first", 20), "after": inputs.get("after")}
 
@@ -540,11 +526,7 @@ class ListAddressesHandler(ActionHandler):
             data = gql_result.get("data", {}).get("customer", {})
             addresses = extract_edges(data, "addresses")
             page_info = data.get("addresses", {}).get("pageInfo", {})
-            default_address_id = (
-                data.get("defaultAddress", {}).get("id")
-                if data.get("defaultAddress")
-                else None
-            )
+            default_address_id = data.get("defaultAddress", {}).get("id") if data.get("defaultAddress") else None
 
             # Mark default address
             for addr in addresses:
@@ -565,9 +547,7 @@ class ListAddressesHandler(ActionHandler):
 class CreateAddressHandler(ActionHandler):
     """Create a new address."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             address_input = {}
 
@@ -589,9 +569,7 @@ class CreateAddressHandler(ActionHandler):
                     address_input[graphql_field] = inputs[input_field]
 
             variables = {"address": address_input}
-            gql_result = await execute_graphql(
-                context, MUTATION_CREATE_ADDRESS, variables
-            )
+            gql_result = await execute_graphql(context, MUTATION_CREATE_ADDRESS, variables)
 
             if "errors" in gql_result:
                 return error_response(gql_result["errors"][0]["message"], address=None)
@@ -611,9 +589,7 @@ class CreateAddressHandler(ActionHandler):
 class UpdateAddressHandler(ActionHandler):
     """Update an existing address."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             address_id = inputs.get("address_id")
             if not address_id:
@@ -642,9 +618,7 @@ class UpdateAddressHandler(ActionHandler):
                 return error_response("No fields to update", address=None)
 
             variables = {"addressId": address_id, "address": address_input}
-            gql_result = await execute_graphql(
-                context, MUTATION_UPDATE_ADDRESS, variables
-            )
+            gql_result = await execute_graphql(context, MUTATION_UPDATE_ADDRESS, variables)
 
             if "errors" in gql_result:
                 return error_response(gql_result["errors"][0]["message"], address=None)
@@ -664,18 +638,14 @@ class UpdateAddressHandler(ActionHandler):
 class DeleteAddressHandler(ActionHandler):
     """Delete an address."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             address_id = inputs.get("address_id")
             if not address_id:
                 return error_response("address_id is required")
 
             variables = {"addressId": address_id}
-            gql_result = await execute_graphql(
-                context, MUTATION_DELETE_ADDRESS, variables
-            )
+            gql_result = await execute_graphql(context, MUTATION_DELETE_ADDRESS, variables)
 
             if "errors" in gql_result:
                 return error_response(gql_result["errors"][0]["message"])
@@ -686,9 +656,7 @@ class DeleteAddressHandler(ActionHandler):
             if user_errors:
                 return error_response(user_errors[0]["message"])
 
-            return success_response(
-                deleted=True, deleted_address_id=data.get("deletedAddressId")
-            )
+            return success_response(deleted=True, deleted_address_id=data.get("deletedAddressId"))
         except Exception as e:
             return error_response(e)
 
@@ -697,18 +665,14 @@ class DeleteAddressHandler(ActionHandler):
 class SetDefaultAddressHandler(ActionHandler):
     """Set an address as default."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             address_id = inputs.get("address_id")
             if not address_id:
                 return error_response("address_id is required")
 
             variables = {"addressId": address_id}
-            gql_result = await execute_graphql(
-                context, MUTATION_SET_DEFAULT_ADDRESS, variables
-            )
+            gql_result = await execute_graphql(context, MUTATION_SET_DEFAULT_ADDRESS, variables)
 
             if "errors" in gql_result:
                 return error_response(gql_result["errors"][0]["message"])
@@ -734,9 +698,7 @@ class SetDefaultAddressHandler(ActionHandler):
 class ListOrdersHandler(ActionHandler):
     """List customer's orders."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             variables = {"first": inputs.get("first", 10), "after": inputs.get("after")}
 
@@ -763,9 +725,7 @@ class ListOrdersHandler(ActionHandler):
 class GetOrderHandler(ActionHandler):
     """Get a specific order by ID."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             order_id = inputs.get("order_id")
             if not order_id:
@@ -795,17 +755,13 @@ class GetOrderHandler(ActionHandler):
 class GenerateOAuthUrlHandler(ActionHandler):
     """Generate OAuth authorization URL for customer login."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             shop_url = get_shop_url(context)
             client_id = inputs.get("client_id")
             redirect_uri = inputs.get("redirect_uri")
             # Use OIDC-style scopes for Customer Account API
-            scopes = inputs.get(
-                "scopes", ["openid", "email", "customer-account-api:full"]
-            )
+            scopes = inputs.get("scopes", ["openid", "email", "customer-account-api:full"])
 
             if not client_id:
                 return error_response("client_id is required")
@@ -839,9 +795,7 @@ class GenerateOAuthUrlHandler(ActionHandler):
 class ExchangeCodeHandler(ActionHandler):
     """Exchange authorization code for tokens."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             shop_url = get_shop_url(context)
             code = inputs.get("code")
@@ -850,9 +804,7 @@ class ExchangeCodeHandler(ActionHandler):
             client_id = inputs.get("client_id")
 
             if not all([code, code_verifier, redirect_uri, client_id]):
-                return error_response(
-                    "code, code_verifier, redirect_uri, and client_id are required"
-                )
+                return error_response("code, code_verifier, redirect_uri, and client_id are required")
 
             # Use the standard OIDC token endpoint
             url = f"https://{shop_url}/authentication/oauth/token"
@@ -874,9 +826,7 @@ class ExchangeCodeHandler(ActionHandler):
             token_data = response.data
 
             if "error" in token_data:
-                return ActionError(
-                    message=token_data.get("error_description", token_data["error"])
-                )
+                return ActionError(message=token_data.get("error_description", token_data["error"]))
 
             return success_response(
                 access_token=token_data.get("access_token"),
@@ -894,9 +844,7 @@ class ExchangeCodeHandler(ActionHandler):
 class RefreshTokenHandler(ActionHandler):
     """Refresh access token using refresh token."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             shop_url = get_shop_url(context)
             refresh_token = inputs.get("refresh_token")
@@ -925,9 +873,7 @@ class RefreshTokenHandler(ActionHandler):
             token_data = response.data
 
             if "error" in token_data:
-                return ActionError(
-                    message=token_data.get("error_description", token_data["error"])
-                )
+                return ActionError(message=token_data.get("error_description", token_data["error"]))
 
             return success_response(
                 access_token=token_data.get("access_token"),

@@ -20,9 +20,7 @@ notion = Integration.load()
 class NotionSearchHandler(ActionHandler):
     """Handler for searching pages and databases in Notion workspace"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         Execute a search query against the Notion API
 
@@ -84,9 +82,7 @@ class NotionSearchHandler(ActionHandler):
 class NotionGetPageHandler(ActionHandler):
     """Handler for retrieving a specific page from Notion"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         Retrieve a specific page by its ID
 
@@ -120,9 +116,7 @@ class NotionGetPageHandler(ActionHandler):
 class NotionCreatePageHandler(ActionHandler):
     """Handler for creating new pages in Notion"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         Create a new page in Notion
 
@@ -161,9 +155,7 @@ class NotionCreatePageHandler(ActionHandler):
 class NotionCreateCommentHandler(ActionHandler):
     """Handler for creating comments on Notion pages"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         Create a comment on a Notion page
 
@@ -202,13 +194,9 @@ class NotionCreateCommentHandler(ActionHandler):
 class NotionGetCommentsHandler(ActionHandler):
     """Handler for retrieving comments from a Notion page or block"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         block_id = inputs["block_id"]
-        include_child_blocks_with_comments = inputs.get(
-            "include_child_blocks_with_comments", False
-        )
+        include_child_blocks_with_comments = inputs.get("include_child_blocks_with_comments", False)
 
         params = {"block_id": block_id}
 
@@ -272,9 +260,7 @@ class NotionGetCommentsHandler(ActionHandler):
 class NotionListDataSourcesHandler(ActionHandler):
     """Handler for listing data sources within a database container"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         List data sources within a database container
 
@@ -319,9 +305,7 @@ class NotionListDataSourcesHandler(ActionHandler):
 class NotionGetDataSourceHandler(ActionHandler):
     """Handler for retrieving a specific data source's schema"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         Retrieve a specific data source's schema
 
@@ -354,9 +338,7 @@ class NotionGetDataSourceHandler(ActionHandler):
 class NotionQueryDataSourceHandler(ActionHandler):
     """Handler for querying data sources with filtering, sorting, and pagination"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         Query a data source with advanced filtering and sorting
 
@@ -419,9 +401,7 @@ class NotionQueryDataSourceHandler(ActionHandler):
 class NotionGetBlockChildrenHandler(ActionHandler):
     """Handler for retrieving child blocks of a page or block"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         Retrieve child blocks of a parent block or page
 
@@ -450,9 +430,7 @@ class NotionGetBlockChildrenHandler(ActionHandler):
         try:
             url = f"https://api.notion.com/v1/blocks/{block_id}/children"
 
-            response = await context.fetch(
-                url=url, method="GET", headers=headers, params=params
-            )
+            response = await context.fetch(url=url, method="GET", headers=headers, params=params)
 
             return ActionResult(
                 data={
@@ -471,9 +449,7 @@ class NotionGetBlockChildrenHandler(ActionHandler):
 class NotionAppendBlockChildrenHandler(ActionHandler):
     """Handler for appending child blocks to a page or block"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         Append child blocks to a parent block or page
 
@@ -525,9 +501,7 @@ class NotionAppendBlockChildrenHandler(ActionHandler):
 class NotionGetPagePropertyHandler(ActionHandler):
     """Handler for retrieving specific page property values"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         Retrieve a specific property value from a page
 
@@ -557,9 +531,7 @@ class NotionGetPagePropertyHandler(ActionHandler):
         try:
             url = f"https://api.notion.com/v1/pages/{page_id}/properties/{property_id}"
 
-            response = await context.fetch(
-                url=url, method="GET", headers=headers, params=params
-            )
+            response = await context.fetch(url=url, method="GET", headers=headers, params=params)
 
             return ActionResult(data={"property": response.data})
 
@@ -571,9 +543,7 @@ class NotionGetPagePropertyHandler(ActionHandler):
 class NotionUpdateBlockHandler(ActionHandler):
     """Handler for updating existing blocks"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         Update the content of an existing block
 
@@ -622,9 +592,7 @@ class NotionUpdateBlockHandler(ActionHandler):
         update_body = {
             key: value
             for key, value in inputs.items()
-            if key in valid_block_types
-            and value is not None
-            and not key.startswith("NOTION_")
+            if key in valid_block_types and value is not None and not key.startswith("NOTION_")
         }
 
         # Prepare headers for Notion API
@@ -652,9 +620,7 @@ class NotionUpdateBlockHandler(ActionHandler):
 class NotionDeleteBlockHandler(ActionHandler):
     """Handler for deleting (archiving) blocks"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         Delete (archive) a block by moving it to trash
 
@@ -688,9 +654,7 @@ class NotionDeleteBlockHandler(ActionHandler):
 class NotionUpdatePageHandler(ActionHandler):
     """Handler for updating page properties"""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         """
         Update properties of a page (for database pages)
 
@@ -710,9 +674,7 @@ class NotionUpdatePageHandler(ActionHandler):
         update_body = {
             key: value
             for key, value in inputs.items()
-            if key in valid_page_fields
-            and value is not None
-            and not key.startswith("NOTION_")
+            if key in valid_page_fields and value is not None and not key.startswith("NOTION_")
         }
 
         # Prepare headers for Notion API

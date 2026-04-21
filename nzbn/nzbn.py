@@ -41,9 +41,7 @@ nzbn = Integration.load()
 # =============================================================================
 
 PRODUCTION_BASE_URL = "https://api.business.govt.nz/gateway/nzbn/v5"
-TOKEN_URL = (
-    "https://login.microsoftonline.com/b2cessmapprd.onmicrosoft.com/oauth2/v2.0/token"  # nosec B105
-)
+TOKEN_URL = "https://login.microsoftonline.com/b2cessmapprd.onmicrosoft.com/oauth2/v2.0/token"  # nosec B105
 PRODUCTION_SCOPE = "https://api.business.govt.nz/gateway/.default"
 
 # =============================================================================
@@ -167,9 +165,7 @@ async def make_request(
         error_data = response.data if isinstance(response.data, dict) else {}
         return {
             "success": False,
-            "error": error_data.get(
-                "errorDescription", "Bad request - validation failed"
-            ),
+            "error": error_data.get("errorDescription", "Bad request - validation failed"),
         }
     elif response.status == 401:
         return {"success": False, "error": "Unauthorized - invalid credentials"}
@@ -190,9 +186,7 @@ async def make_request(
 class SearchEntitiesAction(ActionHandler):
     """Search the NZBN directory by name or identifier."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             search_term = inputs.get("search_term", "")
             if not search_term:
@@ -233,9 +227,7 @@ class SearchEntitiesAction(ActionHandler):
 class GetEntityAction(ActionHandler):
     """Get detailed information about a specific entity."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
@@ -246,9 +238,7 @@ class GetEntityAction(ActionHandler):
             if not result["success"]:
                 return ActionError(message=result["error"])
 
-            return ActionResult(
-                data={"result": True, "entity": result["data"]}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "entity": result["data"]}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -257,9 +247,7 @@ class GetEntityAction(ActionHandler):
 class GetEntitySummaryAction(ActionHandler):
     """Get essential entity information optimized for LLM token usage (99% reduction)."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
@@ -301,8 +289,7 @@ class GetEntitySummaryAction(ActionHandler):
             summary = {
                 "nzbn": entity_data.get("nzbn"),
                 "entityName": entity_data.get("entityName"),
-                "registeredOffice": registered_office
-                or "",  # Return empty string if not found
+                "registeredOffice": registered_office or "",  # Return empty string if not found
             }
 
             return ActionResult(data={"result": True, "summary": summary}, cost_usd=0.0)
@@ -314,9 +301,7 @@ class GetEntitySummaryAction(ActionHandler):
 class GetEntityAddressesAction(ActionHandler):
     """Get addresses for a specific entity."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
@@ -336,14 +321,8 @@ class GetEntityAddressesAction(ActionHandler):
             if not result["success"]:
                 return ActionError(message=result["error"])
 
-            addresses = (
-                result["data"]
-                if isinstance(result["data"], list)
-                else result["data"].get("items", [])
-            )
-            return ActionResult(
-                data={"result": True, "addresses": addresses}, cost_usd=0.0
-            )
+            addresses = result["data"] if isinstance(result["data"], list) else result["data"].get("items", [])
+            return ActionResult(data={"result": True, "addresses": addresses}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -352,9 +331,7 @@ class GetEntityAddressesAction(ActionHandler):
 class GetEntityRolesAction(ActionHandler):
     """Get roles/officers for a specific entity."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
@@ -365,11 +342,7 @@ class GetEntityRolesAction(ActionHandler):
             if not result["success"]:
                 return ActionError(message=result["error"])
 
-            roles = (
-                result["data"]
-                if isinstance(result["data"], list)
-                else result["data"].get("items", [])
-            )
+            roles = result["data"] if isinstance(result["data"], list) else result["data"].get("items", [])
             return ActionResult(data={"result": True, "roles": roles}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -379,29 +352,19 @@ class GetEntityRolesAction(ActionHandler):
 class GetEntityTradingNamesAction(ActionHandler):
     """Get trading names for a specific entity."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
-            result = await make_request(
-                context, "GET", f"/entities/{nzbn_id}/trading-names"
-            )
+            result = await make_request(context, "GET", f"/entities/{nzbn_id}/trading-names")
 
             if not result["success"]:
                 return ActionError(message=result["error"])
 
-            trading_names = (
-                result["data"]
-                if isinstance(result["data"], list)
-                else result["data"].get("items", [])
-            )
-            return ActionResult(
-                data={"result": True, "tradingNames": trading_names}, cost_usd=0.0
-            )
+            trading_names = result["data"] if isinstance(result["data"], list) else result["data"].get("items", [])
+            return ActionResult(data={"result": True, "tradingNames": trading_names}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -410,24 +373,18 @@ class GetEntityTradingNamesAction(ActionHandler):
 class GetCompanyDetailsAction(ActionHandler):
     """Get company-specific details for NZ companies."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
-            result = await make_request(
-                context, "GET", f"/entities/{nzbn_id}/company-details"
-            )
+            result = await make_request(context, "GET", f"/entities/{nzbn_id}/company-details")
 
             if not result["success"]:
                 return ActionError(message=result["error"])
 
-            return ActionResult(
-                data={"result": True, "companyDetails": result["data"]}, cost_usd=0.0
-            )
+            return ActionResult(data={"result": True, "companyDetails": result["data"]}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -436,29 +393,19 @@ class GetCompanyDetailsAction(ActionHandler):
 class GetEntityGstNumbersAction(ActionHandler):
     """Get GST numbers for a specific entity."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
-            result = await make_request(
-                context, "GET", f"/entities/{nzbn_id}/gst-numbers"
-            )
+            result = await make_request(context, "GET", f"/entities/{nzbn_id}/gst-numbers")
 
             if not result["success"]:
                 return ActionError(message=result["error"])
 
-            gst_numbers = (
-                result["data"]
-                if isinstance(result["data"], list)
-                else result["data"].get("items", [])
-            )
-            return ActionResult(
-                data={"result": True, "gstNumbers": gst_numbers}, cost_usd=0.0
-            )
+            gst_numbers = result["data"] if isinstance(result["data"], list) else result["data"].get("items", [])
+            return ActionResult(data={"result": True, "gstNumbers": gst_numbers}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -467,26 +414,18 @@ class GetEntityGstNumbersAction(ActionHandler):
 class GetEntityIndustryClassificationsAction(ActionHandler):
     """Get industry classifications for a specific entity."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             nzbn_id = inputs.get("nzbn", "")
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
-            result = await make_request(
-                context, "GET", f"/entities/{nzbn_id}/industry-classifications"
-            )
+            result = await make_request(context, "GET", f"/entities/{nzbn_id}/industry-classifications")
 
             if not result["success"]:
                 return ActionError(message=result["error"])
 
-            classifications = (
-                result["data"]
-                if isinstance(result["data"], list)
-                else result["data"].get("items", [])
-            )
+            classifications = result["data"] if isinstance(result["data"], list) else result["data"].get("items", [])
             return ActionResult(
                 data={"result": True, "industryClassifications": classifications},
                 cost_usd=0.0,
@@ -499,9 +438,7 @@ class GetEntityIndustryClassificationsAction(ActionHandler):
 class GetChangesAction(ActionHandler):
     """Get recent changes to entities."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             change_event_type = inputs.get("change_event_type", "")
             if not change_event_type:
@@ -529,9 +466,7 @@ class GetChangesAction(ActionHandler):
                 data={
                     "result": True,
                     "changes": changes,
-                    "totalItems": data.get("totalItems", len(changes))
-                    if isinstance(data, dict)
-                    else len(changes),
+                    "totalItems": data.get("totalItems", len(changes)) if isinstance(data, dict) else len(changes),
                 },
                 cost_usd=0.0,
             )

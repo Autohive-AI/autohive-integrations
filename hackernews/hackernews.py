@@ -25,16 +25,12 @@ async def fetch_json(context: ExecutionContext, url: str) -> Optional[Any]:
         return None
 
 
-async def fetch_item(
-    context: ExecutionContext, item_id: int
-) -> Optional[Dict[str, Any]]:
+async def fetch_item(context: ExecutionContext, item_id: int) -> Optional[Dict[str, Any]]:
     """Fetch a single item by ID."""
     return await fetch_json(context, f"{BASE_URL}/item/{item_id}.json")
 
 
-async def fetch_items_batch(
-    context: ExecutionContext, item_ids: List[int]
-) -> List[Dict[str, Any]]:
+async def fetch_items_batch(context: ExecutionContext, item_ids: List[int]) -> List[Dict[str, Any]]:
     """Fetch multiple items concurrently."""
     tasks = [fetch_item(context, item_id) for item_id in item_ids]
     results = await asyncio.gather(*tasks)
@@ -54,9 +50,7 @@ def format_item(item: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     if item.get("time"):
-        formatted["time"] = datetime.fromtimestamp(
-            item["time"], tz=timezone.utc
-        ).isoformat()
+        formatted["time"] = datetime.fromtimestamp(item["time"], tz=timezone.utc).isoformat()
 
     if item.get("url"):
         formatted["url"] = item["url"]
@@ -67,9 +61,7 @@ def format_item(item: Dict[str, Any]) -> Dict[str, Any]:
     return formatted
 
 
-def format_comment(
-    item: Dict[str, Any], replies: List[Dict[str, Any]] = None
-) -> Optional[Dict[str, Any]]:
+def format_comment(item: Dict[str, Any], replies: List[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """Format a comment for LLM-friendly output."""
     if item.get("deleted") or item.get("dead"):
         return None
@@ -81,9 +73,7 @@ def format_comment(
     }
 
     if item.get("time"):
-        formatted["time"] = datetime.fromtimestamp(
-            item["time"], tz=timezone.utc
-        ).isoformat()
+        formatted["time"] = datetime.fromtimestamp(item["time"], tz=timezone.utc).isoformat()
 
     if replies:
         formatted["replies"] = replies
@@ -112,9 +102,7 @@ async def fetch_comments_recursive(
 
         replies = []
         if current_depth < max_depth and comment.get("kids"):
-            replies = await fetch_comments_recursive(
-                context, comment["kids"], limit, current_depth + 1, max_depth
-            )
+            replies = await fetch_comments_recursive(context, comment["kids"], limit, current_depth + 1, max_depth)
 
         formatted = format_comment(comment, replies if replies else None)
         if formatted:
@@ -155,9 +143,7 @@ async def fetch_stories_list(
 class GetTopStoriesAction(ActionHandler):
     """Fetch top stories from Hacker News."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             limit = inputs.get("limit", 30)
             result = await fetch_stories_list(context, "topstories", limit)
@@ -170,9 +156,7 @@ class GetTopStoriesAction(ActionHandler):
 class GetBestStoriesAction(ActionHandler):
     """Fetch best stories from Hacker News."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             limit = inputs.get("limit", 30)
             result = await fetch_stories_list(context, "beststories", limit)
@@ -185,9 +169,7 @@ class GetBestStoriesAction(ActionHandler):
 class GetNewStoriesAction(ActionHandler):
     """Fetch newest stories from Hacker News."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             limit = inputs.get("limit", 30)
             result = await fetch_stories_list(context, "newstories", limit)
@@ -200,9 +182,7 @@ class GetNewStoriesAction(ActionHandler):
 class GetAskHNStoriesAction(ActionHandler):
     """Fetch Ask HN stories."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             limit = inputs.get("limit", 30)
             result = await fetch_stories_list(context, "askstories", limit)
@@ -215,9 +195,7 @@ class GetAskHNStoriesAction(ActionHandler):
 class GetShowHNStoriesAction(ActionHandler):
     """Fetch Show HN stories."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             limit = inputs.get("limit", 30)
             result = await fetch_stories_list(context, "showstories", limit)
@@ -230,14 +208,10 @@ class GetShowHNStoriesAction(ActionHandler):
 class GetJobStoriesAction(ActionHandler):
     """Fetch job postings from Hacker News."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             limit = inputs.get("limit", 30)
-            result = await fetch_stories_list(
-                context, "jobstories", limit, output_key="jobs"
-            )
+            result = await fetch_stories_list(context, "jobstories", limit, output_key="jobs")
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -247,9 +221,7 @@ class GetJobStoriesAction(ActionHandler):
 class GetStoryWithCommentsAction(ActionHandler):
     """Fetch a story with its comments."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             story_id = inputs["story_id"]
             comment_limit = inputs.get("comment_limit", 20)
@@ -286,9 +258,7 @@ class GetStoryWithCommentsAction(ActionHandler):
 class GetUserProfileAction(ActionHandler):
     """Fetch a user's public profile."""
 
-    async def execute(
-        self, inputs: Dict[str, Any], context: ExecutionContext
-    ) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             username = inputs["username"]
 
@@ -304,9 +274,7 @@ class GetUserProfileAction(ActionHandler):
             }
 
             if user.get("created"):
-                result["created"] = datetime.fromtimestamp(
-                    user["created"], tz=timezone.utc
-                ).isoformat()
+                result["created"] = datetime.fromtimestamp(user["created"], tz=timezone.utc).isoformat()
 
             if user.get("about"):
                 result["about"] = user["about"]

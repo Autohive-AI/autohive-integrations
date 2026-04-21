@@ -49,9 +49,7 @@ class GetUserAction(ActionHandler):
         try:
             response = await context.fetch(f"{BITLY_API_BASE_URL}/user", method="GET")
 
-            return ActionResult(
-                data={"user": response.data, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"user": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -73,13 +71,9 @@ class ShortenUrlAction(ActionHandler):
             if inputs.get("group_guid"):
                 body["group_guid"] = inputs["group_guid"]
 
-            response = await context.fetch(
-                f"{BITLY_API_BASE_URL}/shorten", method="POST", json=body
-            )
+            response = await context.fetch(f"{BITLY_API_BASE_URL}/shorten", method="POST", json=body)
 
-            return ActionResult(
-                data={"bitlink": response.data, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"bitlink": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -104,13 +98,9 @@ class CreateBitlinkAction(ActionHandler):
             if inputs.get("custom_back_half"):
                 body["custom_back_half"] = inputs["custom_back_half"]
 
-            response = await context.fetch(
-                f"{BITLY_API_BASE_URL}/bitlinks", method="POST", json=body
-            )
+            response = await context.fetch(f"{BITLY_API_BASE_URL}/bitlinks", method="POST", json=body)
 
-            return ActionResult(
-                data={"bitlink": response.data, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"bitlink": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -125,13 +115,9 @@ class GetBitlinkAction(ActionHandler):
             bitlink = normalize_bitlink(inputs["bitlink"])
             encoded_bitlink = encode_bitlink_for_url(bitlink)
 
-            response = await context.fetch(
-                f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}", method="GET"
-            )
+            response = await context.fetch(f"{BITLY_API_BASE_URL}/bitlinks/{encoded_bitlink}", method="GET")
 
-            return ActionResult(
-                data={"bitlink": response.data, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"bitlink": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -160,9 +146,7 @@ class UpdateBitlinkAction(ActionHandler):
                 json=body,
             )
 
-            return ActionResult(
-                data={"bitlink": response.data, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"bitlink": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -266,9 +250,7 @@ class ListBitlinksAction(ActionHandler):
             group_guid = inputs.get("group_guid")
             if not group_guid:
                 # Get user's default group
-                user_response = await context.fetch(
-                    f"{BITLY_API_BASE_URL}/user", method="GET"
-                )
+                user_response = await context.fetch(f"{BITLY_API_BASE_URL}/user", method="GET")
                 group_guid = user_response.data.get("default_group_guid")
                 if not group_guid:
                     return ActionError(message="No default_group_guid found for user")
@@ -339,13 +321,9 @@ class GetGroupAction(ActionHandler):
         try:
             group_guid = quote(inputs["group_guid"], safe="")
 
-            response = await context.fetch(
-                f"{BITLY_API_BASE_URL}/groups/{group_guid}", method="GET"
-            )
+            response = await context.fetch(f"{BITLY_API_BASE_URL}/groups/{group_guid}", method="GET")
 
-            return ActionResult(
-                data={"group": response.data, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"group": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -360,15 +338,11 @@ class ListOrganizationsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context):
         try:
-            response = await context.fetch(
-                f"{BITLY_API_BASE_URL}/organizations", method="GET"
-            )
+            response = await context.fetch(f"{BITLY_API_BASE_URL}/organizations", method="GET")
 
             organizations = response.data.get("organizations", [])
 
-            return ActionResult(
-                data={"organizations": organizations, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"organizations": organizations, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))

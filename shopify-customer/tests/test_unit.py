@@ -41,9 +41,7 @@ class TestHelperFunctions:
         from shopify_customer import get_shop_url
 
         context = MagicMock()
-        context.auth = {
-            "credentials": {"shop_url": "https://test-store.myshopify.com/"}
-        }
+        context.auth = {"credentials": {"shop_url": "https://test-store.myshopify.com/"}}
         result = get_shop_url(context)
         assert result == "test-store.myshopify.com"
 
@@ -115,9 +113,7 @@ class TestGetProfileHandler:
             },
         )
 
-        result = await shopify_customer.execute_action(
-            "customer_get_profile", {}, mock_context
-        )
+        result = await shopify_customer.execute_action("customer_get_profile", {}, mock_context)
 
         assert result.result.data["success"] is True
         assert result.result.data["customer"]["email"] == "test@example.com"
@@ -128,9 +124,7 @@ class TestGetProfileHandler:
             status=200, headers={}, data={"errors": [{"message": "Unauthorized"}]}
         )
 
-        result = await shopify_customer.execute_action(
-            "customer_get_profile", {}, mock_context
-        )
+        result = await shopify_customer.execute_action("customer_get_profile", {}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
 
 
@@ -167,9 +161,7 @@ class TestListAddressesHandler:
             },
         )
 
-        result = await shopify_customer.execute_action(
-            "customer_list_addresses", {"first": 10}, mock_context
-        )
+        result = await shopify_customer.execute_action("customer_list_addresses", {"first": 10}, mock_context)
 
         assert result.result.data["success"] is True
         assert result.result.data["count"] == 1
@@ -221,9 +213,7 @@ class TestCreateAddressHandler:
                 "data": {
                     "customerAddressCreate": {
                         "customerAddress": None,
-                        "userErrors": [
-                            {"field": "zip", "message": "Invalid postal code"}
-                        ],
+                        "userErrors": [{"field": "zip", "message": "Invalid postal code"}],
                     }
                 }
             },
@@ -277,9 +267,7 @@ class TestListOrdersHandler:
             },
         )
 
-        result = await shopify_customer.execute_action(
-            "customer_list_orders", {"first": 10}, mock_context
-        )
+        result = await shopify_customer.execute_action("customer_list_orders", {"first": 10}, mock_context)
 
         assert result.result.data["success"] is True
         assert result.result.data["count"] == 1
@@ -305,9 +293,7 @@ class TestGenerateOAuthUrl:
         assert "code_verifier" in result.result.data
         assert "state" in result.result.data
         # Verify correct OAuth endpoint
-        assert (
-            "/authentication/oauth/authorize" in result.result.data["authorization_url"]
-        )
+        assert "/authentication/oauth/authorize" in result.result.data["authorization_url"]
 
     @pytest.mark.asyncio
     async def test_generate_oauth_url_missing_client_id(self, mock_context):

@@ -16,9 +16,7 @@ async def test_integration_config():
     defined_actions = set(config.get("actions", {}).keys())
 
     # Get all registered action handlers from the integration
-    registered_actions = (
-        set(notion._actions.keys()) if hasattr(notion, "_actions") else set()
-    )
+    registered_actions = set(notion._actions.keys()) if hasattr(notion, "_actions") else set()
 
     print(f"Actions defined in config.json: {defined_actions}")
     print(f"Actions registered in handlers: {registered_actions}")
@@ -159,9 +157,7 @@ async def test_get_comments_handler_basic():
     }
 
     mock_context = MagicMock()
-    mock_context.fetch = AsyncMock(
-        return_value=FetchResponse(status=200, headers={}, data=mock_response)
-    )
+    mock_context.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data=mock_response))
 
     inputs = {"block_id": "page-789"}
     result = await handler.execute(inputs, mock_context)
@@ -191,9 +187,7 @@ async def test_get_comments_handler_with_pagination():
     }
 
     mock_context = MagicMock()
-    mock_context.fetch = AsyncMock(
-        return_value=FetchResponse(status=200, headers={}, data=mock_response)
-    )
+    mock_context.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data=mock_response))
 
     inputs = {"block_id": "page-123", "page_size": 2, "start_cursor": "prev-cursor"}
     result = await handler.execute(inputs, mock_context)
@@ -238,9 +232,7 @@ async def test_get_comments_handler_empty_optional_params():
     }
 
     mock_context = MagicMock()
-    mock_context.fetch = AsyncMock(
-        return_value=FetchResponse(status=200, headers={}, data=mock_response)
-    )
+    mock_context.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data=mock_response))
 
     # Pass empty/None values for optional params
     inputs = {"block_id": "page-123", "page_size": None, "start_cursor": ""}
