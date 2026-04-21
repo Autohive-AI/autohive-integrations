@@ -1,4 +1,9 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+)
 from typing import Dict, Any
 import base64
 import io
@@ -47,12 +52,16 @@ class CreateTaskAction(ActionHandler):
             if "tags" in inputs and inputs["tags"]:
                 data["tags"] = inputs["tags"]
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/list/{list_id}/task", method="POST", json=data)
+            response = await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/list/{list_id}/task", method="POST", json=data
+            )
 
             return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("get_task")
@@ -69,13 +78,17 @@ class GetTaskAction(ActionHandler):
                 params["include_subtasks"] = "true"
 
             response = await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/task/{task_id}", method="GET", params=params if params else None
+                f"{CLICKUP_API_BASE_URL}/task/{task_id}",
+                method="GET",
+                params=params if params else None,
             )
 
             return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("update_task")
@@ -101,12 +114,16 @@ class UpdateTaskAction(ActionHandler):
             if "due_date" in inputs and inputs["due_date"]:
                 data["due_date"] = inputs["due_date"]
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}", method="PUT", json=data)
+            response = await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/task/{task_id}", method="PUT", json=data
+            )
 
             return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("delete_task")
@@ -117,7 +134,9 @@ class DeleteTaskAction(ActionHandler):
         try:
             task_id = inputs["task_id"]
 
-            await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}", method="DELETE")
+            await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/task/{task_id}", method="DELETE"
+            )
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
@@ -151,14 +170,18 @@ class GetTasksAction(ActionHandler):
                 params["assignees[]"] = inputs["assignees"]
 
             response = await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/list/{list_id}/task", method="GET", params=params if params else None
+                f"{CLICKUP_API_BASE_URL}/list/{list_id}/task",
+                method="GET",
+                params=params if params else None,
             )
 
             tasks = response.get("tasks", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("create_task_attachment")
@@ -185,7 +208,11 @@ class CreateTaskAttachmentAction(ActionHandler):
 
             if not content_b64:
                 return ActionResult(
-                    data={"attachment": {}, "result": False, "error": f"File '{filename}' has no content provided"},
+                    data={
+                        "attachment": {},
+                        "result": False,
+                        "error": f"File '{filename}' has no content provided",
+                    },
                     cost_usd=0.0,
                 )
 
@@ -193,7 +220,11 @@ class CreateTaskAttachmentAction(ActionHandler):
             # layers is sometimes reformatted and loses padding, which trips the strict
             # decoder below.
             content_b64_cleaned = (
-                content_b64.strip().replace("\n", "").replace("\r", "").replace(" ", "").replace("\t", "")
+                content_b64.strip()
+                .replace("\n", "")
+                .replace("\r", "")
+                .replace(" ", "")
+                .replace("\t", "")
             )
             padding_needed = len(content_b64_cleaned) % 4
             if padding_needed != 0:
@@ -213,7 +244,11 @@ class CreateTaskAttachmentAction(ActionHandler):
 
             if not file_bytes:
                 return ActionResult(
-                    data={"attachment": {}, "result": False, "error": f"File '{filename}' decoded to empty content"},
+                    data={
+                        "attachment": {},
+                        "result": False,
+                        "error": f"File '{filename}' decoded to empty content",
+                    },
                     cost_usd=0.0,
                 )
 
@@ -226,7 +261,11 @@ class CreateTaskAttachmentAction(ActionHandler):
 
             if not auth_token:
                 return ActionResult(
-                    data={"attachment": {}, "result": False, "error": "No authentication token available"},
+                    data={
+                        "attachment": {},
+                        "result": False,
+                        "error": "No authentication token available",
+                    },
                     cost_usd=0.0,
                 )
 
@@ -244,7 +283,9 @@ class CreateTaskAttachmentAction(ActionHandler):
             form = aiohttp.FormData()
             bio = io.BytesIO(file_bytes)
             bio.seek(0)
-            form.add_field("attachment", bio, filename=filename, content_type=content_type)
+            form.add_field(
+                "attachment", bio, filename=filename, content_type=content_type
+            )
             # v3 supports an optional body field that overrides the stored filename
             # independently of the multipart part's filename.
             if inputs.get("filename"):
@@ -268,10 +309,14 @@ class CreateTaskAttachmentAction(ActionHandler):
                         )
                     response_data = await resp.json()
 
-            return ActionResult(data={"attachment": response_data, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"attachment": response_data, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"attachment": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"attachment": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- List Handlers ----
@@ -295,7 +340,11 @@ class CreateListAction(ActionHandler):
                 parent_id = inputs["space_id"]
             else:
                 return ActionResult(
-                    data={"list": {}, "result": False, "error": "Either folder_id or space_id is required"},
+                    data={
+                        "list": {},
+                        "result": False,
+                        "error": "Either folder_id or space_id is required",
+                    },
                     cost_usd=0.0,
                 )
 
@@ -312,13 +361,17 @@ class CreateListAction(ActionHandler):
                 data["status"] = inputs["status"]
 
             response = await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/{parent_type}/{parent_id}/list", method="POST", json=data
+                f"{CLICKUP_API_BASE_URL}/{parent_type}/{parent_id}/list",
+                method="POST",
+                json=data,
             )
 
             return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("get_list")
@@ -329,12 +382,16 @@ class GetListAction(ActionHandler):
         try:
             list_id = inputs["list_id"]
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="GET")
+            response = await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="GET"
+            )
 
             return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("update_list")
@@ -355,12 +412,16 @@ class UpdateListAction(ActionHandler):
             if "priority" in inputs and inputs["priority"] is not None:
                 data["priority"] = inputs["priority"]
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="PUT", json=data)
+            response = await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="PUT", json=data
+            )
 
             return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("delete_list")
@@ -371,7 +432,9 @@ class DeleteListAction(ActionHandler):
         try:
             list_id = inputs["list_id"]
 
-            await context.fetch(f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="DELETE")
+            await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="DELETE"
+            )
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
@@ -397,7 +460,11 @@ class GetListsAction(ActionHandler):
                 parent_id = inputs["space_id"]
             else:
                 return ActionResult(
-                    data={"lists": [], "result": False, "error": "Either folder_id or space_id is required"},
+                    data={
+                        "lists": [],
+                        "result": False,
+                        "error": "Either folder_id or space_id is required",
+                    },
                     cost_usd=0.0,
                 )
 
@@ -415,7 +482,9 @@ class GetListsAction(ActionHandler):
             return ActionResult(data={"lists": lists, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"lists": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"lists": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Folder Handlers ----
@@ -430,12 +499,18 @@ class CreateFolderAction(ActionHandler):
             space_id = inputs["space_id"]
             data = {"name": inputs["name"]}
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/space/{space_id}/folder", method="POST", json=data)
+            response = await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/space/{space_id}/folder",
+                method="POST",
+                json=data,
+            )
 
             return ActionResult(data={"folder": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("get_folder")
@@ -446,12 +521,16 @@ class GetFolderAction(ActionHandler):
         try:
             folder_id = inputs["folder_id"]
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="GET")
+            response = await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="GET"
+            )
 
             return ActionResult(data={"folder": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("update_folder")
@@ -463,12 +542,16 @@ class UpdateFolderAction(ActionHandler):
             folder_id = inputs["folder_id"]
             data = {"name": inputs["name"]}
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="PUT", json=data)
+            response = await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="PUT", json=data
+            )
 
             return ActionResult(data={"folder": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("delete_folder")
@@ -479,7 +562,9 @@ class DeleteFolderAction(ActionHandler):
         try:
             folder_id = inputs["folder_id"]
 
-            await context.fetch(f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="DELETE")
+            await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="DELETE"
+            )
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
@@ -500,14 +585,18 @@ class GetFoldersAction(ActionHandler):
                 params["archived"] = "true" if inputs["archived"] else "false"
 
             response = await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/space/{space_id}/folder", method="GET", params=params if params else None
+                f"{CLICKUP_API_BASE_URL}/space/{space_id}/folder",
+                method="GET",
+                params=params if params else None,
             )
 
             folders = response.get("folders", [])
             return ActionResult(data={"folders": folders, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"folders": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"folders": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Space Handlers ----
@@ -521,12 +610,16 @@ class GetSpaceAction(ActionHandler):
         try:
             space_id = inputs["space_id"]
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/space/{space_id}", method="GET")
+            response = await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/space/{space_id}", method="GET"
+            )
 
             return ActionResult(data={"space": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"space": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"space": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("get_spaces")
@@ -542,14 +635,18 @@ class GetSpacesAction(ActionHandler):
                 params["archived"] = "true" if inputs["archived"] else "false"
 
             response = await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/team/{team_id}/space", method="GET", params=params if params else None
+                f"{CLICKUP_API_BASE_URL}/team/{team_id}/space",
+                method="GET",
+                params=params if params else None,
             )
 
             spaces = response.get("spaces", [])
             return ActionResult(data={"spaces": spaces, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"spaces": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"spaces": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Team/Workspace Handlers ----
@@ -567,7 +664,9 @@ class GetAuthorizedTeamsAction(ActionHandler):
             return ActionResult(data={"teams": teams, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"teams": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"teams": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 # ---- Comment Handlers ----
@@ -588,12 +687,20 @@ class CreateTaskCommentAction(ActionHandler):
             if "notify_all" in inputs and inputs["notify_all"] is not None:
                 data["notify_all"] = inputs["notify_all"]
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment", method="POST", json=data)
+            response = await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment",
+                method="POST",
+                json=data,
+            )
 
-            return ActionResult(data={"comment": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"comment": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"comment": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"comment": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("get_task_comments")
@@ -604,13 +711,19 @@ class GetTaskCommentsAction(ActionHandler):
         try:
             task_id = inputs["task_id"]
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment", method="GET")
+            response = await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment", method="GET"
+            )
 
             comments = response.get("comments", [])
-            return ActionResult(data={"comments": comments, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"comments": comments, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"comments": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"comments": [], "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("update_comment")
@@ -622,12 +735,18 @@ class UpdateCommentAction(ActionHandler):
             comment_id = inputs["comment_id"]
             data = {"comment_text": inputs["comment_text"]}
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/comment/{comment_id}", method="PUT", json=data)
+            response = await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/comment/{comment_id}", method="PUT", json=data
+            )
 
-            return ActionResult(data={"comment": response, "result": True}, cost_usd=0.0)
+            return ActionResult(
+                data={"comment": response, "result": True}, cost_usd=0.0
+            )
 
         except Exception as e:
-            return ActionResult(data={"comment": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"comment": {}, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @clickup.action("delete_comment")
@@ -638,7 +757,9 @@ class DeleteCommentAction(ActionHandler):
         try:
             comment_id = inputs["comment_id"]
 
-            await context.fetch(f"{CLICKUP_API_BASE_URL}/comment/{comment_id}", method="DELETE")
+            await context.fetch(
+                f"{CLICKUP_API_BASE_URL}/comment/{comment_id}", method="DELETE"
+            )
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
 

@@ -1,7 +1,7 @@
 {
     "name": "ClickUp",
     "display_name": "ClickUp",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "ClickUp integration for managing tasks, lists, folders, spaces, and team collaboration",
     "entry_point": "clickup.py",
     "auth": {

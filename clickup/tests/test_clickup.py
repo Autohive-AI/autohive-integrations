@@ -17,9 +17,13 @@ async def test_get_authorized_teams():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await clickup.execute_action("get_authorized_teams", inputs, context)
+            result = await clickup.execute_action(
+                "get_authorized_teams", inputs, context
+            )
             print(f"Get Authorized Teams Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "teams" in result, "Response missing 'teams' field"
             return result
         except Exception as e:
@@ -42,7 +46,9 @@ async def test_get_spaces():
         try:
             result = await clickup.execute_action("get_spaces", inputs, context)
             print(f"Get Spaces Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "spaces" in result, "Response missing 'spaces' field"
             return result
         except Exception as e:
@@ -65,7 +71,9 @@ async def test_get_space():
         try:
             result = await clickup.execute_action("get_space", inputs, context)
             print(f"Get Space Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "space" in result, "Response missing 'space' field"
             return result
         except Exception as e:
@@ -88,7 +96,9 @@ async def test_create_folder():
         try:
             result = await clickup.execute_action("create_folder", inputs, context)
             print(f"Create Folder Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "folder" in result, "Response missing 'folder' field"
             return result
         except Exception as e:
@@ -111,7 +121,9 @@ async def test_get_folder():
         try:
             result = await clickup.execute_action("get_folder", inputs, context)
             print(f"Get Folder Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "folder" in result, "Response missing 'folder' field"
             return result
         except Exception as e:
@@ -134,7 +146,9 @@ async def test_update_folder():
         try:
             result = await clickup.execute_action("update_folder", inputs, context)
             print(f"Update Folder Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "folder" in result, "Response missing 'folder' field"
             return result
         except Exception as e:
@@ -157,7 +171,9 @@ async def test_get_folders():
         try:
             result = await clickup.execute_action("get_folders", inputs, context)
             print(f"Get Folders Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "folders" in result, "Response missing 'folders' field"
             return result
         except Exception as e:
@@ -180,7 +196,9 @@ async def test_delete_folder():
         try:
             result = await clickup.execute_action("delete_folder", inputs, context)
             print(f"Delete Folder Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             return result
         except Exception as e:
             print(f"Error testing delete_folder: {e}")
@@ -202,7 +220,9 @@ async def test_create_list():
         try:
             result = await clickup.execute_action("create_list", inputs, context)
             print(f"Create List Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "list" in result, "Response missing 'list' field"
             return result
         except Exception as e:
@@ -225,7 +245,9 @@ async def test_get_list():
         try:
             result = await clickup.execute_action("get_list", inputs, context)
             print(f"Get List Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "list" in result, "Response missing 'list' field"
             return result
         except Exception as e:
@@ -248,7 +270,9 @@ async def test_update_list():
         try:
             result = await clickup.execute_action("update_list", inputs, context)
             print(f"Update List Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "list" in result, "Response missing 'list' field"
             return result
         except Exception as e:
@@ -271,7 +295,9 @@ async def test_get_lists():
         try:
             result = await clickup.execute_action("get_lists", inputs, context)
             print(f"Get Lists Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "lists" in result, "Response missing 'lists' field"
             return result
         except Exception as e:
@@ -294,7 +320,9 @@ async def test_delete_list():
         try:
             result = await clickup.execute_action("delete_list", inputs, context)
             print(f"Delete List Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             return result
         except Exception as e:
             print(f"Error testing delete_list: {e}")
@@ -321,7 +349,9 @@ async def test_create_task():
         try:
             result = await clickup.execute_action("create_task", inputs, context)
             print(f"Create Task Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "task" in result, "Response missing 'task' field"
             return result
         except Exception as e:
@@ -344,7 +374,9 @@ async def test_get_task():
         try:
             result = await clickup.execute_action("get_task", inputs, context)
             print(f"Get Task Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "task" in result, "Response missing 'task' field"
             return result
         except Exception as e:
@@ -361,13 +393,19 @@ async def test_update_task():
         },
     }
 
-    inputs = {"task_id": "your_task_id_here", "name": "Updated Task Name", "status": "Complete"}
+    inputs = {
+        "task_id": "your_task_id_here",
+        "name": "Updated Task Name",
+        "status": "Complete",
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("update_task", inputs, context)
             print(f"Update Task Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "task" in result, "Response missing 'task' field"
             return result
         except Exception as e:
@@ -390,7 +428,9 @@ async def test_get_tasks():
         try:
             result = await clickup.execute_action("get_tasks", inputs, context)
             print(f"Get Tasks Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "tasks" in result, "Response missing 'tasks' field"
             return result
         except Exception as e:
@@ -413,7 +453,9 @@ async def test_delete_task():
         try:
             result = await clickup.execute_action("delete_task", inputs, context)
             print(f"Delete Task Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             return result
         except Exception as e:
             print(f"Error testing delete_task: {e}")
@@ -430,9 +472,7 @@ async def test_create_task_attachment():
     }
 
     # Small base64-encoded PNG (1x1 transparent pixel) used as the test payload.
-    png_b64 = (
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-    )
+    png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 
     inputs = {
         "workspace_id": "your_workspace_id_here",
@@ -446,9 +486,13 @@ async def test_create_task_attachment():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await clickup.execute_action("create_task_attachment", inputs, context)
+            result = await clickup.execute_action(
+                "create_task_attachment", inputs, context
+            )
             print(f"Create Task Attachment Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "attachment" in result, "Response missing 'attachment' field"
             return result
         except Exception as e:
@@ -465,13 +509,20 @@ async def test_create_task_comment():
         },
     }
 
-    inputs = {"task_id": "your_task_id_here", "comment_text": "This is a test comment via API"}
+    inputs = {
+        "task_id": "your_task_id_here",
+        "comment_text": "This is a test comment via API",
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await clickup.execute_action("create_task_comment", inputs, context)
+            result = await clickup.execute_action(
+                "create_task_comment", inputs, context
+            )
             print(f"Create Task Comment Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "comment" in result, "Response missing 'comment' field"
             return result
         except Exception as e:
@@ -494,7 +545,9 @@ async def test_get_task_comments():
         try:
             result = await clickup.execute_action("get_task_comments", inputs, context)
             print(f"Get Task Comments Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "comments" in result, "Response missing 'comments' field"
             return result
         except Exception as e:
@@ -511,13 +564,18 @@ async def test_update_comment():
         },
     }
 
-    inputs = {"comment_id": "your_comment_id_here", "comment_text": "Updated comment text"}
+    inputs = {
+        "comment_id": "your_comment_id_here",
+        "comment_text": "Updated comment text",
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await clickup.execute_action("update_comment", inputs, context)
             print(f"Update Comment Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             assert "comment" in result, "Response missing 'comment' field"
             return result
         except Exception as e:
@@ -540,7 +598,9 @@ async def test_delete_comment():
         try:
             result = await clickup.execute_action("delete_comment", inputs, context)
             print(f"Delete Comment Result: {result}")
-            assert result.get("result"), f"Action failed: {result.get('error', 'Unknown error')}"
+            assert result.get("result"), (
+                f"Action failed: {result.get('error', 'Unknown error')}"
+            )
             return result
         except Exception as e:
             print(f"Error testing delete_comment: {e}")
