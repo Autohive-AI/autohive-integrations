@@ -29,7 +29,11 @@ def _b64(data: bytes) -> str:
     return base64.b64encode(data).decode()
 
 
-def _file_input(content_bytes: bytes = b"hello world", name: str = "hello.txt", content_type: str = "text/plain"):
+def _file_input(
+    content_bytes: bytes = b"hello world",
+    name: str = "hello.txt",
+    content_type: str = "text/plain",
+):
     return {"name": name, "content": _b64(content_bytes), "contentType": content_type}
 
 
@@ -79,19 +83,31 @@ class _FakeSession:
 class TestCreateTaskAttachment:
     @pytest.mark.asyncio
     async def test_happy_path_posts_v3_url_with_bearer_token(self, mock_context):
-        response = _FakeResponse(200, json_body={"id": "att_1", "url": "https://cdn/x.txt"})
+        response = _FakeResponse(
+            200, json_body={"id": "att_1", "url": "https://cdn/x.txt"}
+        )
         session = _FakeSession(response)
 
         with patch("clickup.clickup.aiohttp.ClientSession", return_value=session):
             result = await clickup.execute_action(
                 "create_task_attachment",
-                {"workspace_id": "90161390530", "task_id": "86d2nt17n", "file": _file_input()},
+                {
+                    "workspace_id": "90161390530",
+                    "task_id": "86d2nt17n",
+                    "file": _file_input(),
+                },
                 mock_context,
             )
 
         assert result.result.data["result"] is True
-        assert result.result.data["attachment"] == {"id": "att_1", "url": "https://cdn/x.txt"}
-        assert session.post_url == f"{V3_BASE}/workspaces/90161390530/tasks/86d2nt17n/attachments"
+        assert result.result.data["attachment"] == {
+            "id": "att_1",
+            "url": "https://cdn/x.txt",
+        }
+        assert (
+            session.post_url
+            == f"{V3_BASE}/workspaces/90161390530/tasks/86d2nt17n/attachments"
+        )
         assert session.post_headers == {"Authorization": "Bearer test_token"}
 
     @pytest.mark.asyncio
@@ -114,7 +130,11 @@ class TestCreateTaskAttachment:
 
     @pytest.mark.asyncio
     async def test_invalid_base64_returns_error(self, mock_context):
-        file_obj = {"name": "bad.txt", "content": "!!!not-base64!!!", "contentType": "text/plain"}
+        file_obj = {
+            "name": "bad.txt",
+            "content": "!!!not-base64!!!",
+            "contentType": "text/plain",
+        }
         response = _FakeResponse(200, json_body={})
         session = _FakeSession(response)
 
@@ -131,7 +151,9 @@ class TestCreateTaskAttachment:
 
     @pytest.mark.asyncio
     async def test_http_error_surfaces_status_body_and_url(self, mock_context):
-        response = _FakeResponse(404, text_body='{"status":404,"message":"Not Found or Authorized"}')
+        response = _FakeResponse(
+            404, text_body='{"status":404,"message":"Not Found or Authorized"}'
+        )
         session = _FakeSession(response)
 
         with patch("clickup.clickup.aiohttp.ClientSession", return_value=session):
@@ -167,7 +189,9 @@ class TestCreateTaskAttachment:
                 mock_context,
             )
 
-        filenames = [f[2] for f in session.post_data._fields if f[0]["name"] == "filename"]
+        filenames = [
+            f[2] for f in session.post_data._fields if f[0]["name"] == "filename"
+        ]
         assert filenames == ["renamed.txt"]
 
     @pytest.mark.asyncio
