@@ -14,6 +14,8 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
+from autohive_integrations_sdk import FetchResponse, ResultType  # noqa: E402
+
 from shopify_customer import shopify_customer
 
 
@@ -39,7 +41,9 @@ class TestHelperFunctions:
         from shopify_customer import get_shop_url
 
         context = MagicMock()
-        context.auth = {"credentials": {"shop_url": "https://test-store.myshopify.com/"}}
+        context.auth = {
+            "credentials": {"shop_url": "https://test-store.myshopify.com/"}
+        }
         result = get_shop_url(context)
         assert result == "test-store.myshopify.com"
 
@@ -96,34 +100,38 @@ class TestGetProfileHandler:
 
     @pytest.mark.asyncio
     async def test_get_profile_success(self, mock_context):
-        mock_context.fetch.return_value = {
-            "data": {
-                "customer": {
-                    "id": "gid://shopify/Customer/123",
-                    "email": "test@example.com",
-                    "firstName": "Test",
-                    "lastName": "User",
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "data": {
+                    "customer": {
+                        "id": "gid://shopify/Customer/123",
+                        "email": "test@example.com",
+                        "firstName": "Test",
+                        "lastName": "User",
+                    }
                 }
-            }
-        }
+            },
+        )
 
-        result = await shopify_customer.execute_action("customer_get_profile", {}, mock_context)
+        result = await shopify_customer.execute_action(
+            "customer_get_profile", {}, mock_context
+        )
 
         assert result.result.data["success"] is True
         assert result.result.data["customer"]["email"] == "test@example.com"
 
     @pytest.mark.asyncio
     async def test_get_profile_graphql_error(self, mock_context):
-        mock_context.fetch.return_value = {"errors": [{"message": "Unauthorized"}]}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"errors": [{"message": "Unauthorized"}]}
+        )
 
-        # Error responses may fail SDK output validation because customer=None doesn't match schema
-        try:
-            result = await shopify_customer.execute_action("customer_get_profile", {}, mock_context)
-            # If validation passes, check the response
-            assert result.result.data.get("success") is False
-        except Exception as e:
-            # SDK validation may reject None for customer field - this is expected
-            assert "None" in str(e) or "validation" in str(e).lower()
+        result = await shopify_customer.execute_action(
+            "customer_get_profile", {}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
 
 
 class TestListAddressesHandler:
@@ -131,31 +139,37 @@ class TestListAddressesHandler:
 
     @pytest.mark.asyncio
     async def test_list_addresses_success(self, mock_context):
-        mock_context.fetch.return_value = {
-            "data": {
-                "customer": {
-                    "addresses": {
-                        "edges": [
-                            {
-                                "cursor": "cursor1",
-                                "node": {
-                                    "id": "gid://shopify/CustomerAddress/1",
-                                    "address1": "123 Main St",
-                                    "city": "New York",
-                                },
-                            }
-                        ],
-                        "pageInfo": {
-                            "hasNextPage": False,
-                            "endCursor": "end_cursor_value",
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "data": {
+                    "customer": {
+                        "addresses": {
+                            "edges": [
+                                {
+                                    "cursor": "cursor1",
+                                    "node": {
+                                        "id": "gid://shopify/CustomerAddress/1",
+                                        "address1": "123 Main St",
+                                        "city": "New York",
+                                    },
+                                }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": "end_cursor_value",
+                            },
                         },
-                    },
-                    "defaultAddress": {"id": "gid://shopify/CustomerAddress/1"},
+                        "defaultAddress": {"id": "gid://shopify/CustomerAddress/1"},
+                    }
                 }
-            }
-        }
+            },
+        )
 
-        result = await shopify_customer.execute_action("customer_list_addresses", {"first": 10}, mock_context)
+        result = await shopify_customer.execute_action(
+            "customer_list_addresses", {"first": 10}, mock_context
+        )
 
         assert result.result.data["success"] is True
         assert result.result.data["count"] == 1
@@ -167,18 +181,22 @@ class TestCreateAddressHandler:
 
     @pytest.mark.asyncio
     async def test_create_address_success(self, mock_context):
-        mock_context.fetch.return_value = {
-            "data": {
-                "customerAddressCreate": {
-                    "customerAddress": {
-                        "id": "gid://shopify/CustomerAddress/new",
-                        "address1": "456 Oak Ave",
-                        "city": "Los Angeles",
-                    },
-                    "userErrors": [],
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "data": {
+                    "customerAddressCreate": {
+                        "customerAddress": {
+                            "id": "gid://shopify/CustomerAddress/new",
+                            "address1": "456 Oak Ave",
+                            "city": "Los Angeles",
+                        },
+                        "userErrors": [],
+                    }
                 }
-            }
-        }
+            },
+        )
 
         result = await shopify_customer.execute_action(
             "customer_create_address",
@@ -196,33 +214,32 @@ class TestCreateAddressHandler:
 
     @pytest.mark.asyncio
     async def test_create_address_user_error(self, mock_context):
-        mock_context.fetch.return_value = {
-            "data": {
-                "customerAddressCreate": {
-                    "customerAddress": None,
-                    "userErrors": [{"field": "zip", "message": "Invalid postal code"}],
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "data": {
+                    "customerAddressCreate": {
+                        "customerAddress": None,
+                        "userErrors": [
+                            {"field": "zip", "message": "Invalid postal code"}
+                        ],
+                    }
                 }
-            }
-        }
+            },
+        )
 
-        # This test verifies that user errors are handled but may fail SDK validation
-        # due to None address not matching schema
-        try:
-            result = await shopify_customer.execute_action(
-                "customer_create_address",
-                {
-                    "address1": "456 Oak Ave",
-                    "city": "LA",
-                    "country": "US",
-                    "zip": "invalid",
-                },
-                mock_context,
-            )
-            assert result.result.data["success"] is False
-            assert "Invalid postal code" in result.result.data["message"]
-        except Exception as e:
-            # SDK validation may reject None for address field
-            assert "validation" in str(e).lower() or "None" in str(e)
+        result = await shopify_customer.execute_action(
+            "customer_create_address",
+            {
+                "address1": "456 Oak Ave",
+                "city": "LA",
+                "country": "US",
+                "zip": "invalid",
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
 
 
 class TestListOrdersHandler:
@@ -230,33 +247,39 @@ class TestListOrdersHandler:
 
     @pytest.mark.asyncio
     async def test_list_orders_success(self, mock_context):
-        mock_context.fetch.return_value = {
-            "data": {
-                "customer": {
-                    "orders": {
-                        "edges": [
-                            {
-                                "cursor": "cursor1",
-                                "node": {
-                                    "id": "gid://shopify/Order/123",
-                                    "orderNumber": 1001,
-                                    "totalPrice": {
-                                        "amount": "99.99",
-                                        "currencyCode": "USD",
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "data": {
+                    "customer": {
+                        "orders": {
+                            "edges": [
+                                {
+                                    "cursor": "cursor1",
+                                    "node": {
+                                        "id": "gid://shopify/Order/123",
+                                        "orderNumber": 1001,
+                                        "totalPrice": {
+                                            "amount": "99.99",
+                                            "currencyCode": "USD",
+                                        },
                                     },
-                                },
-                            }
-                        ],
-                        "pageInfo": {
-                            "hasNextPage": False,
-                            "endCursor": "end_cursor_value",
-                        },
+                                }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": "end_cursor_value",
+                            },
+                        }
                     }
                 }
-            }
-        }
+            },
+        )
 
-        result = await shopify_customer.execute_action("customer_list_orders", {"first": 10}, mock_context)
+        result = await shopify_customer.execute_action(
+            "customer_list_orders", {"first": 10}, mock_context
+        )
 
         assert result.result.data["success"] is True
         assert result.result.data["count"] == 1
@@ -282,23 +305,18 @@ class TestGenerateOAuthUrl:
         assert "code_verifier" in result.result.data
         assert "state" in result.result.data
         # Verify correct OAuth endpoint
-        assert "/authentication/oauth/authorize" in result.result.data["authorization_url"]
+        assert (
+            "/authentication/oauth/authorize" in result.result.data["authorization_url"]
+        )
 
     @pytest.mark.asyncio
     async def test_generate_oauth_url_missing_client_id(self, mock_context):
-        # The SDK validates required inputs, so this should raise a validation error
-        try:
-            result = await shopify_customer.execute_action(
-                "customer_generate_oauth_url",
-                {"redirect_uri": "https://example.com/callback"},
-                mock_context,
-            )
-            # If it doesn't raise, check the response
-            assert result.result.data["success"] is False
-            assert "client_id" in result.result.data["message"]
-        except Exception as e:
-            # SDK validation should catch missing required field
-            assert "client_id" in str(e) or "required" in str(e).lower()
+        result = await shopify_customer.execute_action(
+            "customer_generate_oauth_url",
+            {"redirect_uri": "https://example.com/callback"},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
 
 
 if __name__ == "__main__":

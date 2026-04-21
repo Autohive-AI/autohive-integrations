@@ -16,6 +16,8 @@ from unittest.mock import AsyncMock, MagicMock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
+from autohive_integrations_sdk import ActionError, FetchResponse  # noqa: E402
+
 from notion.notion import (
     NOTION_API_VERSION,
     NotionGetCommentsHandler,
@@ -158,20 +160,26 @@ class TestGetComments:
     async def test_basic(self, mock_context):
         handler = NotionGetCommentsHandler()
 
-        mock_context.fetch.return_value = {
-            "object": "list",
-            "results": [
-                {
-                    "id": "comment-123",
-                    "discussion_id": "disc-456",
-                    "created_time": "2024-01-15T10:00:00.000Z",
-                    "rich_text": [{"type": "text", "text": {"content": "Test comment"}}],
-                    "parent": {"type": "page_id", "page_id": "page-789"},
-                }
-            ],
-            "next_cursor": None,
-            "has_more": False,
-        }
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "object": "list",
+                "results": [
+                    {
+                        "id": "comment-123",
+                        "discussion_id": "disc-456",
+                        "created_time": "2024-01-15T10:00:00.000Z",
+                        "rich_text": [
+                            {"type": "text", "text": {"content": "Test comment"}}
+                        ],
+                        "parent": {"type": "page_id", "page_id": "page-789"},
+                    }
+                ],
+                "next_cursor": None,
+                "has_more": False,
+            },
+        )
 
         result = await handler.execute({"block_id": "page-789"}, mock_context)
 
@@ -190,12 +198,16 @@ class TestGetComments:
     async def test_with_pagination(self, mock_context):
         handler = NotionGetCommentsHandler()
 
-        mock_context.fetch.return_value = {
-            "object": "list",
-            "results": [{"id": "comment-1"}, {"id": "comment-2"}],
-            "next_cursor": "cursor-abc",
-            "has_more": True,
-        }
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "object": "list",
+                "results": [{"id": "comment-1"}, {"id": "comment-2"}],
+                "next_cursor": "cursor-abc",
+                "has_more": True,
+            },
+        )
 
         result = await handler.execute(
             {"block_id": "page-123", "page_size": 2, "start_cursor": "prev-cursor"},
@@ -223,20 +235,23 @@ class TestGetComments:
 
         result = await handler.execute({"block_id": "page-789"}, mock_context)
 
-        assert "error" in result.data
-        assert "API rate limit exceeded" in result.data["error"]
-        assert result.data["comments"] == []
+        assert isinstance(result, ActionError)
+        assert "API rate limit exceeded" in result.message
 
     @pytest.mark.asyncio
     async def test_empty_optional_params(self, mock_context):
         handler = NotionGetCommentsHandler()
 
-        mock_context.fetch.return_value = {
-            "object": "list",
-            "results": [],
-            "next_cursor": None,
-            "has_more": False,
-        }
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "object": "list",
+                "results": [],
+                "next_cursor": None,
+                "has_more": False,
+            },
+        )
 
         await handler.execute(
             {"block_id": "page-123", "page_size": None, "start_cursor": ""},
@@ -261,13 +276,17 @@ class TestSearch:
     async def test_basic_search(self, mock_context):
         handler = NotionSearchHandler()
 
-        mock_context.fetch.return_value = {
-            "object": "list",
-            "results": [{"id": "page-1", "object": "page"}],
-            "has_more": False,
-            "next_cursor": None,
-            "type": "page_or_database",
-        }
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "object": "list",
+                "results": [{"id": "page-1", "object": "page"}],
+                "has_more": False,
+                "next_cursor": None,
+                "type": "page_or_database",
+            },
+        )
 
         result = await handler.execute({"query": "meeting notes"}, mock_context)
 
@@ -285,12 +304,16 @@ class TestSearch:
     async def test_search_with_filter_and_sort(self, mock_context):
         handler = NotionSearchHandler()
 
-        mock_context.fetch.return_value = {
-            "object": "list",
-            "results": [],
-            "has_more": False,
-            "next_cursor": None,
-        }
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "object": "list",
+                "results": [],
+                "has_more": False,
+                "next_cursor": None,
+            },
+        )
 
         inputs = {
             "query": "test",
@@ -319,9 +342,8 @@ class TestSearch:
 
         result = await handler.execute({"query": "test"}, mock_context)
 
-        assert "error" in result.data
-        assert "Unauthorized" in result.data["error"]
-        assert result.data["results"] == []
+        assert isinstance(result, ActionError)
+        assert "Unauthorized" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -339,7 +361,9 @@ class TestGetPage:
             "object": "page",
             "properties": {"Name": {"title": []}},
         }
-        mock_context.fetch.return_value = page_data
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=page_data
+        )
 
         result = await handler.execute({"page_id": "page-abc"}, mock_context)
 
@@ -358,9 +382,8 @@ class TestGetPage:
 
         result = await handler.execute({"page_id": "bad-id"}, mock_context)
 
-        assert "error" in result.data
-        assert "Not found" in result.data["error"]
-        assert result.data["page"] is None
+        assert isinstance(result, ActionError)
+        assert "Not found" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -376,9 +399,13 @@ class TestCreatePage:
         parent = {"database_id": "db-123"}
         properties = {"Name": {"title": [{"text": {"content": "New Page"}}]}}
         created_page = {"id": "new-page-1", "object": "page"}
-        mock_context.fetch.return_value = created_page
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=created_page
+        )
 
-        result = await handler.execute({"parent": parent, "properties": properties}, mock_context)
+        result = await handler.execute(
+            {"parent": parent, "properties": properties}, mock_context
+        )
 
         mock_context.fetch.assert_called_once_with(
             url="https://api.notion.com/v1/pages",
@@ -399,8 +426,8 @@ class TestCreatePage:
             mock_context,
         )
 
-        assert "error" in result.data
-        assert result.data["page"] is None
+        assert isinstance(result, ActionError)
+        assert "Validation error" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -416,9 +443,13 @@ class TestCreateComment:
         parent = {"page_id": "page-123"}
         rich_text = [{"type": "text", "text": {"content": "A comment"}}]
         created_comment = {"id": "comment-new", "object": "comment"}
-        mock_context.fetch.return_value = created_comment
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=created_comment
+        )
 
-        result = await handler.execute({"parent": parent, "rich_text": rich_text}, mock_context)
+        result = await handler.execute(
+            {"parent": parent, "rich_text": rich_text}, mock_context
+        )
 
         mock_context.fetch.assert_called_once_with(
             url="https://api.notion.com/v1/comments",
@@ -439,8 +470,8 @@ class TestCreateComment:
             mock_context,
         )
 
-        assert "error" in result.data
-        assert result.data["comment"] is None
+        assert isinstance(result, ActionError)
+        assert "Forbidden" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -453,15 +484,19 @@ class TestGetBlockChildren:
     async def test_get_block_children(self, mock_context):
         handler = NotionGetBlockChildrenHandler()
 
-        mock_context.fetch.return_value = {
-            "results": [
-                {"id": "block-1", "type": "paragraph"},
-                {"id": "block-2", "type": "heading_1"},
-            ],
-            "has_more": False,
-            "next_cursor": None,
-            "type": "block",
-        }
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "results": [
+                    {"id": "block-1", "type": "paragraph"},
+                    {"id": "block-2", "type": "heading_1"},
+                ],
+                "has_more": False,
+                "next_cursor": None,
+                "type": "block",
+            },
+        )
 
         result = await handler.execute({"block_id": "parent-block"}, mock_context)
 
@@ -479,11 +514,15 @@ class TestGetBlockChildren:
     async def test_get_block_children_with_pagination(self, mock_context):
         handler = NotionGetBlockChildrenHandler()
 
-        mock_context.fetch.return_value = {
-            "results": [{"id": "block-3"}],
-            "has_more": True,
-            "next_cursor": "next-abc",
-        }
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "results": [{"id": "block-3"}],
+                "has_more": True,
+                "next_cursor": "next-abc",
+            },
+        )
 
         result = await handler.execute(
             {"block_id": "parent-block", "page_size": 1, "start_cursor": "cur-1"},
@@ -503,8 +542,8 @@ class TestGetBlockChildren:
 
         result = await handler.execute({"block_id": "block-x"}, mock_context)
 
-        assert "error" in result.data
-        assert result.data["blocks"] == []
+        assert isinstance(result, ActionError)
+        assert "Server error" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -522,11 +561,15 @@ class TestUpdateBlock:
             "type": "paragraph",
             "paragraph": {"rich_text": []},
         }
-        mock_context.fetch.return_value = updated_block
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=updated_block
+        )
 
         inputs = {
             "block_id": "block-1",
-            "paragraph": {"rich_text": [{"type": "text", "text": {"content": "Updated text"}}]},
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": {"content": "Updated text"}}]
+            },
         }
 
         result = await handler.execute(inputs, mock_context)
@@ -543,7 +586,9 @@ class TestUpdateBlock:
     @pytest.mark.asyncio
     async def test_update_block_filters_invalid_keys(self, mock_context):
         handler = NotionUpdateBlockHandler()
-        mock_context.fetch.return_value = {"id": "block-1"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"id": "block-1"}
+        )
 
         await handler.execute(
             {
@@ -564,10 +609,12 @@ class TestUpdateBlock:
         handler = NotionUpdateBlockHandler()
         mock_context.fetch.side_effect = Exception("Conflict")
 
-        result = await handler.execute({"block_id": "block-1", "paragraph": {}}, mock_context)
+        result = await handler.execute(
+            {"block_id": "block-1", "paragraph": {}}, mock_context
+        )
 
-        assert "error" in result.data
-        assert result.data["block"] is None
+        assert isinstance(result, ActionError)
+        assert "Conflict" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -581,7 +628,9 @@ class TestDeleteBlock:
         handler = NotionDeleteBlockHandler()
 
         deleted_block = {"id": "block-del", "archived": True}
-        mock_context.fetch.return_value = deleted_block
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=deleted_block
+        )
 
         result = await handler.execute({"block_id": "block-del"}, mock_context)
 
@@ -600,8 +649,8 @@ class TestDeleteBlock:
 
         result = await handler.execute({"block_id": "gone"}, mock_context)
 
-        assert "error" in result.data
-        assert result.data["block"] is None
+        assert isinstance(result, ActionError)
+        assert "Not found" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -615,10 +664,14 @@ class TestUpdatePage:
         handler = NotionUpdatePageHandler()
 
         updated_page = {"id": "page-1", "object": "page"}
-        mock_context.fetch.return_value = updated_page
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=updated_page
+        )
 
         properties = {"Status": {"select": {"name": "Done"}}}
-        result = await handler.execute({"page_id": "page-1", "properties": properties}, mock_context)
+        result = await handler.execute(
+            {"page_id": "page-1", "properties": properties}, mock_context
+        )
 
         mock_context.fetch.assert_called_once_with(
             url="https://api.notion.com/v1/pages/page-1",
@@ -632,9 +685,13 @@ class TestUpdatePage:
     @pytest.mark.asyncio
     async def test_update_page_archive(self, mock_context):
         handler = NotionUpdatePageHandler()
-        mock_context.fetch.return_value = {"id": "page-1", "archived": True}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"id": "page-1", "archived": True}
+        )
 
-        result = await handler.execute({"page_id": "page-1", "archived": True}, mock_context)
+        result = await handler.execute(
+            {"page_id": "page-1", "archived": True}, mock_context
+        )
 
         call_json = mock_context.fetch.call_args.kwargs["json"]
         assert call_json["archived"] is True
@@ -643,7 +700,9 @@ class TestUpdatePage:
     @pytest.mark.asyncio
     async def test_update_page_filters_invalid_keys(self, mock_context):
         handler = NotionUpdatePageHandler()
-        mock_context.fetch.return_value = {"id": "page-1"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"id": "page-1"}
+        )
 
         await handler.execute(
             {"page_id": "page-1", "properties": {}, "bad_field": "ignored"},
@@ -660,10 +719,12 @@ class TestUpdatePage:
         handler = NotionUpdatePageHandler()
         mock_context.fetch.side_effect = Exception("Bad request")
 
-        result = await handler.execute({"page_id": "page-1", "properties": {}}, mock_context)
+        result = await handler.execute(
+            {"page_id": "page-1", "properties": {}}, mock_context
+        )
 
-        assert "error" in result.data
-        assert result.data["page"] is None
+        assert isinstance(result, ActionError)
+        assert "Bad request" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -672,29 +733,30 @@ class TestUpdatePage:
 
 
 class TestErrorHandling:
-    """Verify all handlers return structured error data when fetch raises."""
+    """Verify all handlers raise ActionError when fetch raises."""
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "handler_cls, inputs, error_key",
+        "handler_cls, inputs",
         [
-            (NotionSearchHandler, {"query": "x"}, "results"),
-            (NotionGetPageHandler, {"page_id": "x"}, "page"),
-            (NotionCreatePageHandler, {"parent": {}, "properties": {}}, "page"),
-            (NotionCreateCommentHandler, {"parent": {}, "rich_text": []}, "comment"),
-            (NotionGetCommentsHandler, {"block_id": "x"}, "comments"),
-            (NotionGetBlockChildrenHandler, {"block_id": "x"}, "blocks"),
-            (NotionUpdateBlockHandler, {"block_id": "x"}, "block"),
-            (NotionDeleteBlockHandler, {"block_id": "x"}, "block"),
-            (NotionUpdatePageHandler, {"page_id": "x", "properties": {}}, "page"),
+            (NotionSearchHandler, {"query": "x"}),
+            (NotionGetPageHandler, {"page_id": "x"}),
+            (NotionCreatePageHandler, {"parent": {}, "properties": {}}),
+            (NotionCreateCommentHandler, {"parent": {}, "rich_text": []}),
+            (NotionGetCommentsHandler, {"block_id": "x"}),
+            (NotionGetBlockChildrenHandler, {"block_id": "x"}),
+            (NotionUpdateBlockHandler, {"block_id": "x"}),
+            (NotionDeleteBlockHandler, {"block_id": "x"}),
+            (NotionUpdatePageHandler, {"page_id": "x", "properties": {}}),
         ],
     )
-    async def test_handler_returns_error_on_exception(self, mock_context, handler_cls, inputs, error_key):
+    async def test_handler_returns_error_on_exception(
+        self, mock_context, handler_cls, inputs
+    ):
         mock_context.fetch.side_effect = Exception("boom")
 
         handler = handler_cls()
         result = await handler.execute(inputs, mock_context)
 
-        assert "error" in result.data
-        assert "boom" in result.data["error"]
-        assert error_key in result.data
+        assert isinstance(result, ActionError)
+        assert "boom" in result.message

@@ -1,7 +1,7 @@
 {
     "name": "ShopifyCustomer",
     "display_name": "Shopify Customer Account API",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Shopify Customer Account API integration for customer self-service - profile, addresses, and order history",
     "entry_point": "shopify_customer.py",
     "auth": {

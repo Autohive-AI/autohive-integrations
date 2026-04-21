@@ -1,4 +1,5 @@
 from autohive_integrations_sdk import (
+    ActionError,
     Integration,
     ExecutionContext,
     ActionHandler,
@@ -18,17 +19,22 @@ HN_USER_URL = "https://news.ycombinator.com/user?id="
 async def fetch_json(context: ExecutionContext, url: str) -> Optional[Any]:
     """Fetch JSON from a URL, returning None on error."""
     try:
-        return await context.fetch(url, method="GET")
+        response = await context.fetch(url, method="GET")
+        return response.data
     except Exception:
         return None
 
 
-async def fetch_item(context: ExecutionContext, item_id: int) -> Optional[Dict[str, Any]]:
+async def fetch_item(
+    context: ExecutionContext, item_id: int
+) -> Optional[Dict[str, Any]]:
     """Fetch a single item by ID."""
     return await fetch_json(context, f"{BASE_URL}/item/{item_id}.json")
 
 
-async def fetch_items_batch(context: ExecutionContext, item_ids: List[int]) -> List[Dict[str, Any]]:
+async def fetch_items_batch(
+    context: ExecutionContext, item_ids: List[int]
+) -> List[Dict[str, Any]]:
     """Fetch multiple items concurrently."""
     tasks = [fetch_item(context, item_id) for item_id in item_ids]
     results = await asyncio.gather(*tasks)
@@ -48,7 +54,9 @@ def format_item(item: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     if item.get("time"):
-        formatted["time"] = datetime.fromtimestamp(item["time"], tz=timezone.utc).isoformat()
+        formatted["time"] = datetime.fromtimestamp(
+            item["time"], tz=timezone.utc
+        ).isoformat()
 
     if item.get("url"):
         formatted["url"] = item["url"]
@@ -59,7 +67,9 @@ def format_item(item: Dict[str, Any]) -> Dict[str, Any]:
     return formatted
 
 
-def format_comment(item: Dict[str, Any], replies: List[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+def format_comment(
+    item: Dict[str, Any], replies: List[Dict[str, Any]] = None
+) -> Optional[Dict[str, Any]]:
     """Format a comment for LLM-friendly output."""
     if item.get("deleted") or item.get("dead"):
         return None
@@ -71,7 +81,9 @@ def format_comment(item: Dict[str, Any], replies: List[Dict[str, Any]] = None) -
     }
 
     if item.get("time"):
-        formatted["time"] = datetime.fromtimestamp(item["time"], tz=timezone.utc).isoformat()
+        formatted["time"] = datetime.fromtimestamp(
+            item["time"], tz=timezone.utc
+        ).isoformat()
 
     if replies:
         formatted["replies"] = replies
@@ -100,7 +112,9 @@ async def fetch_comments_recursive(
 
         replies = []
         if current_depth < max_depth and comment.get("kids"):
-            replies = await fetch_comments_recursive(context, comment["kids"], limit, current_depth + 1, max_depth)
+            replies = await fetch_comments_recursive(
+                context, comment["kids"], limit, current_depth + 1, max_depth
+            )
 
         formatted = format_comment(comment, replies if replies else None)
         if formatted:
@@ -141,85 +155,101 @@ async def fetch_stories_list(
 class GetTopStoriesAction(ActionHandler):
     """Fetch top stories from Hacker News."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             limit = inputs.get("limit", 30)
             result = await fetch_stories_list(context, "topstories", limit)
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"stories": [], "count": 0, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_best_stories")
 class GetBestStoriesAction(ActionHandler):
     """Fetch best stories from Hacker News."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             limit = inputs.get("limit", 30)
             result = await fetch_stories_list(context, "beststories", limit)
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"stories": [], "count": 0, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_new_stories")
 class GetNewStoriesAction(ActionHandler):
     """Fetch newest stories from Hacker News."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             limit = inputs.get("limit", 30)
             result = await fetch_stories_list(context, "newstories", limit)
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"stories": [], "count": 0, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_ask_hn_stories")
 class GetAskHNStoriesAction(ActionHandler):
     """Fetch Ask HN stories."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             limit = inputs.get("limit", 30)
             result = await fetch_stories_list(context, "askstories", limit)
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"stories": [], "count": 0, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_show_hn_stories")
 class GetShowHNStoriesAction(ActionHandler):
     """Fetch Show HN stories."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             limit = inputs.get("limit", 30)
             result = await fetch_stories_list(context, "showstories", limit)
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"stories": [], "count": 0, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_job_stories")
 class GetJobStoriesAction(ActionHandler):
     """Fetch job postings from Hacker News."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             limit = inputs.get("limit", 30)
-            result = await fetch_stories_list(context, "jobstories", limit, output_key="jobs")
+            result = await fetch_stories_list(
+                context, "jobstories", limit, output_key="jobs"
+            )
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"jobs": [], "count": 0, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_story_with_comments")
 class GetStoryWithCommentsAction(ActionHandler):
     """Fetch a story with its comments."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             story_id = inputs["story_id"]
             comment_limit = inputs.get("comment_limit", 20)
@@ -228,7 +258,7 @@ class GetStoryWithCommentsAction(ActionHandler):
             story = await fetch_item(context, story_id)
 
             if not story:
-                return ActionResult(data={"error": f"Story with ID {story_id} not found"}, cost_usd=0.0)
+                return ActionError(message=f"Story with ID {story_id} not found")
 
             comments = []
             if story.get("kids"):
@@ -249,21 +279,23 @@ class GetStoryWithCommentsAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @hackernews.action("get_user_profile")
 class GetUserProfileAction(ActionHandler):
     """Fetch a user's public profile."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         try:
             username = inputs["username"]
 
             user = await fetch_json(context, f"{BASE_URL}/user/{username}.json")
 
             if not user:
-                return ActionResult(data={"error": f"User '{username}' not found"}, cost_usd=0.0)
+                return ActionError(message=f"User '{username}' not found")
 
             result = {
                 "id": user.get("id"),
@@ -272,11 +304,13 @@ class GetUserProfileAction(ActionHandler):
             }
 
             if user.get("created"):
-                result["created"] = datetime.fromtimestamp(user["created"], tz=timezone.utc).isoformat()
+                result["created"] = datetime.fromtimestamp(
+                    user["created"], tz=timezone.utc
+                ).isoformat()
 
             if user.get("about"):
                 result["about"] = user["about"]
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))

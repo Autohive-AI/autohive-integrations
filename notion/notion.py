@@ -3,6 +3,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
 )
 from typing import Dict, Any
 
@@ -19,7 +20,9 @@ notion = Integration.load()
 class NotionSearchHandler(ActionHandler):
     """Handler for searching pages and databases in Notion workspace"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         Execute a search query against the Notion API
 
@@ -65,30 +68,25 @@ class NotionSearchHandler(ActionHandler):
 
             return ActionResult(
                 data={
-                    "object": response.get("object", "list"),
-                    "results": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
-                    "type": response.get("type"),
+                    "object": response.data.get("object", "list"),
+                    "results": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
+                    "type": response.data.get("type"),
                 }
             )
 
         except Exception as e:
-            return ActionResult(
-                data={
-                    "object": "list",
-                    "error": str(e),
-                    "results": [],
-                    "has_more": False,
-                }
-            )
+            return ActionError(message=str(e))
 
 
 @notion.action("get_notion_page")
 class NotionGetPageHandler(ActionHandler):
     """Handler for retrieving a specific page from Notion"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         Retrieve a specific page by its ID
 
@@ -112,17 +110,19 @@ class NotionGetPageHandler(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"page": response})
+            return ActionResult(data={"page": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "page": None})
+            return ActionError(message=str(e))
 
 
 @notion.action("create_notion_page")
 class NotionCreatePageHandler(ActionHandler):
     """Handler for creating new pages in Notion"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         Create a new page in Notion
 
@@ -151,17 +151,19 @@ class NotionCreatePageHandler(ActionHandler):
                 json=create_body,
             )
 
-            return ActionResult(data={"page": response})
+            return ActionResult(data={"page": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "page": None})
+            return ActionError(message=str(e))
 
 
 @notion.action("create_notion_comment")
 class NotionCreateCommentHandler(ActionHandler):
     """Handler for creating comments on Notion pages"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         Create a comment on a Notion page
 
@@ -190,19 +192,23 @@ class NotionCreateCommentHandler(ActionHandler):
                 json=comment_body,
             )
 
-            return ActionResult(data={"comment": response})
+            return ActionResult(data={"comment": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "comment": None})
+            return ActionError(message=str(e))
 
 
 @notion.action("get_notion_comments")
 class NotionGetCommentsHandler(ActionHandler):
     """Handler for retrieving comments from a Notion page or block"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         block_id = inputs["block_id"]
-        include_child_blocks_with_comments = inputs.get("include_child_blocks_with_comments", False)
+        include_child_blocks_with_comments = inputs.get(
+            "include_child_blocks_with_comments", False
+        )
 
         params = {"block_id": block_id}
 
@@ -223,9 +229,9 @@ class NotionGetCommentsHandler(ActionHandler):
             )
 
             result = {
-                "comments": response.get("results", []),
-                "has_more": response.get("has_more", False),
-                "next_cursor": response.get("next_cursor"),
+                "comments": response.data.get("results", []),
+                "has_more": response.data.get("has_more", False),
+                "next_cursor": response.data.get("next_cursor"),
             }
 
             if include_child_blocks_with_comments:
@@ -237,7 +243,7 @@ class NotionGetCommentsHandler(ActionHandler):
                     headers=headers,
                 )
 
-                for block in blocks_response.get("results", []):
+                for block in blocks_response.data.get("results", []):
                     child_block_id = block.get("id")
                     if child_block_id:
                         comments_response = await context.fetch(
@@ -246,7 +252,7 @@ class NotionGetCommentsHandler(ActionHandler):
                             headers=headers,
                             params={"block_id": child_block_id, "page_size": 1},
                         )
-                        if comments_response.get("results"):
+                        if comments_response.data.get("results"):
                             blocks_with_comments.append(
                                 {
                                     "block_id": child_block_id,
@@ -259,14 +265,16 @@ class NotionGetCommentsHandler(ActionHandler):
 
             return ActionResult(data=result)
         except Exception as e:
-            return ActionResult(data={"error": str(e), "comments": []})
+            return ActionError(message=str(e))
 
 
 @notion.action("list_data_sources")
 class NotionListDataSourcesHandler(ActionHandler):
     """Handler for listing data sources within a database container"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         List data sources within a database container
 
@@ -298,20 +306,22 @@ class NotionListDataSourcesHandler(ActionHandler):
             )
             return ActionResult(
                 data={
-                    "data_sources": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
+                    "data_sources": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
                 }
             )
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data_sources": []})
+            return ActionError(message=str(e))
 
 
 @notion.action("get_data_source")
 class NotionGetDataSourceHandler(ActionHandler):
     """Handler for retrieving a specific data source's schema"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         Retrieve a specific data source's schema
 
@@ -332,9 +342,9 @@ class NotionGetDataSourceHandler(ActionHandler):
                 method="GET",
                 headers=headers,
             )
-            return ActionResult(data={"data_source": response})
+            return ActionResult(data={"data_source": response.data})
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data_source": None})
+            return ActionError(message=str(e))
 
 
 # ---- Phase 1 Enhancement Handlers ----
@@ -344,7 +354,9 @@ class NotionGetDataSourceHandler(ActionHandler):
 class NotionQueryDataSourceHandler(ActionHandler):
     """Handler for querying data sources with filtering, sorting, and pagination"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         Query a data source with advanced filtering and sorting
 
@@ -392,22 +404,24 @@ class NotionQueryDataSourceHandler(ActionHandler):
 
             return ActionResult(
                 data={
-                    "results": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
-                    "type": response.get("type"),
+                    "results": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
+                    "type": response.data.get("type"),
                 }
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "results": []})
+            return ActionError(message=str(e))
 
 
 @notion.action("get_notion_block_children")
 class NotionGetBlockChildrenHandler(ActionHandler):
     """Handler for retrieving child blocks of a page or block"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         Retrieve child blocks of a parent block or page
 
@@ -436,26 +450,30 @@ class NotionGetBlockChildrenHandler(ActionHandler):
         try:
             url = f"https://api.notion.com/v1/blocks/{block_id}/children"
 
-            response = await context.fetch(url=url, method="GET", headers=headers, params=params)
+            response = await context.fetch(
+                url=url, method="GET", headers=headers, params=params
+            )
 
             return ActionResult(
                 data={
-                    "blocks": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
-                    "type": response.get("type"),
+                    "blocks": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
+                    "type": response.data.get("type"),
                 }
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "blocks": []})
+            return ActionError(message=str(e))
 
 
 @notion.action("append_notion_block_children")
 class NotionAppendBlockChildrenHandler(ActionHandler):
     """Handler for appending child blocks to a page or block"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         Append child blocks to a parent block or page
 
@@ -492,22 +510,24 @@ class NotionAppendBlockChildrenHandler(ActionHandler):
 
             return ActionResult(
                 data={
-                    "blocks": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
-                    "type": response.get("type"),
+                    "blocks": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
+                    "type": response.data.get("type"),
                 }
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "blocks": []})
+            return ActionError(message=str(e))
 
 
 @notion.action("get_notion_page_property")
 class NotionGetPagePropertyHandler(ActionHandler):
     """Handler for retrieving specific page property values"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         Retrieve a specific property value from a page
 
@@ -537,19 +557,23 @@ class NotionGetPagePropertyHandler(ActionHandler):
         try:
             url = f"https://api.notion.com/v1/pages/{page_id}/properties/{property_id}"
 
-            response = await context.fetch(url=url, method="GET", headers=headers, params=params)
+            response = await context.fetch(
+                url=url, method="GET", headers=headers, params=params
+            )
 
-            return ActionResult(data={"property": response})
+            return ActionResult(data={"property": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "property": None})
+            return ActionError(message=str(e))
 
 
 @notion.action("update_notion_block")
 class NotionUpdateBlockHandler(ActionHandler):
     """Handler for updating existing blocks"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         Update the content of an existing block
 
@@ -598,7 +622,9 @@ class NotionUpdateBlockHandler(ActionHandler):
         update_body = {
             key: value
             for key, value in inputs.items()
-            if key in valid_block_types and value is not None and not key.startswith("NOTION_")
+            if key in valid_block_types
+            and value is not None
+            and not key.startswith("NOTION_")
         }
 
         # Prepare headers for Notion API
@@ -616,17 +642,19 @@ class NotionUpdateBlockHandler(ActionHandler):
                 json=update_body,
             )
 
-            return ActionResult(data={"block": response})
+            return ActionResult(data={"block": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "block": None})
+            return ActionError(message=str(e))
 
 
 @notion.action("delete_notion_block")
 class NotionDeleteBlockHandler(ActionHandler):
     """Handler for deleting (archiving) blocks"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         Delete (archive) a block by moving it to trash
 
@@ -650,17 +678,19 @@ class NotionDeleteBlockHandler(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"block": response})
+            return ActionResult(data={"block": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "block": None})
+            return ActionError(message=str(e))
 
 
 @notion.action("update_notion_page")
 class NotionUpdatePageHandler(ActionHandler):
     """Handler for updating page properties"""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         """
         Update properties of a page (for database pages)
 
@@ -680,7 +710,9 @@ class NotionUpdatePageHandler(ActionHandler):
         update_body = {
             key: value
             for key, value in inputs.items()
-            if key in valid_page_fields and value is not None and not key.startswith("NOTION_")
+            if key in valid_page_fields
+            and value is not None
+            and not key.startswith("NOTION_")
         }
 
         # Prepare headers for Notion API
@@ -698,7 +730,7 @@ class NotionUpdatePageHandler(ActionHandler):
                 json=update_body,
             )
 
-            return ActionResult(data={"page": response})
+            return ActionResult(data={"page": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "page": None})
+            return ActionError(message=str(e))

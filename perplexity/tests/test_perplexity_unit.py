@@ -9,9 +9,12 @@ sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
-from autohive_integrations_sdk.integration import ValidationError  # noqa: E402
+from autohive_integrations_sdk import FetchResponse  # noqa: E402
+from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location("perplexity_mod", os.path.join(_parent, "perplexity.py"))
+_spec = importlib.util.spec_from_file_location(
+    "perplexity_mod", os.path.join(_parent, "perplexity.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -54,26 +57,29 @@ def mock_context():
 class TestParseResponse:
     @pytest.mark.asyncio
     async def test_dict_response_passthrough(self):
-        response = {"results": [], "id": "abc"}
+        response = FetchResponse(
+            status=200, headers={}, data={"results": [], "id": "abc"}
+        )
         result = await parse_response(response)
         assert result == {"results": [], "id": "abc"}
 
     @pytest.mark.asyncio
-    async def test_response_with_json_method(self):
-        response = MagicMock()
-        response.json = AsyncMock(return_value={"results": [{"title": "Test"}]})
+    async def test_response_with_list_data(self):
+        response = FetchResponse(status=200, headers={}, data=[{"title": "Test"}])
         result = await parse_response(response)
-        assert result == {"results": [{"title": "Test"}]}
+        assert result == [{"title": "Test"}]
 
     @pytest.mark.asyncio
-    async def test_string_response_passthrough(self):
-        result = await parse_response("raw text")
+    async def test_string_data_passthrough(self):
+        response = FetchResponse(status=200, headers={}, data="raw text")
+        result = await parse_response(response)
         assert result == "raw text"
 
     @pytest.mark.asyncio
-    async def test_list_response_passthrough(self):
-        result = await parse_response([1, 2, 3])
-        assert result == [1, 2, 3]
+    async def test_none_data_passthrough(self):
+        response = FetchResponse(status=204, headers={}, data=None)
+        result = await parse_response(response)
+        assert result is None
 
 
 # ---- API Key Handling ----
@@ -85,28 +91,32 @@ class TestApiKeyHandling:
     async def test_missing_api_key(self, mock_context):
         os.environ.pop("PERPLEXITY_API_KEY", None)
 
-        result = await perplexity.execute_action("search_web", {"query": "test"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "test"}, mock_context
+        )
 
-        data = result.result.data
-        assert data["results"] == []
-        assert data["total_results"] == 0
-        assert "PERPLEXITY_API_KEY" in data["error"]
+        assert (
+            result.result.message
+            == "PERPLEXITY_API_KEY environment variable is not set or empty."
+        )
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": ""})
     async def test_empty_api_key(self, mock_context):
-        result = await perplexity.execute_action("search_web", {"query": "test"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "test"}, mock_context
+        )
 
-        data = result.result.data
-        assert data["results"] == []
-        assert "PERPLEXITY_API_KEY" in data["error"]
+        assert "PERPLEXITY_API_KEY" in result.result.message
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key-123"})  # nosec B105
     async def test_api_key_sent_in_header(self, mock_context):
-        mock_context.fetch.return_value = {"results": [], "id": "req-1"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": [], "id": "req-1"}
+        )
 
         await perplexity.execute_action("search_web", {"query": "test"}, mock_context)
 
@@ -123,9 +133,13 @@ class TestSearchWebBasic:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_basic_search(self, mock_context):
-        mock_context.fetch.return_value = {"results": SAMPLE_RESULTS, "id": "req-123"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": SAMPLE_RESULTS, "id": "req-123"}
+        )
 
-        result = await perplexity.execute_action("search_web", {"query": "AI developments"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "AI developments"}, mock_context
+        )
 
         data = result.result.data
         assert data["total_results"] == 2
@@ -136,9 +150,13 @@ class TestSearchWebBasic:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_request_url_and_method(self, mock_context):
-        mock_context.fetch.return_value = {"results": [], "id": "req-1"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": [], "id": "req-1"}
+        )
 
-        await perplexity.execute_action("search_web", {"query": "test query"}, mock_context)
+        await perplexity.execute_action(
+            "search_web", {"query": "test query"}, mock_context
+        )
 
         mock_context.fetch.assert_called_once()
         call_args = mock_context.fetch.call_args
@@ -148,9 +166,13 @@ class TestSearchWebBasic:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_basic_payload(self, mock_context):
-        mock_context.fetch.return_value = {"results": [], "id": "req-1"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": [], "id": "req-1"}
+        )
 
-        await perplexity.execute_action("search_web", {"query": "quantum computing"}, mock_context)
+        await perplexity.execute_action(
+            "search_web", {"query": "quantum computing"}, mock_context
+        )
 
         call_kwargs = mock_context.fetch.call_args.kwargs
         assert call_kwargs["json"] == {"query": "quantum computing"}
@@ -158,19 +180,27 @@ class TestSearchWebBasic:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_cost_usd_set(self, mock_context):
-        mock_context.fetch.return_value = {"results": [], "id": "req-1"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": [], "id": "req-1"}
+        )
 
-        result = await perplexity.execute_action("search_web", {"query": "test"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "test"}, mock_context
+        )
 
         assert result.result.cost_usd == 0.005
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_multi_query_search(self, mock_context):
-        mock_context.fetch.return_value = {"results": SAMPLE_RESULTS, "id": "req-multi"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": SAMPLE_RESULTS, "id": "req-multi"}
+        )
 
         queries = ["AI trends", "ML applications", "neural networks"]
-        result = await perplexity.execute_action("search_web", {"query": queries}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": queries}, mock_context
+        )
 
         call_kwargs = mock_context.fetch.call_args.kwargs
         assert call_kwargs["json"]["query"] == queries
@@ -179,9 +209,13 @@ class TestSearchWebBasic:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_empty_results(self, mock_context):
-        mock_context.fetch.return_value = {"results": [], "id": "req-empty"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": [], "id": "req-empty"}
+        )
 
-        result = await perplexity.execute_action("search_web", {"query": "xyznonexistent"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "xyznonexistent"}, mock_context
+        )
 
         data = result.result.data
         assert data["results"] == []
@@ -190,10 +224,14 @@ class TestSearchWebBasic:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_response_without_results_key(self, mock_context):
-        mock_context.fetch.return_value = {"id": "req-no-results"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"id": "req-no-results"}
+        )
 
-        with pytest.raises(ValidationError):
-            await perplexity.execute_action("search_web", {"query": "test"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "test"}, mock_context
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
 
 
 # ---- Optional Parameters ----
@@ -203,9 +241,13 @@ class TestOptionalParameters:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_max_results(self, mock_context):
-        mock_context.fetch.return_value = {"results": SAMPLE_RESULTS[:1], "id": "req-1"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": SAMPLE_RESULTS[:1], "id": "req-1"}
+        )
 
-        await perplexity.execute_action("search_web", {"query": "test", "max_results": 5}, mock_context)
+        await perplexity.execute_action(
+            "search_web", {"query": "test", "max_results": 5}, mock_context
+        )
 
         payload = mock_context.fetch.call_args.kwargs["json"]
         assert payload["max_results"] == 5
@@ -213,9 +255,13 @@ class TestOptionalParameters:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_content_depth_quick(self, mock_context):
-        mock_context.fetch.return_value = {"results": [], "id": "req-1"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": [], "id": "req-1"}
+        )
 
-        await perplexity.execute_action("search_web", {"query": "test", "content_depth": "quick"}, mock_context)
+        await perplexity.execute_action(
+            "search_web", {"query": "test", "content_depth": "quick"}, mock_context
+        )
 
         payload = mock_context.fetch.call_args.kwargs["json"]
         assert payload["max_tokens_per_page"] == 512
@@ -223,9 +269,13 @@ class TestOptionalParameters:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_content_depth_default(self, mock_context):
-        mock_context.fetch.return_value = {"results": [], "id": "req-1"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": [], "id": "req-1"}
+        )
 
-        await perplexity.execute_action("search_web", {"query": "test", "content_depth": "default"}, mock_context)
+        await perplexity.execute_action(
+            "search_web", {"query": "test", "content_depth": "default"}, mock_context
+        )
 
         payload = mock_context.fetch.call_args.kwargs["json"]
         assert payload["max_tokens_per_page"] == 2048
@@ -233,9 +283,13 @@ class TestOptionalParameters:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_content_depth_detailed(self, mock_context):
-        mock_context.fetch.return_value = {"results": [], "id": "req-1"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": [], "id": "req-1"}
+        )
 
-        await perplexity.execute_action("search_web", {"query": "test", "content_depth": "detailed"}, mock_context)
+        await perplexity.execute_action(
+            "search_web", {"query": "test", "content_depth": "detailed"}, mock_context
+        )
 
         payload = mock_context.fetch.call_args.kwargs["json"]
         assert payload["max_tokens_per_page"] == 8192
@@ -243,15 +297,21 @@ class TestOptionalParameters:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_content_depth_unknown_rejected_by_schema(self, mock_context):
-        with pytest.raises(ValidationError):
-            await perplexity.execute_action("search_web", {"query": "test", "content_depth": "unknown"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "test", "content_depth": "unknown"}, mock_context
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_country_filter(self, mock_context):
-        mock_context.fetch.return_value = {"results": [], "id": "req-1"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": [], "id": "req-1"}
+        )
 
-        await perplexity.execute_action("search_web", {"query": "test", "country": "US"}, mock_context)
+        await perplexity.execute_action(
+            "search_web", {"query": "test", "country": "US"}, mock_context
+        )
 
         payload = mock_context.fetch.call_args.kwargs["json"]
         assert payload["country"] == "US"
@@ -259,15 +319,24 @@ class TestOptionalParameters:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_empty_country_rejected_by_schema(self, mock_context):
-        with pytest.raises(ValidationError):
-            await perplexity.execute_action("search_web", {"query": "test", "country": ""}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "test", "country": ""}, mock_context
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_all_params_combined(self, mock_context):
-        mock_context.fetch.return_value = {"results": SAMPLE_RESULTS, "id": "req-full"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": SAMPLE_RESULTS, "id": "req-full"}
+        )
 
-        inputs = {"query": "climate change", "max_results": 10, "content_depth": "detailed", "country": "GB"}
+        inputs = {
+            "query": "climate change",
+            "max_results": 10,
+            "content_depth": "detailed",
+            "country": "GB",
+        }
         result = await perplexity.execute_action("search_web", inputs, mock_context)
 
         payload = mock_context.fetch.call_args.kwargs["json"]
@@ -280,7 +349,9 @@ class TestOptionalParameters:
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_no_optional_params(self, mock_context):
-        mock_context.fetch.return_value = {"results": [], "id": "req-1"}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": [], "id": "req-1"}
+        )
 
         await perplexity.execute_action("search_web", {"query": "test"}, mock_context)
 
@@ -297,66 +368,66 @@ class TestErrorHandling:
     async def test_rate_limit_429(self, mock_context):
         mock_context.fetch.side_effect = Exception("HTTP 429: rate limit exceeded")
 
-        result = await perplexity.execute_action("search_web", {"query": "test"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "test"}, mock_context
+        )
 
-        data = result.result.data
-        assert data["results"] == []
-        assert data["total_results"] == 0
-        assert "Rate limit exceeded" in data["error"]
+        assert "Rate limit exceeded" in result.result.message
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_rate_limit_text_match(self, mock_context):
         mock_context.fetch.side_effect = Exception("Too many requests, rate limit hit")
 
-        result = await perplexity.execute_action("search_web", {"query": "test"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "test"}, mock_context
+        )
 
-        assert "Rate limit exceeded" in result.result.data["error"]
+        assert "Rate limit exceeded" in result.result.message
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_unauthorized_401(self, mock_context):
         mock_context.fetch.side_effect = Exception("HTTP 401: unauthorized")
 
-        result = await perplexity.execute_action("search_web", {"query": "test"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "test"}, mock_context
+        )
 
-        data = result.result.data
-        assert data["results"] == []
-        assert "Invalid API key" in data["error"]
-        assert "PERPLEXITY_API_KEY" in data["error"]
+        assert "Invalid API key" in result.result.message
+        assert "PERPLEXITY_API_KEY" in result.result.message
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_forbidden_403(self, mock_context):
         mock_context.fetch.side_effect = Exception("HTTP 403: forbidden")
 
-        result = await perplexity.execute_action("search_web", {"query": "test"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "test"}, mock_context
+        )
 
-        data = result.result.data
-        assert data["results"] == []
-        assert "Access forbidden" in data["error"]
-        assert "perplexity.ai/settings/api" in data["error"]
+        assert "Access forbidden" in result.result.message
+        assert "perplexity.ai/settings/api" in result.result.message
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_generic_exception(self, mock_context):
         mock_context.fetch.side_effect = Exception("Connection timeout")
 
-        result = await perplexity.execute_action("search_web", {"query": "test"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "test"}, mock_context
+        )
 
-        data = result.result.data
-        assert data["results"] == []
-        assert data["total_results"] == 0
-        assert "Failed to search" in data["error"]
-        assert "Connection timeout" in data["error"]
+        assert "Failed to search" in result.result.message
+        assert "Connection timeout" in result.result.message
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, {"PERPLEXITY_API_KEY": "test-key"})  # nosec B105
     async def test_runtime_error(self, mock_context):
         mock_context.fetch.side_effect = RuntimeError("Network unreachable")
 
-        result = await perplexity.execute_action("search_web", {"query": "test"}, mock_context)
+        result = await perplexity.execute_action(
+            "search_web", {"query": "test"}, mock_context
+        )
 
-        data = result.result.data
-        assert data["results"] == []
-        assert "Failed to search" in data["error"]
+        assert "Failed to search" in result.result.message
