@@ -441,19 +441,62 @@ This integration provides comprehensive actions covering complete CRUD operation
 ### Task Management
 
 #### Action: `create_task`
-- **Description:** Creates a new task/to-do item
+- **Description:** Create a new HubSpot task and optionally associate it with contacts, companies, or deals
 - **Inputs:**
-  - `Subject` (required): Task description
-  - `Status`: Task status (Not Started, In Progress, Completed)
-  - `Priority`: Priority level (High, Normal, Low)
-  - `Due_Date`: When the task is due
-  - `What_Id`: Related record ID (contact, account, deal, etc.)
-  - `Who_Id`: Assigned user ID
-  - `Description`: Detailed task description
-- **Outputs:** Task object with `id` and task details
+  - `task_body` (required): The body content of the task
+  - `contact_id` (optional): Contact ID to associate the task with
+  - `company_id` (optional): Company ID to associate the task with
+  - `deal_id` (optional): Deal ID to associate the task with
+  - `timestamp` (optional): Custom timestamp in milliseconds
+- **Outputs:**
+  - `task`: Created task object
+  - `success`: Boolean indicating creation status
+  - `message`: Success or error message
 
-#### Action: `get_task`, `update_task`, `delete_task`, `list_tasks`, `search_tasks`
-- **Description:** Standard CRUD operations for tasks
+#### Action: `get_task`
+- **Description:** Retrieve a single task by ID
+- **Inputs:**
+  - `task_id` (required): The ID of the task to retrieve
+  - `properties` (optional): Array of task properties to retrieve
+- **Outputs:**
+  - `task`: Task object with requested properties
+  - `success`: Boolean indicating retrieval status
+  - `message`: Success or error message
+
+#### Action: `list_tasks`
+- **Description:** Retrieve tasks with optional pagination
+- **Inputs:**
+  - `limit` (optional): Maximum tasks to return (default: 100, max: 100)
+  - `after` (optional): Paging cursor for next page
+  - `properties` (optional): Array of task properties to retrieve
+- **Outputs:**
+  - `tasks`: Array of task objects
+  - `total`: Number of tasks returned in this response
+  - `paging`: Next-page metadata if available
+  - `success`: Boolean indicating retrieval status
+  - `message`: Success or error message
+
+#### Action: `update_task`
+- **Description:** Update an existing task's content or properties
+- **Inputs:**
+  - `task_id` (required): The ID of the task to update
+  - `task_body` (optional): New content for the task body
+  - `timestamp` (optional): Updated timestamp in milliseconds
+  - `additional_properties` (optional): Additional task properties to update
+- **Outputs:**
+  - `task`: Updated task object
+  - `success`: Boolean indicating update status
+  - `updated_properties`: Properties that were modified
+  - `message`: Success or error message
+
+#### Action: `delete_task`
+- **Description:** Permanently delete a task by ID
+- **Inputs:**
+  - `task_id` (required): The ID of the task to delete
+- **Outputs:**
+  - `success`: Boolean indicating deletion status
+  - `task_id`: ID of the deleted task
+  - `message`: Success or error message
 
 ### Event Management
 

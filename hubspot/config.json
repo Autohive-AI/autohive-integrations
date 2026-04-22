@@ -398,6 +398,281 @@
         ]
       }
     },
+    "create_task": {
+      "display_name": "Create Task",
+      "description": "Create a new task and associate it with a contact, company, or deal in HubSpot",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_body": {
+            "type": "string",
+            "description": "The body content of the task"
+          },
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID to associate the task with (optional)"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "The company ID to associate the task with (optional)"
+          },
+          "deal_id": {
+            "type": "string",
+            "description": "The deal ID to associate the task with (optional)"
+          },
+          "timestamp": {
+            "type": "number",
+            "description": "Custom timestamp in milliseconds (optional, defaults to current time)"
+          }
+        },
+        "required": [
+          "task_body"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The created task object"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the task was created successfully"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success or error message"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if creation failed"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      }
+    },
+    "update_task": {
+      "display_name": "Update Task",
+      "description": "Update an existing task in HubSpot",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "The ID of the task to update"
+          },
+          "task_body": {
+            "type": "string",
+            "description": "The new body content for the task (optional)"
+          },
+          "timestamp": {
+            "type": "number",
+            "description": "New timestamp in milliseconds (optional)"
+          },
+          "additional_properties": {
+            "type": "object",
+            "description": "Additional task properties to update (optional)"
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The updated task object"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the task was updated successfully"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success or error message"
+          },
+          "updated_properties": {
+            "type": "object",
+            "description": "Properties that were updated"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if update failed"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      }
+    },
+    "delete_task": {
+      "display_name": "Delete Task",
+      "description": "Delete a task from HubSpot",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "The ID of the task to delete"
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the task was deleted successfully"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success or error message"
+          },
+          "task_id": {
+            "type": "string",
+            "description": "The ID of the task that was deleted"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if deletion failed"
+          }
+        },
+        "required": [
+          "success",
+          "task_id"
+        ]
+      }
+    },
+    "get_task": {
+      "display_name": "Get Task",
+      "description": "Retrieve a task from HubSpot by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "The ID of the task to retrieve"
+          },
+          "properties": {
+            "type": "array",
+            "description": "Optional list of task properties to retrieve",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The retrieved task object"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the task was retrieved successfully"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success or error message"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if retrieval failed"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      }
+    },
+    "list_tasks": {
+      "display_name": "List Tasks",
+      "description": "Retrieve tasks from HubSpot with optional pagination",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of tasks to retrieve (default: 100, max: 100)",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "after": {
+            "type": "string",
+            "description": "Pagination cursor for next page (optional)"
+          },
+          "properties": {
+            "type": "array",
+            "description": "Optional list of task properties to retrieve",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "description": "List of retrieved tasks",
+            "items": {
+              "type": "object"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Number of tasks retrieved in this response"
+          },
+          "paging": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Paging metadata for the next page"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether tasks were retrieved successfully"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success or error message"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if retrieval failed"
+          }
+        },
+        "required": [
+          "tasks",
+          "total",
+          "success"
+        ]
+      }
+    },
     "get_contact_emails": {
       "display_name": "Get Contact Emails",
       "description": "Retrieve recent email conversations for a HubSpot contact using v4 associations API",

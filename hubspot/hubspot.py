@@ -443,6 +443,334 @@ class DeleteNoteActionHandler(ActionHandler):
             return ActionError(message=f"Failed to delete note: {str(e)}")
 
 
+@hubspot.action("create_task")
+class CreateTaskActionHandler(ActionHandler):
+    """
+    Action handler to create a task and associate it with a HubSpot contact, company, or deal.
+
+    Creates a new task using the CRM API and associates it with specified CRM objects.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        """
+        Execute the create_task action.
+
+        :param inputs: Dictionary with "task_body" and associations (contact_id, company_id, or deal_id).
+        :param context: Execution context containing authentication and fetch method.
+        :return: Dictionary with the created task information.
+        """
+        task_body = inputs["task_body"]
+        timestamp = inputs.get("timestamp")  # Optional custom timestamp in milliseconds
+
+        # Build the task properties
+        properties = {"hs_task_body": task_body}
+
+        # Add timestamp if provided
+        if timestamp:
+            properties["hs_timestamp"] = str(timestamp)
+
+        # Build associations array
+        associations = []
+
+        # Associate with contact
+        if inputs.get("contact_id"):
+            associations.append(
+                {
+                    "to": {"id": str(inputs["contact_id"])},
+                    "types": [
+                        {
+                            "associationCategory": "HUBSPOT_DEFINED",
+                            "associationTypeId": 202,
+                        }
+                    ],
+                }
+            )
+
+        # Associate with company
+        if inputs.get("company_id"):
+            associations.append(
+                {
+                    "to": {"id": str(inputs["company_id"])},
+                    "types": [
+                        {
+                            "associationCategory": "HUBSPOT_DEFINED",
+                            "associationTypeId": 190,
+                        }
+                    ],
+                }
+            )
+
+        # Associate with deal
+        if inputs.get("deal_id"):
+            associations.append(
+                {
+                    "to": {"id": str(inputs["deal_id"])},
+                    "types": [
+                        {
+                            "associationCategory": "HUBSPOT_DEFINED",
+                            "associationTypeId": 214,
+                        }
+                    ],
+                }
+            )
+
+        try:
+            url = "https://api.hubapi.com/crm/v3/objects/tasks"
+            payload = {"properties": properties, "associations": associations}
+
+            response = await context.fetch(
+                url,
+                method="POST",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            result = await parse_response(response)
+
+            return ActionResult(
+                data={
+                    "task": result,
+                    "success": True,
+                    "message": "Task created successfully",
+                },
+                cost_usd=None,
+            )
+
+        except Exception as e:
+            return ActionError(message=f"Failed to create task: {str(e)}")
+
+
+@hubspot.action("update_task")
+class UpdateTaskActionHandler(ActionHandler):
+    """
+    Action handler to update an existing task in HubSpot.
+
+    Updates the task body or other properties of an existing task.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        """
+        Execute the update_task action.
+
+        :param inputs: Dictionary with "task_id" and "task_body" or other properties to update.
+        :param context: Execution context containing authentication and fetch method.
+        :return: Dictionary with the updated task information.
+        """
+        task_id = inputs["task_id"]
+
+        # Build properties to update
+        properties = {}
+
+        if inputs.get("task_body"):
+            properties["hs_task_body"] = inputs["task_body"]
+
+        if inputs.get("timestamp"):
+            properties["hs_timestamp"] = str(inputs["timestamp"])
+
+        # Allow additional properties to be updated
+        if inputs.get("additional_properties"):
+            properties.update(inputs["additional_properties"])
+
+        if not properties:
+            return ActionError(message="No properties provided to update")
+
+        try:
+            url = f"https://api.hubapi.com/crm/v3/objects/tasks/{task_id}"
+            payload = {"properties": properties}
+
+            response = await context.fetch(
+                url,
+                method="PATCH",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            result = await parse_response(response)
+
+            return ActionResult(
+                data={
+                    "task": result,
+                    "success": True,
+                    "message": "Task updated successfully",
+                    "updated_properties": properties,
+                },
+                cost_usd=None,
+            )
+
+        except Exception as e:
+            return ActionError(message=f"Failed to update task: {str(e)}")
+
+
+@hubspot.action("delete_task")
+class DeleteTaskActionHandler(ActionHandler):
+    """
+    Action handler to delete a task from HubSpot.
+
+    Permanently deletes a task by its ID.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        """
+        Execute the delete_task action.
+
+        :param inputs: Dictionary with "task_id".
+        :param context: Execution context containing authentication and fetch method.
+        :return: Dictionary indicating success or failure.
+        """
+        task_id = inputs["task_id"]
+
+        try:
+            url = f"https://api.hubapi.com/crm/v3/objects/tasks/{task_id}"
+
+            await context.fetch(
+                url,
+                method="DELETE",
+                headers={"Content-Type": "application/json"},
+            )
+
+            # DELETE returns 204 No Content on success
+            return ActionResult(
+                data={
+                    "success": True,
+                    "message": f"Task {task_id} deleted successfully",
+                    "task_id": task_id,
+                },
+                cost_usd=None,
+            )
+
+        except Exception as e:
+            return ActionError(message=f"Failed to delete task: {str(e)}")
+
+
+@hubspot.action("get_task")
+class GetTaskActionHandler(ActionHandler):
+    """
+    Action handler to retrieve a task from HubSpot.
+
+    Fetches a single task by ID from the CRM objects API.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        """
+        Execute the get_task action.
+
+        :param inputs: Dictionary with "task_id" and optional "properties".
+        :param context: Execution context containing authentication and fetch method.
+        :return: Dictionary with the retrieved task information.
+        """
+        task_id = inputs["task_id"]
+        properties = inputs.get(
+            "properties",
+            [
+                "hs_task_body",
+                "hs_task_subject",
+                "hs_task_status",
+                "hs_task_priority",
+                "hs_timestamp",
+                "hs_createdate",
+                "hs_lastmodifieddate",
+            ],
+        )
+
+        try:
+            url = f"https://api.hubapi.com/crm/v3/objects/tasks/{task_id}"
+            params = {"properties": ",".join(properties), "associations": "contacts,companies,deals"}
+
+            response = await context.fetch(
+                url,
+                params=params,
+                headers={"Content-Type": "application/json"},
+            )
+            result = await parse_response(response)
+
+            task_props = result.get("properties", {})
+            for timestamp_field in ["hs_timestamp", "hs_createdate", "hs_lastmodifieddate"]:
+                if timestamp_field in task_props and task_props[timestamp_field]:
+                    task_props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(task_props[timestamp_field])
+
+            return ActionResult(
+                data={
+                    "task": result,
+                    "success": True,
+                    "message": "Task retrieved successfully",
+                },
+                cost_usd=None,
+            )
+
+        except Exception as e:
+            return ActionError(message=f"Failed to retrieve task: {str(e)}")
+
+
+@hubspot.action("list_tasks")
+class ListTasksActionHandler(ActionHandler):
+    """
+    Action handler to retrieve tasks from HubSpot.
+
+    Lists tasks using the CRM objects API with optional pagination.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        """
+        Execute the list_tasks action.
+
+        :param inputs: Dictionary with optional "limit", "after", and "properties".
+        :param context: Execution context containing authentication and fetch method.
+        :return: Dictionary with the retrieved tasks and paging metadata.
+        """
+        limit = min(inputs.get("limit", 100), 100)
+        after = inputs.get("after")
+        properties = inputs.get(
+            "properties",
+            [
+                "hs_task_body",
+                "hs_task_subject",
+                "hs_task_status",
+                "hs_task_priority",
+                "hs_timestamp",
+                "hs_createdate",
+                "hs_lastmodifieddate",
+            ],
+        )
+
+        try:
+            url = "https://api.hubapi.com/crm/v3/objects/tasks"
+            params = {
+                "limit": limit,
+                "properties": ",".join(properties),
+                "associations": "contacts,companies,deals",
+            }
+            if after:
+                params["after"] = after
+
+            response = await context.fetch(
+                url,
+                params=params,
+                headers={"Content-Type": "application/json"},
+            )
+            result = await parse_response(response)
+            tasks = result.get("results", [])
+
+            for task in tasks:
+                task_props = task.get("properties", {})
+                for timestamp_field in ["hs_timestamp", "hs_createdate", "hs_lastmodifieddate"]:
+                    if timestamp_field in task_props and task_props[timestamp_field]:
+                        task_props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(
+                            task_props[timestamp_field]
+                        )
+
+            return ActionResult(
+                data={
+                    "tasks": tasks,
+                    "total": len(tasks),
+                    "paging": result.get("paging"),
+                    "success": True,
+                    "message": "Tasks retrieved successfully",
+                },
+                cost_usd=None,
+            )
+
+        except Exception as e:
+            return ActionError(message=f"Failed to retrieve tasks: {str(e)}")
+
+
 @hubspot.action("get_contact_emails")
 class GetContactEmailsActionHandler(ActionHandler):
     """
