@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -1765,35 +1765,44 @@
         "properties": {
           "properties": {
             "type": "array",
-            "description": "List of company properties with optional detailed metadata",
+            "description": "List of company properties. Returns property name strings by default, or detailed objects when include_details is true.",
             "items": {
-              "type": "object",
-              "properties": {
-                "name": {
+              "oneOf": [
+                {
                   "type": "string",
-                  "description": "Internal property name"
+                  "description": "Property name (when include_details is false)"
                 },
-                "label": {
-                  "type": "string",
-                  "description": "Display label"
-                },
-                "type": {
-                  "type": "string",
-                  "description": "Data type (string, number, enumeration, etc.)"
-                },
-                "fieldType": {
-                  "type": "string",
-                  "description": "Field type (text, select, number, etc.)"
-                },
-                "groupName": {
-                  "type": "string",
-                  "description": "Property group"
-                },
-                "hubspotDefined": {
-                  "type": "boolean",
-                  "description": "Whether it's a default HubSpot property"
+                {
+                  "type": "object",
+                  "description": "Detailed property metadata (when include_details is true)",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Internal property name"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Display label"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Data type (string, number, enumeration, etc.)"
+                    },
+                    "fieldType": {
+                      "type": "string",
+                      "description": "Field type (text, select, number, etc.)"
+                    },
+                    "groupName": {
+                      "type": "string",
+                      "description": "Property group"
+                    },
+                    "hubspotDefined": {
+                      "type": "boolean",
+                      "description": "Whether it's a default HubSpot property"
+                    }
+                  }
                 }
-              }
+              ]
             }
           },
           "total_properties": {

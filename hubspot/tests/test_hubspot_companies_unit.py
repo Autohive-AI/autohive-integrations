@@ -666,9 +666,10 @@ class TestGetCompanyProperties:
             mock_context,
         )
 
-        # include_details=False returns property names as strings, which conflicts
-        # with the output_schema that expects objects — SDK raises a validation error.
-        assert result.type == ResultType.VALIDATION_ERROR
+        data = result.result.data
+        assert data["total_properties"] == 2
+        assert data["custom_properties_count"] == 1
+        assert data["properties"] == ["name", "custom_score"]
 
     @pytest.mark.asyncio
     async def test_custom_properties_count(self, mock_context):
