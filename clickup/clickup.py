@@ -52,9 +52,13 @@ class CreateTaskAction(ActionHandler):
             if inputs.get("tags"):
                 data["tags"] = inputs.get("tags")
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/list/{list_id}/task", method="POST", json=data
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/list/{list_id}/task",
+                    method="POST",
+                    json=data,
+                )
+            ).data
 
             return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
 
@@ -77,11 +81,13 @@ class GetTaskAction(ActionHandler):
             if inputs.get("include_subtasks"):
                 params["include_subtasks"] = "true"
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/task/{task_id}",
-                method="GET",
-                params=params if params else None,
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/task/{task_id}",
+                    method="GET",
+                    params=params if params else None,
+                )
+            ).data
 
             return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
 
@@ -114,9 +120,11 @@ class UpdateTaskAction(ActionHandler):
             if inputs.get("due_date"):
                 data["due_date"] = inputs.get("due_date")
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/task/{task_id}", method="PUT", json=data
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/task/{task_id}", method="PUT", json=data
+                )
+            ).data
 
             return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
 
@@ -169,11 +177,13 @@ class GetTasksAction(ActionHandler):
             if inputs.get("assignees"):
                 params["assignees[]"] = inputs.get("assignees")
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/list/{list_id}/task",
-                method="GET",
-                params=params if params else None,
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/list/{list_id}/task",
+                    method="GET",
+                    params=params if params else None,
+                )
+            ).data
 
             tasks = response.get("tasks", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
@@ -360,11 +370,13 @@ class CreateListAction(ActionHandler):
             if inputs.get("status"):
                 data["status"] = inputs.get("status")
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/{parent_type}/{parent_id}/list",
-                method="POST",
-                json=data,
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/{parent_type}/{parent_id}/list",
+                    method="POST",
+                    json=data,
+                )
+            ).data
 
             return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
 
@@ -382,9 +394,11 @@ class GetListAction(ActionHandler):
         try:
             list_id = inputs["list_id"]
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="GET"
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="GET"
+                )
+            ).data
 
             return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
 
@@ -412,9 +426,11 @@ class UpdateListAction(ActionHandler):
             if inputs.get("priority") is not None:
                 data["priority"] = inputs.get("priority")
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="PUT", json=data
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="PUT", json=data
+                )
+            ).data
 
             return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
 
@@ -501,11 +517,13 @@ class CreateFolderAction(ActionHandler):
             space_id = inputs["space_id"]
             data = {"name": inputs["name"]}
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/space/{space_id}/folder",
-                method="POST",
-                json=data,
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/space/{space_id}/folder",
+                    method="POST",
+                    json=data,
+                )
+            ).data
 
             return ActionResult(data={"folder": response, "result": True}, cost_usd=0.0)
 
@@ -523,9 +541,11 @@ class GetFolderAction(ActionHandler):
         try:
             folder_id = inputs["folder_id"]
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="GET"
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="GET"
+                )
+            ).data
 
             return ActionResult(data={"folder": response, "result": True}, cost_usd=0.0)
 
@@ -544,9 +564,13 @@ class UpdateFolderAction(ActionHandler):
             folder_id = inputs["folder_id"]
             data = {"name": inputs["name"]}
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="PUT", json=data
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/folder/{folder_id}",
+                    method="PUT",
+                    json=data,
+                )
+            ).data
 
             return ActionResult(data={"folder": response, "result": True}, cost_usd=0.0)
 
@@ -614,9 +638,11 @@ class GetSpaceAction(ActionHandler):
         try:
             space_id = inputs["space_id"]
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/space/{space_id}", method="GET"
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/space/{space_id}", method="GET"
+                )
+            ).data
 
             return ActionResult(data={"space": response, "result": True}, cost_usd=0.0)
 
@@ -664,7 +690,9 @@ class GetAuthorizedTeamsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            response = (await context.fetch(f"{CLICKUP_API_BASE_URL}/team", method="GET")).data
+            response = (
+                await context.fetch(f"{CLICKUP_API_BASE_URL}/team", method="GET")
+            ).data
 
             teams = response.get("teams", [])
             return ActionResult(data={"teams": teams, "result": True}, cost_usd=0.0)
@@ -693,11 +721,13 @@ class CreateTaskCommentAction(ActionHandler):
             if inputs.get("notify_all") is not None:
                 data["notify_all"] = inputs.get("notify_all")
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment",
-                method="POST",
-                json=data,
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment",
+                    method="POST",
+                    json=data,
+                )
+            ).data
 
             return ActionResult(
                 data={"comment": response, "result": True}, cost_usd=0.0
@@ -718,7 +748,9 @@ class GetTaskCommentsAction(ActionHandler):
             task_id = inputs["task_id"]
 
             response = (
-                await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment", method="GET")
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment", method="GET"
+                )
             ).data
 
             comments = response.get("comments", [])
@@ -741,9 +773,13 @@ class UpdateCommentAction(ActionHandler):
             comment_id = inputs["comment_id"]
             data = {"comment_text": inputs["comment_text"]}
 
-            response = (await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/comment/{comment_id}", method="PUT", json=data
-            )).data
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/comment/{comment_id}",
+                    method="PUT",
+                    json=data,
+                )
+            ).data
 
             return ActionResult(
                 data={"comment": response, "result": True}, cost_usd=0.0
