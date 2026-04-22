@@ -1,4 +1,5 @@
 # Integrations by Autohive
+
 This repository hosts Autohive integrations made and maintained by the Autohive team.
 
 ## Getting Started
@@ -120,6 +121,11 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 ### Pipedrive
 
 [pipedrive](pipedrive): Pipedrive CRM integration for managing deals, contacts, organizations, activities, and sales pipelines. Supports API token authentication. Supports full CRUD operations for deals (sales opportunities) with values, currencies, and expected close dates. Features complete contact management (persons) with email and phone information, organization management with company details, activity tracking for tasks, calls, meetings, deadlines, emails, and lunch meetings with scheduling and duration tracking. Includes note management with HTML formatting support, pipeline and stage discovery for sales workflow configuration, and universal search across all items (deals, persons, organizations, products) with exact match and custom field search capabilities. Features API token authentication, pagination support for large datasets (up to 500 items per request), and comprehensive filtering options by user, status, and custom filters. Comprises 30 actions covering deals, persons, organizations, activities, notes, pipelines, stages, and search. Ideal for sales pipeline management, customer relationship tracking, activity scheduling, and CRM automation workflows.
+
+### Perplexity
+
+[perplexity](perplexity): Web search integration powered by Perplexity's AI search API. Search the web and get ranked, structured results with titles, URLs, snippets, and dates. Supports content depth control (quick, default, detailed extraction), geographic filtering by country, multi-query search (up to 5 queries per request), and configurable result limits (1-20). Requires a `PERPLEXITY_API_KEY` environment variable. Includes 1 action for web search. Ideal for real-time web research, competitive intelligence, content curation, and market research automation.
+
 ### Facebook Pages
 
 [facebook](facebook): Comprehensive Facebook Pages integration for managing social media presence through the Graph API v21.0. Supports page discovery, full post lifecycle (create, retrieve, schedule, delete) with text, photo, video, and link content types, comment management (read, reply, hide/unhide, like/unlike, delete), and page/post-level analytics. Features scheduled posting (10 min to 75 days ahead) with ISO 8601 and Unix timestamp support. Uses a multi-file structure pattern for maintainability with separate action modules. Includes OAuth2 authentication with comprehensive page permissions. Tested.
@@ -216,6 +222,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 ### Google Search Console
 
 [google-search-console](google-search-console): Comprehensive Google Search Console integration for accessing search analytics, URL inspection, sitemap management, and site verification data. Supports querying search performance data with dimensions (query, page, country, device, date) and metrics (clicks, impressions, CTR, position), advanced filtering and grouping, listing verified sites with permission levels, inspecting individual URLs for index status and mobile usability, and managing sitemaps with submission status tracking. Features OAuth2 authentication, pagination support for large datasets (up to 25,000 rows per request), support for both URL-prefix and Domain properties, and comprehensive error handling. Includes 5 actions covering search analytics queries, site listing, URL inspection, and sitemap management. Ideal for SEO automation, search performance monitoring, and website health tracking workflows.
+
+### HubSpot CRM
+
+[hubspot](hubspot): Comprehensive HubSpot CRM integration for managing contacts, companies, deals, support tickets, marketing emails, and campaigns through HubSpot's CRM v3, v4 Associations, Marketing v3, and Conversations APIs. Supports complete contact management with email history, company CRUD with property discovery, deal pipeline management with UTC date handling and fetch_all pagination, support ticket management with conversation threading, note management (create, update, delete with multi-object associations), lists/segments with member exports, v4 Associations API for contacts, companies, and deals, call and meeting transcript retrieval (including Google Meet via the Calling Transcripts API), marketing email listing with statistics, and campaign browsing with performance analytics. Features OAuth 2.0 platform authentication with 16 HubSpot scopes, intelligent pagination, rate limiting for high-volume operations, and comprehensive search and filtering. Includes 48 actions across contacts, companies, deals, tickets, notes, lists, associations, marketing, calls/meetings, properties, and owners. Ideal for CRM automation, sales pipeline analytics, customer support workflows, and marketing campaign monitoring.
 
 ### Hacker News
 
@@ -331,3 +341,8 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 ## Template
 
 Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) in the SDK repo as the starting point for new integrations.
+
+## Testing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on running and writing unit tests.
+

@@ -1,7 +1,7 @@
 {
     "name": "NZBN",
     "display_name": "NZBN (New Zealand Business Number)",
-    "version": "1.0.0",
+    "version": "2.1.0",
     "description": "Integration with the New Zealand Business Number (NZBN) API for searching and retrieving business entity information from the NZBN Register.",
     "entry_point": "nzbn.py",
     "auth": {

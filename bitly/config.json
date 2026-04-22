@@ -1,7 +1,7 @@
 {
   "name": "Bitly",
   "display_name": "Bitly",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "URL shortening and link management integration with Bitly for creating, managing, and tracking shortened links",
   "entry_point": "bitly.py",
   "auth": {

@@ -1,4 +1,10 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ActionError,
+)
 from typing import Dict, Any
 
 # API Version constant for Notion API
@@ -44,26 +50,32 @@ class NotionSearchHandler(ActionHandler):
             search_body["start_cursor"] = inputs["start_cursor"]
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the search request to Notion API
         try:
             response = await context.fetch(
-                url="https://api.notion.com/v1/search", method="POST", headers=headers, json=search_body
+                url="https://api.notion.com/v1/search",
+                method="POST",
+                headers=headers,
+                json=search_body,
             )
 
             return ActionResult(
                 data={
-                    "object": response.get("object", "list"),
-                    "results": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
-                    "type": response.get("type"),
+                    "object": response.data.get("object", "list"),
+                    "results": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
+                    "type": response.data.get("type"),
                 }
             )
 
         except Exception as e:
-            return ActionResult(data={"object": "list", "error": str(e), "results": [], "has_more": False})
+            return ActionError(message=str(e))
 
 
 @notion.action("get_notion_page")
@@ -89,13 +101,15 @@ class NotionGetPageHandler(ActionHandler):
         # Make the get page request to Notion API
         try:
             response = await context.fetch(
-                url=f"https://api.notion.com/v1/pages/{page_id}", method="GET", headers=headers
+                url=f"https://api.notion.com/v1/pages/{page_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data={"page": response})
+            return ActionResult(data={"page": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "page": None})
+            return ActionError(message=str(e))
 
 
 @notion.action("create_notion_page")
@@ -117,18 +131,24 @@ class NotionCreatePageHandler(ActionHandler):
         create_body = {"parent": inputs["parent"], "properties": inputs["properties"]}
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the create page request to Notion API
         try:
             response = await context.fetch(
-                url="https://api.notion.com/v1/pages", method="POST", headers=headers, json=create_body
+                url="https://api.notion.com/v1/pages",
+                method="POST",
+                headers=headers,
+                json=create_body,
             )
 
-            return ActionResult(data={"page": response})
+            return ActionResult(data={"page": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "page": None})
+            return ActionError(message=str(e))
 
 
 @notion.action("create_notion_comment")
@@ -150,18 +170,24 @@ class NotionCreateCommentHandler(ActionHandler):
         comment_body = {"parent": inputs["parent"], "rich_text": inputs["rich_text"]}
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the create comment request to Notion API
         try:
             response = await context.fetch(
-                url="https://api.notion.com/v1/comments", method="POST", headers=headers, json=comment_body
+                url="https://api.notion.com/v1/comments",
+                method="POST",
+                headers=headers,
+                json=comment_body,
             )
 
-            return ActionResult(data={"comment": response})
+            return ActionResult(data={"comment": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "comment": None})
+            return ActionError(message=str(e))
 
 
 @notion.action("get_notion_comments")
@@ -184,23 +210,28 @@ class NotionGetCommentsHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url="https://api.notion.com/v1/comments", method="GET", headers=headers, params=params
+                url="https://api.notion.com/v1/comments",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
             result = {
-                "comments": response.get("results", []),
-                "has_more": response.get("has_more", False),
-                "next_cursor": response.get("next_cursor"),
+                "comments": response.data.get("results", []),
+                "has_more": response.data.get("has_more", False),
+                "next_cursor": response.data.get("next_cursor"),
             }
 
             if include_child_blocks_with_comments:
                 blocks_with_comments = []
 
                 blocks_response = await context.fetch(
-                    url=f"https://api.notion.com/v1/blocks/{block_id}/children", method="GET", headers=headers
+                    url=f"https://api.notion.com/v1/blocks/{block_id}/children",
+                    method="GET",
+                    headers=headers,
                 )
 
-                for block in blocks_response.get("results", []):
+                for block in blocks_response.data.get("results", []):
                     child_block_id = block.get("id")
                     if child_block_id:
                         comments_response = await context.fetch(
@@ -209,16 +240,20 @@ class NotionGetCommentsHandler(ActionHandler):
                             headers=headers,
                             params={"block_id": child_block_id, "page_size": 1},
                         )
-                        if comments_response.get("results"):
+                        if comments_response.data.get("results"):
                             blocks_with_comments.append(
-                                {"block_id": child_block_id, "block_type": block.get("type"), "has_comments": True}
+                                {
+                                    "block_id": child_block_id,
+                                    "block_type": block.get("type"),
+                                    "has_comments": True,
+                                }
                             )
 
                 result["child_blocks_with_comments"] = blocks_with_comments
 
             return ActionResult(data=result)
         except Exception as e:
-            return ActionResult(data={"error": str(e), "comments": []})
+            return ActionError(message=str(e))
 
 
 @notion.action("list_data_sources")
@@ -257,13 +292,13 @@ class NotionListDataSourcesHandler(ActionHandler):
             )
             return ActionResult(
                 data={
-                    "data_sources": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
+                    "data_sources": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
                 }
             )
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data_sources": []})
+            return ActionError(message=str(e))
 
 
 @notion.action("get_data_source")
@@ -287,11 +322,13 @@ class NotionGetDataSourceHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"https://api.notion.com/v1/data_sources/{data_source_id}", method="GET", headers=headers
+                url=f"https://api.notion.com/v1/data_sources/{data_source_id}",
+                method="GET",
+                headers=headers,
             )
-            return ActionResult(data={"data_source": response})
+            return ActionResult(data={"data_source": response.data})
         except Exception as e:
-            return ActionResult(data={"error": str(e), "data_source": None})
+            return ActionError(message=str(e))
 
 
 # ---- Phase 1 Enhancement Handlers ----
@@ -333,7 +370,10 @@ class NotionQueryDataSourceHandler(ActionHandler):
             query_body["start_cursor"] = inputs["start_cursor"]
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the query request to Notion API
         try:
@@ -346,15 +386,15 @@ class NotionQueryDataSourceHandler(ActionHandler):
 
             return ActionResult(
                 data={
-                    "results": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
-                    "type": response.get("type"),
+                    "results": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
+                    "type": response.data.get("type"),
                 }
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "results": []})
+            return ActionError(message=str(e))
 
 
 @notion.action("get_notion_block_children")
@@ -394,15 +434,15 @@ class NotionGetBlockChildrenHandler(ActionHandler):
 
             return ActionResult(
                 data={
-                    "blocks": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
-                    "type": response.get("type"),
+                    "blocks": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
+                    "type": response.data.get("type"),
                 }
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "blocks": []})
+            return ActionError(message=str(e))
 
 
 @notion.action("append_notion_block_children")
@@ -430,7 +470,10 @@ class NotionAppendBlockChildrenHandler(ActionHandler):
             append_body["after"] = inputs["after"]
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the append block children request to Notion API
         try:
@@ -443,15 +486,15 @@ class NotionAppendBlockChildrenHandler(ActionHandler):
 
             return ActionResult(
                 data={
-                    "blocks": response.get("results", []),
-                    "has_more": response.get("has_more", False),
-                    "next_cursor": response.get("next_cursor"),
-                    "type": response.get("type"),
+                    "blocks": response.data.get("results", []),
+                    "has_more": response.data.get("has_more", False),
+                    "next_cursor": response.data.get("next_cursor"),
+                    "type": response.data.get("type"),
                 }
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "blocks": []})
+            return ActionError(message=str(e))
 
 
 @notion.action("get_notion_page_property")
@@ -490,10 +533,10 @@ class NotionGetPagePropertyHandler(ActionHandler):
 
             response = await context.fetch(url=url, method="GET", headers=headers, params=params)
 
-            return ActionResult(data={"property": response})
+            return ActionResult(data={"property": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "property": None})
+            return ActionError(message=str(e))
 
 
 @notion.action("update_notion_block")
@@ -553,18 +596,24 @@ class NotionUpdateBlockHandler(ActionHandler):
         }
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the update block request to Notion API
         try:
             response = await context.fetch(
-                url=f"https://api.notion.com/v1/blocks/{block_id}", method="PATCH", headers=headers, json=update_body
+                url=f"https://api.notion.com/v1/blocks/{block_id}",
+                method="PATCH",
+                headers=headers,
+                json=update_body,
             )
 
-            return ActionResult(data={"block": response})
+            return ActionResult(data={"block": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "block": None})
+            return ActionError(message=str(e))
 
 
 @notion.action("delete_notion_block")
@@ -590,13 +639,15 @@ class NotionDeleteBlockHandler(ActionHandler):
         # Make the delete block request to Notion API
         try:
             response = await context.fetch(
-                url=f"https://api.notion.com/v1/blocks/{block_id}", method="DELETE", headers=headers
+                url=f"https://api.notion.com/v1/blocks/{block_id}",
+                method="DELETE",
+                headers=headers,
             )
 
-            return ActionResult(data={"block": response})
+            return ActionResult(data={"block": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "block": None})
+            return ActionError(message=str(e))
 
 
 @notion.action("update_notion_page")
@@ -627,15 +678,21 @@ class NotionUpdatePageHandler(ActionHandler):
         }
 
         # Prepare headers for Notion API
-        headers = {"Notion-Version": NOTION_API_VERSION, "Content-Type": "application/json"}
+        headers = {
+            "Notion-Version": NOTION_API_VERSION,
+            "Content-Type": "application/json",
+        }
 
         # Make the update page request to Notion API
         try:
             response = await context.fetch(
-                url=f"https://api.notion.com/v1/pages/{page_id}", method="PATCH", headers=headers, json=update_body
+                url=f"https://api.notion.com/v1/pages/{page_id}",
+                method="PATCH",
+                headers=headers,
+                json=update_body,
             )
 
-            return ActionResult(data={"page": response})
+            return ActionResult(data={"page": response.data})
 
         except Exception as e:
-            return ActionResult(data={"error": str(e), "page": None})
+            return ActionError(message=str(e))

@@ -2,7 +2,7 @@ name: Validate Integration (Tooling)
 
 on:
   pull_request:
-    branches: [master, main]
+    branches: [master, main, 'feat/**', 'fix/**']
 
 jobs:
   validate:

@@ -25,6 +25,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
 )
 from typing import Dict, Any, List
 import secrets
@@ -89,19 +90,7 @@ async def execute_graphql(context: ExecutionContext, query: str, variables: Dict
         payload["variables"] = variables
 
     response = await context.fetch(url, method="POST", json=payload, headers=headers)
-
-    # Handle response - context.fetch may return dict directly or response object
-    if hasattr(response, "json"):
-        # Response object - need to parse JSON
-        if callable(response.json):
-            import asyncio
-
-            if asyncio.iscoroutinefunction(response.json):
-                return await response.json()
-            return response.json()
-
-    # Already a dict (some SDK versions return parsed JSON directly)
-    return response
+    return response.data
 
 
 def success_response(**kwargs) -> ActionResult:
@@ -109,11 +98,9 @@ def success_response(**kwargs) -> ActionResult:
     return ActionResult(data={"success": True, **kwargs}, cost_usd=0.0)
 
 
-def error_response(message: str, **kwargs) -> ActionResult:
-    """Build standardized error response."""
-    data = {"success": False, "message": str(message)}
-    data.update(kwargs)
-    return ActionResult(data=data, cost_usd=0.0)
+def error_response(message, **kwargs):
+    """Return an ActionError."""
+    return ActionError(message=str(message))
 
 
 def extract_edges(data: Dict, path: str) -> List[Dict]:
@@ -464,12 +451,12 @@ class GetProfileHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            response = await execute_graphql(context, QUERY_GET_PROFILE)
+            gql_result = await execute_graphql(context, QUERY_GET_PROFILE)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], customer=None)
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], customer=None)
 
-            customer = response.get("data", {}).get("customer")
+            customer = gql_result.get("data", {}).get("customer")
             if not customer:
                 return error_response("Customer not found", customer=None)
 
@@ -502,12 +489,12 @@ class UpdateProfileHandler(ActionHandler):
                 return error_response("No fields to update", customer=None)
 
             variables = {"input": customer_input}
-            response = await execute_graphql(context, MUTATION_UPDATE_PROFILE, variables)
+            gql_result = await execute_graphql(context, MUTATION_UPDATE_PROFILE, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], customer=None)
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], customer=None)
 
-            data = response.get("data", {}).get("customerUpdate", {})
+            data = gql_result.get("data", {}).get("customerUpdate", {})
             user_errors = data.get("userErrors", [])
 
             if user_errors:
@@ -531,12 +518,12 @@ class ListAddressesHandler(ActionHandler):
         try:
             variables = {"first": inputs.get("first", 20), "after": inputs.get("after")}
 
-            response = await execute_graphql(context, QUERY_LIST_ADDRESSES, variables)
+            gql_result = await execute_graphql(context, QUERY_LIST_ADDRESSES, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], addresses=[])
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], addresses=[])
 
-            data = response.get("data", {}).get("customer", {})
+            data = gql_result.get("data", {}).get("customer", {})
             addresses = extract_edges(data, "addresses")
             page_info = data.get("addresses", {}).get("pageInfo", {})
             default_address_id = data.get("defaultAddress", {}).get("id") if data.get("defaultAddress") else None
@@ -582,12 +569,12 @@ class CreateAddressHandler(ActionHandler):
                     address_input[graphql_field] = inputs[input_field]
 
             variables = {"address": address_input}
-            response = await execute_graphql(context, MUTATION_CREATE_ADDRESS, variables)
+            gql_result = await execute_graphql(context, MUTATION_CREATE_ADDRESS, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], address=None)
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], address=None)
 
-            data = response.get("data", {}).get("customerAddressCreate", {})
+            data = gql_result.get("data", {}).get("customerAddressCreate", {})
             user_errors = data.get("userErrors", [])
 
             if user_errors:
@@ -631,12 +618,12 @@ class UpdateAddressHandler(ActionHandler):
                 return error_response("No fields to update", address=None)
 
             variables = {"addressId": address_id, "address": address_input}
-            response = await execute_graphql(context, MUTATION_UPDATE_ADDRESS, variables)
+            gql_result = await execute_graphql(context, MUTATION_UPDATE_ADDRESS, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], address=None)
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], address=None)
 
-            data = response.get("data", {}).get("customerAddressUpdate", {})
+            data = gql_result.get("data", {}).get("customerAddressUpdate", {})
             user_errors = data.get("userErrors", [])
 
             if user_errors:
@@ -658,12 +645,12 @@ class DeleteAddressHandler(ActionHandler):
                 return error_response("address_id is required")
 
             variables = {"addressId": address_id}
-            response = await execute_graphql(context, MUTATION_DELETE_ADDRESS, variables)
+            gql_result = await execute_graphql(context, MUTATION_DELETE_ADDRESS, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"])
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"])
 
-            data = response.get("data", {}).get("customerAddressDelete", {})
+            data = gql_result.get("data", {}).get("customerAddressDelete", {})
             user_errors = data.get("userErrors", [])
 
             if user_errors:
@@ -685,12 +672,12 @@ class SetDefaultAddressHandler(ActionHandler):
                 return error_response("address_id is required")
 
             variables = {"addressId": address_id}
-            response = await execute_graphql(context, MUTATION_SET_DEFAULT_ADDRESS, variables)
+            gql_result = await execute_graphql(context, MUTATION_SET_DEFAULT_ADDRESS, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"])
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"])
 
-            data = response.get("data", {}).get("customerDefaultAddressUpdate", {})
+            data = gql_result.get("data", {}).get("customerDefaultAddressUpdate", {})
             user_errors = data.get("userErrors", [])
 
             if user_errors:
@@ -715,12 +702,12 @@ class ListOrdersHandler(ActionHandler):
         try:
             variables = {"first": inputs.get("first", 10), "after": inputs.get("after")}
 
-            response = await execute_graphql(context, QUERY_LIST_ORDERS, variables)
+            gql_result = await execute_graphql(context, QUERY_LIST_ORDERS, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], orders=[])
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], orders=[])
 
-            data = response.get("data", {}).get("customer", {})
+            data = gql_result.get("data", {}).get("customer", {})
             orders = extract_edges(data, "orders")
             page_info = data.get("orders", {}).get("pageInfo", {})
 
@@ -745,12 +732,12 @@ class GetOrderHandler(ActionHandler):
                 return error_response("order_id is required", order=None)
 
             variables = {"orderId": order_id}
-            response = await execute_graphql(context, QUERY_GET_ORDER, variables)
+            gql_result = await execute_graphql(context, QUERY_GET_ORDER, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], order=None)
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"], order=None)
 
-            order = response.get("data", {}).get("customer", {}).get("order")
+            order = gql_result.get("data", {}).get("customer", {}).get("order")
             if not order:
                 return error_response("Order not found", order=None)
 
@@ -836,29 +823,21 @@ class ExchangeCodeHandler(ActionHandler):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            # Handle response object if needed
-            if hasattr(response, "json"):
-                if callable(response.json):
-                    import asyncio
+            token_data = response.data
 
-                    if asyncio.iscoroutinefunction(response.json):
-                        response = await response.json()
-                    else:
-                        response = response.json()
-
-            if "error" in response:
-                return error_response(response.get("error_description", response["error"]))
+            if "error" in token_data:
+                return ActionError(message=token_data.get("error_description", token_data["error"]))
 
             return success_response(
-                access_token=response.get("access_token"),
-                refresh_token=response.get("refresh_token"),
-                id_token=response.get("id_token"),
-                token_type=response.get("token_type"),
-                expires_in=response.get("expires_in"),
-                scope=response.get("scope"),
+                access_token=token_data.get("access_token"),
+                refresh_token=token_data.get("refresh_token"),
+                id_token=token_data.get("id_token"),
+                token_type=token_data.get("token_type"),
+                expires_in=token_data.get("expires_in"),
+                scope=token_data.get("scope"),
             )
         except Exception as e:
-            return error_response(e)
+            return ActionError(message=str(e))
 
 
 @shopify_customer.action("customer_refresh_token")
@@ -891,24 +870,16 @@ class RefreshTokenHandler(ActionHandler):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            # Handle response object if needed
-            if hasattr(response, "json"):
-                if callable(response.json):
-                    import asyncio
+            token_data = response.data
 
-                    if asyncio.iscoroutinefunction(response.json):
-                        response = await response.json()
-                    else:
-                        response = response.json()
-
-            if "error" in response:
-                return error_response(response.get("error_description", response["error"]))
+            if "error" in token_data:
+                return ActionError(message=token_data.get("error_description", token_data["error"]))
 
             return success_response(
-                access_token=response.get("access_token"),
-                refresh_token=response.get("refresh_token"),
-                token_type=response.get("token_type"),
-                expires_in=response.get("expires_in"),
+                access_token=token_data.get("access_token"),
+                refresh_token=token_data.get("refresh_token"),
+                token_type=token_data.get("token_type"),
+                expires_in=token_data.get("expires_in"),
             )
         except Exception as e:
-            return error_response(e)
+            return ActionError(message=str(e))
