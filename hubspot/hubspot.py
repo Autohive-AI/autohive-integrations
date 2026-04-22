@@ -823,8 +823,10 @@ class GetTicketConversationActionHandler(ActionHandler):
         if not thread_id:
             return ActionResult(
                 data={
-                    "result": {
-                        "success": False,
+                    "conversation": {
+                        "results": [],
+                        "ticket_id": ticket_id,
+                        "thread_id": None,
                         "message": f"No conversation thread found for ticket {ticket_id}",
                     }
                 },

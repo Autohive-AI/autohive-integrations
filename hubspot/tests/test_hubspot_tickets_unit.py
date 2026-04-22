@@ -224,9 +224,12 @@ class TestGetTicketConversation:
             mock_context,
         )
 
-        # The handler returns {"result": ...} which violates the output schema
-        # (requires "conversation" key), so the SDK wraps it as a VALIDATION_ERROR.
-        assert result.type == ResultType.VALIDATION_ERROR
+        data = result.result.data
+        conv = data["conversation"]
+        assert conv["results"] == []
+        assert conv["ticket_id"] == "ticket-2"
+        assert conv["thread_id"] is None
+        assert "No conversation thread found" in conv["message"]
 
     @pytest.mark.asyncio
     async def test_comment_type_shows_private_note(self, mock_context):
