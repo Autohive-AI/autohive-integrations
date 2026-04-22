@@ -1,6 +1,6 @@
 from typing import Dict, Any
 import base64
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 
 # Create the integration using the config.json
 toggl = Integration.load()
@@ -18,7 +18,7 @@ class CreateTimeEntry(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         api_token = context.auth.get("credentials").get("api_token")
         if not api_token:
-            raise Exception("Toggl API token is required in auth (field 'api_token').")
+            return ActionError(message="Toggl API token is required in auth (field 'api_token').")
 
         workspace_id = inputs["workspace_id"]
 
@@ -45,8 +45,8 @@ class CreateTimeEntry(ActionHandler):
         headers = _basic_auth_header_for_api_token(api_token)
         url = f"https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/time_entries"
 
-        # Perform POST request via the SDK's HTTP client
-        resp = await context.fetch(url, method="POST", headers=headers, json=body)
-
-        # The SDK returns parsed JSON for JSON responses; if it's bytes/string parse may be needed.
-        return resp
+        try:
+            resp = await context.fetch(url, method="POST", headers=headers, json=body)
+            return ActionResult(data=resp.data, cost_usd=0.0)
+        except Exception as e:
+            return ActionError(message=str(e))
