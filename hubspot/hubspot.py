@@ -700,8 +700,8 @@ class GetRecentContactsActionHandler(ActionHandler):
         :return: Dictionary with a "recent_contacts" key containing recent contact data.
         """
 
-        count = inputs.get("count", 100)
-        url = f"https://api.hubapi.com/crm/v3/objects/contacts?limit={count}&sort=createdat"
+        limit = inputs.get("limit", 100)
+        url = f"https://api.hubapi.com/crm/v3/objects/contacts?limit={limit}&sort=createdat"
 
         response = await context.fetch(url, headers={"Content-Type": "application/json"})
         recent_contacts = await parse_response(response)
