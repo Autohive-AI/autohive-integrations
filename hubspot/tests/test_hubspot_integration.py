@@ -47,6 +47,7 @@ TEST_DEAL_ID = os.environ.get("HUBSPOT_TEST_DEAL_ID", "")
 TEST_TICKET_ID = os.environ.get("HUBSPOT_TEST_TICKET_ID", "")
 TEST_LIST_ID = os.environ.get("HUBSPOT_TEST_LIST_ID", "")
 TEST_OWNER_ID = os.environ.get("HUBSPOT_TEST_OWNER_ID", "")
+TEST_CONTACT_EMAIL = os.environ.get("HUBSPOT_TEST_CONTACT_EMAIL", "")
 
 
 @pytest.fixture
@@ -88,6 +89,11 @@ def require_contact_id():
         pytest.skip("HUBSPOT_TEST_CONTACT_ID not set")
 
 
+def require_contact_email():
+    if not TEST_CONTACT_EMAIL:
+        pytest.skip("HUBSPOT_TEST_CONTACT_EMAIL not set")
+
+
 def require_company_id():
     if not TEST_COMPANY_ID:
         pytest.skip("HUBSPOT_TEST_COMPANY_ID not set")
@@ -118,19 +124,22 @@ def require_owner_id():
 
 class TestGetContact:
     async def test_search_by_email(self, live_context):
-        require_contact_id()
-        result = await hubspot.execute_action("get_contact", {"email": "test@example.com"}, live_context)
-        # Either finds a contact or returns ActionError — both are valid
-        assert result is not None
+        require_contact_email()
+        result = await hubspot.execute_action("get_contact", {"email": TEST_CONTACT_EMAIL}, live_context)
+        data = result.result.data
+        assert "contact" in data
+        assert "id" in data["contact"]
 
     async def test_returns_contact_properties(self, live_context):
-        require_contact_id()
+        require_contact_email()
         result = await hubspot.execute_action(
             "get_contact",
-            {"email": "test@example.com", "properties": ["email", "firstname", "lastname"]},
+            {"email": TEST_CONTACT_EMAIL, "properties": ["email", "firstname", "lastname"]},
             live_context,
         )
-        assert result is not None
+        data = result.result.data
+        assert "contact" in data
+        assert "properties" in data["contact"]
 
 
 class TestSearchContacts:
@@ -217,13 +226,13 @@ class TestGetDeals:
             live_context,
         )
         data = result.result.data
-        assert "deals" in data
+        assert "results" in data
         assert "total" in data
 
     async def test_respects_limit(self, live_context):
         result = await hubspot.execute_action("get_deals", {"limit": 2, "fetch_all": False}, live_context)
         data = result.result.data
-        assert len(data.get("deals", [])) <= 2
+        assert len(data.get("results", [])) <= 2
 
 
 class TestGetDeal:
@@ -250,7 +259,7 @@ class TestSearchDeals:
             "search_deals", {"query": "deal", "limit": 5, "fetch_all": False}, live_context
         )
         data = result.result.data
-        assert "deals" in data
+        assert "results" in data
 
 
 class TestGetDealPipelines:
