@@ -394,9 +394,7 @@ class TestGetListMembers:
 
     @pytest.mark.asyncio
     async def test_empty_list(self, mock_context):
-        empty_memberships = FetchResponse(
-            status=200, headers={}, data={"results": [], "paging": {}}
-        )
+        empty_memberships = FetchResponse(status=200, headers={}, data={"results": [], "paging": {}})
         mock_context.fetch.side_effect = [
             self.LIST_META_RESPONSE,
             empty_memberships,
