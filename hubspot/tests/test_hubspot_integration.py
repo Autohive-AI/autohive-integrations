@@ -147,7 +147,7 @@ class TestSearchContacts:
 
 class TestGetRecentContacts:
     async def test_returns_contacts(self, live_context):
-        result = await hubspot.execute_action("get_recent_contacts", {"count": 5}, live_context)
+        result = await hubspot.execute_action("get_recent_contacts", {"limit": 5}, live_context)
         data = result.result.data
         assert "recent_contacts" in data
 
