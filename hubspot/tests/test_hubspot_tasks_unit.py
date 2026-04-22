@@ -48,7 +48,7 @@ class TestCreateTask:
 
         result = await hubspot.execute_action(
             "create_task",
-            {"task_body": "Follow up tomorrow", "contact_id": "501"},
+            {"hs_task_body": "Follow up tomorrow", "hs_timestamp": 1700000000000, "contact_id": "501"},
             mock_context,
         )
 
@@ -69,7 +69,8 @@ class TestCreateTask:
         await hubspot.execute_action(
             "create_task",
             {
-                "task_body": "Multi-assoc task",
+                "hs_task_body": "Multi-assoc task",
+                "hs_timestamp": 1700000000000,
                 "contact_id": "100",
                 "company_id": "200",
                 "deal_id": "300",
@@ -79,7 +80,7 @@ class TestCreateTask:
 
         associations = mock_context.fetch.call_args.kwargs["json"]["associations"]
         assert len(associations) == 3
-        assert [a["types"][0]["associationTypeId"] for a in associations] == [202, 190, 214]
+        assert [a["types"][0]["associationTypeId"] for a in associations] == [204, 192, 216]
 
     @pytest.mark.asyncio
     async def test_create_task_exception_returns_action_error(self, mock_context):
@@ -87,12 +88,43 @@ class TestCreateTask:
 
         result = await hubspot.execute_action(
             "create_task",
-            {"task_body": "Will fail", "contact_id": "501"},
+            {"hs_task_body": "Will fail", "hs_timestamp": 1700000000000, "contact_id": "501"},
             mock_context,
         )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Failed to create task" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_create_task_with_direct_associations_object(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TASK_RESPONSE)
+
+        await hubspot.execute_action(
+            "create_task",
+            {
+                "hs_task_body": "Task with direct associations",
+                "hs_timestamp": 1700000000000,
+                "associations": [
+                    {
+                        "to": {"id": "501"},
+                        "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 204}],
+                    }
+                ],
+            },
+            mock_context,
+        )
+
+        payload = mock_context.fetch.call_args.kwargs["json"]
+        assert payload["associations"][0]["to"]["id"] == "501"
+        assert payload["associations"][0]["types"][0]["associationTypeId"] == 204
+
+    @pytest.mark.asyncio
+    async def test_create_task_without_timestamp_returns_validation_error(self, mock_context):
+        result = await hubspot.execute_action("create_task", {"hs_task_body": "No timestamp"}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        assert "timestamp" in result.result["message"]
+        mock_context.fetch.assert_not_called()
 
 
 class TestUpdateTask:
@@ -103,7 +135,7 @@ class TestUpdateTask:
 
         result = await hubspot.execute_action(
             "update_task",
-            {"task_id": "23456", "task_body": "Updated content"},
+            {"task_id": "23456", "hs_task_body": "Updated content"},
             mock_context,
         )
 
@@ -120,7 +152,7 @@ class TestUpdateTask:
             "update_task",
             {
                 "task_id": "23456",
-                "task_body": "Body",
+                "hs_task_body": "Body",
                 "additional_properties": {"hs_task_priority": "HIGH"},
             },
             mock_context,
@@ -145,7 +177,7 @@ class TestUpdateTask:
 
         result = await hubspot.execute_action(
             "update_task",
-            {"task_id": "23456", "task_body": "Will fail"},
+            {"task_id": "23456", "hs_task_body": "Will fail"},
             mock_context,
         )
 

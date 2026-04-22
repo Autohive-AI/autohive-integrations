@@ -275,7 +275,11 @@ class CreateNoteActionHandler(ActionHandler):
         # Build associations array
         associations = []
 
-        # Associate with contact
+        # Allow direct associations payload (HubSpot-native format)
+        if inputs.get("associations"):
+            associations.extend(inputs["associations"])
+
+        # Associate with contact (convenience shorthand)
         if inputs.get("contact_id"):
             associations.append(
                 {
@@ -289,7 +293,7 @@ class CreateNoteActionHandler(ActionHandler):
                 }
             )
 
-        # Associate with company
+        # Associate with company (convenience shorthand)
         if inputs.get("company_id"):
             associations.append(
                 {
@@ -303,7 +307,7 @@ class CreateNoteActionHandler(ActionHandler):
                 }
             )
 
-        # Associate with deal
+        # Associate with deal (convenience shorthand)
         if inputs.get("deal_id"):
             associations.append(
                 {
@@ -455,22 +459,37 @@ class CreateTaskActionHandler(ActionHandler):
         """
         Execute the create_task action.
 
-        :param inputs: Dictionary with "task_body" and associations (contact_id, company_id, or deal_id).
+        :param inputs: Dictionary with HubSpot task fields and associations.
         :param context: Execution context containing authentication and fetch method.
         :return: Dictionary with the created task information.
         """
-        task_body = inputs["task_body"]
-        timestamp = inputs.get("timestamp")  # Optional custom timestamp in milliseconds
+        task_body = inputs.get("hs_task_body") or inputs.get("task_body")
+        timestamp = inputs.get("hs_timestamp") or inputs.get("timestamp")
+        if not timestamp:
+            return ActionError(message="timestamp is required for create_task")
 
         # Build the task properties
-        properties = {"hs_task_body": task_body}
+        properties = {"hs_task_body": task_body, "hs_timestamp": str(timestamp)}
 
-        # Add timestamp if provided
-        if timestamp:
-            properties["hs_timestamp"] = str(timestamp)
+        if inputs.get("hs_task_subject") or inputs.get("task_subject"):
+            properties["hs_task_subject"] = inputs.get("hs_task_subject") or inputs.get("task_subject")
+        if inputs.get("hs_task_status") or inputs.get("task_status"):
+            properties["hs_task_status"] = inputs.get("hs_task_status") or inputs.get("task_status")
+        if inputs.get("hs_task_priority") or inputs.get("task_priority"):
+            properties["hs_task_priority"] = inputs.get("hs_task_priority") or inputs.get("task_priority")
+        if inputs.get("hs_task_type") or inputs.get("task_type"):
+            properties["hs_task_type"] = inputs.get("hs_task_type") or inputs.get("task_type")
+        if inputs.get("hubspot_owner_id") or inputs.get("owner_id"):
+            properties["hubspot_owner_id"] = str(inputs.get("hubspot_owner_id") or inputs.get("owner_id"))
+        if inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp"):
+            properties["hs_task_reminders"] = str(inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp"))
 
         # Build associations array
         associations = []
+
+        # Allow direct associations payload (HubSpot-native format)
+        if inputs.get("associations"):
+            associations.extend(inputs["associations"])
 
         # Associate with contact
         if inputs.get("contact_id"):
@@ -480,7 +499,7 @@ class CreateTaskActionHandler(ActionHandler):
                     "types": [
                         {
                             "associationCategory": "HUBSPOT_DEFINED",
-                            "associationTypeId": 202,
+                            "associationTypeId": 204,
                         }
                     ],
                 }
@@ -494,7 +513,7 @@ class CreateTaskActionHandler(ActionHandler):
                     "types": [
                         {
                             "associationCategory": "HUBSPOT_DEFINED",
-                            "associationTypeId": 190,
+                            "associationTypeId": 192,
                         }
                     ],
                 }
@@ -508,7 +527,7 @@ class CreateTaskActionHandler(ActionHandler):
                     "types": [
                         {
                             "associationCategory": "HUBSPOT_DEFINED",
-                            "associationTypeId": 214,
+                            "associationTypeId": 216,
                         }
                     ],
                 }
@@ -551,7 +570,7 @@ class UpdateTaskActionHandler(ActionHandler):
         """
         Execute the update_task action.
 
-        :param inputs: Dictionary with "task_id" and "task_body" or other properties to update.
+        :param inputs: Dictionary with "task_id" and HubSpot task properties to update.
         :param context: Execution context containing authentication and fetch method.
         :return: Dictionary with the updated task information.
         """
@@ -560,11 +579,24 @@ class UpdateTaskActionHandler(ActionHandler):
         # Build properties to update
         properties = {}
 
-        if inputs.get("task_body"):
-            properties["hs_task_body"] = inputs["task_body"]
+        if inputs.get("hs_task_body") or inputs.get("task_body"):
+            properties["hs_task_body"] = inputs.get("hs_task_body") or inputs.get("task_body")
 
-        if inputs.get("timestamp"):
-            properties["hs_timestamp"] = str(inputs["timestamp"])
+        if inputs.get("hs_timestamp") or inputs.get("timestamp"):
+            properties["hs_timestamp"] = str(inputs.get("hs_timestamp") or inputs.get("timestamp"))
+
+        if inputs.get("hs_task_subject") or inputs.get("task_subject"):
+            properties["hs_task_subject"] = inputs.get("hs_task_subject") or inputs.get("task_subject")
+        if inputs.get("hs_task_status") or inputs.get("task_status"):
+            properties["hs_task_status"] = inputs.get("hs_task_status") or inputs.get("task_status")
+        if inputs.get("hs_task_priority") or inputs.get("task_priority"):
+            properties["hs_task_priority"] = inputs.get("hs_task_priority") or inputs.get("task_priority")
+        if inputs.get("hs_task_type") or inputs.get("task_type"):
+            properties["hs_task_type"] = inputs.get("hs_task_type") or inputs.get("task_type")
+        if inputs.get("hubspot_owner_id") or inputs.get("owner_id"):
+            properties["hubspot_owner_id"] = str(inputs.get("hubspot_owner_id") or inputs.get("owner_id"))
+        if inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp"):
+            properties["hs_task_reminders"] = str(inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp"))
 
         # Allow additional properties to be updated
         if inputs.get("additional_properties"):

@@ -404,9 +404,81 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "task_body": {
+          "hs_task_body": {
             "type": "string",
-            "description": "The body content of the task"
+            "description": "The task notes"
+          },
+          "hs_task_subject": {
+            "type": "string",
+            "description": "The title of the task"
+          },
+          "hs_task_status": {
+            "type": "string",
+            "description": "The status of the task, either COMPLETED or NOT_STARTED"
+          },
+          "hs_task_priority": {
+            "type": "string",
+            "description": "The priority of the task. Values include LOW, MEDIUM, or HIGH"
+          },
+          "hs_task_type": {
+            "type": "string",
+            "description": "The type of task. Values include EMAIL, CALL, or TODO"
+          },
+          "hubspot_owner_id": {
+            "type": "string",
+            "description": "The owner ID of the user assigned to the task"
+          },
+          "hs_task_reminders": {
+            "type": "number",
+            "description": "The timestamp for when to send a reminder for the due date of the task. Must use Unix timestamp in milliseconds"
+          },
+          "associations": {
+            "type": "array",
+            "description": "HubSpot associations object array. Each entry must include 'to' (with record id) and 'types' (with associationCategory and associationTypeId)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": [
+                        "string",
+                        "number"
+                      ],
+                      "description": "The unique ID of the record to associate"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                },
+                "types": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "associationCategory": {
+                        "type": "string",
+                        "description": "Association category, usually HUBSPOT_DEFINED"
+                      },
+                      "associationTypeId": {
+                        "type": "integer",
+                        "description": "HubSpot association type ID for the relationship"
+                      }
+                    },
+                    "required": [
+                      "associationCategory",
+                      "associationTypeId"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "to",
+                "types"
+              ]
+            }
           },
           "contact_id": {
             "type": "string",
@@ -420,13 +492,17 @@
             "type": "string",
             "description": "The deal ID to associate the task with (optional)"
           },
-          "timestamp": {
-            "type": "number",
-            "description": "Custom timestamp in milliseconds (optional, defaults to current time)"
+          "hs_timestamp": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "Required. This field marks the task due date. Supports Unix timestamp in milliseconds or UTC format"
           }
         },
         "required": [
-          "task_body"
+          "hs_task_body",
+          "hs_timestamp"
         ]
       },
       "output_schema": {
@@ -467,13 +543,40 @@
             "type": "string",
             "description": "The ID of the task to update"
           },
-          "task_body": {
+          "hs_task_body": {
             "type": "string",
-            "description": "The new body content for the task (optional)"
+            "description": "The task notes"
           },
-          "timestamp": {
+          "hs_task_subject": {
+            "type": "string",
+            "description": "The title of the task"
+          },
+          "hs_task_status": {
+            "type": "string",
+            "description": "The status of the task, either COMPLETED or NOT_STARTED"
+          },
+          "hs_task_priority": {
+            "type": "string",
+            "description": "The priority of the task. Values include LOW, MEDIUM, or HIGH"
+          },
+          "hs_task_type": {
+            "type": "string",
+            "description": "The type of task. Values include EMAIL, CALL, or TODO"
+          },
+          "hubspot_owner_id": {
+            "type": "string",
+            "description": "The owner ID of the user assigned to the task"
+          },
+          "hs_task_reminders": {
             "type": "number",
-            "description": "New timestamp in milliseconds (optional)"
+            "description": "The timestamp for when to send a reminder for the due date of the task. Must use Unix timestamp in milliseconds"
+          },
+          "hs_timestamp": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "This field marks the task due date. Supports Unix timestamp in milliseconds or UTC format"
           },
           "additional_properties": {
             "type": "object",

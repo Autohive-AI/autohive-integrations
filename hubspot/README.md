@@ -444,10 +444,16 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Description:** Create a new HubSpot task and optionally associate it with contacts, companies, or deals
 - **Inputs:**
   - `task_body` (required): The body content of the task
+  - `timestamp` (required): Task due date timestamp in milliseconds (HubSpot `hs_timestamp`)
+  - `task_subject` (optional): Task title
+  - `task_status` (optional): Task status (e.g., `COMPLETED`, `NOT_STARTED`)
+  - `task_priority` (optional): Task priority (e.g., `LOW`, `MEDIUM`, `HIGH`)
+  - `task_type` (optional): Task type (e.g., `EMAIL`, `CALL`, `TODO`)
+  - `owner_id` (optional): HubSpot owner ID
+  - `reminder_timestamp` (optional): Reminder timestamp in milliseconds
   - `contact_id` (optional): Contact ID to associate the task with
   - `company_id` (optional): Company ID to associate the task with
   - `deal_id` (optional): Deal ID to associate the task with
-  - `timestamp` (optional): Custom timestamp in milliseconds
 - **Outputs:**
   - `task`: Created task object
   - `success`: Boolean indicating creation status
@@ -481,6 +487,12 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Inputs:**
   - `task_id` (required): The ID of the task to update
   - `task_body` (optional): New content for the task body
+  - `task_subject` (optional): Updated task title
+  - `task_status` (optional): Updated task status
+  - `task_priority` (optional): Updated task priority
+  - `task_type` (optional): Updated task type
+  - `owner_id` (optional): Updated owner ID
+  - `reminder_timestamp` (optional): Updated reminder timestamp in milliseconds
   - `timestamp` (optional): Updated timestamp in milliseconds
   - `additional_properties` (optional): Additional task properties to update
 - **Outputs:**
