@@ -252,6 +252,183 @@ class TestGetListMemberships:
         assert "list_id" in data
 
 
+class TestGetListMembers:
+    LIST_META_RESPONSE = FetchResponse(
+        status=200,
+        headers={},
+        data={
+            "list": {
+                "listId": "42",
+                "name": "Newsletter",
+                "size": 2,
+                "processingType": "MANUAL",
+                "objectTypeId": "0-1",
+            }
+        },
+    )
+
+    MEMBERSHIPS_RESPONSE = FetchResponse(
+        status=200,
+        headers={},
+        data={
+            "results": [
+                {"recordId": "101", "membershipTimestamp": "2025-01-01T00:00:00Z"},
+                {"recordId": "102", "membershipTimestamp": "2025-01-02T00:00:00Z"},
+            ],
+            "paging": {},
+        },
+    )
+
+    CONTACTS_RESPONSE = FetchResponse(
+        status=200,
+        headers={},
+        data={
+            "results": [
+                {"id": "101", "properties": {"email": "a@example.com", "firstname": "Alice"}},
+                {"id": "102", "properties": {"email": "b@example.com", "firstname": "Bob"}},
+            ]
+        },
+    )
+
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.side_effect = [
+            self.LIST_META_RESPONSE,
+            self.MEMBERSHIPS_RESPONSE,
+            self.CONTACTS_RESPONSE,
+        ]
+
+        result = await hubspot.execute_action("get_list_members", {"list_id": "42"}, mock_context)
+
+        data = result.result.data
+        assert data["retrieved_count"] == 2
+        assert data["total_members"] == 2
+        assert data["list_metadata"]["name"] == "Newsletter"
+        assert len(data["members"]) == 2
+        assert data["members"][0]["email"] == "a@example.com"
+        assert data["members"][1]["email"] == "b@example.com"
+
+    @pytest.mark.asyncio
+    async def test_request_sequence(self, mock_context):
+        mock_context.fetch.side_effect = [
+            self.LIST_META_RESPONSE,
+            self.MEMBERSHIPS_RESPONSE,
+            self.CONTACTS_RESPONSE,
+        ]
+
+        await hubspot.execute_action("get_list_members", {"list_id": "42"}, mock_context)
+
+        assert mock_context.fetch.call_count == 3
+        # Call 1: list metadata
+        assert "/crm/v3/lists/42" in mock_context.fetch.call_args_list[0].args[0]
+        # Call 2: memberships
+        assert "/crm/v3/lists/42/memberships" in mock_context.fetch.call_args_list[1].args[0]
+        # Call 3: batch contact read
+        assert "/contacts/batch/read" in mock_context.fetch.call_args_list[2].args[0]
+
+    @pytest.mark.asyncio
+    async def test_batch_contact_payload(self, mock_context):
+        mock_context.fetch.side_effect = [
+            self.LIST_META_RESPONSE,
+            self.MEMBERSHIPS_RESPONSE,
+            self.CONTACTS_RESPONSE,
+        ]
+
+        await hubspot.execute_action("get_list_members", {"list_id": "42"}, mock_context)
+
+        batch_call = mock_context.fetch.call_args_list[2]
+        assert batch_call.kwargs["method"] == "POST"
+        payload = batch_call.kwargs["json"]
+        ids = [inp["id"] for inp in payload["inputs"]]
+        assert "101" in ids
+        assert "102" in ids
+
+    @pytest.mark.asyncio
+    async def test_membership_timestamps_included(self, mock_context):
+        mock_context.fetch.side_effect = [
+            self.LIST_META_RESPONSE,
+            self.MEMBERSHIPS_RESPONSE,
+            self.CONTACTS_RESPONSE,
+        ]
+
+        result = await hubspot.execute_action("get_list_members", {"list_id": "42"}, mock_context)
+
+        members = result.result.data["members"]
+        assert members[0]["membership_timestamp"] == "2025-01-01T00:00:00Z"
+        assert members[1]["membership_timestamp"] == "2025-01-02T00:00:00Z"
+
+    @pytest.mark.asyncio
+    async def test_timestamps_excluded_when_disabled(self, mock_context):
+        mock_context.fetch.side_effect = [
+            self.LIST_META_RESPONSE,
+            self.MEMBERSHIPS_RESPONSE,
+            self.CONTACTS_RESPONSE,
+        ]
+
+        result = await hubspot.execute_action(
+            "get_list_members",
+            {"list_id": "42", "include_membership_timestamps": False},
+            mock_context,
+        )
+
+        members = result.result.data["members"]
+        assert "membership_timestamp" not in members[0]
+
+    @pytest.mark.asyncio
+    async def test_response_structure(self, mock_context):
+        mock_context.fetch.side_effect = [
+            self.LIST_META_RESPONSE,
+            self.MEMBERSHIPS_RESPONSE,
+            self.CONTACTS_RESPONSE,
+        ]
+
+        result = await hubspot.execute_action("get_list_members", {"list_id": "42"}, mock_context)
+
+        data = result.result.data
+        assert "list_metadata" in data
+        assert "members" in data
+        assert "total_members" in data
+        assert "retrieved_count" in data
+        assert "performance_stats" in data
+        assert "total_api_calls" in data["performance_stats"]
+
+    @pytest.mark.asyncio
+    async def test_empty_list(self, mock_context):
+        empty_memberships = FetchResponse(
+            status=200, headers={}, data={"results": [], "paging": {}}
+        )
+        mock_context.fetch.side_effect = [
+            self.LIST_META_RESPONSE,
+            empty_memberships,
+        ]
+
+        result = await hubspot.execute_action("get_list_members", {"list_id": "42"}, mock_context)
+
+        data = result.result.data
+        assert data["members"] == []
+        assert data["retrieved_count"] == 0
+        # No batch contact call needed for empty list
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_custom_contact_properties(self, mock_context):
+        mock_context.fetch.side_effect = [
+            self.LIST_META_RESPONSE,
+            self.MEMBERSHIPS_RESPONSE,
+            self.CONTACTS_RESPONSE,
+        ]
+
+        await hubspot.execute_action(
+            "get_list_members",
+            {"list_id": "42", "contact_properties": ["email", "company"]},
+            mock_context,
+        )
+
+        batch_call = mock_context.fetch.call_args_list[2]
+        payload = batch_call.kwargs["json"]
+        assert payload["properties"] == ["email", "company"]
+
+
 # ---- Associations ----
 
 
