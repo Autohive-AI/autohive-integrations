@@ -6,7 +6,7 @@ Connects Autohive to the ClickUp API to enable task management, list organizatio
 
 This integration provides a comprehensive connection to ClickUp's project management platform. It allows users to automate task creation, list management, folder and space organization, team collaboration, and workflow automation directly from Autohive.
 
-The integration uses ClickUp API v2 with OAuth 2.0 authentication and implements 22 comprehensive actions covering tasks, lists, folders, spaces, teams, and comments.
+The integration uses ClickUp API v2 with OAuth 2.0 authentication and implements 23 comprehensive actions covering tasks, lists, folders, spaces, teams, comments, and attachments.
 
 ## Setup & Authentication
 
@@ -78,7 +78,7 @@ Example error response:
 
 ## Actions
 
-### Tasks (5 actions)
+### Tasks (6 actions)
 
 #### `create_task`
 Creates a new task in a list.
@@ -162,6 +162,22 @@ Get tasks from a list with optional filtering.
 
 **Outputs:**
 - `tasks`: Array of task objects
+- `result`: Success status (boolean)
+- `error`: Error message if action failed (optional)
+
+---
+
+#### `create_task_attachment`
+Uploads a file attachment to a task. Uses the ClickUp v3 Attachments API. Upload the file directly in the conversation to attach it.
+
+**Inputs:**
+- `workspace_id` (required): The ID of the workspace/team that owns the task
+- `task_id` (required): The ID of the task to attach the file to
+- `file` (required): File to upload
+- `filename` (optional): Override for the attachment filename
+
+**Outputs:**
+- `attachment`: Created attachment object (includes `id`, `url`, `title`, `type`, `size`, etc.)
 - `result`: Success status (boolean)
 - `error`: Error message if action failed (optional)
 
@@ -485,8 +501,8 @@ To test the integration:
 
 ## Version History
 
-- **1.0.0** - Initial release with 22 comprehensive actions
-  - Tasks: create, get, update, delete, get_tasks (5 actions)
+- **1.0.0** - Initial release with 23 comprehensive actions
+  - Tasks: create, get, update, delete, get_tasks, create_task_attachment (6 actions)
   - Lists: create, get, update, delete, get_lists (5 actions)
   - Folders: create, get, update, delete, get_folders (5 actions)
   - Spaces: get, get_spaces (2 actions)
