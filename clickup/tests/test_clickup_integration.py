@@ -33,6 +33,7 @@ sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
 from unittest.mock import MagicMock, AsyncMock  # noqa: E402
+from autohive_integrations_sdk import FetchResponse  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("clickup_mod", os.path.join(_parent, "clickup.py"))
 _mod = importlib.util.module_from_spec(_spec)
@@ -62,10 +63,22 @@ def live_context():
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
         merged_headers = dict(headers or {})
-        merged_headers["Authorization"] = ACCESS_TOKEN
+        merged_headers["Authorization"] = f"Bearer {ACCESS_TOKEN}"
+        print(f"\n[HTTP] {method} {url}")
+        if params:
+            print(f"[HTTP]   params: {params}")
+        if json:
+            print(f"[HTTP]   body:   {json}")
         async with aiohttp.ClientSession() as session:
             async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
-                return await resp.json()
+                data = await resp.json(content_type=None)
+                print(f"[HTTP]   status: {resp.status}")
+                print(f"[HTTP]   data:   {data}")
+                return FetchResponse(
+                    status=resp.status,
+                    headers=dict(resp.headers),
+                    data=data,
+                )
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
@@ -300,3 +313,186 @@ class TestGetTaskComments:
         data = result.result.data
         assert data["result"] is True
         assert "comments" in data
+
+
+# ---------------------------------------------------------------------------
+# Destructive tests (write operations)
+# These create, update, or delete real data in the connected ClickUp workspace.
+# Each test cleans up after itself when possible (e.g. deletes what it creates).
+#
+# Run with:
+#     pytest tests/test_clickup_integration.py -m "integration and destructive"
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.destructive
+class TestFolderLifecycle:
+    """Create → update → delete a folder."""
+
+    @pytest.mark.asyncio
+    async def test_full_lifecycle(self, live_context):
+        space_id = await _get_first_space_id(live_context)
+
+        # Create
+        create = await clickup.execute_action(
+            "create_folder",
+            {"space_id": space_id, "name": f"Integration test folder {os.getpid()}"},
+            live_context,
+        )
+        assert create.result.data["result"] is True
+        folder_id = create.result.data["folder"]["id"]
+        assert folder_id
+
+        try:
+            # Update
+            update = await clickup.execute_action(
+                "update_folder",
+                {"folder_id": folder_id, "name": f"Renamed folder {os.getpid()}"},
+                live_context,
+            )
+            assert update.result.data["result"] is True
+        finally:
+            # Delete (always runs — cleanup even if update asserts fail)
+            delete = await clickup.execute_action("delete_folder", {"folder_id": folder_id}, live_context)
+            assert delete.result.data["result"] is True
+
+
+@pytest.mark.destructive
+class TestListLifecycle:
+    """Create → update → delete a list inside the first folder."""
+
+    @pytest.mark.asyncio
+    async def test_full_lifecycle(self, live_context):
+        folder_id = await _get_first_folder_id(live_context)
+
+        create = await clickup.execute_action(
+            "create_list",
+            {"folder_id": folder_id, "name": f"Integration test list {os.getpid()}"},
+            live_context,
+        )
+        assert create.result.data["result"] is True
+        list_id = create.result.data["list"]["id"]
+
+        try:
+            update = await clickup.execute_action(
+                "update_list",
+                {"list_id": list_id, "name": f"Renamed list {os.getpid()}"},
+                live_context,
+            )
+            assert update.result.data["result"] is True
+        finally:
+            delete = await clickup.execute_action("delete_list", {"list_id": list_id}, live_context)
+            assert delete.result.data["result"] is True
+
+
+@pytest.mark.destructive
+class TestTaskLifecycle:
+    """Create → update → delete a task in the first list."""
+
+    @pytest.mark.asyncio
+    async def test_full_lifecycle(self, live_context):
+        list_id = await _get_first_list_id(live_context)
+
+        create = await clickup.execute_action(
+            "create_task",
+            {
+                "list_id": list_id,
+                "name": f"Integration test task {os.getpid()}",
+                "description": "Created by automated integration test",
+                "priority": 3,
+            },
+            live_context,
+        )
+        assert create.result.data["result"] is True
+        task_id = create.result.data["task"]["id"]
+
+        try:
+            update = await clickup.execute_action(
+                "update_task",
+                {"task_id": task_id, "description": "Updated by automated integration test"},
+                live_context,
+            )
+            assert update.result.data["result"] is True
+        finally:
+            delete = await clickup.execute_action("delete_task", {"task_id": task_id}, live_context)
+            assert delete.result.data["result"] is True
+
+
+@pytest.mark.destructive
+class TestCommentLifecycle:
+    """Create a task, add a comment, update it, delete the comment and task."""
+
+    @pytest.mark.asyncio
+    async def test_full_lifecycle(self, live_context):
+        list_id = await _get_first_list_id(live_context)
+
+        # Need a task to attach comments to
+        task_create = await clickup.execute_action(
+            "create_task",
+            {"list_id": list_id, "name": f"Comment host task {os.getpid()}"},
+            live_context,
+        )
+        task_id = task_create.result.data["task"]["id"]
+
+        try:
+            comment_create = await clickup.execute_action(
+                "create_task_comment",
+                {"task_id": task_id, "comment_text": "Integration test comment"},
+                live_context,
+            )
+            assert comment_create.result.data["result"] is True
+            # ClickUp returns the new comment's ID at response["id"]
+            comment_id = str(comment_create.result.data["comment"]["id"])
+
+            try:
+                update = await clickup.execute_action(
+                    "update_comment",
+                    {"comment_id": comment_id, "comment_text": "Updated integration test comment"},
+                    live_context,
+                )
+                assert update.result.data["result"] is True
+            finally:
+                delete_comment = await clickup.execute_action(
+                    "delete_comment", {"comment_id": comment_id}, live_context
+                )
+                assert delete_comment.result.data["result"] is True
+        finally:
+            await clickup.execute_action("delete_task", {"task_id": task_id}, live_context)
+
+
+@pytest.mark.destructive
+class TestTaskAttachment:
+    """Create a task, upload a 1x1 PNG via the v3 attachments endpoint, delete the task."""
+
+    @pytest.mark.asyncio
+    async def test_upload_attachment(self, live_context):
+        team_id = await _get_first_team_id(live_context)
+        list_id = await _get_first_list_id(live_context)
+
+        task_create = await clickup.execute_action(
+            "create_task",
+            {"list_id": list_id, "name": f"Attachment host task {os.getpid()}"},
+            live_context,
+        )
+        task_id = task_create.result.data["task"]["id"]
+
+        try:
+            # 1x1 transparent PNG as base64
+            png_b64 = (
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+            )
+            result = await clickup.execute_action(
+                "create_task_attachment",
+                {
+                    "workspace_id": team_id,
+                    "task_id": task_id,
+                    "file": {"name": "pixel.png", "content": png_b64, "contentType": "image/png"},
+                },
+                live_context,
+            )
+            assert result.result.data["result"] is True, (
+                f"Attachment upload failed: {result.result.data.get('error')}"
+            )
+            assert "attachment" in result.result.data
+        finally:
+            await clickup.execute_action("delete_task", {"task_id": task_id}, live_context)

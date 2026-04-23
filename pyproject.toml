@@ -9,6 +9,7 @@ python_functions = ["test_*"]
 markers = [
     "unit: Pure unit tests — mocked, no credentials needed, safe for CI",
     "integration: Integration tests — require real API credentials, never run in CI",
+    "destructive: Integration tests that create, update, or delete real data — opt-in only",
 ]
 # --import-mode=importlib: avoids __init__.py package resolution issues
 # -m unit: only run CI-safe mocked tests by default
