@@ -18,9 +18,7 @@ sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "clickup_mod", os.path.join(_parent, "clickup.py")
-)
+_spec = importlib.util.spec_from_file_location("clickup_mod", os.path.join(_parent, "clickup.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -60,17 +58,13 @@ class TestConfigValidation:
 class TestGetAuthorizedTeams:
     @pytest.mark.asyncio
     async def test_returns_teams(self, mock_context):
-        mock_context.fetch.return_value = {
-            "teams": [{"id": "t1", "name": "Workspace 1"}]
-        }
+        mock_context.fetch.return_value = {"teams": [{"id": "t1", "name": "Workspace 1"}]}
 
         result = await clickup.execute_action("get_authorized_teams", {}, mock_context)
 
         assert result.result.data["result"] is True
         assert result.result.data["teams"] == [{"id": "t1", "name": "Workspace 1"}]
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/team", method="GET"
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/team", method="GET")
 
     @pytest.mark.asyncio
     async def test_error(self, mock_context):
@@ -93,23 +87,17 @@ class TestGetSpaces:
     async def test_returns_spaces(self, mock_context):
         mock_context.fetch.return_value = {"spaces": [{"id": "s1", "name": "Space 1"}]}
 
-        result = await clickup.execute_action(
-            "get_spaces", {"team_id": "t1"}, mock_context
-        )
+        result = await clickup.execute_action("get_spaces", {"team_id": "t1"}, mock_context)
 
         assert result.result.data["result"] is True
         assert result.result.data["spaces"] == [{"id": "s1", "name": "Space 1"}]
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/team/t1/space", method="GET", params=None
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/team/t1/space", method="GET", params=None)
 
     @pytest.mark.asyncio
     async def test_with_archived(self, mock_context):
         mock_context.fetch.return_value = {"spaces": []}
 
-        await clickup.execute_action(
-            "get_spaces", {"team_id": "t1", "archived": True}, mock_context
-        )
+        await clickup.execute_action("get_spaces", {"team_id": "t1", "archived": True}, mock_context)
 
         mock_context.fetch.assert_called_once_with(
             f"{CLICKUP_API_BASE_URL}/team/t1/space",
@@ -121,9 +109,7 @@ class TestGetSpaces:
     async def test_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Timeout")
 
-        result = await clickup.execute_action(
-            "get_spaces", {"team_id": "t1"}, mock_context
-        )
+        result = await clickup.execute_action("get_spaces", {"team_id": "t1"}, mock_context)
 
         assert result.result.data["result"] is False
         assert result.result.data["spaces"] == []
@@ -134,23 +120,17 @@ class TestGetSpace:
     async def test_returns_space(self, mock_context):
         mock_context.fetch.return_value = {"id": "s1", "name": "My Space"}
 
-        result = await clickup.execute_action(
-            "get_space", {"space_id": "s1"}, mock_context
-        )
+        result = await clickup.execute_action("get_space", {"space_id": "s1"}, mock_context)
 
         assert result.result.data["result"] is True
         assert result.result.data["space"] == {"id": "s1", "name": "My Space"}
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/space/s1", method="GET"
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/space/s1", method="GET")
 
     @pytest.mark.asyncio
     async def test_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Not found")
 
-        result = await clickup.execute_action(
-            "get_space", {"space_id": "s1"}, mock_context
-        )
+        result = await clickup.execute_action("get_space", {"space_id": "s1"}, mock_context)
 
         assert result.result.data["result"] is False
         assert result.result.data["space"] == {}
@@ -166,9 +146,7 @@ class TestCreateFolder:
     async def test_creates_folder(self, mock_context):
         mock_context.fetch.return_value = {"id": "f1", "name": "New Folder"}
 
-        result = await clickup.execute_action(
-            "create_folder", {"space_id": "s1", "name": "New Folder"}, mock_context
-        )
+        result = await clickup.execute_action("create_folder", {"space_id": "s1", "name": "New Folder"}, mock_context)
 
         assert result.result.data["result"] is True
         assert result.result.data["folder"] == {"id": "f1", "name": "New Folder"}
@@ -182,9 +160,7 @@ class TestCreateFolder:
     async def test_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Forbidden")
 
-        result = await clickup.execute_action(
-            "create_folder", {"space_id": "s1", "name": "Fail"}, mock_context
-        )
+        result = await clickup.execute_action("create_folder", {"space_id": "s1", "name": "Fail"}, mock_context)
 
         assert result.result.data["result"] is False
         assert result.result.data["folder"] == {}
@@ -195,15 +171,11 @@ class TestGetFolder:
     async def test_returns_folder(self, mock_context):
         mock_context.fetch.return_value = {"id": "f1", "name": "Folder 1"}
 
-        result = await clickup.execute_action(
-            "get_folder", {"folder_id": "f1"}, mock_context
-        )
+        result = await clickup.execute_action("get_folder", {"folder_id": "f1"}, mock_context)
 
         assert result.result.data["result"] is True
         assert result.result.data["folder"]["id"] == "f1"
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/folder/f1", method="GET"
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/folder/f1", method="GET")
 
 
 class TestUpdateFolder:
@@ -211,9 +183,7 @@ class TestUpdateFolder:
     async def test_updates_folder(self, mock_context):
         mock_context.fetch.return_value = {"id": "f1", "name": "Renamed"}
 
-        result = await clickup.execute_action(
-            "update_folder", {"folder_id": "f1", "name": "Renamed"}, mock_context
-        )
+        result = await clickup.execute_action("update_folder", {"folder_id": "f1", "name": "Renamed"}, mock_context)
 
         assert result.result.data["result"] is True
         assert result.result.data["folder"]["name"] == "Renamed"
@@ -227,22 +197,16 @@ class TestDeleteFolder:
     async def test_deletes_folder(self, mock_context):
         mock_context.fetch.return_value = None
 
-        result = await clickup.execute_action(
-            "delete_folder", {"folder_id": "f1"}, mock_context
-        )
+        result = await clickup.execute_action("delete_folder", {"folder_id": "f1"}, mock_context)
 
         assert result.result.data["result"] is True
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/folder/f1", method="DELETE"
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/folder/f1", method="DELETE")
 
     @pytest.mark.asyncio
     async def test_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Server error")
 
-        result = await clickup.execute_action(
-            "delete_folder", {"folder_id": "f1"}, mock_context
-        )
+        result = await clickup.execute_action("delete_folder", {"folder_id": "f1"}, mock_context)
 
         assert result.result.data["result"] is False
 
@@ -252,9 +216,7 @@ class TestGetFolders:
     async def test_returns_folders(self, mock_context):
         mock_context.fetch.return_value = {"folders": [{"id": "f1"}, {"id": "f2"}]}
 
-        result = await clickup.execute_action(
-            "get_folders", {"space_id": "s1"}, mock_context
-        )
+        result = await clickup.execute_action("get_folders", {"space_id": "s1"}, mock_context)
 
         assert result.result.data["result"] is True
         assert len(result.result.data["folders"]) == 2
@@ -263,9 +225,7 @@ class TestGetFolders:
     async def test_with_archived(self, mock_context):
         mock_context.fetch.return_value = {"folders": []}
 
-        await clickup.execute_action(
-            "get_folders", {"space_id": "s1", "archived": False}, mock_context
-        )
+        await clickup.execute_action("get_folders", {"space_id": "s1", "archived": False}, mock_context)
 
         mock_context.fetch.assert_called_once_with(
             f"{CLICKUP_API_BASE_URL}/space/s1/folder",
@@ -277,9 +237,7 @@ class TestGetFolders:
     async def test_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Error")
 
-        result = await clickup.execute_action(
-            "get_folders", {"space_id": "s1"}, mock_context
-        )
+        result = await clickup.execute_action("get_folders", {"space_id": "s1"}, mock_context)
 
         assert result.result.data["result"] is False
         assert result.result.data["folders"] == []
@@ -295,9 +253,7 @@ class TestCreateList:
     async def test_creates_list_in_folder(self, mock_context):
         mock_context.fetch.return_value = {"id": "l1", "name": "My List"}
 
-        result = await clickup.execute_action(
-            "create_list", {"folder_id": "f1", "name": "My List"}, mock_context
-        )
+        result = await clickup.execute_action("create_list", {"folder_id": "f1", "name": "My List"}, mock_context)
 
         assert result.result.data["result"] is True
         assert result.result.data["list"]["name"] == "My List"
@@ -311,9 +267,7 @@ class TestCreateList:
     async def test_creates_list_in_space(self, mock_context):
         mock_context.fetch.return_value = {"id": "l2", "name": "Space List"}
 
-        result = await clickup.execute_action(
-            "create_list", {"space_id": "s1", "name": "Space List"}, mock_context
-        )
+        result = await clickup.execute_action("create_list", {"space_id": "s1", "name": "Space List"}, mock_context)
 
         assert result.result.data["result"] is True
         mock_context.fetch.assert_called_once_with(
@@ -324,9 +278,7 @@ class TestCreateList:
 
     @pytest.mark.asyncio
     async def test_missing_parent_returns_error(self, mock_context):
-        result = await clickup.execute_action(
-            "create_list", {"name": "Orphan"}, mock_context
-        )
+        result = await clickup.execute_action("create_list", {"name": "Orphan"}, mock_context)
 
         assert result.result.data["result"] is False
         assert "folder_id or space_id" in result.result.data["error"]
@@ -357,15 +309,11 @@ class TestGetList:
     async def test_returns_list(self, mock_context):
         mock_context.fetch.return_value = {"id": "l1", "name": "List 1"}
 
-        result = await clickup.execute_action(
-            "get_list", {"list_id": "l1"}, mock_context
-        )
+        result = await clickup.execute_action("get_list", {"list_id": "l1"}, mock_context)
 
         assert result.result.data["result"] is True
         assert result.result.data["list"]["id"] == "l1"
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/list/l1", method="GET"
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/list/l1", method="GET")
 
 
 class TestUpdateList:
@@ -373,9 +321,7 @@ class TestUpdateList:
     async def test_updates_list(self, mock_context):
         mock_context.fetch.return_value = {"id": "l1", "name": "Updated"}
 
-        result = await clickup.execute_action(
-            "update_list", {"list_id": "l1", "name": "Updated"}, mock_context
-        )
+        result = await clickup.execute_action("update_list", {"list_id": "l1", "name": "Updated"}, mock_context)
 
         assert result.result.data["result"] is True
         call_json = mock_context.fetch.call_args.kwargs["json"]
@@ -387,14 +333,10 @@ class TestDeleteList:
     async def test_deletes_list(self, mock_context):
         mock_context.fetch.return_value = None
 
-        result = await clickup.execute_action(
-            "delete_list", {"list_id": "l1"}, mock_context
-        )
+        result = await clickup.execute_action("delete_list", {"list_id": "l1"}, mock_context)
 
         assert result.result.data["result"] is True
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/list/l1", method="DELETE"
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/list/l1", method="DELETE")
 
 
 class TestGetLists:
@@ -402,28 +344,20 @@ class TestGetLists:
     async def test_returns_lists_from_folder(self, mock_context):
         mock_context.fetch.return_value = {"lists": [{"id": "l1"}, {"id": "l2"}]}
 
-        result = await clickup.execute_action(
-            "get_lists", {"folder_id": "f1"}, mock_context
-        )
+        result = await clickup.execute_action("get_lists", {"folder_id": "f1"}, mock_context)
 
         assert result.result.data["result"] is True
         assert len(result.result.data["lists"]) == 2
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/folder/f1/list", method="GET", params=None
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/folder/f1/list", method="GET", params=None)
 
     @pytest.mark.asyncio
     async def test_returns_lists_from_space(self, mock_context):
         mock_context.fetch.return_value = {"lists": []}
 
-        result = await clickup.execute_action(
-            "get_lists", {"space_id": "s1"}, mock_context
-        )
+        result = await clickup.execute_action("get_lists", {"space_id": "s1"}, mock_context)
 
         assert result.result.data["result"] is True
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/space/s1/list", method="GET", params=None
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/space/s1/list", method="GET", params=None)
 
     @pytest.mark.asyncio
     async def test_missing_parent_returns_error(self, mock_context):
@@ -443,9 +377,7 @@ class TestCreateTask:
     async def test_creates_task(self, mock_context):
         mock_context.fetch.return_value = {"id": "task1", "name": "New Task"}
 
-        result = await clickup.execute_action(
-            "create_task", {"list_id": "l1", "name": "New Task"}, mock_context
-        )
+        result = await clickup.execute_action("create_task", {"list_id": "l1", "name": "New Task"}, mock_context)
 
         assert result.result.data["result"] is True
         assert result.result.data["task"]["name"] == "New Task"
@@ -483,9 +415,7 @@ class TestCreateTask:
     async def test_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("API error")
 
-        result = await clickup.execute_action(
-            "create_task", {"list_id": "l1", "name": "Fail"}, mock_context
-        )
+        result = await clickup.execute_action("create_task", {"list_id": "l1", "name": "Fail"}, mock_context)
 
         assert result.result.data["result"] is False
         assert result.result.data["task"] == {}
@@ -496,23 +426,17 @@ class TestGetTask:
     async def test_returns_task(self, mock_context):
         mock_context.fetch.return_value = {"id": "task1", "name": "My Task"}
 
-        result = await clickup.execute_action(
-            "get_task", {"task_id": "task1"}, mock_context
-        )
+        result = await clickup.execute_action("get_task", {"task_id": "task1"}, mock_context)
 
         assert result.result.data["result"] is True
         assert result.result.data["task"]["id"] == "task1"
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/task/task1", method="GET", params=None
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/task/task1", method="GET", params=None)
 
     @pytest.mark.asyncio
     async def test_with_subtasks(self, mock_context):
         mock_context.fetch.return_value = {"id": "task1", "subtasks": []}
 
-        await clickup.execute_action(
-            "get_task", {"task_id": "task1", "include_subtasks": True}, mock_context
-        )
+        await clickup.execute_action("get_task", {"task_id": "task1", "include_subtasks": True}, mock_context)
 
         mock_context.fetch.assert_called_once_with(
             f"{CLICKUP_API_BASE_URL}/task/task1",
@@ -536,9 +460,7 @@ class TestUpdateTask:
         call_json = mock_context.fetch.call_args.kwargs["json"]
         assert call_json["name"] == "Updated"
         assert call_json["status"] == "Complete"
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/task/task1", method="PUT", json=call_json
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/task/task1", method="PUT", json=call_json)
 
 
 class TestDeleteTask:
@@ -546,22 +468,16 @@ class TestDeleteTask:
     async def test_deletes_task(self, mock_context):
         mock_context.fetch.return_value = None
 
-        result = await clickup.execute_action(
-            "delete_task", {"task_id": "task1"}, mock_context
-        )
+        result = await clickup.execute_action("delete_task", {"task_id": "task1"}, mock_context)
 
         assert result.result.data["result"] is True
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/task/task1", method="DELETE"
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/task/task1", method="DELETE")
 
     @pytest.mark.asyncio
     async def test_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Not found")
 
-        result = await clickup.execute_action(
-            "delete_task", {"task_id": "task1"}, mock_context
-        )
+        result = await clickup.execute_action("delete_task", {"task_id": "task1"}, mock_context)
 
         assert result.result.data["result"] is False
 
@@ -571,9 +487,7 @@ class TestGetTasks:
     async def test_returns_tasks(self, mock_context):
         mock_context.fetch.return_value = {"tasks": [{"id": "t1"}, {"id": "t2"}]}
 
-        result = await clickup.execute_action(
-            "get_tasks", {"list_id": "l1"}, mock_context
-        )
+        result = await clickup.execute_action("get_tasks", {"list_id": "l1"}, mock_context)
 
         assert result.result.data["result"] is True
         assert len(result.result.data["tasks"]) == 2
@@ -604,9 +518,7 @@ class TestGetTasks:
     async def test_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Error")
 
-        result = await clickup.execute_action(
-            "get_tasks", {"list_id": "l1"}, mock_context
-        )
+        result = await clickup.execute_action("get_tasks", {"list_id": "l1"}, mock_context)
 
         assert result.result.data["result"] is False
         assert result.result.data["tasks"] == []
@@ -633,9 +545,7 @@ class TestCreateTaskAttachment:
             "file": {"name": "empty.txt", "content": "", "contentType": "text/plain"},
         }
 
-        result = await clickup.execute_action(
-            "create_task_attachment", inputs, mock_context_with_auth
-        )
+        result = await clickup.execute_action("create_task_attachment", inputs, mock_context_with_auth)
 
         assert result.result.data["result"] is False
         assert "no content" in result.result.data["error"].lower()
@@ -652,15 +562,10 @@ class TestCreateTaskAttachment:
             },
         }
 
-        result = await clickup.execute_action(
-            "create_task_attachment", inputs, mock_context_with_auth
-        )
+        result = await clickup.execute_action("create_task_attachment", inputs, mock_context_with_auth)
 
         assert result.result.data["result"] is False
-        assert (
-            "decode" in result.result.data["error"].lower()
-            or "base64" in result.result.data["error"].lower()
-        )
+        assert "decode" in result.result.data["error"].lower() or "base64" in result.result.data["error"].lower()
 
     @pytest.mark.asyncio
     async def test_no_auth_token(self, mock_context):
@@ -676,15 +581,10 @@ class TestCreateTaskAttachment:
             },
         }
 
-        result = await clickup.execute_action(
-            "create_task_attachment", inputs, mock_context
-        )
+        result = await clickup.execute_action("create_task_attachment", inputs, mock_context)
 
         assert result.result.data["result"] is False
-        assert (
-            "authentication" in result.result.data["error"].lower()
-            or "token" in result.result.data["error"].lower()
-        )
+        assert "authentication" in result.result.data["error"].lower() or "token" in result.result.data["error"].lower()
 
     @pytest.mark.asyncio
     async def test_successful_upload(self, mock_context_with_auth):
@@ -700,9 +600,7 @@ class TestCreateTaskAttachment:
 
         mock_resp = MagicMock()
         mock_resp.status = 200
-        mock_resp.json = AsyncMock(
-            return_value={"id": "att1", "url": "https://example.com/att1"}
-        )
+        mock_resp.json = AsyncMock(return_value={"id": "att1", "url": "https://example.com/att1"})
         mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
         mock_resp.__aexit__ = AsyncMock(return_value=False)
 
@@ -712,9 +610,7 @@ class TestCreateTaskAttachment:
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
         with patch("aiohttp.ClientSession", return_value=mock_session):
-            result = await clickup.execute_action(
-                "create_task_attachment", inputs, mock_context_with_auth
-            )
+            result = await clickup.execute_action("create_task_attachment", inputs, mock_context_with_auth)
 
         assert result.result.data["result"] is True
         assert result.result.data["attachment"] == {
@@ -746,9 +642,7 @@ class TestCreateTaskAttachment:
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
         with patch("aiohttp.ClientSession", return_value=mock_session):
-            result = await clickup.execute_action(
-                "create_task_attachment", inputs, mock_context_with_auth
-            )
+            result = await clickup.execute_action("create_task_attachment", inputs, mock_context_with_auth)
 
         assert result.result.data["result"] is False
         assert "404" in result.result.data["error"]
@@ -816,23 +710,17 @@ class TestGetTaskComments:
     async def test_returns_comments(self, mock_context):
         mock_context.fetch.return_value = {"comments": [{"id": "c1"}, {"id": "c2"}]}
 
-        result = await clickup.execute_action(
-            "get_task_comments", {"task_id": "task1"}, mock_context
-        )
+        result = await clickup.execute_action("get_task_comments", {"task_id": "task1"}, mock_context)
 
         assert result.result.data["result"] is True
         assert len(result.result.data["comments"]) == 2
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/task/task1/comment", method="GET"
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/task/task1/comment", method="GET")
 
     @pytest.mark.asyncio
     async def test_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Error")
 
-        result = await clickup.execute_action(
-            "get_task_comments", {"task_id": "task1"}, mock_context
-        )
+        result = await clickup.execute_action("get_task_comments", {"task_id": "task1"}, mock_context)
 
         assert result.result.data["result"] is False
         assert result.result.data["comments"] == []
@@ -863,21 +751,15 @@ class TestDeleteComment:
     async def test_deletes_comment(self, mock_context):
         mock_context.fetch.return_value = None
 
-        result = await clickup.execute_action(
-            "delete_comment", {"comment_id": "c1"}, mock_context
-        )
+        result = await clickup.execute_action("delete_comment", {"comment_id": "c1"}, mock_context)
 
         assert result.result.data["result"] is True
-        mock_context.fetch.assert_called_once_with(
-            f"{CLICKUP_API_BASE_URL}/comment/c1", method="DELETE"
-        )
+        mock_context.fetch.assert_called_once_with(f"{CLICKUP_API_BASE_URL}/comment/c1", method="DELETE")
 
     @pytest.mark.asyncio
     async def test_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Error")
 
-        result = await clickup.execute_action(
-            "delete_comment", {"comment_id": "c1"}, mock_context
-        )
+        result = await clickup.execute_action("delete_comment", {"comment_id": "c1"}, mock_context)
 
         assert result.result.data["result"] is False
