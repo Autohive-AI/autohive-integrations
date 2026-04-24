@@ -2,7 +2,17 @@
 End-to-end integration tests for the Salesforce integration.
 
 These tests call the real Salesforce API and require a valid access token
-and instance URL set via environment variables (via .env or export).
+set in SALESFORCE_ACCESS_TOKEN and instance URL in SALESFORCE_INSTANCE_URL
+(via .env or export).
+
+Required env vars:
+    SALESFORCE_ACCESS_TOKEN     — OAuth access token from a connected Salesforce org
+    SALESFORCE_INSTANCE_URL     — e.g. https://yourorg.my.salesforce.com
+
+Optional env vars (skip tests that need real object IDs when not set):
+    SALESFORCE_TEST_RECORD_ID   — ID of an existing Contact record
+    SALESFORCE_TEST_TASK_ID     — ID of an existing Task record
+    SALESFORCE_TEST_EVENT_ID    — ID of an existing Event record
 
 Run with:
     pytest salesforce/tests/test_salesforce_integration.py -m integration
@@ -32,32 +42,32 @@ salesforce = _mod.salesforce
 
 pytestmark = pytest.mark.integration
 
-ACCESS_TOKEN = os.environ.get("SALESFORCE_TOKEN", "")
+ACCESS_TOKEN = os.environ.get("SALESFORCE_ACCESS_TOKEN", "")
 INSTANCE_URL = os.environ.get("SALESFORCE_INSTANCE_URL", "")
-RECORD_ID = os.environ.get("SALESFORCE_RECORD_ID", "")
-TASK_ID = os.environ.get("SALESFORCE_TASK_ID", "")
-EVENT_ID = os.environ.get("SALESFORCE_EVENT_ID", "")
+RECORD_ID = os.environ.get("SALESFORCE_TEST_RECORD_ID", "")
+TASK_ID = os.environ.get("SALESFORCE_TEST_TASK_ID", "")
+EVENT_ID = os.environ.get("SALESFORCE_TEST_EVENT_ID", "")
 
 
 def require_record_id():
     if not RECORD_ID:
-        pytest.skip("SALESFORCE_RECORD_ID not set")
+        pytest.skip("SALESFORCE_TEST_RECORD_ID not set")
 
 
 def require_task_id():
     if not TASK_ID:
-        pytest.skip("SALESFORCE_TASK_ID not set")
+        pytest.skip("SALESFORCE_TEST_TASK_ID not set")
 
 
 def require_event_id():
     if not EVENT_ID:
-        pytest.skip("SALESFORCE_EVENT_ID not set")
+        pytest.skip("SALESFORCE_TEST_EVENT_ID not set")
 
 
 @pytest.fixture
 def live_context():
     if not ACCESS_TOKEN:
-        pytest.skip("SALESFORCE_TOKEN not set — skipping integration tests")
+        pytest.skip("SALESFORCE_ACCESS_TOKEN not set — skipping integration tests")
     if not INSTANCE_URL:
         pytest.skip("SALESFORCE_INSTANCE_URL not set — skipping integration tests")
 
