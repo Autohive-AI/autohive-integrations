@@ -34,15 +34,26 @@ This integration uses **OAuth 2.0** via a Salesforce Connected App.
 
 ## Running Tests
 
+Copy `.env.example` to `.env` in the repo root and fill in your credentials:
+
 ```bash
-cd salesforce/tests
-export SALESFORCE_TOKEN=your_access_token
-export SALESFORCE_INSTANCE_URL=https://yourinstance.salesforce.com
-# Optional: set record IDs to test get/update actions
-export SALESFORCE_RECORD_ID=003XXXXXXXXXXXXXXX
-export SALESFORCE_TASK_ID=00TXXXXXXXXXXXXXXX
-export SALESFORCE_EVENT_ID=00UXXXXXXXXXXXXXXX
-python test_salesforce.py
+SALESFORCE_ACCESS_TOKEN=your_access_token
+SALESFORCE_INSTANCE_URL=https://yourorg.my.salesforce.com
+# Optional — tests that need real object IDs will skip if unset
+SALESFORCE_TEST_RECORD_ID=003XXXXXXXXXXXXXXX
+SALESFORCE_TEST_TASK_ID=00TXXXXXXXXXXXXXXX
+SALESFORCE_TEST_EVENT_ID=00UXXXXXXXXXXXXXXX
+```
+
+```bash
+# Unit tests (no credentials needed)
+pytest salesforce/ -v
+
+# Integration tests (read-only, requires .env)
+pytest salesforce/tests/test_salesforce_integration.py -m "integration and not destructive"
+
+# Destructive integration tests (updates real data)
+pytest salesforce/tests/test_salesforce_integration.py -m "integration and destructive"
 ```
 
 ## Troubleshooting
