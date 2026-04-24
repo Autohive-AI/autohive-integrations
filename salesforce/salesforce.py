@@ -1,3 +1,4 @@
+import re
 from autohive_integrations_sdk import (
     Integration,
     ExecutionContext,
@@ -6,6 +7,16 @@ from autohive_integrations_sdk import (
 )
 from typing import Any, Dict
 import os
+
+_SF_ID_RE = re.compile(r"^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$")
+
+
+def _validate_sf_id(value: str, name: str) -> str:
+    """Raise ValueError if value is not a valid 15- or 18-character Salesforce ID."""
+    if not _SF_ID_RE.match(value):
+        raise ValueError(f"Invalid Salesforce ID for {name!r}: must be 15 or 18 alphanumeric characters")
+    return value
+
 
 salesforce = Integration.load()
 
@@ -63,7 +74,7 @@ class GetRecordAction(ActionHandler):
         try:
             token, instance_url = _get_token_and_instance(context)
             object_type = inputs["object_type"]
-            record_id = inputs["record_id"]
+            record_id = _validate_sf_id(inputs["record_id"], "record_id")
             url = f"{_base_url(instance_url)}/sobjects/{object_type}/{record_id}"
 
             params = {}
@@ -82,7 +93,7 @@ class UpdateRecordAction(ActionHandler):
         try:
             token, instance_url = _get_token_and_instance(context)
             object_type = inputs["object_type"]
-            record_id = inputs["record_id"]
+            record_id = _validate_sf_id(inputs["record_id"], "record_id")
             url = f"{_base_url(instance_url)}/sobjects/{object_type}/{record_id}"
 
             await context.fetch(url, method="PATCH", headers=_headers(token), json=inputs["fields"])
@@ -231,7 +242,7 @@ class GetTaskSummaryAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             token, instance_url = _get_token_and_instance(context)
-            task_id = inputs["task_id"]
+            task_id = _validate_sf_id(inputs["task_id"], "task_id")
             fields = (
                 "Id, Subject, Status, Priority, ActivityDate, Description, "
                 "OwnerId, WhoId, WhatId, CreatedDate, LastModifiedDate"
@@ -260,7 +271,7 @@ class GetEventSummaryAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             token, instance_url = _get_token_and_instance(context)
-            event_id = inputs["event_id"]
+            event_id = _validate_sf_id(inputs["event_id"], "event_id")
             fields = (
                 "Id, Subject, StartDateTime, EndDateTime, Location, Description, "
                 "OwnerId, WhoId, WhatId, IsAllDayEvent, CreatedDate"

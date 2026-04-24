@@ -20,6 +20,7 @@ _build_task_query = _mod._build_task_query
 _build_event_query = _mod._build_event_query
 _summarise_task = _mod._summarise_task
 _summarise_event = _mod._summarise_event
+_validate_sf_id = _mod._validate_sf_id
 
 pytestmark = pytest.mark.unit
 
@@ -41,6 +42,46 @@ def mock_context():
     }
     ctx.metadata = {"instance_url": TEST_INSTANCE}
     return ctx
+
+
+# ---- ID Validation ----
+
+
+class TestValidateSfId:
+    def test_accepts_15_char_id(self):
+        assert _validate_sf_id("003000000000001", "x") == "003000000000001"
+
+    def test_accepts_18_char_id(self):
+        assert _validate_sf_id("003000000000001AAA", "x") == "003000000000001AAA"
+
+    def test_rejects_short_id(self):
+        with pytest.raises(ValueError, match="Invalid Salesforce ID"):
+            _validate_sf_id("short", "record_id")
+
+    def test_rejects_id_with_special_chars(self):
+        with pytest.raises(ValueError, match="Invalid Salesforce ID"):
+            _validate_sf_id("003abc' OR '1'='1", "record_id")
+
+    def test_rejects_empty_string(self):
+        with pytest.raises(ValueError, match="Invalid Salesforce ID"):
+            _validate_sf_id("", "task_id")
+
+    async def test_get_record_rejects_bad_id(self, mock_context):
+        result = await salesforce.execute_action(
+            "get_record", {"object_type": "Contact", "record_id": "bad-id!"}, mock_context
+        )
+        assert result.result.data["result"] is False
+        assert "Invalid Salesforce ID" in result.result.data["error"]
+
+    async def test_get_task_summary_rejects_bad_id(self, mock_context):
+        result = await salesforce.execute_action("get_task_summary", {"task_id": "bad-id!"}, mock_context)
+        assert result.result.data["result"] is False
+        assert "Invalid Salesforce ID" in result.result.data["error"]
+
+    async def test_get_event_summary_rejects_bad_id(self, mock_context):
+        result = await salesforce.execute_action("get_event_summary", {"event_id": "bad-id!"}, mock_context)
+        assert result.result.data["result"] is False
+        assert "Invalid Salesforce ID" in result.result.data["error"]
 
 
 # ---- Config Validation ----
@@ -214,7 +255,7 @@ class TestSearchRecords:
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={"records": [{"Id": "003XX", "Name": "Jane Doe"}], "totalSize": 1, "done": True},
+            data={"records": [{"Id": "003000000000001", "Name": "Jane Doe"}], "totalSize": 1, "done": True},
         )
         result = await salesforce.execute_action(
             "search_records", {"soql": "SELECT Id, Name FROM Contact LIMIT 1"}, mock_context
@@ -262,37 +303,43 @@ class TestSearchRecords:
 class TestGetRecord:
     async def test_returns_record(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"Id": "003XX", "Name": "Jane Doe", "Email": "jane@example.com"}
+            status=200, headers={}, data={"Id": "003000000000001", "Name": "Jane Doe", "Email": "jane@example.com"}
         )
         result = await salesforce.execute_action(
-            "get_record", {"object_type": "Contact", "record_id": "003XX"}, mock_context
+            "get_record", {"object_type": "Contact", "record_id": "003000000000001"}, mock_context
         )
         assert result.result.data["result"] is True
         assert result.result.data["record"]["Name"] == "Jane Doe"
 
     async def test_url_contains_object_type_and_id(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"Id": "003XX"})
-        await salesforce.execute_action("get_record", {"object_type": "Contact", "record_id": "003XX"}, mock_context)
-        assert "/sobjects/Contact/003XX" in mock_context.fetch.call_args.args[0]
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"Id": "003000000000001"})
+        await salesforce.execute_action(
+            "get_record", {"object_type": "Contact", "record_id": "003000000000001"}, mock_context
+        )
+        assert "/sobjects/Contact/003000000000001" in mock_context.fetch.call_args.args[0]
 
     async def test_fields_param_passed_when_provided(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"Id": "003XX", "Name": "Jane"})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"Id": "003000000000001", "Name": "Jane"}
+        )
         await salesforce.execute_action(
             "get_record",
-            {"object_type": "Contact", "record_id": "003XX", "fields": "Id,Name"},
+            {"object_type": "Contact", "record_id": "003000000000001", "fields": "Id,Name"},
             mock_context,
         )
         assert mock_context.fetch.call_args.kwargs["params"]["fields"] == "Id,Name"
 
     async def test_no_fields_param_when_not_provided(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"Id": "003XX"})
-        await salesforce.execute_action("get_record", {"object_type": "Contact", "record_id": "003XX"}, mock_context)
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"Id": "003000000000001"})
+        await salesforce.execute_action(
+            "get_record", {"object_type": "Contact", "record_id": "003000000000001"}, mock_context
+        )
         assert "fields" not in mock_context.fetch.call_args.kwargs.get("params", {})
 
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("Not found")
         result = await salesforce.execute_action(
-            "get_record", {"object_type": "Contact", "record_id": "BAD"}, mock_context
+            "get_record", {"object_type": "Contact", "record_id": "003000000000001"}, mock_context
         )
         assert result.result.data["result"] is False
 
@@ -305,18 +352,18 @@ class TestUpdateRecord:
         mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
         result = await salesforce.execute_action(
             "update_record",
-            {"object_type": "Contact", "record_id": "003XX", "fields": {"Phone": "0400000000"}},
+            {"object_type": "Contact", "record_id": "003000000000001", "fields": {"Phone": "0400000000"}},
             mock_context,
         )
         assert result.result.data["result"] is True
-        assert result.result.data["record_id"] == "003XX"
+        assert result.result.data["record_id"] == "003000000000001"
         assert result.result.data["object_type"] == "Contact"
 
     async def test_uses_patch_method(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
         await salesforce.execute_action(
             "update_record",
-            {"object_type": "Lead", "record_id": "00QXX", "fields": {"Title": "Manager"}},
+            {"object_type": "Lead", "record_id": "00Q000000000001", "fields": {"Title": "Manager"}},
             mock_context,
         )
         assert mock_context.fetch.call_args.kwargs["method"] == "PATCH"
@@ -325,7 +372,7 @@ class TestUpdateRecord:
         mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
         fields = {"Phone": "0400000000", "Title": "Director"}
         await salesforce.execute_action(
-            "update_record", {"object_type": "Contact", "record_id": "003XX", "fields": fields}, mock_context
+            "update_record", {"object_type": "Contact", "record_id": "003000000000001", "fields": fields}, mock_context
         )
         assert mock_context.fetch.call_args.kwargs["json"] == fields
 
@@ -333,7 +380,7 @@ class TestUpdateRecord:
         mock_context.fetch.side_effect = Exception("Forbidden")
         result = await salesforce.execute_action(
             "update_record",
-            {"object_type": "Contact", "record_id": "003XX", "fields": {"Name": "X"}},
+            {"object_type": "Contact", "record_id": "003000000000001", "fields": {"Name": "X"}},
             mock_context,
         )
         assert result.result.data["result"] is False
@@ -344,7 +391,7 @@ class TestUpdateRecord:
 
 class TestListTasks:
     async def test_returns_tasks(self, mock_context):
-        tasks = [{"Id": "00TXX", "Subject": "Call client", "Status": "Not Started"}]
+        tasks = [{"Id": "00T000000000001", "Subject": "Call client", "Status": "Not Started"}]
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": tasks, "totalSize": 1})
         result = await salesforce.execute_action("list_tasks", {}, mock_context)
         assert result.result.data["result"] is True
@@ -387,7 +434,7 @@ class TestListTasks:
 
 class TestListEvents:
     async def test_returns_events(self, mock_context):
-        events = [{"Id": "00UXX", "Subject": "Client meeting"}]
+        events = [{"Id": "00U000000000001", "Subject": "Client meeting"}]
         mock_context.fetch.return_value = FetchResponse(
             status=200, headers={}, data={"records": events, "totalSize": 1}
         )
@@ -421,7 +468,7 @@ class TestListEvents:
 class TestGetTaskSummary:
     async def test_returns_summary(self, mock_context):
         task = {
-            "Id": "00TXX",
+            "Id": "00T000000000001",
             "Subject": "Follow up",
             "Status": "In Progress",
             "Priority": "High",
@@ -431,28 +478,28 @@ class TestGetTaskSummary:
         mock_context.fetch.return_value = FetchResponse(
             status=200, headers={}, data={"records": [task], "totalSize": 1}
         )
-        result = await salesforce.execute_action("get_task_summary", {"task_id": "00TXX"}, mock_context)
+        result = await salesforce.execute_action("get_task_summary", {"task_id": "00T000000000001"}, mock_context)
         assert result.result.data["result"] is True
         assert "Follow up" in result.result.data["summary"]
         assert "In Progress" in result.result.data["summary"]
-        assert result.result.data["task"]["Id"] == "00TXX"
+        assert result.result.data["task"]["Id"] == "00T000000000001"
 
     async def test_task_not_found(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
-        result = await salesforce.execute_action("get_task_summary", {"task_id": "BAD"}, mock_context)
+        result = await salesforce.execute_action("get_task_summary", {"task_id": "00T000000000001"}, mock_context)
         assert result.result.data["result"] is False
         assert "not found" in result.result.data["error"].lower()
 
     async def test_soql_filters_by_task_id(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
-        await salesforce.execute_action("get_task_summary", {"task_id": "00TXX123"}, mock_context)
+        await salesforce.execute_action("get_task_summary", {"task_id": "00T000000000001"}, mock_context)
         soql = mock_context.fetch.call_args.kwargs["params"]["q"]
-        assert "00TXX123" in soql
+        assert "00T000000000001" in soql
         assert "FROM Task" in soql
 
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("API error")
-        result = await salesforce.execute_action("get_task_summary", {"task_id": "00TXX"}, mock_context)
+        result = await salesforce.execute_action("get_task_summary", {"task_id": "00T000000000001"}, mock_context)
         assert result.result.data["result"] is False
 
 
@@ -462,7 +509,7 @@ class TestGetTaskSummary:
 class TestGetEventSummary:
     async def test_returns_summary(self, mock_context):
         event = {
-            "Id": "00UXX",
+            "Id": "00U000000000001",
             "Subject": "Board meeting",
             "StartDateTime": "2026-06-01T09:00:00Z",
             "EndDateTime": "2026-06-01T11:00:00Z",
@@ -473,34 +520,34 @@ class TestGetEventSummary:
         mock_context.fetch.return_value = FetchResponse(
             status=200, headers={}, data={"records": [event], "totalSize": 1}
         )
-        result = await salesforce.execute_action("get_event_summary", {"event_id": "00UXX"}, mock_context)
+        result = await salesforce.execute_action("get_event_summary", {"event_id": "00U000000000001"}, mock_context)
         assert result.result.data["result"] is True
         assert "Board meeting" in result.result.data["summary"]
         assert "HQ" in result.result.data["summary"]
-        assert result.result.data["event"]["Id"] == "00UXX"
+        assert result.result.data["event"]["Id"] == "00U000000000001"
 
     async def test_event_not_found(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
-        result = await salesforce.execute_action("get_event_summary", {"event_id": "BAD"}, mock_context)
+        result = await salesforce.execute_action("get_event_summary", {"event_id": "00U000000000001"}, mock_context)
         assert result.result.data["result"] is False
         assert "not found" in result.result.data["error"].lower()
 
     async def test_all_day_event_in_summary(self, mock_context):
-        event = {"Id": "00UXX", "Subject": "Public Holiday", "IsAllDayEvent": True}
+        event = {"Id": "00U000000000001", "Subject": "Public Holiday", "IsAllDayEvent": True}
         mock_context.fetch.return_value = FetchResponse(
             status=200, headers={}, data={"records": [event], "totalSize": 1}
         )
-        result = await salesforce.execute_action("get_event_summary", {"event_id": "00UXX"}, mock_context)
+        result = await salesforce.execute_action("get_event_summary", {"event_id": "00U000000000001"}, mock_context)
         assert "(All day)" in result.result.data["summary"]
 
     async def test_soql_filters_by_event_id(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
-        await salesforce.execute_action("get_event_summary", {"event_id": "00UABC"}, mock_context)
+        await salesforce.execute_action("get_event_summary", {"event_id": "00U000000000001"}, mock_context)
         soql = mock_context.fetch.call_args.kwargs["params"]["q"]
-        assert "00UABC" in soql
+        assert "00U000000000001" in soql
         assert "FROM Event" in soql
 
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("timeout")
-        result = await salesforce.execute_action("get_event_summary", {"event_id": "00UXX"}, mock_context)
+        result = await salesforce.execute_action("get_event_summary", {"event_id": "00U000000000001"}, mock_context)
         assert result.result.data["result"] is False
