@@ -10,6 +10,7 @@ sys.path.insert(0, _deps)
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
+from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("salesforce_mod", os.path.join(_parent, "salesforce.py"))
 _mod = importlib.util.module_from_spec(_spec)
@@ -70,18 +71,18 @@ class TestValidateSfId:
         result = await salesforce.execute_action(
             "get_record", {"object_type": "Contact", "record_id": "bad-id!"}, mock_context
         )
-        assert result.result.data["result"] is False
-        assert "Invalid Salesforce ID" in result.result.data["error"]
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Invalid Salesforce ID" in result.result.message
 
     async def test_get_task_summary_rejects_bad_id(self, mock_context):
         result = await salesforce.execute_action("get_task_summary", {"task_id": "bad-id!"}, mock_context)
-        assert result.result.data["result"] is False
-        assert "Invalid Salesforce ID" in result.result.data["error"]
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Invalid Salesforce ID" in result.result.message
 
     async def test_get_event_summary_rejects_bad_id(self, mock_context):
         result = await salesforce.execute_action("get_event_summary", {"event_id": "bad-id!"}, mock_context)
-        assert result.result.data["result"] is False
-        assert "Invalid Salesforce ID" in result.result.data["error"]
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Invalid Salesforce ID" in result.result.message
 
 
 # ---- Config Validation ----
@@ -107,13 +108,6 @@ class TestConfigValidation:
             config = json.load(f)
         for name, action in config["actions"].items():
             assert "output_schema" in action, f"Action '{name}' missing output_schema"
-
-    def test_all_actions_have_result_in_output(self):
-        with open(CONFIG_PATH) as f:
-            config = json.load(f)
-        for name, action in config["actions"].items():
-            props = action.get("output_schema", {}).get("properties", {})
-            assert "result" in props, f"Action '{name}' output_schema missing 'result'"
 
 
 # ---- Helper: _build_task_query ----
@@ -283,8 +277,8 @@ class TestSearchRecords:
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("API error")
         result = await salesforce.execute_action("search_records", {"soql": "SELECT Id FROM Contact"}, mock_context)
-        assert result.result.data["result"] is False
-        assert "API error" in result.result.data["error"]
+        assert result.type == ResultType.ACTION_ERROR
+        assert "API error" in result.result.message
 
     async def test_empty_results(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
@@ -341,7 +335,7 @@ class TestGetRecord:
         result = await salesforce.execute_action(
             "get_record", {"object_type": "Contact", "record_id": "003000000000001"}, mock_context
         )
-        assert result.result.data["result"] is False
+        assert result.type == ResultType.ACTION_ERROR
 
 
 # ---- update_record ----
@@ -383,7 +377,7 @@ class TestUpdateRecord:
             {"object_type": "Contact", "record_id": "003000000000001", "fields": {"Name": "X"}},
             mock_context,
         )
-        assert result.result.data["result"] is False
+        assert result.type == ResultType.ACTION_ERROR
 
 
 # ---- list_tasks ----
@@ -426,7 +420,7 @@ class TestListTasks:
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("timeout")
         result = await salesforce.execute_action("list_tasks", {}, mock_context)
-        assert result.result.data["result"] is False
+        assert result.type == ResultType.ACTION_ERROR
 
 
 # ---- list_events ----
@@ -459,7 +453,7 @@ class TestListEvents:
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("network error")
         result = await salesforce.execute_action("list_events", {}, mock_context)
-        assert result.result.data["result"] is False
+        assert result.type == ResultType.ACTION_ERROR
 
 
 # ---- get_task_summary ----
@@ -487,8 +481,8 @@ class TestGetTaskSummary:
     async def test_task_not_found(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
         result = await salesforce.execute_action("get_task_summary", {"task_id": "00T000000000001"}, mock_context)
-        assert result.result.data["result"] is False
-        assert "not found" in result.result.data["error"].lower()
+        assert result.type == ResultType.ACTION_ERROR
+        assert "not found" in result.result.message.lower()
 
     async def test_soql_filters_by_task_id(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
@@ -500,7 +494,7 @@ class TestGetTaskSummary:
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("API error")
         result = await salesforce.execute_action("get_task_summary", {"task_id": "00T000000000001"}, mock_context)
-        assert result.result.data["result"] is False
+        assert result.type == ResultType.ACTION_ERROR
 
 
 # ---- get_event_summary ----
@@ -529,8 +523,8 @@ class TestGetEventSummary:
     async def test_event_not_found(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
         result = await salesforce.execute_action("get_event_summary", {"event_id": "00U000000000001"}, mock_context)
-        assert result.result.data["result"] is False
-        assert "not found" in result.result.data["error"].lower()
+        assert result.type == ResultType.ACTION_ERROR
+        assert "not found" in result.result.message.lower()
 
     async def test_all_day_event_in_summary(self, mock_context):
         event = {"Id": "00U000000000001", "Subject": "Public Holiday", "IsAllDayEvent": True}
@@ -550,4 +544,4 @@ class TestGetEventSummary:
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("timeout")
         result = await salesforce.execute_action("get_event_summary", {"event_id": "00U000000000001"}, mock_context)
-        assert result.result.data["result"] is False
+        assert result.type == ResultType.ACTION_ERROR
