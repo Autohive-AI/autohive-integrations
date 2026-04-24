@@ -7,7 +7,9 @@
   "auth": {
     "type": "platform",
     "provider": "salesforce",
-    "scopes": ["api"]
+    "scopes": [
+      "api"
+    ]
   },
   "actions": {
     "search_records": {
@@ -21,15 +23,18 @@
             "description": "A valid SOQL query string, e.g. SELECT Id, Name, Email FROM Contact WHERE LastName = 'Smith' LIMIT 10"
           }
         },
-        "required": ["soql"]
+        "required": [
+          "soql"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "result": { "type": "boolean" },
           "records": {
             "type": "array",
-            "items": { "type": "object" },
+            "items": {
+              "type": "object"
+            },
             "description": "List of matching Salesforce records"
           },
           "total_size": {
@@ -62,12 +67,14 @@
             "description": "Comma-separated list of fields to return. If omitted, all fields are returned."
           }
         },
-        "required": ["object_type", "record_id"]
+        "required": [
+          "object_type",
+          "record_id"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "result": { "type": "boolean" },
           "record": {
             "type": "object",
             "description": "The Salesforce record fields"
@@ -94,14 +101,21 @@
             "description": "Key-value pairs of fields to update, e.g. {\"Phone\": \"0400000000\", \"Title\": \"Manager\"}"
           }
         },
-        "required": ["object_type", "record_id", "fields"]
+        "required": [
+          "object_type",
+          "record_id",
+          "fields"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "result": { "type": "boolean" },
-          "record_id": { "type": "string" },
-          "object_type": { "type": "string" }
+          "record_id": {
+            "type": "string"
+          },
+          "object_type": {
+            "type": "string"
+          }
         }
       }
     },
@@ -138,13 +152,16 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "result": { "type": "boolean" },
           "tasks": {
             "type": "array",
-            "items": { "type": "object" },
+            "items": {
+              "type": "object"
+            },
             "description": "List of Task records"
           },
-          "total_size": { "type": "integer" }
+          "total_size": {
+            "type": "integer"
+          }
         }
       }
     },
@@ -177,13 +194,16 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "result": { "type": "boolean" },
           "events": {
             "type": "array",
-            "items": { "type": "object" },
+            "items": {
+              "type": "object"
+            },
             "description": "List of Event records"
           },
-          "total_size": { "type": "integer" }
+          "total_size": {
+            "type": "integer"
+          }
         }
       }
     },
@@ -198,12 +218,13 @@
             "description": "The Salesforce Task record ID"
           }
         },
-        "required": ["task_id"]
+        "required": [
+          "task_id"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "result": { "type": "boolean" },
           "summary": {
             "type": "string",
             "description": "Human-readable summary of the task"
@@ -226,12 +247,13 @@
             "description": "The Salesforce Event record ID"
           }
         },
-        "required": ["event_id"]
+        "required": [
+          "event_id"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "result": { "type": "boolean" },
           "summary": {
             "type": "string",
             "description": "Human-readable summary of the event"
