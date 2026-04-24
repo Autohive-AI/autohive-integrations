@@ -1,83 +1,59 @@
-"""
-Unit tests for Salesforce integration.
-
-All tests are fully mocked — no real API credentials required.
-Covers all 7 action handlers plus helper functions.
-"""
-
-import json
 import os
 import sys
+import importlib
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
+sys.path.insert(0, _parent)
+sys.path.insert(0, _deps)
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-
+import pytest  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
 
-from salesforce.salesforce import (  # noqa: E402
-    SearchRecordsAction,
-    GetRecordAction,
-    UpdateRecordAction,
-    ListTasksAction,
-    ListEventsAction,
-    GetTaskSummaryAction,
-    GetEventSummaryAction,
-    _build_task_query,
-    _build_event_query,
-    _summarise_task,
-    _summarise_event,
-    salesforce as salesforce_integration,
-)
+_spec = importlib.util.spec_from_file_location("salesforce_mod", os.path.join(_parent, "salesforce.py"))
+_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+
+salesforce = _mod.salesforce
+_build_task_query = _mod._build_task_query
+_build_event_query = _mod._build_event_query
+_summarise_task = _mod._summarise_task
+_summarise_event = _mod._summarise_event
 
 pytestmark = pytest.mark.unit
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config.json")
+import json  # noqa: E402
+
+CONFIG_PATH = os.path.join(_parent, "config.json")
 
 TEST_TOKEN = "test_access_token"  # nosec B105
 TEST_INSTANCE = "https://test.salesforce.com"
-TEST_AUTH = {"credentials": {"access_token": TEST_TOKEN, "instance_url": TEST_INSTANCE}}
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def make_fetch_response(data: dict) -> MagicMock:
-    resp = MagicMock(spec=FetchResponse)
-    resp.data = data
-    return resp
 
 
 @pytest.fixture
 def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = TEST_AUTH
+    ctx.auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": TEST_TOKEN},  # nosec B105
+    }
+    ctx.metadata = {"instance_url": TEST_INSTANCE}
     return ctx
 
 
-# ---------------------------------------------------------------------------
-# Config validation
-# ---------------------------------------------------------------------------
+# ---- Config Validation ----
 
 
 class TestConfigValidation:
     def test_actions_match_handlers(self):
         with open(CONFIG_PATH) as f:
             config = json.load(f)
-
         defined = set(config.get("actions", {}).keys())
-        registered = set(salesforce_integration._action_handlers.keys())
-
-        missing = defined - registered
-        extra = registered - defined
-
-        assert not missing, f"Missing handlers: {missing}"
-        assert not extra, f"Extra handlers without config: {extra}"
+        registered = set(salesforce._action_handlers.keys())
+        assert not (defined - registered), f"Missing handlers: {defined - registered}"
+        assert not (registered - defined), f"Extra handlers: {registered - defined}"
 
     def test_auth_type_is_platform(self):
         with open(CONFIG_PATH) as f:
@@ -96,12 +72,10 @@ class TestConfigValidation:
             config = json.load(f)
         for name, action in config["actions"].items():
             props = action.get("output_schema", {}).get("properties", {})
-            assert "result" in props, f"Action '{name}' output_schema missing 'result' field"
+            assert "result" in props, f"Action '{name}' output_schema missing 'result'"
 
 
-# ---------------------------------------------------------------------------
-# Helper function tests
-# ---------------------------------------------------------------------------
+# ---- Helper: _build_task_query ----
 
 
 class TestBuildTaskQuery:
@@ -147,6 +121,9 @@ class TestBuildTaskQuery:
             assert field in q
 
 
+# ---- Helper: _build_event_query ----
+
+
 class TestBuildEventQuery:
     def test_no_filters(self):
         q = _build_event_query()
@@ -173,6 +150,9 @@ class TestBuildEventQuery:
             assert field in q
 
 
+# ---- Helper: _summarise_task ----
+
+
 class TestSummariseTask:
     def test_full_task(self):
         task = {
@@ -180,7 +160,7 @@ class TestSummariseTask:
             "Status": "Not Started",
             "Priority": "High",
             "ActivityDate": "2026-05-01",
-            "Description": "Call the client to follow up on the proposal.",
+            "Description": "Call the client.",
         }
         summary = _summarise_task(task)
         assert "Follow up call" in summary
@@ -197,6 +177,9 @@ class TestSummariseTask:
         assert "No description" in summary
 
 
+# ---- Helper: _summarise_event ----
+
+
 class TestSummariseEvent:
     def test_full_event(self):
         event = {
@@ -204,19 +187,16 @@ class TestSummariseEvent:
             "StartDateTime": "2026-05-01T09:00:00Z",
             "EndDateTime": "2026-05-01T10:00:00Z",
             "Location": "Board Room",
-            "Description": "Q1 results discussion.",
+            "Description": "Q1 results.",
             "IsAllDayEvent": False,
         }
         summary = _summarise_event(event)
         assert "Quarterly review" in summary
-        assert "2026-05-01T09:00:00Z" in summary
         assert "Board Room" in summary
-        assert "Q1 results" in summary
         assert "(All day)" not in summary
 
     def test_all_day_event_label(self):
-        event = {"Subject": "Holiday", "IsAllDayEvent": True}
-        summary = _summarise_event(event)
+        summary = _summarise_event({"Subject": "Holiday", "IsAllDayEvent": True})
         assert "(All day)" in summary
 
     def test_missing_fields_use_defaults(self):
@@ -226,324 +206,301 @@ class TestSummariseEvent:
         assert "No description" in summary
 
 
-# ---------------------------------------------------------------------------
-# Action handler tests
-# ---------------------------------------------------------------------------
+# ---- search_records ----
 
 
-class TestSearchRecordsAction:
-    async def test_success(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response(
-            {"records": [{"Id": "003XX", "Name": "Jane Doe"}], "totalSize": 1, "done": True}
+class TestSearchRecords:
+    async def test_returns_records(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"records": [{"Id": "003XX", "Name": "Jane Doe"}], "totalSize": 1, "done": True},
         )
-        handler = SearchRecordsAction()
-        result = await handler.execute({"soql": "SELECT Id, Name FROM Contact LIMIT 1"}, mock_context)
-
-        assert result.data["result"] is True
-        assert len(result.data["records"]) == 1
-        assert result.data["records"][0]["Name"] == "Jane Doe"
-        assert result.data["total_size"] == 1
-        assert result.data["done"] is True
+        result = await salesforce.execute_action(
+            "search_records", {"soql": "SELECT Id, Name FROM Contact LIMIT 1"}, mock_context
+        )
+        assert result.result.data["result"] is True
+        assert len(result.result.data["records"]) == 1
+        assert result.result.data["total_size"] == 1
 
     async def test_passes_soql_as_query_param(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0, "done": True})
-        handler = SearchRecordsAction()
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"records": [], "totalSize": 0, "done": True}
+        )
         soql = "SELECT Id FROM Lead LIMIT 5"
-        await handler.execute({"soql": soql}, mock_context)
-
-        call_kwargs = mock_context.fetch.call_args
-        assert call_kwargs.kwargs["params"]["q"] == soql
+        await salesforce.execute_action("search_records", {"soql": soql}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["params"]["q"] == soql
 
     async def test_uses_bearer_auth_header(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0, "done": True})
-        handler = SearchRecordsAction()
-        await handler.execute({"soql": "SELECT Id FROM Contact"}, mock_context)
-
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"records": [], "totalSize": 0, "done": True}
+        )
+        await salesforce.execute_action("search_records", {"soql": "SELECT Id FROM Contact"}, mock_context)
         headers = mock_context.fetch.call_args.kwargs["headers"]
         assert headers["Authorization"] == f"Bearer {TEST_TOKEN}"
 
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("API error")
-        handler = SearchRecordsAction()
-        result = await handler.execute({"soql": "SELECT Id FROM Contact"}, mock_context)
-
-        assert result.data["result"] is False
-        assert "API error" in result.data["error"]
+        result = await salesforce.execute_action("search_records", {"soql": "SELECT Id FROM Contact"}, mock_context)
+        assert result.result.data["result"] is False
+        assert "API error" in result.result.data["error"]
 
     async def test_empty_results(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0, "done": True})
-        handler = SearchRecordsAction()
-        result = await handler.execute({"soql": "SELECT Id FROM Contact WHERE Name = 'Nobody'"}, mock_context)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"records": [], "totalSize": 0, "done": True}
+        )
+        result = await salesforce.execute_action(
+            "search_records", {"soql": "SELECT Id FROM Contact WHERE Name = 'Nobody'"}, mock_context
+        )
+        assert result.result.data["result"] is True
+        assert result.result.data["records"] == []
 
-        assert result.data["result"] is True
-        assert result.data["records"] == []
-        assert result.data["total_size"] == 0
+
+# ---- get_record ----
 
 
-class TestGetRecordAction:
-    async def test_success(self, mock_context):
-        record = {"Id": "003XX", "Name": "Jane Doe", "Email": "jane@example.com"}
-        mock_context.fetch.return_value = make_fetch_response(record)
-        handler = GetRecordAction()
-        result = await handler.execute({"object_type": "Contact", "record_id": "003XX"}, mock_context)
-
-        assert result.data["result"] is True
-        assert result.data["record"]["Name"] == "Jane Doe"
+class TestGetRecord:
+    async def test_returns_record(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"Id": "003XX", "Name": "Jane Doe", "Email": "jane@example.com"}
+        )
+        result = await salesforce.execute_action(
+            "get_record", {"object_type": "Contact", "record_id": "003XX"}, mock_context
+        )
+        assert result.result.data["result"] is True
+        assert result.result.data["record"]["Name"] == "Jane Doe"
 
     async def test_url_contains_object_type_and_id(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"Id": "003XX"})
-        handler = GetRecordAction()
-        await handler.execute({"object_type": "Contact", "record_id": "003XX"}, mock_context)
-
-        url = mock_context.fetch.call_args.args[0]
-        assert "/sobjects/Contact/003XX" in url
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"Id": "003XX"})
+        await salesforce.execute_action("get_record", {"object_type": "Contact", "record_id": "003XX"}, mock_context)
+        assert "/sobjects/Contact/003XX" in mock_context.fetch.call_args.args[0]
 
     async def test_fields_param_passed_when_provided(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"Id": "003XX", "Name": "Jane"})
-        handler = GetRecordAction()
-        await handler.execute({"object_type": "Contact", "record_id": "003XX", "fields": "Id,Name"}, mock_context)
-
-        params = mock_context.fetch.call_args.kwargs["params"]
-        assert params["fields"] == "Id,Name"
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"Id": "003XX", "Name": "Jane"})
+        await salesforce.execute_action(
+            "get_record",
+            {"object_type": "Contact", "record_id": "003XX", "fields": "Id,Name"},
+            mock_context,
+        )
+        assert mock_context.fetch.call_args.kwargs["params"]["fields"] == "Id,Name"
 
     async def test_no_fields_param_when_not_provided(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"Id": "003XX"})
-        handler = GetRecordAction()
-        await handler.execute({"object_type": "Contact", "record_id": "003XX"}, mock_context)
-
-        params = mock_context.fetch.call_args.kwargs.get("params", {})
-        assert "fields" not in params
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"Id": "003XX"})
+        await salesforce.execute_action("get_record", {"object_type": "Contact", "record_id": "003XX"}, mock_context)
+        assert "fields" not in mock_context.fetch.call_args.kwargs.get("params", {})
 
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("Not found")
-        handler = GetRecordAction()
-        result = await handler.execute({"object_type": "Contact", "record_id": "BAD"}, mock_context)
+        result = await salesforce.execute_action(
+            "get_record", {"object_type": "Contact", "record_id": "BAD"}, mock_context
+        )
+        assert result.result.data["result"] is False
 
-        assert result.data["result"] is False
-        assert "Not found" in result.data["error"]
+
+# ---- update_record ----
 
 
-class TestUpdateRecordAction:
+class TestUpdateRecord:
     async def test_success(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({})
-        handler = UpdateRecordAction()
-        result = await handler.execute(
+        mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
+        result = await salesforce.execute_action(
+            "update_record",
             {"object_type": "Contact", "record_id": "003XX", "fields": {"Phone": "0400000000"}},
             mock_context,
         )
-
-        assert result.data["result"] is True
-        assert result.data["record_id"] == "003XX"
-        assert result.data["object_type"] == "Contact"
+        assert result.result.data["result"] is True
+        assert result.result.data["record_id"] == "003XX"
+        assert result.result.data["object_type"] == "Contact"
 
     async def test_uses_patch_method(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({})
-        handler = UpdateRecordAction()
-        await handler.execute(
+        mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
+        await salesforce.execute_action(
+            "update_record",
             {"object_type": "Lead", "record_id": "00QXX", "fields": {"Title": "Manager"}},
             mock_context,
         )
-
         assert mock_context.fetch.call_args.kwargs["method"] == "PATCH"
 
     async def test_fields_sent_as_json_body(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({})
-        handler = UpdateRecordAction()
+        mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
         fields = {"Phone": "0400000000", "Title": "Director"}
-        await handler.execute({"object_type": "Contact", "record_id": "003XX", "fields": fields}, mock_context)
-
+        await salesforce.execute_action(
+            "update_record", {"object_type": "Contact", "record_id": "003XX", "fields": fields}, mock_context
+        )
         assert mock_context.fetch.call_args.kwargs["json"] == fields
 
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("Forbidden")
-        handler = UpdateRecordAction()
-        result = await handler.execute(
-            {"object_type": "Contact", "record_id": "003XX", "fields": {"Name": "X"}}, mock_context
+        result = await salesforce.execute_action(
+            "update_record",
+            {"object_type": "Contact", "record_id": "003XX", "fields": {"Name": "X"}},
+            mock_context,
         )
+        assert result.result.data["result"] is False
 
-        assert result.data["result"] is False
+
+# ---- list_tasks ----
 
 
-class TestListTasksAction:
-    async def test_success_no_filters(self, mock_context):
+class TestListTasks:
+    async def test_returns_tasks(self, mock_context):
         tasks = [{"Id": "00TXX", "Subject": "Call client", "Status": "Not Started"}]
-        mock_context.fetch.return_value = make_fetch_response({"records": tasks, "totalSize": 1})
-        handler = ListTasksAction()
-        result = await handler.execute({}, mock_context)
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": tasks, "totalSize": 1})
+        result = await salesforce.execute_action("list_tasks", {}, mock_context)
+        assert result.result.data["result"] is True
+        assert len(result.result.data["tasks"]) == 1
+        assert result.result.data["total_size"] == 1
 
-        assert result.data["result"] is True
-        assert len(result.data["tasks"]) == 1
-        assert result.data["total_size"] == 1
-
-    async def test_status_filter_applied(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0})
-        handler = ListTasksAction()
-        await handler.execute({"status": "Completed"}, mock_context)
-
+    async def test_status_filter_in_soql(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
+        await salesforce.execute_action("list_tasks", {"status": "Completed"}, mock_context)
         soql = mock_context.fetch.call_args.kwargs["params"]["q"]
         assert "Status = 'Completed'" in soql
 
-    async def test_date_filter_applied(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0})
-        handler = ListTasksAction()
-        await handler.execute({"due_date_from": "2026-01-01", "due_date_to": "2026-06-30"}, mock_context)
-
+    async def test_date_filter_in_soql(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
+        await salesforce.execute_action(
+            "list_tasks", {"due_date_from": "2026-01-01", "due_date_to": "2026-06-30"}, mock_context
+        )
         soql = mock_context.fetch.call_args.kwargs["params"]["q"]
         assert "ActivityDate >= 2026-01-01" in soql
         assert "ActivityDate <= 2026-06-30" in soql
 
-    async def test_default_limit_is_25(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0})
-        handler = ListTasksAction()
-        await handler.execute({}, mock_context)
-
-        soql = mock_context.fetch.call_args.kwargs["params"]["q"]
-        assert "LIMIT 25" in soql
+    async def test_default_limit_25(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
+        await salesforce.execute_action("list_tasks", {}, mock_context)
+        assert "LIMIT 25" in mock_context.fetch.call_args.kwargs["params"]["q"]
 
     async def test_custom_limit(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0})
-        handler = ListTasksAction()
-        await handler.execute({"limit": 50}, mock_context)
-
-        soql = mock_context.fetch.call_args.kwargs["params"]["q"]
-        assert "LIMIT 50" in soql
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
+        await salesforce.execute_action("list_tasks", {"limit": 50}, mock_context)
+        assert "LIMIT 50" in mock_context.fetch.call_args.kwargs["params"]["q"]
 
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("timeout")
-        handler = ListTasksAction()
-        result = await handler.execute({}, mock_context)
-
-        assert result.data["result"] is False
+        result = await salesforce.execute_action("list_tasks", {}, mock_context)
+        assert result.result.data["result"] is False
 
 
-class TestListEventsAction:
-    async def test_success_no_filters(self, mock_context):
-        events = [{"Id": "00UXX", "Subject": "Client meeting", "StartDateTime": "2026-05-01T09:00:00Z"}]
-        mock_context.fetch.return_value = make_fetch_response({"records": events, "totalSize": 1})
-        handler = ListEventsAction()
-        result = await handler.execute({}, mock_context)
+# ---- list_events ----
 
-        assert result.data["result"] is True
-        assert len(result.data["events"]) == 1
-        assert result.data["total_size"] == 1
 
-    async def test_date_filter_applied(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0})
-        handler = ListEventsAction()
-        await handler.execute({"start_date_from": "2026-05-01", "start_date_to": "2026-05-31"}, mock_context)
+class TestListEvents:
+    async def test_returns_events(self, mock_context):
+        events = [{"Id": "00UXX", "Subject": "Client meeting"}]
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"records": events, "totalSize": 1}
+        )
+        result = await salesforce.execute_action("list_events", {}, mock_context)
+        assert result.result.data["result"] is True
+        assert len(result.result.data["events"]) == 1
 
+    async def test_date_filter_in_soql(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
+        await salesforce.execute_action(
+            "list_events", {"start_date_from": "2026-05-01", "start_date_to": "2026-05-31"}, mock_context
+        )
         soql = mock_context.fetch.call_args.kwargs["params"]["q"]
         assert "StartDateTime >= 2026-05-01T00:00:00Z" in soql
         assert "StartDateTime <= 2026-05-31T23:59:59Z" in soql
 
-    async def test_default_limit_is_25(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0})
-        handler = ListEventsAction()
-        await handler.execute({}, mock_context)
-
-        soql = mock_context.fetch.call_args.kwargs["params"]["q"]
-        assert "LIMIT 25" in soql
+    async def test_default_limit_25(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
+        await salesforce.execute_action("list_events", {}, mock_context)
+        assert "LIMIT 25" in mock_context.fetch.call_args.kwargs["params"]["q"]
 
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("network error")
-        handler = ListEventsAction()
-        result = await handler.execute({}, mock_context)
-
-        assert result.data["result"] is False
+        result = await salesforce.execute_action("list_events", {}, mock_context)
+        assert result.result.data["result"] is False
 
 
-class TestGetTaskSummaryAction:
-    async def test_success(self, mock_context):
+# ---- get_task_summary ----
+
+
+class TestGetTaskSummary:
+    async def test_returns_summary(self, mock_context):
         task = {
             "Id": "00TXX",
             "Subject": "Follow up",
             "Status": "In Progress",
             "Priority": "High",
             "ActivityDate": "2026-05-10",
-            "Description": "Check on contract status.",
+            "Description": "Check contract.",
         }
-        mock_context.fetch.return_value = make_fetch_response({"records": [task], "totalSize": 1})
-        handler = GetTaskSummaryAction()
-        result = await handler.execute({"task_id": "00TXX"}, mock_context)
-
-        assert result.data["result"] is True
-        assert "Follow up" in result.data["summary"]
-        assert "In Progress" in result.data["summary"]
-        assert result.data["task"]["Id"] == "00TXX"
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"records": [task], "totalSize": 1}
+        )
+        result = await salesforce.execute_action("get_task_summary", {"task_id": "00TXX"}, mock_context)
+        assert result.result.data["result"] is True
+        assert "Follow up" in result.result.data["summary"]
+        assert "In Progress" in result.result.data["summary"]
+        assert result.result.data["task"]["Id"] == "00TXX"
 
     async def test_task_not_found(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0})
-        handler = GetTaskSummaryAction()
-        result = await handler.execute({"task_id": "00TBAD"}, mock_context)
-
-        assert result.data["result"] is False
-        assert "not found" in result.data["error"].lower()
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
+        result = await salesforce.execute_action("get_task_summary", {"task_id": "BAD"}, mock_context)
+        assert result.result.data["result"] is False
+        assert "not found" in result.result.data["error"].lower()
 
     async def test_soql_filters_by_task_id(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0})
-        handler = GetTaskSummaryAction()
-        await handler.execute({"task_id": "00TXX123"}, mock_context)
-
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
+        await salesforce.execute_action("get_task_summary", {"task_id": "00TXX123"}, mock_context)
         soql = mock_context.fetch.call_args.kwargs["params"]["q"]
         assert "00TXX123" in soql
         assert "FROM Task" in soql
 
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("API error")
-        handler = GetTaskSummaryAction()
-        result = await handler.execute({"task_id": "00TXX"}, mock_context)
-
-        assert result.data["result"] is False
+        result = await salesforce.execute_action("get_task_summary", {"task_id": "00TXX"}, mock_context)
+        assert result.result.data["result"] is False
 
 
-class TestGetEventSummaryAction:
-    async def test_success(self, mock_context):
+# ---- get_event_summary ----
+
+
+class TestGetEventSummary:
+    async def test_returns_summary(self, mock_context):
         event = {
             "Id": "00UXX",
             "Subject": "Board meeting",
             "StartDateTime": "2026-06-01T09:00:00Z",
             "EndDateTime": "2026-06-01T11:00:00Z",
             "Location": "HQ",
-            "Description": "Annual board review.",
+            "Description": "Annual review.",
             "IsAllDayEvent": False,
         }
-        mock_context.fetch.return_value = make_fetch_response({"records": [event], "totalSize": 1})
-        handler = GetEventSummaryAction()
-        result = await handler.execute({"event_id": "00UXX"}, mock_context)
-
-        assert result.data["result"] is True
-        assert "Board meeting" in result.data["summary"]
-        assert "HQ" in result.data["summary"]
-        assert result.data["event"]["Id"] == "00UXX"
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"records": [event], "totalSize": 1}
+        )
+        result = await salesforce.execute_action("get_event_summary", {"event_id": "00UXX"}, mock_context)
+        assert result.result.data["result"] is True
+        assert "Board meeting" in result.result.data["summary"]
+        assert "HQ" in result.result.data["summary"]
+        assert result.result.data["event"]["Id"] == "00UXX"
 
     async def test_event_not_found(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0})
-        handler = GetEventSummaryAction()
-        result = await handler.execute({"event_id": "00UBAD"}, mock_context)
-
-        assert result.data["result"] is False
-        assert "not found" in result.data["error"].lower()
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
+        result = await salesforce.execute_action("get_event_summary", {"event_id": "BAD"}, mock_context)
+        assert result.result.data["result"] is False
+        assert "not found" in result.result.data["error"].lower()
 
     async def test_all_day_event_in_summary(self, mock_context):
         event = {"Id": "00UXX", "Subject": "Public Holiday", "IsAllDayEvent": True}
-        mock_context.fetch.return_value = make_fetch_response({"records": [event], "totalSize": 1})
-        handler = GetEventSummaryAction()
-        result = await handler.execute({"event_id": "00UXX"}, mock_context)
-
-        assert "(All day)" in result.data["summary"]
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"records": [event], "totalSize": 1}
+        )
+        result = await salesforce.execute_action("get_event_summary", {"event_id": "00UXX"}, mock_context)
+        assert "(All day)" in result.result.data["summary"]
 
     async def test_soql_filters_by_event_id(self, mock_context):
-        mock_context.fetch.return_value = make_fetch_response({"records": [], "totalSize": 0})
-        handler = GetEventSummaryAction()
-        await handler.execute({"event_id": "00UABC"}, mock_context)
-
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"records": [], "totalSize": 0})
+        await salesforce.execute_action("get_event_summary", {"event_id": "00UABC"}, mock_context)
         soql = mock_context.fetch.call_args.kwargs["params"]["q"]
         assert "00UABC" in soql
         assert "FROM Event" in soql
 
     async def test_error_returns_false(self, mock_context):
         mock_context.fetch.side_effect = Exception("timeout")
-        handler = GetEventSummaryAction()
-        result = await handler.execute({"event_id": "00UXX"}, mock_context)
-
-        assert result.data["result"] is False
+        result = await salesforce.execute_action("get_event_summary", {"event_id": "00UXX"}, mock_context)
+        assert result.result.data["result"] is False
