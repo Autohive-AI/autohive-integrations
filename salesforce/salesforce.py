@@ -4,6 +4,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
 )
 from typing import Any, Dict
 import os
@@ -65,7 +66,7 @@ class SearchRecordsAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @salesforce.action("get_record")
@@ -84,7 +85,7 @@ class GetRecordAction(ActionHandler):
             response = await context.fetch(url, method="GET", headers=_headers(token), params=params)
             return ActionResult(data={"result": True, "record": response.data}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @salesforce.action("update_record")
@@ -106,7 +107,7 @@ class UpdateRecordAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 def _build_task_query(  # nosec B608
@@ -186,7 +187,7 @@ class ListTasksAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @salesforce.action("list_events")
@@ -215,7 +216,7 @@ class ListEventsAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 def _summarise_task(task: Dict[str, Any]) -> str:
@@ -256,14 +257,14 @@ class GetTaskSummaryAction(ActionHandler):
             )
             records = response.data.get("records", [])
             if not records:
-                return ActionResult(data={"result": False, "error": "Task not found"}, cost_usd=0.0)
+                return ActionError(message="Task not found")
             task = records[0]
             return ActionResult(
                 data={"result": True, "summary": _summarise_task(task), "task": task},
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @salesforce.action("get_event_summary")
@@ -285,7 +286,7 @@ class GetEventSummaryAction(ActionHandler):
             )
             records = response.data.get("records", [])
             if not records:
-                return ActionResult(data={"result": False, "error": "Event not found"}, cost_usd=0.0)
+                return ActionError(message="Event not found")
             event = records[0]
             return ActionResult(
                 data={
@@ -296,4 +297,4 @@ class GetEventSummaryAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
