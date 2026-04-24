@@ -123,7 +123,7 @@ def _build_task_query(  # nosec B608
         safe_status = status.replace("'", "\\'")
         conditions.append(f"Status = '{safe_status}'")
     if assigned_to_id:
-        conditions.append(f"OwnerId = '{assigned_to_id}'")
+        conditions.append(f"OwnerId = '{_validate_sf_id(assigned_to_id, 'assigned_to_id')}'")
     if due_date_from:
         conditions.append(f"ActivityDate >= {due_date_from}")
     if due_date_to:
@@ -150,7 +150,7 @@ def _build_event_query(  # nosec B608
     if start_date_to:
         conditions.append(f"StartDateTime <= {start_date_to}T23:59:59Z")
     if assigned_to_id:
-        conditions.append(f"OwnerId = '{assigned_to_id}'")
+        conditions.append(f"OwnerId = '{_validate_sf_id(assigned_to_id, 'assigned_to_id')}'")
 
     where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
     fields = (

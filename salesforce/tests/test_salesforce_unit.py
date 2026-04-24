@@ -130,8 +130,8 @@ class TestBuildTaskQuery:
         assert "Won\\'t do" in q
 
     def test_assigned_to_filter(self):
-        q = _build_task_query(assigned_to_id="005XXXX")
-        assert "OwnerId = '005XXXX'" in q
+        q = _build_task_query(assigned_to_id="005000000000001")
+        assert "OwnerId = '005000000000001'" in q
 
     def test_due_date_range(self):
         q = _build_task_query(due_date_from="2026-01-01", due_date_to="2026-12-31")
@@ -147,7 +147,7 @@ class TestBuildTaskQuery:
         assert "LIMIT 10" in q
 
     def test_multiple_conditions_use_and(self):
-        q = _build_task_query(status="Open", assigned_to_id="005XXX")
+        q = _build_task_query(status="Open", assigned_to_id="005000000000001")
         assert " AND " in q
 
     def test_required_fields_in_select(self):
@@ -172,8 +172,8 @@ class TestBuildEventQuery:
         assert "StartDateTime <= 2026-01-31T23:59:59Z" in q
 
     def test_assigned_to_filter(self):
-        q = _build_event_query(assigned_to_id="005XXX")
-        assert "OwnerId = '005XXX'" in q
+        q = _build_event_query(assigned_to_id="005000000000001")
+        assert "OwnerId = '005000000000001'" in q
 
     def test_limit_capped_at_200(self):
         q = _build_event_query(limit=500)
