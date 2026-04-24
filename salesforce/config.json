@@ -1,0 +1,247 @@
+{
+  "name": "Salesforce",
+  "display_name": "Salesforce",
+  "version": "1.0.0",
+  "description": "Salesforce CRM integration for searching and updating records, and summarising task and event activity.",
+  "entry_point": "salesforce.py",
+  "auth": {
+    "type": "platform",
+    "provider": "salesforce",
+    "scopes": ["api"]
+  },
+  "actions": {
+    "search_records": {
+      "display_name": "Search Records",
+      "description": "Run a SOQL query to search any Salesforce object (e.g. Contact, Lead, Opportunity, Account). Returns matching records.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "soql": {
+            "type": "string",
+            "description": "A valid SOQL query string, e.g. SELECT Id, Name, Email FROM Contact WHERE LastName = 'Smith' LIMIT 10"
+          }
+        },
+        "required": ["soql"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": { "type": "boolean" },
+          "records": {
+            "type": "array",
+            "items": { "type": "object" },
+            "description": "List of matching Salesforce records"
+          },
+          "total_size": {
+            "type": "integer",
+            "description": "Total number of records matched"
+          },
+          "done": {
+            "type": "boolean",
+            "description": "Whether all results have been returned"
+          }
+        }
+      }
+    },
+    "get_record": {
+      "display_name": "Get Record",
+      "description": "Retrieve a single Salesforce record by its ID and object type (e.g. Contact, Lead, Opportunity).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "object_type": {
+            "type": "string",
+            "description": "Salesforce object type, e.g. Contact, Lead, Account, Opportunity"
+          },
+          "record_id": {
+            "type": "string",
+            "description": "The Salesforce record ID (15 or 18 character)"
+          },
+          "fields": {
+            "type": "string",
+            "description": "Comma-separated list of fields to return. If omitted, all fields are returned."
+          }
+        },
+        "required": ["object_type", "record_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": { "type": "boolean" },
+          "record": {
+            "type": "object",
+            "description": "The Salesforce record fields"
+          }
+        }
+      }
+    },
+    "update_record": {
+      "display_name": "Update Record",
+      "description": "Update one or more fields on an existing Salesforce record by ID and object type.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "object_type": {
+            "type": "string",
+            "description": "Salesforce object type, e.g. Contact, Lead, Account, Opportunity"
+          },
+          "record_id": {
+            "type": "string",
+            "description": "The Salesforce record ID to update"
+          },
+          "fields": {
+            "type": "object",
+            "description": "Key-value pairs of fields to update, e.g. {\"Phone\": \"0400000000\", \"Title\": \"Manager\"}"
+          }
+        },
+        "required": ["object_type", "record_id", "fields"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": { "type": "boolean" },
+          "record_id": { "type": "string" },
+          "object_type": { "type": "string" }
+        }
+      }
+    },
+    "list_tasks": {
+      "display_name": "List Tasks",
+      "description": "List Salesforce Task records with optional filters for status, due date, and assigned user.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Filter by task status, e.g. Not Started, In Progress, Completed, Waiting on someone else, Deferred"
+          },
+          "assigned_to_id": {
+            "type": "string",
+            "description": "Filter by assigned user ID (OwnerId)"
+          },
+          "due_date_from": {
+            "type": "string",
+            "description": "Filter tasks due on or after this date (YYYY-MM-DD)"
+          },
+          "due_date_to": {
+            "type": "string",
+            "description": "Filter tasks due on or before this date (YYYY-MM-DD)"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of tasks to return (default 25, max 200)",
+            "default": 25
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": { "type": "boolean" },
+          "tasks": {
+            "type": "array",
+            "items": { "type": "object" },
+            "description": "List of Task records"
+          },
+          "total_size": { "type": "integer" }
+        }
+      }
+    },
+    "list_events": {
+      "display_name": "List Events",
+      "description": "List Salesforce Event (calendar) records with optional date range filters.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "start_date_from": {
+            "type": "string",
+            "description": "Return events starting on or after this date (YYYY-MM-DD)"
+          },
+          "start_date_to": {
+            "type": "string",
+            "description": "Return events starting on or before this date (YYYY-MM-DD)"
+          },
+          "assigned_to_id": {
+            "type": "string",
+            "description": "Filter by assigned user ID (OwnerId)"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of events to return (default 25, max 200)",
+            "default": 25
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": { "type": "boolean" },
+          "events": {
+            "type": "array",
+            "items": { "type": "object" },
+            "description": "List of Event records"
+          },
+          "total_size": { "type": "integer" }
+        }
+      }
+    },
+    "get_task_summary": {
+      "display_name": "Get Task Summary",
+      "description": "Retrieve a single Salesforce Task record by ID and return a human-readable summary of its details.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "The Salesforce Task record ID"
+          }
+        },
+        "required": ["task_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": { "type": "boolean" },
+          "summary": {
+            "type": "string",
+            "description": "Human-readable summary of the task"
+          },
+          "task": {
+            "type": "object",
+            "description": "Raw task record fields"
+          }
+        }
+      }
+    },
+    "get_event_summary": {
+      "display_name": "Get Event Summary",
+      "description": "Retrieve a single Salesforce Event record by ID and return a human-readable summary of its details.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "description": "The Salesforce Event record ID"
+          }
+        },
+        "required": ["event_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": { "type": "boolean" },
+          "summary": {
+            "type": "string",
+            "description": "Human-readable summary of the event"
+          },
+          "event": {
+            "type": "object",
+            "description": "Raw event record fields"
+          }
+        }
+      }
+    }
+  }
+}
