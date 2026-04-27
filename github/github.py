@@ -54,8 +54,7 @@ def handle_github_errors(action_name: str):
                 if not token:
                     return ActionError(
                         message=(
-                            "GitHub authentication failed: No access token found. "
-                            "Please reconnect your GitHub account."
+                            "GitHub authentication failed: No access token found. Please reconnect your GitHub account."
                         )
                     )
 
