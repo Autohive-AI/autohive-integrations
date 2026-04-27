@@ -17,6 +17,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
     ConnectedAccountHandler,
     ConnectedAccountInfo,
 )
@@ -51,21 +52,17 @@ def handle_github_errors(action_name: str):
                 credentials = context.auth.get("credentials", {})
                 token = credentials.get("access_token")
                 if not token:
-                    return ActionResult(
-                        data={
-                            "error": (
-                                "GitHub authentication failed: No access token found. "
-                                "Please reconnect your GitHub account."
-                            ),
-                            "result": False,
-                        },
-                        cost_usd=0.0,
+                    return ActionError(
+                        message=(
+                            "GitHub authentication failed: No access token found. "
+                            "Please reconnect your GitHub account."
+                        )
                     )
 
                 return await func(self, inputs, context)
 
             except Exception as e:
-                return ActionResult(data={"error": str(e), "result": False}, cost_usd=0.0)
+                return ActionError(message=str(e))
 
         return wrapper
 
