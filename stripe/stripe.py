@@ -88,15 +88,8 @@ class StripeConnectedAccountHandler(ConnectedAccountHandler):
                 headers=get_common_headers(),
             )
             data = response.data or {}
-            email = data.get("email") or data.get("business_profile", {}).get(
-                "support_email", ""
-            )
-            name = (
-                data.get("business_profile", {}).get("name")
-                or data.get("display_name")
-                or email
-                or "Stripe Account"
-            )
+            email = data.get("email") or data.get("business_profile", {}).get("support_email", "")
+            name = data.get("business_profile", {}).get("name") or data.get("display_name") or email or "Stripe Account"
             return ConnectedAccountInfo(username=name, user_id=data.get("id"))
         except Exception:
             return ConnectedAccountInfo(username="Stripe Account")
@@ -168,14 +161,10 @@ class GetCustomerAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(
-                data={"customer": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"customer": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("create_customer")
@@ -210,14 +199,10 @@ class CreateCustomerAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"customer": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"customer": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("update_customer")
@@ -253,14 +238,10 @@ class UpdateCustomerAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"customer": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"customer": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("delete_customer")
@@ -367,14 +348,10 @@ class GetInvoiceAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(
-                data={"invoice": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("create_invoice")
@@ -409,14 +386,10 @@ class CreateInvoiceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"invoice": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("update_invoice")
@@ -450,14 +423,10 @@ class UpdateInvoiceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"invoice": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("delete_invoice")
@@ -518,14 +487,10 @@ class FinalizeInvoiceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"invoice": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("send_invoice")
@@ -543,14 +508,10 @@ class SendInvoiceAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(
-                data={"invoice": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("pay_invoice")
@@ -575,14 +536,10 @@ class PayInvoiceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"invoice": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("void_invoice")
@@ -600,14 +557,10 @@ class VoidInvoiceAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(
-                data={"invoice": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Invoice Item Action Handlers ----
@@ -676,9 +629,7 @@ class GetInvoiceItemAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(
-                data={"invoice_item": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice_item": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -721,9 +672,7 @@ class CreateInvoiceItemAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"invoice_item": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice_item": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -763,9 +712,7 @@ class UpdateInvoiceItemAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"invoice_item": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"invoice_item": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -878,14 +825,10 @@ class GetProductAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(
-                data={"product": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"product": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("create_product")
@@ -924,14 +867,10 @@ class CreateProductAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"product": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"product": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("update_product")
@@ -973,14 +912,10 @@ class UpdateProductAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"product": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"product": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Price Action Handlers ----
@@ -1058,9 +993,7 @@ class GetPriceAction(ActionHandler):
             return ActionResult(data={"price": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("create_price")
@@ -1111,9 +1044,7 @@ class CreatePriceAction(ActionHandler):
             return ActionResult(data={"price": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 @stripe.action("update_price")
@@ -1148,9 +1079,7 @@ class UpdatePriceAction(ActionHandler):
             return ActionResult(data={"price": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionResult(data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- Subscription Action Handlers ----
@@ -1175,15 +1104,9 @@ class ListSubscriptionsAction(ActionHandler):
                 params["created[gte]"] = inputs["created_gte"]
             if "created_lte" in inputs and inputs["created_lte"]:
                 params["created[lte]"] = inputs["created_lte"]
-            if (
-                "current_period_start_gte" in inputs
-                and inputs["current_period_start_gte"]
-            ):
+            if "current_period_start_gte" in inputs and inputs["current_period_start_gte"]:
                 params["current_period_start[gte]"] = inputs["current_period_start_gte"]
-            if (
-                "current_period_start_lte" in inputs
-                and inputs["current_period_start_lte"]
-            ):
+            if "current_period_start_lte" in inputs and inputs["current_period_start_lte"]:
                 params["current_period_start[lte]"] = inputs["current_period_start_lte"]
 
             headers = get_common_headers()
@@ -1233,9 +1156,7 @@ class GetSubscriptionAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(
-                data={"subscription": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"subscription": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1263,10 +1184,7 @@ class CreateSubscriptionAction(ActionHandler):
                 body["payment_behavior"] = inputs["payment_behavior"]
             if "billing_cycle_anchor" in inputs and inputs["billing_cycle_anchor"]:
                 body["billing_cycle_anchor"] = inputs["billing_cycle_anchor"]
-            if (
-                "cancel_at_period_end" in inputs
-                and inputs["cancel_at_period_end"] is not None
-            ):
+            if "cancel_at_period_end" in inputs and inputs["cancel_at_period_end"] is not None:
                 body["cancel_at_period_end"] = inputs["cancel_at_period_end"]
             if "cancel_at" in inputs and inputs["cancel_at"]:
                 body["cancel_at"] = inputs["cancel_at"]
@@ -1293,9 +1211,7 @@ class CreateSubscriptionAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"subscription": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"subscription": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1320,10 +1236,7 @@ class UpdateSubscriptionAction(ActionHandler):
                 body["default_payment_method"] = inputs["default_payment_method"]
             if "payment_behavior" in inputs and inputs["payment_behavior"]:
                 body["payment_behavior"] = inputs["payment_behavior"]
-            if (
-                "cancel_at_period_end" in inputs
-                and inputs["cancel_at_period_end"] is not None
-            ):
+            if "cancel_at_period_end" in inputs and inputs["cancel_at_period_end"] is not None:
                 body["cancel_at_period_end"] = inputs["cancel_at_period_end"]
             if "cancel_at" in inputs and inputs["cancel_at"]:
                 body["cancel_at"] = inputs["cancel_at"]
@@ -1348,9 +1261,7 @@ class UpdateSubscriptionAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"subscription": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"subscription": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1401,9 +1312,7 @@ class CancelSubscriptionAction(ActionHandler):
                     data=form_data if form_data else None,
                 )
 
-            return ActionResult(
-                data={"subscription": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"subscription": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1477,9 +1386,7 @@ class GetPaymentMethodAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(
-                data={"payment_method": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"payment_method": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1507,9 +1414,7 @@ class AttachPaymentMethodAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(
-                data={"payment_method": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"payment_method": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1533,9 +1438,7 @@ class DetachPaymentMethodAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(
-                data={"payment_method": response, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"payment_method": response, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(

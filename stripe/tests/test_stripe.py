@@ -28,9 +28,7 @@ async def test_list_customers():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "list_customers", {"limit": 5}, context
-            )
+            result = await stripe_integration.execute_action("list_customers", {"limit": 5}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -82,9 +80,7 @@ async def test_get_customer(customer_id: str):
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "get_customer", {"customer_id": customer_id}, context
-            )
+            result = await stripe_integration.execute_action("get_customer", {"customer_id": customer_id}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -191,9 +187,7 @@ async def test_list_invoices():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "list_invoices", {"limit": 5, "status": "draft"}, context
-            )
+            result = await stripe_integration.execute_action("list_invoices", {"limit": 5, "status": "draft"}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -209,9 +203,7 @@ async def test_get_invoice(invoice_id: str):
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "get_invoice", {"invoice_id": invoice_id}, context
-            )
+            result = await stripe_integration.execute_action("get_invoice", {"invoice_id": invoice_id}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -254,9 +246,7 @@ async def test_delete_invoice(invoice_id: str):
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "delete_invoice", {"invoice_id": invoice_id}, context
-            )
+            result = await stripe_integration.execute_action("delete_invoice", {"invoice_id": invoice_id}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -272,9 +262,7 @@ async def test_delete_customer(customer_id: str):
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "delete_customer", {"customer_id": customer_id}, context
-            )
+            result = await stripe_integration.execute_action("delete_customer", {"customer_id": customer_id}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -293,9 +281,7 @@ async def test_list_products():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "list_products", {"limit": 5, "active": True}, context
-            )
+            result = await stripe_integration.execute_action("list_products", {"limit": 5, "active": True}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -342,9 +328,7 @@ async def test_get_product(product_id: str):
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "get_product", {"product_id": product_id}, context
-            )
+            result = await stripe_integration.execute_action("get_product", {"product_id": product_id}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -390,9 +374,7 @@ async def test_list_prices():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "list_prices", {"limit": 5, "active": True}, context
-            )
+            result = await stripe_integration.execute_action("list_prices", {"limit": 5, "active": True}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -439,9 +421,7 @@ async def test_get_price(price_id: str):
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "get_price", {"price_id": price_id}, context
-            )
+            result = await stripe_integration.execute_action("get_price", {"price_id": price_id}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -483,9 +463,7 @@ async def test_list_subscriptions():
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await stripe_integration.execute_action(
-                "list_subscriptions", {"limit": 5}, context
-            )
+            result = await stripe_integration.execute_action("list_subscriptions", {"limit": 5}, context)
 
             data = result.result.data
             print(f"Result: {data.get('result')}")
@@ -747,9 +725,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Stripe Integration Tests")
     parser.add_argument("api_key", nargs="?", help="Stripe test API key")
-    parser.add_argument(
-        "--quick", action="store_true", help="Run quick read-only tests"
-    )
+    parser.add_argument("--quick", action="store_true", help="Run quick read-only tests")
     args = parser.parse_args()
 
     if args.api_key:
