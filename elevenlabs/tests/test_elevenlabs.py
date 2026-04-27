@@ -1,7 +1,7 @@
 # Test suite for ElevenLabs integration
 import asyncio
 from context import elevenlabs
-from autohive_integrations_sdk import ExecutionContext
+from autohive_integrations_sdk import ExecutionContext, ResultType
 
 # Test configuration
 # IMPORTANT: Replace with your actual ElevenLabs API key
@@ -22,10 +22,11 @@ async def test_get_user_subscription():
         try:
             result = await elevenlabs.execute_action("get_user_subscription", inputs, context)
 
-            assert result["result"] is True, "Action should succeed"
-            assert "subscription" in result, "Should return subscription object"
+            assert result.type != ResultType.ACTION_ERROR, f"Action failed: {getattr(result.result, 'message', '')}"
+            data = result.result.data
+            assert "subscription" in data, "Should return subscription object"
 
-            sub = result["subscription"]
+            sub = data["subscription"]
             print("✓ Subscription retrieved")
             print(f"  Tier: {sub.get('tier', 'N/A')}")
             print(f"  Character Count: {sub.get('character_count', 0)}/{sub.get('character_limit', 0)}")
@@ -48,10 +49,11 @@ async def test_list_voices():
         try:
             result = await elevenlabs.execute_action("list_voices", inputs, context)
 
-            assert result["result"] is True, "Action should succeed"
-            assert "voices" in result, "Should return voices array"
+            assert result.type != ResultType.ACTION_ERROR, f"Action failed: {getattr(result.result, 'message', '')}"
+            data = result.result.data
+            assert "voices" in data, "Should return voices array"
 
-            voices = result["voices"]
+            voices = data["voices"]
             print(f"✓ Found {len(voices)} voice(s)")
 
             if voices:
@@ -84,10 +86,11 @@ async def test_get_voice():
         try:
             result = await elevenlabs.execute_action("get_voice", inputs, context)
 
-            assert result["result"] is True, "Action should succeed"
-            assert "voice" in result, "Should return voice object"
+            assert result.type != ResultType.ACTION_ERROR, f"Action failed: {getattr(result.result, 'message', '')}"
+            data = result.result.data
+            assert "voice" in data, "Should return voice object"
 
-            voice = result["voice"]
+            voice = data["voice"]
             print(f"✓ Retrieved voice: {voice.get('name', 'Unnamed')}")
             print(f"  Category: {voice.get('category', 'N/A')}")
             print(f"  Description: {voice.get('description', 'No description')}")
@@ -119,10 +122,11 @@ async def test_get_voice_settings():
         try:
             result = await elevenlabs.execute_action("get_voice_settings", inputs, context)
 
-            assert result["result"] is True, "Action should succeed"
-            assert "settings" in result, "Should return settings object"
+            assert result.type != ResultType.ACTION_ERROR, f"Action failed: {getattr(result.result, 'message', '')}"
+            data = result.result.data
+            assert "settings" in data, "Should return settings object"
 
-            settings = result["settings"]
+            settings = data["settings"]
             print("✓ Retrieved voice settings:")
             print(f"  Stability: {settings.get('stability', 'N/A')}")
             print(f"  Similarity Boost: {settings.get('similarity_boost', 'N/A')}")
@@ -159,10 +163,11 @@ async def test_text_to_speech():
         try:
             result = await elevenlabs.execute_action("text_to_speech", inputs, context)
 
-            assert result["result"] is True, "Action should succeed"
-            assert "file" in result, "Should return file object"
+            assert result.type != ResultType.ACTION_ERROR, f"Action failed: {getattr(result.result, 'message', '')}"
+            data = result.result.data
+            assert "file" in data, "Should return file object"
 
-            file_obj = result["file"]
+            file_obj = data["file"]
             assert "content" in file_obj, "File should have content"
             assert "name" in file_obj, "File should have name"
             assert "contentType" in file_obj, "File should have contentType"
@@ -191,10 +196,11 @@ async def test_list_history():
         try:
             result = await elevenlabs.execute_action("list_history", inputs, context)
 
-            assert result["result"] is True, "Action should succeed"
-            assert "history" in result, "Should return history array"
+            assert result.type != ResultType.ACTION_ERROR, f"Action failed: {getattr(result.result, 'message', '')}"
+            data = result.result.data
+            assert "history" in data, "Should return history array"
 
-            history = result["history"]
+            history = data["history"]
             print(f"✓ Found {len(history)} history item(s)")
 
             if history:
@@ -228,10 +234,11 @@ async def test_download_history_audio():
         try:
             result = await elevenlabs.execute_action("download_history_audio", inputs, context)
 
-            assert result["result"] is True, "Action should succeed"
-            assert "file" in result, "Should return file object"
+            assert result.type != ResultType.ACTION_ERROR, f"Action failed: {getattr(result.result, 'message', '')}"
+            data = result.result.data
+            assert "file" in data, "Should return file object"
 
-            file_obj = result["file"]
+            file_obj = data["file"]
             content_length = len(file_obj["content"])
             print("✓ Downloaded audio file")
             print(f"  Name: {file_obj['name']}")

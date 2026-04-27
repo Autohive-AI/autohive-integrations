@@ -1,7 +1,7 @@
 {
     "name": "ElevenLabs",
     "display_name": "ElevenLabs",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "ElevenLabs integration for AI voice generation, text-to-speech, voice cloning, and audio management",
     "entry_point": "elevenlabs.py",
     "auth": {
@@ -57,17 +57,9 @@
                     "voices": {
                         "type": "array",
                         "description": "List of voices"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["voices", "result"]
+                "required": ["voices"]
             }
         },
         "get_voice": {
@@ -93,17 +85,9 @@
                     "voice": {
                         "type": "object",
                         "description": "Voice details and metadata"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["voice", "result"]
+                "required": ["voice"]
             }
         },
         "get_voice_settings": {
@@ -125,17 +109,9 @@
                     "settings": {
                         "type": "object",
                         "description": "Voice settings (stability, similarity_boost, style, use_speaker_boost)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["settings", "result"]
+                "required": ["settings"]
             }
         },
         "list_history": {
@@ -162,17 +138,9 @@
                     "history": {
                         "type": "array",
                         "description": "List of generation history items"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["history", "result"]
+                "required": ["history"]
             }
         },
         "download_history_audio": {
@@ -209,17 +177,9 @@
                             }
                         },
                         "required": ["content", "name", "contentType"]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["file", "result"]
+                "required": ["file"]
             }
         },
         "get_user_subscription": {
@@ -236,17 +196,9 @@
                     "subscription": {
                         "type": "object",
                         "description": "Subscription details (tier, character_count, character_limit, etc.)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["subscription", "result"]
+                "required": ["subscription"]
             }
         },
         "text_to_speech": {
@@ -322,17 +274,9 @@
                             }
                         },
                         "required": ["content", "name", "contentType"]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": ["file"]
             }
         }
     }
