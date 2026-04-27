@@ -12,31 +12,6 @@ from typing import Dict, Any
 # Load integration from config.json
 stripe = Integration.load()
 
-
-@stripe.connected_account()
-class StripeConnectedAccountHandler(ConnectedAccountHandler):
-    async def get_account_info(self, context: ExecutionContext) -> ConnectedAccountInfo:
-        try:
-            response = await context.fetch(
-                f"{STRIPE_API_BASE_URL}/{API_VERSION}/account",
-                method="GET",
-                headers=get_common_headers(),
-            )
-            data = response.data or {}
-            email = data.get("email") or data.get("business_profile", {}).get(
-                "support_email", ""
-            )
-            name = (
-                data.get("business_profile", {}).get("name")
-                or data.get("display_name")
-                or email
-                or "Stripe Account"
-            )
-            return ConnectedAccountInfo(username=name, user_id=data.get("id"))
-        except Exception:
-            return ConnectedAccountInfo(username="Stripe Account")
-
-
 # Base URL for Stripe API
 STRIPE_API_BASE_URL = "https://api.stripe.com"
 API_VERSION = "v1"
@@ -101,6 +76,30 @@ def build_list_params(inputs: Dict[str, Any]) -> Dict[str, Any]:
         params["ending_before"] = inputs["ending_before"]
 
     return params
+
+
+@stripe.connected_account()
+class StripeConnectedAccountHandler(ConnectedAccountHandler):
+    async def get_account_info(self, context: ExecutionContext) -> ConnectedAccountInfo:
+        try:
+            response = await context.fetch(
+                f"{STRIPE_API_BASE_URL}/{API_VERSION}/account",
+                method="GET",
+                headers=get_common_headers(),
+            )
+            data = response.data or {}
+            email = data.get("email") or data.get("business_profile", {}).get(
+                "support_email", ""
+            )
+            name = (
+                data.get("business_profile", {}).get("name")
+                or data.get("display_name")
+                or email
+                or "Stripe Account"
+            )
+            return ConnectedAccountInfo(username=name, user_id=data.get("id"))
+        except Exception:
+            return ConnectedAccountInfo(username="Stripe Account")
 
 
 # ---- Customer Action Handlers ----
