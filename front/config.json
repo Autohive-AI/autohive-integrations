@@ -1,7 +1,7 @@
 {
     "name": "Front",
     "display_name": "Front",
-    "version": "1.2.0",
+    "version": "2.0.0",
     "description": "Front integration for customer communication, inbox management, and team collaboration with attachment support",
     "entry_point": "front.py",
     "auth": {
@@ -23,7 +23,9 @@
                         "description": "The inbox ID to retrieve"
                     }
                 },
-                "required": ["inbox_id"]
+                "required": [
+                    "inbox_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -57,18 +59,16 @@
                                 "description": "Whether inbox is private"
                             }
                         },
-                        "required": ["id", "name", "address"]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "required": [
+                            "id",
+                            "name",
+                            "address"
+                        ]
                     }
                 },
-                "required": ["inbox", "result"]
+                "required": [
+                    "inbox"
+                ]
             }
         },
         "list_inbox_conversations": {
@@ -84,7 +84,13 @@
                     "status": {
                         "type": "string",
                         "description": "Filter by conversation status",
-                        "enum": ["archived", "deleted", "open", "assigned", "unassigned"]
+                        "enum": [
+                            "archived",
+                            "deleted",
+                            "open",
+                            "assigned",
+                            "unassigned"
+                        ]
                     },
                     "tag_id": {
                         "type": "string",
@@ -96,7 +102,9 @@
                         "default": 50
                     }
                 },
-                "required": ["inbox_id"]
+                "required": [
+                    "inbox_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -117,7 +125,12 @@
                                 },
                                 "status": {
                                     "type": "string",
-                                    "enum": ["archived", "unassigned", "deleted", "assigned"],
+                                    "enum": [
+                                        "archived",
+                                        "unassigned",
+                                        "deleted",
+                                        "assigned"
+                                    ],
                                     "description": "Status of the conversation"
                                 },
                                 "status_id": {
@@ -126,7 +139,11 @@
                                 },
                                 "status_category": {
                                     "type": "string",
-                                    "enum": ["open", "waiting", "resolved"],
+                                    "enum": [
+                                        "open",
+                                        "waiting",
+                                        "resolved"
+                                    ],
                                     "description": "Status category of the conversation"
                                 },
                                 "ticket_ids": {
@@ -137,7 +154,10 @@
                                     "description": "List of ticket ids associated with the conversation"
                                 },
                                 "assignee": {
-                                    "type": ["object", "null"],
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
                                     "description": "Assigned teammate (full teammate object or null if unassigned)",
                                     "properties": {
                                         "id": {
@@ -174,7 +194,15 @@
                                         },
                                         "type": {
                                             "type": "string",
-                                            "enum": ["user", "visitor", "rule", "macro", "API", "integration", "CSAT"],
+                                            "enum": [
+                                                "user",
+                                                "visitor",
+                                                "rule",
+                                                "macro",
+                                                "API",
+                                                "integration",
+                                                "CSAT"
+                                            ],
                                             "description": "Type of the teammate"
                                         },
                                         "custom_fields": {
@@ -184,7 +212,10 @@
                                     }
                                 },
                                 "recipient": {
-                                    "type": ["object", "null"],
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
                                     "description": "Conversation recipient (contact information or null)",
                                     "properties": {
                                         "handle": {
@@ -216,11 +247,17 @@
                                                 "description": "Name of the tag"
                                             },
                                             "description": {
-                                                "type": ["string", "null"],
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
                                                 "description": "Description of the tag"
                                             },
                                             "highlight": {
-                                                "type": ["string", "null"],
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
                                                 "description": "Highlight color or emoji of the tag. Null if the tag does not have a highlight"
                                             },
                                             "is_private": {
@@ -313,19 +350,17 @@
                                     "description": "Whether or not the conversation is private"
                                 }
                             },
-                            "required": ["id", "subject", "status"]
+                            "required": [
+                                "id",
+                                "subject",
+                                "status"
+                            ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["conversations", "result"]
+                "required": [
+                    "conversations"
+                ]
             }
         },
         "get_conversation": {
@@ -339,7 +374,9 @@
                         "description": "The conversation ID to retrieve"
                     }
                 },
-                "required": ["conversation_id"]
+                "required": [
+                    "conversation_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -358,7 +395,12 @@
                             },
                             "status": {
                                 "type": "string",
-                                "enum": ["archived", "unassigned", "deleted", "assigned"],
+                                "enum": [
+                                    "archived",
+                                    "unassigned",
+                                    "deleted",
+                                    "assigned"
+                                ],
                                 "description": "Status of the conversation"
                             },
                             "status_id": {
@@ -367,7 +409,11 @@
                             },
                             "status_category": {
                                 "type": "string",
-                                "enum": ["open", "waiting", "resolved"],
+                                "enum": [
+                                    "open",
+                                    "waiting",
+                                    "resolved"
+                                ],
                                 "description": "Status category of the conversation"
                             },
                             "ticket_ids": {
@@ -378,7 +424,10 @@
                                 "description": "List of ticket ids associated with the conversation"
                             },
                             "assignee": {
-                                "type": ["object", "null"],
+                                "type": [
+                                    "object",
+                                    "null"
+                                ],
                                 "description": "Assigned teammate (full teammate object or null if unassigned)",
                                 "properties": {
                                     "id": {
@@ -415,7 +464,15 @@
                                     },
                                     "type": {
                                         "type": "string",
-                                        "enum": ["user", "visitor", "rule", "macro", "API", "integration", "CSAT"],
+                                        "enum": [
+                                            "user",
+                                            "visitor",
+                                            "rule",
+                                            "macro",
+                                            "API",
+                                            "integration",
+                                            "CSAT"
+                                        ],
                                         "description": "Type of the teammate"
                                     },
                                     "custom_fields": {
@@ -425,7 +482,10 @@
                                 }
                             },
                             "recipient": {
-                                "type": ["object", "null"],
+                                "type": [
+                                    "object",
+                                    "null"
+                                ],
                                 "description": "Conversation recipient (contact information or null)",
                                 "properties": {
                                     "handle": {
@@ -457,11 +517,17 @@
                                             "description": "Name of the tag"
                                         },
                                         "description": {
-                                            "type": ["string", "null"],
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
                                             "description": "Description of the tag"
                                         },
                                         "highlight": {
-                                            "type": ["string", "null"],
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
                                             "description": "Highlight color or emoji of the tag. Null if the tag does not have a highlight"
                                         },
                                         "is_private": {
@@ -554,18 +620,16 @@
                                 "description": "Whether conversation is private"
                             }
                         },
-                        "required": ["id", "subject", "status"]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "required": [
+                            "id",
+                            "subject",
+                            "status"
+                        ]
                     }
                 },
-                "required": ["conversation", "result"]
+                "required": [
+                    "conversation"
+                ]
             }
         },
         "list_conversation_messages": {
@@ -584,7 +648,9 @@
                         "default": 50
                     }
                 },
-                "required": ["conversation_id"]
+                "required": [
+                    "conversation_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -608,7 +674,10 @@
                                     "description": "Whether message is inbound"
                                 },
                                 "author": {
-                                    "type": ["object", "null"],
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
                                     "description": "Front teammate who sent this message (null for inbound messages from external contacts)",
                                     "properties": {
                                         "id": {
@@ -645,7 +714,15 @@
                                         },
                                         "type": {
                                             "type": "string",
-                                            "enum": ["user", "visitor", "rule", "macro", "API", "integration", "CSAT"],
+                                            "enum": [
+                                                "user",
+                                                "visitor",
+                                                "rule",
+                                                "macro",
+                                                "API",
+                                                "integration",
+                                                "CSAT"
+                                            ],
                                             "description": "Type of the teammate"
                                         },
                                         "custom_fields": {
@@ -661,7 +738,10 @@
                                         "type": "object",
                                         "properties": {
                                             "name": {
-                                                "type": ["string", "null"],
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
                                                 "description": "Name of the recipient"
                                             },
                                             "handle": {
@@ -670,7 +750,13 @@
                                             },
                                             "role": {
                                                 "type": "string",
-                                                "enum": ["from", "to", "cc", "bcc", "reply-to"],
+                                                "enum": [
+                                                    "from",
+                                                    "to",
+                                                    "cc",
+                                                    "bcc",
+                                                    "reply-to"
+                                                ],
                                                 "description": "Role of the recipient"
                                             }
                                         }
@@ -689,19 +775,18 @@
                                     "description": "Message timestamp"
                                 }
                             },
-                            "required": ["id", "type", "is_inbound", "author"]
+                            "required": [
+                                "id",
+                                "type",
+                                "is_inbound",
+                                "author"
+                            ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["messages", "result"]
+                "required": [
+                    "messages"
+                ]
             }
         },
         "create_message": {
@@ -772,7 +857,11 @@
                         }
                     }
                 },
-                "required": ["channel_id", "body", "to"]
+                "required": [
+                    "channel_id",
+                    "body",
+                    "to"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -780,17 +869,11 @@
                     "message_uid": {
                         "type": "string",
                         "description": "Temporary message UID (async processing)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["message_uid", "result"]
+                "required": [
+                    "message_uid"
+                ]
             }
         },
         "create_message_reply": {
@@ -869,7 +952,10 @@
                         }
                     }
                 },
-                "required": ["conversation_id", "body"]
+                "required": [
+                    "conversation_id",
+                    "body"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -877,17 +963,11 @@
                     "message_uid": {
                         "type": "string",
                         "description": "Temporary message UID (async processing)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["message_uid", "result"]
+                "required": [
+                    "message_uid"
+                ]
             }
         },
         "get_message": {
@@ -901,7 +981,9 @@
                         "description": "The message ID to retrieve"
                     }
                 },
-                "required": ["message_id"]
+                "required": [
+                    "message_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -923,7 +1005,10 @@
                                 "description": "Whether message is inbound"
                             },
                             "author": {
-                                "type": ["object", "null"],
+                                "type": [
+                                    "object",
+                                    "null"
+                                ],
                                 "description": "Front teammate who sent this message (null for inbound messages from external contacts)",
                                 "properties": {
                                     "id": {
@@ -960,7 +1045,15 @@
                                     },
                                     "type": {
                                         "type": "string",
-                                        "enum": ["user", "visitor", "rule", "macro", "API", "integration", "CSAT"],
+                                        "enum": [
+                                            "user",
+                                            "visitor",
+                                            "rule",
+                                            "macro",
+                                            "API",
+                                            "integration",
+                                            "CSAT"
+                                        ],
                                         "description": "Type of the teammate"
                                     },
                                     "custom_fields": {
@@ -976,7 +1069,10 @@
                                     "type": "object",
                                     "properties": {
                                         "name": {
-                                            "type": ["string", "null"],
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
                                             "description": "Name of the recipient"
                                         },
                                         "handle": {
@@ -985,7 +1081,13 @@
                                         },
                                         "role": {
                                             "type": "string",
-                                            "enum": ["from", "to", "cc", "bcc", "reply-to"],
+                                            "enum": [
+                                                "from",
+                                                "to",
+                                                "cc",
+                                                "bcc",
+                                                "reply-to"
+                                            ],
                                             "description": "Role of the recipient"
                                         }
                                     }
@@ -1004,18 +1106,17 @@
                                 "description": "Message timestamp"
                             }
                         },
-                        "required": ["id", "type", "is_inbound", "author"]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "required": [
+                            "id",
+                            "type",
+                            "is_inbound",
+                            "author"
+                        ]
                     }
                 },
-                "required": ["message", "result"]
+                "required": [
+                    "message"
+                ]
             }
         },
         "download_message_attachment": {
@@ -1029,7 +1130,9 @@
                         "description": "The URL of the attachment to download (from message.attachments[].url)"
                     }
                 },
-                "required": ["attachment_url"]
+                "required": [
+                    "attachment_url"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1055,18 +1158,17 @@
                                 "description": "File size in bytes"
                             }
                         },
-                        "required": ["content", "name", "contentType", "size"]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "required": [
+                            "content",
+                            "name",
+                            "contentType",
+                            "size"
+                        ]
                     }
                 },
-                "required": ["file", "result"]
+                "required": [
+                    "file"
+                ]
             }
         },
         "list_channels": {
@@ -1117,19 +1219,17 @@
                                     "description": "Channel settings"
                                 }
                             },
-                            "required": ["id", "name", "type"]
+                            "required": [
+                                "id",
+                                "name",
+                                "type"
+                            ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["channels", "result"]
+                "required": [
+                    "channels"
+                ]
             }
         },
         "list_inbox_channels": {
@@ -1148,7 +1248,9 @@
                         "default": 50
                     }
                 },
-                "required": ["inbox_id"]
+                "required": [
+                    "inbox_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1184,19 +1286,17 @@
                                     "description": "Channel settings"
                                 }
                             },
-                            "required": ["id", "name", "type"]
+                            "required": [
+                                "id",
+                                "name",
+                                "type"
+                            ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["channels", "result"]
+                "required": [
+                    "channels"
+                ]
             }
         },
         "get_channel": {
@@ -1210,7 +1310,9 @@
                         "description": "The channel ID to retrieve"
                     }
                 },
-                "required": ["channel_id"]
+                "required": [
+                    "channel_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1248,18 +1350,16 @@
                                 "description": "Channel settings"
                             }
                         },
-                        "required": ["id", "name", "type"]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "required": [
+                            "id",
+                            "name",
+                            "type"
+                        ]
                     }
                 },
-                "required": ["channel", "result"]
+                "required": [
+                    "channel"
+                ]
             }
         },
         "list_message_templates": {
@@ -1310,19 +1410,20 @@
                                     "description": "Template metadata"
                                 }
                             },
-                            "required": ["id", "name", "subject", "body", "attachments", "metadata"]
+                            "required": [
+                                "id",
+                                "name",
+                                "subject",
+                                "body",
+                                "attachments",
+                                "metadata"
+                            ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["templates", "result"]
+                "required": [
+                    "templates"
+                ]
             }
         },
         "get_message_template": {
@@ -1336,7 +1437,9 @@
                         "description": "The message template ID to retrieve"
                     }
                 },
-                "required": ["message_template_id"]
+                "required": [
+                    "message_template_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1370,18 +1473,19 @@
                                 "description": "Template metadata including inbox availability"
                             }
                         },
-                        "required": ["id", "name", "subject", "body", "attachments", "metadata"]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "required": [
+                            "id",
+                            "name",
+                            "subject",
+                            "body",
+                            "attachments",
+                            "metadata"
+                        ]
                     }
                 },
-                "required": ["template", "result"]
+                "required": [
+                    "template"
+                ]
             }
         },
         "update_conversation": {
@@ -1395,7 +1499,10 @@
                         "description": "The conversation ID to update"
                     },
                     "assignee_id": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "ID of teammate to assign conversation to. Set to null to unassign"
                     },
                     "inbox_id": {
@@ -1405,7 +1512,12 @@
                     "status": {
                         "type": "string",
                         "description": "New conversation status",
-                        "enum": ["archived", "deleted", "open", "spam"]
+                        "enum": [
+                            "archived",
+                            "deleted",
+                            "open",
+                            "spam"
+                        ]
                     },
                     "status_id": {
                         "type": "string",
@@ -1423,7 +1535,9 @@
                         "description": "Custom fields for this conversation. Include all custom fields, not just ones to update"
                     }
                 },
-                "required": ["conversation_id"]
+                "required": [
+                    "conversation_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1450,7 +1564,11 @@
                             },
                             "status_category": {
                                 "type": "string",
-                                "enum": ["open", "waiting", "resolved"],
+                                "enum": [
+                                    "open",
+                                    "waiting",
+                                    "resolved"
+                                ],
                                 "description": "Status category of the conversation"
                             },
                             "ticket_ids": {
@@ -1461,7 +1579,10 @@
                                 "description": "List of ticket IDs"
                             },
                             "assignee": {
-                                "type": ["object", "null"],
+                                "type": [
+                                    "object",
+                                    "null"
+                                ],
                                 "description": "Assigned teammate (full teammate object or null if unassigned)",
                                 "properties": {
                                     "id": {
@@ -1498,7 +1619,15 @@
                                     },
                                     "type": {
                                         "type": "string",
-                                        "enum": ["user", "visitor", "rule", "macro", "API", "integration", "CSAT"],
+                                        "enum": [
+                                            "user",
+                                            "visitor",
+                                            "rule",
+                                            "macro",
+                                            "API",
+                                            "integration",
+                                            "CSAT"
+                                        ],
                                         "description": "Type of the teammate"
                                     },
                                     "custom_fields": {
@@ -1508,7 +1637,10 @@
                                 }
                             },
                             "recipient": {
-                                "type": ["object", "null"],
+                                "type": [
+                                    "object",
+                                    "null"
+                                ],
                                 "description": "Conversation recipient (contact information or null)",
                                 "properties": {
                                     "handle": {
@@ -1546,17 +1678,11 @@
                             }
                         },
                         "required": []
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["conversation", "result"]
+                "required": [
+                    "conversation"
+                ]
             }
         },
         "list_inboxes": {
@@ -1603,19 +1729,17 @@
                                     "description": "Send as email address"
                                 }
                             },
-                            "required": ["id", "name", "address"]
+                            "required": [
+                                "id",
+                                "name",
+                                "address"
+                            ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["inboxes", "result"]
+                "required": [
+                    "inboxes"
+                ]
             }
         },
         "list_teammates": {
@@ -1676,26 +1800,39 @@
                                 "type": {
                                     "type": "string",
                                     "description": "Type of teammate (user, visitor, rule, macro, API, integration, CSAT)",
-                                    "enum": ["user", "visitor", "rule", "macro", "API", "integration", "CSAT"]
+                                    "enum": [
+                                        "user",
+                                        "visitor",
+                                        "rule",
+                                        "macro",
+                                        "API",
+                                        "integration",
+                                        "CSAT"
+                                    ]
                                 },
                                 "custom_fields": {
                                     "type": "object",
                                     "description": "Custom fields for this teammate"
                                 }
                             },
-                            "required": ["id", "email", "username", "first_name", "last_name", "is_admin", "is_available", "is_blocked", "type", "custom_fields"]
+                            "required": [
+                                "id",
+                                "email",
+                                "username",
+                                "first_name",
+                                "last_name",
+                                "is_admin",
+                                "is_available",
+                                "is_blocked",
+                                "type",
+                                "custom_fields"
+                            ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["teammates", "result"]
+                "required": [
+                    "teammates"
+                ]
             }
         },
         "get_teammate": {
@@ -1709,7 +1846,9 @@
                         "description": "The teammate ID to retrieve"
                     }
                 },
-                "required": ["teammate_id"]
+                "required": [
+                    "teammate_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1753,25 +1892,38 @@
                             "type": {
                                 "type": "string",
                                 "description": "Type of teammate (user, visitor, rule, macro, API, integration, CSAT)",
-                                "enum": ["user", "visitor", "rule", "macro", "API", "integration", "CSAT"]
+                                "enum": [
+                                    "user",
+                                    "visitor",
+                                    "rule",
+                                    "macro",
+                                    "API",
+                                    "integration",
+                                    "CSAT"
+                                ]
                             },
                             "custom_fields": {
                                 "type": "object",
                                 "description": "Custom fields for this teammate"
                             }
                         },
-                        "required": ["id", "email", "username", "first_name", "last_name", "is_admin", "is_available", "is_blocked", "type", "custom_fields"]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "required": [
+                            "id",
+                            "email",
+                            "username",
+                            "first_name",
+                            "last_name",
+                            "is_admin",
+                            "is_available",
+                            "is_blocked",
+                            "type",
+                            "custom_fields"
+                        ]
                     }
                 },
-                "required": ["teammate", "result"]
+                "required": [
+                    "teammate"
+                ]
             }
         },
         "find_teammate": {
@@ -1785,7 +1937,9 @@
                         "description": "Name or email to search for (case-insensitive, partial match supported)"
                     }
                 },
-                "required": ["search_query"]
+                "required": [
+                    "search_query"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1817,23 +1971,22 @@
                                     "description": "Teammate last name"
                                 }
                             },
-                            "required": ["id", "email", "first_name", "last_name"]
+                            "required": [
+                                "id",
+                                "email",
+                                "first_name",
+                                "last_name"
+                            ]
                         }
                     },
                     "count": {
                         "type": "integer",
                         "description": "Number of matching teammates found"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["teammates", "result"]
+                "required": [
+                    "teammates"
+                ]
             }
         },
         "find_inbox": {
@@ -1847,7 +2000,9 @@
                         "description": "Inbox name to search for (case-insensitive, partial match supported)"
                     }
                 },
-                "required": ["inbox_name"]
+                "required": [
+                    "inbox_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1871,23 +2026,21 @@
                                     "description": "Inbox email address"
                                 }
                             },
-                            "required": ["id", "name", "address"]
+                            "required": [
+                                "id",
+                                "name",
+                                "address"
+                            ]
                         }
                     },
                     "count": {
                         "type": "integer",
                         "description": "Number of matching inboxes found"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["inboxes", "result"]
+                "required": [
+                    "inboxes"
+                ]
             }
         },
         "find_conversation": {
@@ -1910,7 +2063,10 @@
                         "default": 50
                     }
                 },
-                "required": ["inbox_id", "search_query"]
+                "required": [
+                    "inbox_id",
+                    "search_query"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1934,27 +2090,28 @@
                                     "description": "Conversation status"
                                 },
                                 "recipient": {
-                                    "type": ["object", "null"],
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
                                     "description": "Conversation recipient"
                                 }
                             },
-                            "required": ["id", "subject", "status"]
+                            "required": [
+                                "id",
+                                "subject",
+                                "status"
+                            ]
                         }
                     },
                     "count": {
                         "type": "integer",
                         "description": "Number of matching conversations found"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["conversations", "result"]
+                "required": [
+                    "conversations"
+                ]
             }
         }
     }
