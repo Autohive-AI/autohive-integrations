@@ -1,7 +1,7 @@
 {
     "name": "Freshdesk",
     "display_name": "Freshdesk",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Freshdesk integration for managing tickets, contacts, companies, and customer support operations",
     "entry_point": "freshdesk.py",
     "auth": {
@@ -91,17 +91,9 @@
                     "total": {
                         "type": "integer",
                         "description": "Total number of companies"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["companies", "result"]
+                "required": ["companies", "total"]
             }
         },
         "create_company": {
@@ -175,17 +167,9 @@
                                 "description": "Company last update timestamp"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["company", "result"]
+                "required": ["company"]
             }
         },
         "get_company": {
@@ -240,17 +224,9 @@
                                 "description": "Company last update timestamp"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["company", "result"]
+                "required": ["company"]
             }
         },
         "update_company": {
@@ -328,17 +304,9 @@
                                 "description": "Company last update timestamp"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["company", "result"]
+                "required": ["company"]
             }
         },
         "delete_company": {
@@ -357,16 +325,12 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "deleted": {
                         "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "description": "Whether the company was deleted"
                     }
                 },
-                "required": ["result"]
+                "required": ["deleted"]
             }
         },
         "search_companies": {
@@ -405,17 +369,9 @@
                     "total": {
                         "type": "integer",
                         "description": "Total number of companies found"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["companies", "result"]
+                "required": ["companies", "total"]
             }
         },
         "create_ticket": {
@@ -475,17 +431,9 @@
                     "ticket": {
                         "type": "object",
                         "description": "Created ticket details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["ticket", "result"]
+                "required": ["ticket"]
             }
         },
         "list_tickets": {
@@ -518,17 +466,9 @@
                     "total": {
                         "type": "integer",
                         "description": "Total number of tickets returned"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["tickets", "result"]
+                "required": ["tickets", "total"]
             }
         },
         "get_ticket": {
@@ -550,17 +490,9 @@
                     "ticket": {
                         "type": "object",
                         "description": "Ticket details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["ticket", "result"]
+                "required": ["ticket"]
             }
         },
         "update_ticket": {
@@ -607,17 +539,9 @@
                     "ticket": {
                         "type": "object",
                         "description": "Updated ticket details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["ticket", "result"]
+                "required": ["ticket"]
             }
         },
         "delete_ticket": {
@@ -636,16 +560,12 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "deleted": {
                         "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "description": "Whether the ticket was deleted"
                     }
                 },
-                "required": ["result"]
+                "required": ["deleted"]
             }
         },
         "create_contact": {
@@ -698,17 +618,9 @@
                     "contact": {
                         "type": "object",
                         "description": "Created contact details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["contact", "result"]
+                "required": ["contact"]
             }
         },
         "list_contacts": {
@@ -741,17 +653,9 @@
                     "total": {
                         "type": "integer",
                         "description": "Total number of contacts returned"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["contacts", "result"]
+                "required": ["contacts", "total"]
             }
         },
         "get_contact": {
@@ -773,17 +677,9 @@
                     "contact": {
                         "type": "object",
                         "description": "Contact details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["contact", "result"]
+                "required": ["contact"]
             }
         },
         "update_contact": {
@@ -829,17 +725,9 @@
                     "contact": {
                         "type": "object",
                         "description": "Updated contact details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["contact", "result"]
+                "required": ["contact"]
             }
         },
         "delete_contact": {
@@ -858,16 +746,12 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "deleted": {
                         "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "description": "Whether the contact was deleted"
                     }
                 },
-                "required": ["result"]
+                "required": ["deleted"]
             }
         },
         "search_contacts": {
@@ -906,17 +790,9 @@
                     "total": {
                         "type": "integer",
                         "description": "Total number of contacts found"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["contacts", "result"]
+                "required": ["contacts", "total"]
             }
         },
         "list_conversations": {
@@ -938,17 +814,9 @@
                     "conversations": {
                         "type": "array",
                         "description": "List of conversations"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["conversations", "result"]
+                "required": ["conversations"]
             }
         },
         "create_note": {
@@ -981,17 +849,9 @@
                     "conversation": {
                         "type": "object",
                         "description": "Created note details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["conversation", "result"]
+                "required": ["conversation"]
             }
         },
         "create_reply": {
@@ -1021,17 +881,9 @@
                     "conversation": {
                         "type": "object",
                         "description": "Created reply details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["conversation", "result"]
+                "required": ["conversation"]
             }
         }
     }
