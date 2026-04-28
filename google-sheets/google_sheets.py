@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any, List
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -54,18 +54,15 @@ class ListSpreadsheets(ActionHandler):
                 params["pageToken"] = inputs["pageToken"]
 
             result = drive.files().list(**params).execute()
-            response = {"files": result.get("files", []), "result": True}
+            response = {"files": result.get("files", [])}
             next_page = result.get("nextPageToken")
             if isinstance(next_page, str) and next_page:
                 response["nextPageToken"] = next_page
             return ActionResult(data=response, cost_usd=0.0)
         except HttpError as e:
-            return ActionResult(
-                data={"files": [], "result": False, "error": f"Google Drive API error: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Google Drive API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"files": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @google_sheets.action("sheets_get_spreadsheet")
@@ -77,14 +74,11 @@ class GetSpreadsheet(ActionHandler):
             include_grid = bool(inputs.get("include_grid_data", False))
             request = service.spreadsheets().get(spreadsheetId=spreadsheet_id, includeGridData=include_grid)
             spreadsheet = request.execute()
-            return ActionResult(data={"spreadsheet": spreadsheet, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"spreadsheet": spreadsheet}, cost_usd=0.0)
         except HttpError as e:
-            return ActionResult(
-                data={"spreadsheet": {}, "result": False, "error": f"Google Sheets API error: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Google Sheets API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"spreadsheet": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @google_sheets.action("sheets_list_sheets")
@@ -103,14 +97,11 @@ class ListSheets(ActionHandler):
                 .execute()
             )
             sheets_list = [s.get("properties", {}) for s in result.get("sheets", [])]
-            return ActionResult(data={"sheets": sheets_list, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"sheets": sheets_list}, cost_usd=0.0)
         except HttpError as e:
-            return ActionResult(
-                data={"sheets": [], "result": False, "error": f"Google Sheets API error: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Google Sheets API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"sheets": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @google_sheets.action("sheets_read_range")
@@ -129,24 +120,13 @@ class ReadRange(ActionHandler):
                 params["dateTimeRenderOption"] = dt_render
             result = service.spreadsheets().values().get(**params).execute()
             return ActionResult(
-                data={"range": result.get("range", a1), "values": result.get("values", []), "result": True},
+                data={"range": result.get("range", a1), "values": result.get("values", [])},
                 cost_usd=0.0,
             )
         except HttpError as e:
-            return ActionResult(
-                data={
-                    "range": inputs.get("range"),
-                    "values": [],
-                    "result": False,
-                    "error": f"Google Sheets API error: {str(e)}",
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Google Sheets API error: {str(e)}")
         except Exception as e:
-            return ActionResult(
-                data={"range": inputs.get("range"), "values": [], "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @google_sheets.action("sheets_write_range")
@@ -173,7 +153,6 @@ class WriteRange(ActionHandler):
                         "updatedColumns": cols,
                         "updatedCells": rows * cols,
                         "dryRun": True,
-                        "result": True,
                     },
                     cost_usd=0.0,
                 )
@@ -198,14 +177,13 @@ class WriteRange(ActionHandler):
                     "updatedColumns": result.get("updatedColumns", 0),
                     "updatedCells": result.get("updatedCells", 0),
                     "dryRun": False,
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except HttpError as e:
-            return ActionResult(data={"result": False, "error": f"Google Sheets API error: {str(e)}"}, cost_usd=0.0)
+            return ActionError(message=f"Google Sheets API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @google_sheets.action("sheets_append_rows")
@@ -230,14 +208,11 @@ class AppendRows(ActionHandler):
                 )
                 .execute()
             )
-            return ActionResult(data={"updates": result.get("updates", result), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"updates": result.get("updates", result)}, cost_usd=0.0)
         except HttpError as e:
-            return ActionResult(
-                data={"updates": {}, "result": False, "error": f"Google Sheets API error: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Google Sheets API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"updates": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @google_sheets.action("sheets_format_range")
@@ -262,14 +237,11 @@ class FormatRange(ActionHandler):
             result = (
                 service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests}).execute()
             )
-            return ActionResult(data={"replies": result.get("replies", []), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"replies": result.get("replies", [])}, cost_usd=0.0)
         except HttpError as e:
-            return ActionResult(
-                data={"replies": [], "result": False, "error": f"Google Sheets API error: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Google Sheets API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"replies": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @google_sheets.action("sheets_freeze")
@@ -303,14 +275,11 @@ class FreezePanes(ActionHandler):
             result = (
                 service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests}).execute()
             )
-            return ActionResult(data={"replies": result.get("replies", []), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"replies": result.get("replies", [])}, cost_usd=0.0)
         except HttpError as e:
-            return ActionResult(
-                data={"replies": [], "result": False, "error": f"Google Sheets API error: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Google Sheets API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"replies": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @google_sheets.action("sheets_batch_update")
@@ -323,32 +292,26 @@ class SheetsBatchUpdate(ActionHandler):
 
             # Basic validation: ensure it's a list of dicts
             if not isinstance(requests, list) or not all(isinstance(r, dict) for r in requests):
-                return ActionResult(
-                    data={"result": False, "error": "requests must be an array of objects"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="requests must be an array of objects")
 
             if dry_run:
                 # Validate by fetching spreadsheet metadata
                 service = build_sheets_service(context)
                 _ = service.spreadsheets().get(spreadsheetId=spreadsheet_id, includeGridData=False).execute()
-                return ActionResult(data={"replies": [], "dryRun": True, "result": True}, cost_usd=0.0)
+                return ActionResult(data={"replies": [], "dryRun": True}, cost_usd=0.0)
 
             service = build_sheets_service(context)
             result = (
                 service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests}).execute()
             )
             return ActionResult(
-                data={"replies": result.get("replies", []), "dryRun": False, "result": True},
+                data={"replies": result.get("replies", []), "dryRun": False},
                 cost_usd=0.0,
             )
         except HttpError as e:
-            return ActionResult(
-                data={"replies": [], "result": False, "error": f"Google Sheets API error: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Google Sheets API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"replies": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @google_sheets.action("sheets_duplicate_spreadsheet")
@@ -372,11 +335,8 @@ class DuplicateSpreadsheet(ActionHandler):
                 )
                 .execute()
             )
-            return ActionResult(data={"file_metadata": result, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"file_metadata": result}, cost_usd=0.0)
         except HttpError as e:
-            return ActionResult(
-                data={"file_metadata": {}, "result": False, "error": f"Google Drive API error: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Google Drive API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"file_metadata": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))

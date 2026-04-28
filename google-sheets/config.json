@@ -1,7 +1,7 @@
 {
   "name": "Google Sheets",
   "display_name": "Google Sheets",
-  "version": "0.1.1",
+  "version": "2.0.0",
   "entry_point": "google_sheets.py",
   "description": "Read and write Google Sheets with safe, deterministic operations and basic formatting.",
   "auth": {
@@ -36,11 +36,9 @@
         "type": "object",
         "properties": {
           "files": { "type": "array", "items": { "type": "object" } },
-          "nextPageToken": { "type": "string" },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "nextPageToken": { "type": "string" }
         },
-        "required": ["files", "result"]
+        "required": ["files"]
       }
     },
     "sheets_get_spreadsheet": {
@@ -60,11 +58,9 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "spreadsheet": { "type": "object" },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "spreadsheet": { "type": "object" }
         },
-        "required": ["spreadsheet", "result"]
+        "required": ["spreadsheet"]
       }
     },
     "sheets_list_sheets": {
@@ -80,11 +76,9 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "sheets": { "type": "array", "items": { "type": "object" } },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "sheets": { "type": "array", "items": { "type": "object" } }
         },
-        "required": ["sheets", "result"]
+        "required": ["sheets"]
       }
     },
     "sheets_read_range": {
@@ -119,11 +113,9 @@
               "type": "array",
               "items": { "type": ["string", "number", "boolean", "null"] }
             }
-          },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          }
         },
-        "required": ["range", "values", "result"]
+        "required": ["range", "values"]
       }
     },
     "sheets_write_range": {
@@ -153,11 +145,8 @@
           "updatedRows": { "type": "integer" },
           "updatedColumns": { "type": "integer" },
           "updatedCells": { "type": "integer" },
-          "dryRun": { "type": "boolean" },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
-        },
-        "required": ["result"]
+          "dryRun": { "type": "boolean" }
+        }
       }
     },
     "sheets_append_rows": {
@@ -185,11 +174,8 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "updates": { "type": "object" },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
-        },
-        "required": ["result"]
+          "updates": { "type": "object" }
+        }
       }
     },
     "sheets_format_range": {
@@ -220,11 +206,8 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "replies": { "type": "array", "items": { "type": "object" } },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
-        },
-        "required": ["result"]
+          "replies": { "type": "array", "items": { "type": "object" } }
+        }
       }
     },
     "sheets_freeze": {
@@ -243,11 +226,8 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "replies": { "type": "array", "items": { "type": "object" } },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
-        },
-        "required": ["result"]
+          "replies": { "type": "array", "items": { "type": "object" } }
+        }
       }
     },
     "sheets_batch_update": {
@@ -266,11 +246,8 @@
         "type": "object",
         "properties": {
           "replies": { "type": "array", "items": { "type": "object" } },
-          "dryRun": { "type": "boolean" },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
-        },
-        "required": ["result"]
+          "dryRun": { "type": "boolean" }
+        }
       }
     },
     "sheets_duplicate_spreadsheet": {
@@ -306,11 +283,9 @@
               "parents": { "type": "array", "items": { "type": "string" } },
               "webViewLink": { "type": "string" }
             }
-          },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          }
         },
-        "required": ["file_metadata", "result"]
+        "required": ["file_metadata"]
       }
     }
   }
