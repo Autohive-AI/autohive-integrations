@@ -1,4 +1,5 @@
 from autohive_integrations_sdk import (
+    ActionError,
     ActionResult,
     ConnectedAccountHandler,
     ConnectedAccountInfo,
@@ -186,7 +187,7 @@ class ListPeopleHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list people: {str(e)}")
+            return ActionError(message=f"Failed to list people: {str(e)}")
 
 
 @float.action("get_person")
@@ -220,7 +221,7 @@ class GetPersonHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get person {people_id}: {str(e)}")
+            return ActionError(message=f"Failed to get person {people_id}: {str(e)}")
 
 
 @float.action("create_person")
@@ -273,7 +274,7 @@ class CreatePersonHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to create person: {str(e)}")
+            return ActionError(message=f"Failed to create person: {str(e)}")
 
 
 @float.action("update_person")
@@ -337,7 +338,7 @@ class UpdatePersonHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to update person {people_id}: {str(e)}")
+            return ActionError(message=f"Failed to update person {people_id}: {str(e)}")
 
 
 @float.action("delete_person")
@@ -366,7 +367,7 @@ class DeletePersonHandler(ActionHandler):
             )
 
         except Exception as e:
-            raise Exception(f"Failed to delete person {people_id}: {str(e)}")
+            return ActionError(message=f"Failed to delete person {people_id}: {str(e)}")
 
 
 # ---- Projects Resource Actions ----
@@ -422,7 +423,7 @@ class ListProjectsHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list projects: {str(e)}")
+            return ActionError(message=f"Failed to list projects: {str(e)}")
 
 
 @float.action("get_project")
@@ -451,7 +452,7 @@ class GetProjectHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get project {project_id}: {str(e)}")
+            return ActionError(message=f"Failed to get project {project_id}: {str(e)}")
 
 
 @float.action("create_project")
@@ -505,7 +506,7 @@ class CreateProjectHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to create project: {str(e)}")
+            return ActionError(message=f"Failed to create project: {str(e)}")
 
 
 @float.action("update_project")
@@ -561,7 +562,7 @@ class UpdateProjectHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to update project {project_id}: {str(e)}")
+            return ActionError(message=f"Failed to update project {project_id}: {str(e)}")
 
 
 @float.action("delete_project")
@@ -590,7 +591,7 @@ class DeleteProjectHandler(ActionHandler):
             )
 
         except Exception as e:
-            raise Exception(f"Failed to delete project {project_id}: {str(e)}")
+            return ActionError(message=f"Failed to delete project {project_id}: {str(e)}")
 
 
 # ---- Tasks/Allocations Resource Actions ----
@@ -643,7 +644,7 @@ class ListTasksHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list tasks: {str(e)}")
+            return ActionError(message=f"Failed to list tasks: {str(e)}")
 
 
 @float.action("get_task")
@@ -670,7 +671,7 @@ class GetTaskHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get task {task_id}: {str(e)}")
+            return ActionError(message=f"Failed to get task {task_id}: {str(e)}")
 
 
 @float.action("create_task")
@@ -722,7 +723,7 @@ class CreateTaskHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to create task: {str(e)}")
+            return ActionError(message=f"Failed to create task: {str(e)}")
 
 
 @float.action("update_task")
@@ -774,7 +775,7 @@ class UpdateTaskHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to update task {task_id}: {str(e)}")
+            return ActionError(message=f"Failed to update task {task_id}: {str(e)}")
 
 
 @float.action("delete_task")
@@ -801,7 +802,7 @@ class DeleteTaskHandler(ActionHandler):
             return ActionResult(data={"success": True, "message": f"Task {task_id} deleted successfully"}, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to delete task {task_id}: {str(e)}")
+            return ActionError(message=f"Failed to delete task {task_id}: {str(e)}")
 
 
 # ---- Time Off Resource Actions ----
@@ -854,7 +855,7 @@ class ListTimeOffHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list time off: {str(e)}")
+            return ActionError(message=f"Failed to list time off: {str(e)}")
 
 
 @float.action("get_time_off")
@@ -883,7 +884,7 @@ class GetTimeOffHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get time off {timeoff_id}: {str(e)}")
+            return ActionError(message=f"Failed to get time off {timeoff_id}: {str(e)}")
 
 
 @float.action("create_time_off")
@@ -926,7 +927,7 @@ class CreateTimeOffHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to create time off: {str(e)}")
+            return ActionError(message=f"Failed to create time off: {str(e)}")
 
 
 @float.action("update_time_off")
@@ -964,7 +965,7 @@ class UpdateTimeOffHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to update time off {timeoff_id}: {str(e)}")
+            return ActionError(message=f"Failed to update time off {timeoff_id}: {str(e)}")
 
 
 @float.action("delete_time_off")
@@ -993,7 +994,7 @@ class DeleteTimeOffHandler(ActionHandler):
             )
 
         except Exception as e:
-            raise Exception(f"Failed to delete time off {timeoff_id}: {str(e)}")
+            return ActionError(message=f"Failed to delete time off {timeoff_id}: {str(e)}")
 
 
 # ---- Logged Time Resource Actions ----
@@ -1046,7 +1047,7 @@ class ListLoggedTimeHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list logged time: {str(e)}")
+            return ActionError(message=f"Failed to list logged time: {str(e)}")
 
 
 @float.action("get_logged_time")
@@ -1075,7 +1076,7 @@ class GetLoggedTimeHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get logged time {logged_time_id}: {str(e)}")
+            return ActionError(message=f"Failed to get logged time {logged_time_id}: {str(e)}")
 
 
 @float.action("create_logged_time")
@@ -1120,7 +1121,7 @@ class CreateLoggedTimeHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to create logged time: {str(e)}")
+            return ActionError(message=f"Failed to create logged time: {str(e)}")
 
 
 @float.action("update_logged_time")
@@ -1161,7 +1162,7 @@ class UpdateLoggedTimeHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to update logged time {logged_time_id}: {str(e)}")
+            return ActionError(message=f"Failed to update logged time {logged_time_id}: {str(e)}")
 
 
 @float.action("delete_logged_time")
@@ -1192,7 +1193,7 @@ class DeleteLoggedTimeHandler(ActionHandler):
             )
 
         except Exception as e:
-            raise Exception(f"Failed to delete logged time {logged_time_id}: {str(e)}")
+            return ActionError(message=f"Failed to delete logged time {logged_time_id}: {str(e)}")
 
 
 # ---- Clients Resource Actions ----
@@ -1237,7 +1238,7 @@ class ListClientsHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list clients: {str(e)}")
+            return ActionError(message=f"Failed to list clients: {str(e)}")
 
 
 @float.action("get_client")
@@ -1266,7 +1267,7 @@ class GetClientHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get client {client_id}: {str(e)}")
+            return ActionError(message=f"Failed to get client {client_id}: {str(e)}")
 
 
 @float.action("create_client")
@@ -1303,7 +1304,7 @@ class CreateClientHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to create client: {str(e)}")
+            return ActionError(message=f"Failed to create client: {str(e)}")
 
 
 @float.action("update_client")
@@ -1344,7 +1345,7 @@ class UpdateClientHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to update client {client_id}: {str(e)}")
+            return ActionError(message=f"Failed to update client {client_id}: {str(e)}")
 
 
 @float.action("delete_client")
@@ -1373,7 +1374,7 @@ class DeleteClientHandler(ActionHandler):
             )
 
         except Exception as e:
-            raise Exception(f"Failed to delete client {client_id}: {str(e)}")
+            return ActionError(message=f"Failed to delete client {client_id}: {str(e)}")
 
 
 # ---- Departments Resource Actions ----
@@ -1416,7 +1417,7 @@ class ListDepartmentsHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list departments: {str(e)}")
+            return ActionError(message=f"Failed to list departments: {str(e)}")
 
 
 @float.action("get_department")
@@ -1445,7 +1446,7 @@ class GetDepartmentHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get department {department_id}: {str(e)}")
+            return ActionError(message=f"Failed to get department {department_id}: {str(e)}")
 
 
 # ---- Roles Resource Actions ----
@@ -1488,7 +1489,7 @@ class ListRolesHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list roles: {str(e)}")
+            return ActionError(message=f"Failed to list roles: {str(e)}")
 
 
 @float.action("get_role")
@@ -1515,7 +1516,7 @@ class GetRoleHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get role {role_id}: {str(e)}")
+            return ActionError(message=f"Failed to get role {role_id}: {str(e)}")
 
 
 # ---- Time Off Types Resource Actions ----
@@ -1558,7 +1559,7 @@ class ListTimeOffTypesHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list time off types: {str(e)}")
+            return ActionError(message=f"Failed to list time off types: {str(e)}")
 
 
 @float.action("get_time_off_type")
@@ -1587,7 +1588,7 @@ class GetTimeOffTypeHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get time off type {timeoff_type_id}: {str(e)}")
+            return ActionError(message=f"Failed to get time off type {timeoff_type_id}: {str(e)}")
 
 
 # ---- Accounts Resource Actions ----
@@ -1627,7 +1628,7 @@ class ListAccountsHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list accounts: {str(e)}")
+            return ActionError(message=f"Failed to list accounts: {str(e)}")
 
 
 @float.action("get_account")
@@ -1656,7 +1657,7 @@ class GetAccountHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get account {account_id}: {str(e)}")
+            return ActionError(message=f"Failed to get account {account_id}: {str(e)}")
 
 
 # ---- Statuses Resource Actions ----
@@ -1695,7 +1696,7 @@ class ListStatusesHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list statuses: {str(e)}")
+            return ActionError(message=f"Failed to list statuses: {str(e)}")
 
 
 @float.action("get_status")
@@ -1724,7 +1725,7 @@ class GetStatusHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get status {status_id}: {str(e)}")
+            return ActionError(message=f"Failed to get status {status_id}: {str(e)}")
 
 
 # ---- Public Holidays Resource Actions ----
@@ -1763,7 +1764,7 @@ class ListPublicHolidaysHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list public holidays: {str(e)}")
+            return ActionError(message=f"Failed to list public holidays: {str(e)}")
 
 
 @float.action("get_public_holiday")
@@ -1792,7 +1793,7 @@ class GetPublicHolidayHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get public holiday {public_holiday_id}: {str(e)}")
+            return ActionError(message=f"Failed to get public holiday {public_holiday_id}: {str(e)}")
 
 
 # ---- Team Holidays Resource Actions ----
@@ -1831,7 +1832,7 @@ class ListTeamHolidaysHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list team holidays: {str(e)}")
+            return ActionError(message=f"Failed to list team holidays: {str(e)}")
 
 
 @float.action("get_team_holiday")
@@ -1860,7 +1861,7 @@ class GetTeamHolidayHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get team holiday {holiday_id}: {str(e)}")
+            return ActionError(message=f"Failed to get team holiday {holiday_id}: {str(e)}")
 
 
 # ---- Project Stages Resource Actions ----
@@ -1899,7 +1900,7 @@ class ListProjectStagesHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list project stages: {str(e)}")
+            return ActionError(message=f"Failed to list project stages: {str(e)}")
 
 
 @float.action("get_project_stage")
@@ -1928,7 +1929,7 @@ class GetProjectStageHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get project stage {project_stage_id}: {str(e)}")
+            return ActionError(message=f"Failed to get project stage {project_stage_id}: {str(e)}")
 
 
 # ---- Project Expenses Resource Actions ----
@@ -1970,7 +1971,7 @@ class ListProjectExpensesHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list project expenses: {str(e)}")
+            return ActionError(message=f"Failed to list project expenses: {str(e)}")
 
 
 @float.action("get_project_expense")
@@ -1999,7 +2000,7 @@ class GetProjectExpenseHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get project expense {project_expense_id}: {str(e)}")
+            return ActionError(message=f"Failed to get project expense {project_expense_id}: {str(e)}")
 
 
 # ---- Phases Resource Actions ----
@@ -2041,7 +2042,7 @@ class ListPhasesHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list phases: {str(e)}")
+            return ActionError(message=f"Failed to list phases: {str(e)}")
 
 
 @float.action("get_phase")
@@ -2068,7 +2069,7 @@ class GetPhaseHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get phase {phase_id}: {str(e)}")
+            return ActionError(message=f"Failed to get phase {phase_id}: {str(e)}")
 
 
 # ---- Project Tasks Resource Actions ----
@@ -2110,7 +2111,7 @@ class ListProjectTasksHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list project tasks: {str(e)}")
+            return ActionError(message=f"Failed to list project tasks: {str(e)}")
 
 
 @float.action("get_project_task")
@@ -2139,7 +2140,7 @@ class GetProjectTaskHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get project task {project_task_id}: {str(e)}")
+            return ActionError(message=f"Failed to get project task {project_task_id}: {str(e)}")
 
 
 @float.action("merge_project_tasks")
@@ -2169,7 +2170,7 @@ class MergeProjectTasksHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to merge project tasks: {str(e)}")
+            return ActionError(message=f"Failed to merge project tasks: {str(e)}")
 
 
 # ---- Milestones Resource Actions ----
@@ -2211,7 +2212,7 @@ class ListMilestonesHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list milestones: {str(e)}")
+            return ActionError(message=f"Failed to list milestones: {str(e)}")
 
 
 @float.action("get_milestone")
@@ -2240,7 +2241,7 @@ class GetMilestoneHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get milestone {milestone_id}: {str(e)}")
+            return ActionError(message=f"Failed to get milestone {milestone_id}: {str(e)}")
 
 
 # ---- Reports Resource Actions ----
@@ -2282,7 +2283,7 @@ class GetPeopleReportHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to generate people report: {str(e)}")
+            return ActionError(message=f"Failed to generate people report: {str(e)}")
 
 
 @float.action("get_projects_report")
@@ -2321,4 +2322,4 @@ class GetProjectsReportHandler(ActionHandler):
             return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to generate projects report: {str(e)}")
+            return ActionError(message=f"Failed to generate projects report: {str(e)}")
