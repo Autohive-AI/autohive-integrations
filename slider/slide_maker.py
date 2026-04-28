@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any, List
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -140,10 +140,11 @@ async def save_and_return_presentation(
             "saved": save_result["saved"],
             "file_path": save_result["file_path"],
             "file": save_result["file"],
-            "error": save_result.get("error", ""),
         }
     )
-    return combined_result
+    if "error" in save_result:
+        return ActionError(message=save_result["error"])
+    return ActionResult(data=combined_result, cost_usd=0.0)
 
 
 def hex_to_rgb(hex_color: str) -> tuple:
@@ -2715,19 +2716,19 @@ class GetSlideElementsAction(ActionHandler):
 
         # If no slide_index provided, return data for ALL slides
         if slide_index is None:
-            return self._get_all_slides_elements(prs, include_content)
+            return ActionResult(data=self._get_all_slides_elements(prs, include_content), cost_usd=0.0)
 
         # Original single-slide logic
         if slide_index >= len(prs.slides):
             if len(prs.slides) == 0:
-                raise ValueError(f"Slide index {slide_index} out of range. Presentation has no slides.")
+                return ActionError(message=f"Slide index {slide_index} out of range. Presentation has no slides.")
             else:
-                raise ValueError(
-                    f"Slide index {slide_index} out of range. Valid range: 0-{len(prs.slides) - 1} "
+                return ActionError(
+                    message=f"Slide index {slide_index} out of range. Valid range: 0-{len(prs.slides) - 1} "
                     f"({len(prs.slides)} slides total)."
                 )
 
-        return self._get_single_slide_elements(prs, slide_index, include_content)
+        return ActionResult(data=self._get_single_slide_elements(prs, slide_index, include_content), cost_usd=0.0)
 
     def _get_single_slide_elements(self, prs, slide_index, include_content):
         """Get elements for a single slide"""
@@ -3038,10 +3039,10 @@ class GetElementStylingAction(ActionHandler):
         slide = prs.slides[slide_index]
         if element_index >= len(slide.shapes):
             if len(slide.shapes) == 0:
-                raise ValueError(f"Element index {element_index} out of range. Slide has no elements.")
+                return ActionError(message=f"Element index {element_index} out of range. Slide has no elements.")
             else:
-                raise ValueError(
-                    f"Element index {element_index} out of range. Valid range: 0-{len(slide.shapes) - 1} "
+                return ActionError(
+                    message=f"Element index {element_index} out of range. Valid range: 0-{len(slide.shapes) - 1} "
                     f"({len(slide.shapes)} elements total)."
                 )
 
@@ -3083,17 +3084,20 @@ class GetElementStylingAction(ActionHandler):
         else:
             styling_info += "\nBASIC SHAPE: Limited styling information available"
 
-        return {
-            "element_index": element_index,
-            "element_type": element_type,
-            "styling_description": styling_info,
-            "position": {
-                "left": round(left_inches, 3),
-                "top": round(top_inches, 3),
-                "width": round(width_inches, 3),
-                "height": round(height_inches, 3),
+        return ActionResult(
+            data={
+                "element_index": element_index,
+                "element_type": element_type,
+                "styling_description": styling_info,
+                "position": {
+                    "left": round(left_inches, 3),
+                    "top": round(top_inches, 3),
+                    "width": round(width_inches, 3),
+                    "height": round(height_inches, 3),
+                },
             },
-        }
+            cost_usd=0.0,
+        )
 
     def _analyze_table_styling(self, table):
         """Analyze table styling in compressed format"""

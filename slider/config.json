@@ -1,6 +1,6 @@
 {
     "name": "Slide Maker",
-    "version": "20.0.0",
+    "version": "2.0.0",
     "description": "PowerPoint automation integration using python-pptx. Unified markdown-based content addition (add_elements), template filling (find_and_replace), and comprehensive slide manipulation. Optimized for AI agents with intelligent auto-positioning, overlap detection, and graceful error handling.",
     "entry_point": "slide_maker.py",
     "actions": {
@@ -92,10 +92,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -189,10 +185,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -313,10 +305,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -487,10 +475,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -608,10 +592,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -735,10 +715,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -848,10 +824,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -1003,10 +975,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -1168,10 +1136,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -1283,10 +1247,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -1389,10 +1349,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -1498,10 +1454,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -1855,10 +1807,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
@@ -2123,10 +2071,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     },
                     "status": {
                         "type": "string",
@@ -2545,10 +2489,6 @@
                             "name",
                             "contentType"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if file streaming failed"
                     }
                 },
                 "required": [
