@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -43,10 +43,10 @@ class CreateTimeEntry(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/time_entries", method="POST", json=payload)
 
-            return {"success": True, "time_entry": response}
+            return ActionResult(data={"time_entry": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("stop_time_entry")
@@ -59,10 +59,10 @@ class StopTimeEntry(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/time_entries/{time_entry_id}/stop", method="PATCH")
 
-            return {"success": True, "time_entry": response}
+            return ActionResult(data={"time_entry": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("list_time_entries")
@@ -108,21 +108,24 @@ class ListTimeEntries(ActionHandler):
                 params["per_page"] = inputs["per_page"]
 
             response = await context.fetch(f"{HARVEST_API_BASE}/time_entries", method="GET", params=params)
+            body = response.data
 
-            return {
-                "success": True,
-                "time_entries": response.get("time_entries", []),
-                "per_page": response.get("per_page"),
-                "total_pages": response.get("total_pages"),
-                "total_entries": response.get("total_entries"),
-                "next_page": response.get("next_page"),
-                "previous_page": response.get("previous_page"),
-                "page": response.get("page"),
-                "links": response.get("links"),
-            }
+            return ActionResult(
+                data={
+                    "time_entries": body.get("time_entries", []),
+                    "per_page": body.get("per_page"),
+                    "total_pages": body.get("total_pages"),
+                    "total_entries": body.get("total_entries"),
+                    "next_page": body.get("next_page"),
+                    "previous_page": body.get("previous_page"),
+                    "page": body.get("page"),
+                    "links": body.get("links"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("update_time_entry")
@@ -166,10 +169,10 @@ class UpdateTimeEntry(ActionHandler):
                 json=payload,
             )
 
-            return {"success": True, "time_entry": response}
+            return ActionResult(data={"time_entry": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("delete_time_entry")
@@ -182,13 +185,15 @@ class DeleteTimeEntry(ActionHandler):
 
             await context.fetch(f"{HARVEST_API_BASE}/time_entries/{time_entry_id}", method="DELETE")
 
-            return {
-                "success": True,
-                "message": f"Time entry {time_entry_id} deleted successfully",
-            }
+            return ActionResult(
+                data={
+                    "message": f"Time entry {time_entry_id} deleted successfully",
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("list_projects")
@@ -216,21 +221,24 @@ class ListProjects(ActionHandler):
                 params["per_page"] = inputs["per_page"]
 
             response = await context.fetch(f"{HARVEST_API_BASE}/projects", method="GET", params=params)
+            body = response.data
 
-            return {
-                "success": True,
-                "projects": response.get("projects", []),
-                "per_page": response.get("per_page"),
-                "total_pages": response.get("total_pages"),
-                "total_entries": response.get("total_entries"),
-                "next_page": response.get("next_page"),
-                "previous_page": response.get("previous_page"),
-                "page": response.get("page"),
-                "links": response.get("links"),
-            }
+            return ActionResult(
+                data={
+                    "projects": body.get("projects", []),
+                    "per_page": body.get("per_page"),
+                    "total_pages": body.get("total_pages"),
+                    "total_entries": body.get("total_entries"),
+                    "next_page": body.get("next_page"),
+                    "previous_page": body.get("previous_page"),
+                    "page": body.get("page"),
+                    "links": body.get("links"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("get_project")
@@ -243,10 +251,10 @@ class GetProject(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/projects/{project_id}", method="GET")
 
-            return {"success": True, "project": response}
+            return ActionResult(data={"project": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("list_clients")
@@ -271,21 +279,24 @@ class ListClients(ActionHandler):
                 params["per_page"] = inputs["per_page"]
 
             response = await context.fetch(f"{HARVEST_API_BASE}/clients", method="GET", params=params)
+            body = response.data
 
-            return {
-                "success": True,
-                "clients": response.get("clients", []),
-                "per_page": response.get("per_page"),
-                "total_pages": response.get("total_pages"),
-                "total_entries": response.get("total_entries"),
-                "next_page": response.get("next_page"),
-                "previous_page": response.get("previous_page"),
-                "page": response.get("page"),
-                "links": response.get("links"),
-            }
+            return ActionResult(
+                data={
+                    "clients": body.get("clients", []),
+                    "per_page": body.get("per_page"),
+                    "total_pages": body.get("total_pages"),
+                    "total_entries": body.get("total_entries"),
+                    "next_page": body.get("next_page"),
+                    "previous_page": body.get("previous_page"),
+                    "page": body.get("page"),
+                    "links": body.get("links"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("list_tasks")
@@ -310,21 +321,24 @@ class ListTasks(ActionHandler):
                 params["per_page"] = inputs["per_page"]
 
             response = await context.fetch(f"{HARVEST_API_BASE}/tasks", method="GET", params=params)
+            body = response.data
 
-            return {
-                "success": True,
-                "tasks": response.get("tasks", []),
-                "per_page": response.get("per_page"),
-                "total_pages": response.get("total_pages"),
-                "total_entries": response.get("total_entries"),
-                "next_page": response.get("next_page"),
-                "previous_page": response.get("previous_page"),
-                "page": response.get("page"),
-                "links": response.get("links"),
-            }
+            return ActionResult(
+                data={
+                    "tasks": body.get("tasks", []),
+                    "per_page": body.get("per_page"),
+                    "total_pages": body.get("total_pages"),
+                    "total_entries": body.get("total_entries"),
+                    "next_page": body.get("next_page"),
+                    "previous_page": body.get("previous_page"),
+                    "page": body.get("page"),
+                    "links": body.get("links"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("list_users")
@@ -349,18 +363,21 @@ class ListUsers(ActionHandler):
                 params["per_page"] = inputs["per_page"]
 
             response = await context.fetch(f"{HARVEST_API_BASE}/users", method="GET", params=params)
+            body = response.data
 
-            return {
-                "success": True,
-                "users": response.get("users", []),
-                "per_page": response.get("per_page"),
-                "total_pages": response.get("total_pages"),
-                "total_entries": response.get("total_entries"),
-                "next_page": response.get("next_page"),
-                "previous_page": response.get("previous_page"),
-                "page": response.get("page"),
-                "links": response.get("links"),
-            }
+            return ActionResult(
+                data={
+                    "users": body.get("users", []),
+                    "per_page": body.get("per_page"),
+                    "total_pages": body.get("total_pages"),
+                    "total_entries": body.get("total_entries"),
+                    "next_page": body.get("next_page"),
+                    "previous_page": body.get("previous_page"),
+                    "page": body.get("page"),
+                    "links": body.get("links"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
