@@ -1,6 +1,6 @@
 {
     "name": "Heartbeat",
-    "version": "0.0.1",
+    "version": "2.0.0",
     "description": "An integration for the heartbeat.chat API",
     "entry_point": "heartbeat.py",
     "auth": {
@@ -62,19 +62,10 @@
                                 "name"
                             ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "channels",
-                    "result"
+                    "channels"
                 ]
             }
         },
@@ -125,19 +116,10 @@
                             "id",
                             "name"
                         ]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "channel",
-                    "result"
+                    "channel"
                 ]
             }
         },
@@ -244,19 +226,10 @@
                                 "authorID"
                             ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "threads",
-                    "result"
+                    "threads"
                 ]
             }
         },
@@ -360,19 +333,10 @@
                             "channelID",
                             "authorID"
                         ]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "thread",
-                    "result"
+                    "thread"
                 ]
             }
         },
@@ -424,19 +388,10 @@
                                 "name"
                             ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "users",
-                    "result"
+                    "users"
                 ]
             }
         },
@@ -492,19 +447,10 @@
                             "email",
                             "name"
                         ]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "user",
-                    "result"
+                    "user"
                 ]
             }
         },
@@ -560,19 +506,10 @@
                                 "startTime"
                             ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "events",
-                    "result"
+                    "events"
                 ]
             }
         },
@@ -632,19 +569,10 @@
                             "title",
                             "startTime"
                         ]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "event",
-                    "result"
+                    "event"
                 ]
             }
         },
@@ -753,19 +681,10 @@
                             "threadID",
                             "authorID"
                         ]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "comment",
-                    "result"
+                    "comment"
                 ]
             }
         },
@@ -878,19 +797,10 @@
                             "channelID",
                             "authorID"
                         ]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "thread",
-                    "result"
+                    "thread"
                 ]
             }
         }

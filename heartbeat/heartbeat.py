@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -9,8 +9,7 @@ service_endpoint = "https://api.heartbeat.chat/v0/"
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     """Get authentication headers with bearer token from custom auth."""
     headers = {}
-    credentials = context.auth.get("credentials", {})
-    api_key = credentials.get("api_key")
+    api_key = context.auth.get("api_key")
 
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -145,14 +144,15 @@ class GetChannels(ActionHandler):
 
             channels = []
             # Handle both array response and object with items property
-            items = response if isinstance(response, list) else response.get("items", response.get("channels", []))
+            body = response.data
+            items = body if isinstance(body, list) else body.get("items", body.get("channels", []))
             for raw_channel in items:
                 channels.append(HeartbeatDataParser.parse_channel(raw_channel))
 
-            return {"channels": channels, "result": True}
+            return ActionResult(data={"channels": channels}, cost_usd=0.0)
 
         except Exception as e:
-            return {"channels": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @heartbeat.action("get_heartbeat_channel")
@@ -167,13 +167,13 @@ class GetChannel(ActionHandler):
                 headers=get_auth_headers(context),
             )
 
-            return {
-                "channel": HeartbeatDataParser.parse_channel(response),
-                "result": True,
-            }
+            return ActionResult(
+                data={"channel": HeartbeatDataParser.parse_channel(response.data)},
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"channel": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @heartbeat.action("get_heartbeat_channel_threads")
@@ -190,14 +190,15 @@ class GetChannelThreads(ActionHandler):
 
             threads = []
             # Handle both array response and object with items property
-            items = response if isinstance(response, list) else response.get("items", response.get("threads", []))
+            body = response.data
+            items = body if isinstance(body, list) else body.get("items", body.get("threads", []))
             for raw_thread in items:
                 threads.append(HeartbeatDataParser.parse_thread(raw_thread))
 
-            return {"threads": threads, "result": True}
+            return ActionResult(data={"threads": threads}, cost_usd=0.0)
 
         except Exception as e:
-            return {"threads": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @heartbeat.action("get_heartbeat_thread")
@@ -212,13 +213,13 @@ class GetThread(ActionHandler):
                 headers=get_auth_headers(context),
             )
 
-            return {
-                "thread": HeartbeatDataParser.parse_thread(response),
-                "result": True,
-            }
+            return ActionResult(
+                data={"thread": HeartbeatDataParser.parse_thread(response.data)},
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"thread": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @heartbeat.action("get_heartbeat_users")
@@ -233,14 +234,15 @@ class GetUsers(ActionHandler):
 
             users = []
             # Handle both array response and object with items property
-            items = response if isinstance(response, list) else response.get("items", response.get("users", []))
+            body = response.data
+            items = body if isinstance(body, list) else body.get("items", body.get("users", []))
             for raw_user in items:
                 users.append(HeartbeatDataParser.parse_user(raw_user))
 
-            return {"users": users, "result": True}
+            return ActionResult(data={"users": users}, cost_usd=0.0)
 
         except Exception as e:
-            return {"users": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @heartbeat.action("get_heartbeat_user")
@@ -255,10 +257,10 @@ class GetUser(ActionHandler):
                 headers=get_auth_headers(context),
             )
 
-            return {"user": HeartbeatDataParser.parse_user(response), "result": True}
+            return ActionResult(data={"user": HeartbeatDataParser.parse_user(response.data)}, cost_usd=0.0)
 
         except Exception as e:
-            return {"user": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @heartbeat.action("get_heartbeat_events")
@@ -273,14 +275,15 @@ class GetEvents(ActionHandler):
 
             events = []
             # Handle both array response and object with items property
-            items = response if isinstance(response, list) else response.get("items", response.get("events", []))
+            body = response.data
+            items = body if isinstance(body, list) else body.get("items", body.get("events", []))
             for raw_event in items:
                 events.append(HeartbeatDataParser.parse_event(raw_event))
 
-            return {"events": events, "result": True}
+            return ActionResult(data={"events": events}, cost_usd=0.0)
 
         except Exception as e:
-            return {"events": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @heartbeat.action("get_heartbeat_event")
@@ -295,10 +298,10 @@ class GetEvent(ActionHandler):
                 headers=get_auth_headers(context),
             )
 
-            return {"event": HeartbeatDataParser.parse_event(response), "result": True}
+            return ActionResult(data={"event": HeartbeatDataParser.parse_event(response.data)}, cost_usd=0.0)
 
         except Exception as e:
-            return {"event": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @heartbeat.action("create_heartbeat_comment")
@@ -331,13 +334,13 @@ class CreateComment(ActionHandler):
                 json=request_body,
             )
 
-            return {
-                "comment": HeartbeatDataParser.parse_comment(response),
-                "result": True,
-            }
+            return ActionResult(
+                data={"comment": HeartbeatDataParser.parse_comment(response.data)},
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"comment": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @heartbeat.action("create_heartbeat_thread")
@@ -362,13 +365,13 @@ class CreateThread(ActionHandler):
                 json=request_body,
             )
 
-            return {
-                "thread": HeartbeatDataParser.parse_thread(response),
-                "result": True,
-            }
+            return ActionResult(
+                data={"thread": HeartbeatDataParser.parse_thread(response.data)},
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"thread": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 # ---- Polling Trigger Handlers ----
