@@ -47,13 +47,13 @@ class ListVoicesAction(ActionHandler):
         try:
             params = {}
 
-            if "page_size" in inputs and inputs["page_size"]:
+            if inputs.get("page_size"):
                 params["page_size"] = inputs["page_size"]
-            if "category" in inputs and inputs["category"]:
+            if inputs.get("category"):
                 params["category"] = inputs["category"]
-            if "use_cases" in inputs and inputs["use_cases"]:
+            if inputs.get("use_cases"):
                 params["use_cases"] = inputs["use_cases"]
-            if "search" in inputs and inputs["search"]:
+            if inputs.get("search"):
                 params["search"] = inputs["search"]
 
             headers = get_auth_headers(context)
@@ -78,7 +78,7 @@ class GetVoiceAction(ActionHandler):
             voice_id = inputs["voice_id"]
 
             params = {}
-            if "with_settings" in inputs and inputs["with_settings"]:
+            if inputs.get("with_settings"):
                 params["with_settings"] = str(inputs["with_settings"]).lower()
 
             headers = get_auth_headers(context)
@@ -124,9 +124,9 @@ class ListHistoryAction(ActionHandler):
         try:
             params = {}
 
-            if "page_size" in inputs and inputs["page_size"]:
+            if inputs.get("page_size"):
                 params["page_size"] = inputs["page_size"]
-            if "voice_id" in inputs and inputs["voice_id"]:
+            if inputs.get("voice_id"):
                 params["voice_id"] = inputs["voice_id"]
 
             headers = get_auth_headers(context)
@@ -215,14 +215,14 @@ class TextToSpeechAction(ActionHandler):
             # Build request body
             body = {"text": text}
 
-            if "model_id" in inputs and inputs["model_id"]:
+            if inputs.get("model_id"):
                 body["model_id"] = inputs["model_id"]
-            if "voice_settings" in inputs and inputs["voice_settings"]:
+            if inputs.get("voice_settings"):
                 body["voice_settings"] = inputs["voice_settings"]
 
             # Build URL with optional output_format
             url = f"{ELEVENLABS_API_BASE_URL}/text-to-speech/{voice_id}"
-            if "output_format" in inputs and inputs["output_format"]:
+            if inputs.get("output_format"):
                 url += f"?output_format={inputs['output_format']}"
 
             headers = {"xi-api-key": api_key, "Content-Type": "application/json"}
