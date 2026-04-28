@@ -10,6 +10,7 @@ sys.path.insert(0, _deps)
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
+from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("float_mod", os.path.join(_parent, "float.py"))
 _mod = importlib.util.module_from_spec(_spec)
@@ -156,8 +157,9 @@ class TestListPeople:
     async def test_list_people_exception_propagates(self, mock_context):
         mock_context.fetch.side_effect = Exception("Network error")
 
-        with pytest.raises(Exception, match="Failed to list people"):
-            await float_integration.execute_action("list_people", {}, mock_context)
+        result = await float_integration.execute_action("list_people", {}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Network error" in result.result.message
 
 
 class TestGetPerson:
@@ -183,8 +185,9 @@ class TestGetPerson:
     async def test_get_person_exception_propagates(self, mock_context):
         mock_context.fetch.side_effect = Exception("Not found")
 
-        with pytest.raises(Exception, match="Failed to get person 1"):
-            await float_integration.execute_action("get_person", {"people_id": 1}, mock_context)
+        result = await float_integration.execute_action("get_person", {"people_id": 1}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Not found" in result.result.message
 
 
 class TestCreatePerson:
@@ -216,8 +219,9 @@ class TestCreatePerson:
     async def test_create_person_exception_propagates(self, mock_context):
         mock_context.fetch.side_effect = Exception("Bad request")
 
-        with pytest.raises(Exception, match="Failed to create person"):
-            await float_integration.execute_action("create_person", {"name": "Test"}, mock_context)
+        result = await float_integration.execute_action("create_person", {"name": "Test"}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Bad request" in result.result.message
 
 
 class TestUpdatePerson:
