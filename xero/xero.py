@@ -3,6 +3,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
     ConnectedAccountHandler,
     ConnectedAccountInfo,
 )
@@ -66,10 +67,10 @@ class XeroConnectedAccountHandler(ConnectedAccountHandler):
             "https://api.xero.com/connections", method="GET", headers={"Accept": "application/json"}
         )
 
-        if not response or not isinstance(response, list) or len(response) == 0:
+        if not response or not isinstance(response.data, list) or len(response.data) == 0:
             return ConnectedAccountInfo(username="Unknown Organization")
 
-        first_connection = response[0]
+        first_connection = response.data[0]
         tenant_name = first_connection.get("tenantName", "Unknown Organization")
 
         return ConnectedAccountInfo(username=tenant_name, user_id=first_connection.get("tenantId"))
@@ -128,7 +129,7 @@ class XeroRateLimiter:
         for attempt in range(self.max_retries + 1):
             try:
                 response = await context.fetch(url, **kwargs)
-                return response
+                return response.data
 
             except Exception as e:
                 last_error = e
@@ -174,10 +175,10 @@ async def get_all_connections(context: ExecutionContext) -> list:
             "https://api.xero.com/connections", method="GET", headers={"Accept": "application/json"}
         )
 
-        if not response or not isinstance(response, list) or len(response) == 0:
+        if not response or not isinstance(response.data, list) or len(response.data) == 0:
             raise ValueError("No Xero connections found")
 
-        return response
+        return response.data
 
     except Exception as e:
         raise Exception(f"Failed to get connections: {str(e)}")
@@ -204,12 +205,10 @@ class GetAvailableConnectionsAction(ActionHandler):
                 if tenant_name and tenant_id:
                     companies.append({"tenant_id": tenant_id, "company_name": tenant_name})
 
-            return ActionResult(data={"success": True, "companies": companies})
+            return ActionResult(data={"companies": companies})
 
         except Exception as e:
-            return ActionResult(
-                data={"success": False, "message": f"Failed to get connections: {str(e)}", "companies": []}
-            )
+            return ActionError(message=f"Failed to get connections: {str(e)}")
 
 
 @xero.action("find_contact_by_name")
@@ -233,16 +232,16 @@ class FindContactByNameAction(ActionHandler):
             params = {"where": f'Name.Contains("{contact_name}")'}
 
             # Make rate-limited authenticated request to Xero API
-            response = await rate_limiter.make_request(
+            body = await rate_limiter.make_request(
                 context, url, tenant_id, method="GET", params=params, headers={"Accept": "application/json"}
             )
 
-            if not response or not response.get("Contacts"):
+            if not body or not body.get("Contacts"):
                 return ActionResult(data={"contacts": []})
 
             # Extract comprehensive contact information
             contacts = []
-            for contact in response["Contacts"]:
+            for contact in body["Contacts"]:
                 contacts.append(
                     {
                         "contact_id": contact.get("ContactID"),
@@ -276,22 +275,15 @@ class FindContactByNameAction(ActionHandler):
             return ActionResult(data={"contacts": contacts})
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                    "contacts": [],
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to find contact by name: {str(e)}")
+            return ActionError(message=f"Failed to find contact by name: {str(e)}")
 
 
 @xero.action("get_aged_payables")
@@ -330,21 +322,15 @@ class GetAgedPayablesAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to fetch aged payables report: {str(e)}")
+            return ActionError(message=f"Failed to fetch aged payables report: {str(e)}")
 
 
 @xero.action("get_aged_receivables")
@@ -383,21 +369,15 @@ class GetAgedReceivablesAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to fetch aged receivables report: {str(e)}")
+            return ActionError(message=f"Failed to fetch aged receivables report: {str(e)}")
 
 
 @xero.action("get_balance_sheet")
@@ -436,21 +416,15 @@ class GetBalanceSheetAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to fetch balance sheet report: {str(e)}")
+            return ActionError(message=f"Failed to fetch balance sheet report: {str(e)}")
 
 
 @xero.action("get_profit_and_loss")
@@ -501,21 +475,15 @@ class GetProfitAndLossAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to fetch profit and loss report: {str(e)}")
+            return ActionError(message=f"Failed to fetch profit and loss report: {str(e)}")
 
 
 @xero.action("get_trial_balance")
@@ -554,21 +522,15 @@ class GetTrialBalanceAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to fetch trial balance report: {str(e)}")
+            return ActionError(message=f"Failed to fetch trial balance report: {str(e)}")
 
 
 @xero.action("get_accounts")
@@ -608,21 +570,15 @@ class GetAccountsAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to fetch accounts: {str(e)}")
+            return ActionError(message=f"Failed to fetch accounts: {str(e)}")
 
 
 @xero.action("get_payments")
@@ -669,21 +625,15 @@ class GetPaymentsAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to fetch payments: {str(e)}")
+            return ActionError(message=f"Failed to fetch payments: {str(e)}")
 
 
 @xero.action("get_invoices")
@@ -762,21 +712,15 @@ class GetInvoicesAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to fetch invoices: {str(e)}")
+            return ActionError(message=f"Failed to fetch invoices: {str(e)}")
 
 
 @xero.action("get_invoice_pdf")
@@ -827,13 +771,7 @@ class GetInvoicePdfAction(ActionHandler):
                 async with session.get(url, headers=headers) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        return ActionResult(
-                            data={
-                                "file": {"name": f"invoice_{invoice_id}.pdf", "content": "", "contentType": ""},
-                                "success": False,
-                                "error": f"Xero API error: {response.status} - {error_text}",
-                            }
-                        )
+                        return ActionError(message=f"Xero API error: {response.status} - {error_text}")
 
                     # Read binary content and encode as base64
                     pdf_content = await response.read()
@@ -849,32 +787,19 @@ class GetInvoicePdfAction(ActionHandler):
                                 "content": content_base64,
                                 "contentType": content_type,
                             },
-                            "success": True,
                         }
                     )
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "file": {"name": f"invoice_{invoice_id}.pdf", "content": "", "contentType": ""},
-                    "success": False,
-                    "error": str(e),
-                }
-            )
+            return ActionError(message=f"Failed to get invoice PDF: {str(e)}")
 
 
 @xero.action("get_bank_transactions")
@@ -919,21 +844,15 @@ class GetBankTransactionsAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to fetch bank transactions: {str(e)}")
+            return ActionError(message=f"Failed to fetch bank transactions: {str(e)}")
 
 
 @xero.action("create_sales_invoice")
@@ -1015,21 +934,15 @@ class CreateSalesInvoiceAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to create sales invoice: {str(e)}")
+            return ActionError(message=f"Failed to create sales invoice: {str(e)}")
 
 
 @xero.action("create_purchase_bill")
@@ -1108,21 +1021,15 @@ class CreatePurchaseBillAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to create purchase bill: {str(e)}")
+            return ActionError(message=f"Failed to create purchase bill: {str(e)}")
 
 
 @xero.action("update_sales_invoice")
@@ -1206,21 +1113,15 @@ class UpdateSalesInvoiceAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to update sales invoice: {str(e)}")
+            return ActionError(message=f"Failed to update sales invoice: {str(e)}")
 
 
 @xero.action("update_purchase_bill")
@@ -1301,21 +1202,15 @@ class UpdatePurchaseBillAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to update purchase bill: {str(e)}")
+            return ActionError(message=f"Failed to update purchase bill: {str(e)}")
 
 
 @xero.action("attach_file_to_invoice")
@@ -1400,21 +1295,15 @@ class AttachFileToInvoiceAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to attach file to invoice: {str(e)}")
+            return ActionError(message=f"Failed to attach file to invoice: {str(e)}")
 
 
 @xero.action("attach_file_to_bill")
@@ -1494,21 +1383,15 @@ class AttachFileToBillAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to attach file to bill: {str(e)}")
+            return ActionError(message=f"Failed to attach file to bill: {str(e)}")
 
 
 @xero.action("get_attachments")
@@ -1559,21 +1442,15 @@ class GetAttachmentsAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to get attachments: {str(e)}")
+            return ActionError(message=f"Failed to get attachments: {str(e)}")
 
 
 @xero.action("get_attachment_content")
@@ -1630,53 +1507,34 @@ class GetAttachmentContentAction(ActionHandler):
                 async with session.get(url, headers=headers) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        return ActionResult(
-                            data={
-                                "file": {"name": file_name, "content": "", "contentType": ""},
-                                "success": False,
-                                "error": f"Xero API error getting attachment content: {response.status} - {error_text}",
-                            }
+                        return ActionError(
+                            message=f"Xero API error getting attachment content: {response.status} - {error_text}"
                         )
 
                     file_content = await response.read()
                     content_type = response.headers.get("content-type", "application/octet-stream")
 
                 if file_content is None:
-                    return ActionResult(
-                        data={
-                            "file": {"name": file_name, "content": "", "contentType": ""},
-                            "success": False,
-                            "error": "No content returned from Xero API",
-                        }
-                    )
+                    return ActionError(message="No content returned from Xero API")
 
                 content_base64 = base64.b64encode(file_content).decode("utf-8")
 
             return ActionResult(
                 data={
                     "file": {"name": file_name, "content": content_base64, "contentType": content_type},
-                    "success": True,
                 }
             )
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            return ActionResult(
-                data={"file": {"name": file_name, "content": "", "contentType": ""}, "success": False, "error": str(e)}
-            )
+            return ActionError(message=f"Failed to get attachment content: {str(e)}")
 
 
 @xero.action("get_purchase_orders")
@@ -1737,21 +1595,15 @@ class GetPurchaseOrdersAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to fetch purchase orders: {str(e)}")
+            return ActionError(message=f"Failed to fetch purchase orders: {str(e)}")
 
 
 @xero.action("create_purchase_order")
@@ -1837,21 +1689,15 @@ class CreatePurchaseOrderAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to create purchase order: {str(e)}")
+            return ActionError(message=f"Failed to create purchase order: {str(e)}")
 
 
 @xero.action("update_purchase_order")
@@ -1940,21 +1786,15 @@ class UpdatePurchaseOrderAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to update purchase order: {str(e)}")
+            return ActionError(message=f"Failed to update purchase order: {str(e)}")
 
 
 @xero.action("delete_purchase_order")
@@ -2000,21 +1840,15 @@ class DeletePurchaseOrderAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to delete purchase order: {str(e)}")
+            return ActionError(message=f"Failed to delete purchase order: {str(e)}")
 
 
 @xero.action("get_purchase_order_history")
@@ -2052,21 +1886,15 @@ class GetPurchaseOrderHistoryAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to get purchase order history: {str(e)}")
+            return ActionError(message=f"Failed to get purchase order history: {str(e)}")
 
 
 @xero.action("add_note_to_purchase_order")
@@ -2116,18 +1944,12 @@ class AddNoteToPurchaseOrderAction(ActionHandler):
             return ActionResult(data=response)
 
         except XeroRateLimitExceededException as e:
-            return ActionResult(
-                data={
-                    "success": False,
-                    "error_type": "rate_limit_exceeded",
-                    "message": (
-                        f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
-                        f"Required wait time: {e.requested_delay}s exceeds maximum: "
-                        f"{e.max_wait_time}s. Please try again later."
-                    ),
-                    "tenant_id": e.tenant_id,
-                    "retry_delay_seconds": e.requested_delay,
-                }
+            return ActionError(
+                message=(
+                    f"Xero API rate limit exceeded for tenant {e.tenant_id}. "
+                    f"Required wait time: {e.requested_delay}s exceeds maximum: "
+                    f"{e.max_wait_time}s. Please try again later."
+                )
             )
         except Exception as e:
-            raise Exception(f"Failed to add note to purchase order: {str(e)}")
+            return ActionError(message=f"Failed to add note to purchase order: {str(e)}")
