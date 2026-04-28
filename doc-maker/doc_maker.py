@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import ActionError, ActionResult, ExecutionContext, ActionHandler, Integration
 from typing import Dict, Any, List
 from docx import Document
 from docx.shared import Inches
@@ -63,12 +63,54 @@ def load_document_from_files(document_id: str, files: List[Dict[str, Any]]) -> N
         raise ValueError(f"Document {document_id} not found and no files provided for loading")
 
 
+def _save_document_to_dict(document_id: str, file_path: str) -> Dict[str, Any]:
+    """Internal helper: save document to buffer and return a plain dict."""
+    if document_id not in documents:
+        return {
+            "saved": False,
+            "file_path": file_path,
+            "file": {
+                "content": "",
+                "name": os.path.basename(file_path),
+                "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            },
+            "error": f"Document {document_id} not found",
+        }
+
+    doc = documents[document_id]
+    try:
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        file_content = buffer.getvalue()
+        content_base64 = base64.b64encode(file_content).decode("utf-8")
+        file_name = os.path.basename(file_path)
+        return {
+            "saved": True,
+            "file_path": file_path,
+            "file": {
+                "content": content_base64,
+                "name": file_name,
+                "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            },
+        }
+    except Exception as e:
+        return {
+            "saved": False,
+            "file_path": file_path,
+            "file": {
+                "content": "",
+                "name": os.path.basename(file_path),
+                "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            },
+            "error": f"Could not generate document for streaming: {str(e)}",
+        }
+
+
 async def save_and_return_document(
     original_result: Dict[str, Any], document_id: str, context: ExecutionContext, custom_filename: str = None
-) -> Dict[str, Any]:
-    """Helper to save document and return combined result"""
-    save_action = SaveDocumentAction()
-
+) -> ActionResult:
+    """Helper to save document and return combined ActionResult"""
     if custom_filename:
         if not custom_filename.lower().endswith(".docx"):
             custom_filename += ".docx"
@@ -76,8 +118,7 @@ async def save_and_return_document(
     else:
         file_path = f"{document_id}.docx"
 
-    save_inputs = {"document_id": document_id, "file_path": file_path}
-    save_result = await save_action.execute(save_inputs, context)
+    save_result = _save_document_to_dict(document_id, file_path)
 
     combined_result = original_result.copy()
     combined_result.update(
@@ -88,7 +129,7 @@ async def save_and_return_document(
             "error": save_result.get("error", ""),
         }
     )
-    return combined_result
+    return ActionResult(data=combined_result, cost_usd=0.0)
 
 
 def iter_block_items(parent):
@@ -623,10 +664,13 @@ class GetDocumentElementsAction(ActionHandler):
         document_id = inputs["document_id"]
         files = inputs.get("files", [])
 
-        load_document_from_files(document_id, files)
+        try:
+            load_document_from_files(document_id, files)
+        except ValueError as e:
+            return ActionError(message=str(e))
 
         if document_id not in documents:
-            raise ValueError(f"Document {document_id} not found")
+            return ActionError(message=f"Document {document_id} not found")
 
         doc = documents[document_id]
 
@@ -667,20 +711,23 @@ class GetDocumentElementsAction(ActionHandler):
                         pattern = cell["pattern_type"]
                         pattern_counts[pattern] = pattern_counts.get(pattern, 0) + 1
 
-        return {
-            "template_summary": {
-                "structure": f"{analysis['paragraphs']}p,{analysis['tables']}t",
-                "fillable_total": int(analysis["fillable_paragraphs"] + analysis["fillable_cells"]),
-                "content_elements_hidden": int(
-                    analysis["total_elements"] - len(fillable_paragraphs) - len(fillable_cells)
-                ),
+        return ActionResult(
+            data={
+                "template_summary": {
+                    "structure": f"{analysis['paragraphs']}p,{analysis['tables']}t",
+                    "fillable_total": int(analysis["fillable_paragraphs"] + analysis["fillable_cells"]),
+                    "content_elements_hidden": int(
+                        analysis["total_elements"] - len(fillable_paragraphs) - len(fillable_cells)
+                    ),
+                },
+                "fillable_paragraphs": fillable_paragraphs,
+                "fillable_cells": fillable_cells,
+                "pattern_distribution": pattern_counts,
+                "recommended_strategy": "mixed" if len(pattern_counts) > 2 else "single_method",
+                "template_ready": True,
             },
-            "fillable_paragraphs": fillable_paragraphs,
-            "fillable_cells": fillable_cells,
-            "pattern_distribution": pattern_counts,
-            "recommended_strategy": "mixed" if len(pattern_counts) > 2 else "single_method",
-            "template_ready": True,
-        }
+            cost_usd=0.0,
+        )
 
 
 @doc_maker.action("create_document")
@@ -734,10 +781,13 @@ class AddTableAction(ActionHandler):
         data = inputs.get("data", [])
         files = inputs.get("files", [])
 
-        load_document_from_files(document_id, files)
+        try:
+            load_document_from_files(document_id, files)
+        except ValueError as e:
+            return ActionError(message=str(e))
 
         if document_id not in documents:
-            raise ValueError(f"Document {document_id} not found")
+            return ActionError(message=f"Document {document_id} not found")
 
         doc = documents[document_id]
         table = doc.add_table(rows=rows, cols=cols)
@@ -760,10 +810,13 @@ class AddImageAction(ActionHandler):
         height = inputs.get("height")  # in inches
         files = inputs.get("files", [])
 
-        load_document_from_files(document_id, files)
+        try:
+            load_document_from_files(document_id, files)
+        except ValueError as e:
+            return ActionError(message=str(e))
 
         if document_id not in documents:
-            raise ValueError(f"Document {document_id} not found")
+            return ActionError(message=f"Document {document_id} not found")
 
         processed_files = process_files(files)
         image_file = None
@@ -783,7 +836,7 @@ class AddImageAction(ActionHandler):
                 break
 
         if not image_file:
-            raise ValueError("No image file found in files parameter")
+            return ActionError(message="No image file found in files parameter")
 
         doc = documents[document_id]
         paragraph = doc.add_paragraph()
@@ -808,10 +861,13 @@ class AddMarkdownContentAction(ActionHandler):
         markdown_text = inputs["markdown_content"]
         files = inputs.get("files", [])
 
-        load_document_from_files(document_id, files)
+        try:
+            load_document_from_files(document_id, files)
+        except ValueError as e:
+            return ActionError(message=str(e))
 
         if document_id not in documents:
-            raise ValueError(f"Document {document_id} not found")
+            return ActionError(message=f"Document {document_id} not found")
 
         doc = documents[document_id]
 
@@ -832,10 +888,13 @@ class UpdateByPositionAction(ActionHandler):
         updates = inputs["updates"]
         files = inputs.get("files", [])
 
-        load_document_from_files(document_id, files)
+        try:
+            load_document_from_files(document_id, files)
+        except ValueError as e:
+            return ActionError(message=str(e))
 
         if document_id not in documents:
-            raise ValueError(f"Document {document_id} not found")
+            return ActionError(message=f"Document {document_id} not found")
 
         doc = documents[document_id]
         changes_made = []
@@ -907,15 +966,18 @@ class FindAndReplaceAction(ActionHandler):
             try:
                 replacements = json.loads(replacements)
             except json.JSONDecodeError:
-                raise ValueError("Invalid replacements format: must be array or valid JSON string")
+                return ActionError(message="Invalid replacements format: must be array or valid JSON string")
 
         case_sensitive = inputs.get("case_sensitive", False)
         files = inputs.get("files", [])
 
-        load_document_from_files(document_id, files)
+        try:
+            load_document_from_files(document_id, files)
+        except ValueError as e:
+            return ActionError(message=str(e))
 
         if document_id not in documents:
-            raise ValueError(f"Document {document_id} not found")
+            return ActionError(message=f"Document {document_id} not found")
 
         doc = documents[document_id]
         total_replacements = 0
@@ -1160,10 +1222,13 @@ class FillTemplateFieldsAction(ActionHandler):
         template_data = inputs["template_data"]
         files = inputs.get("files", [])
 
-        load_document_from_files(document_id, files)
+        try:
+            load_document_from_files(document_id, files)
+        except ValueError as e:
+            return ActionError(message=str(e))
 
         if document_id not in documents:
-            raise ValueError(f"Document {document_id} not found")
+            return ActionError(message=f"Document {document_id} not found")
 
         doc = documents[document_id]
         changes_made = []
@@ -1398,43 +1463,10 @@ class SaveDocumentAction(ActionHandler):
         file_path = inputs["file_path"]
 
         if document_id not in documents:
-            raise ValueError(f"Document {document_id} not found")
+            return ActionError(message=f"Document {document_id} not found")
 
-        doc = documents[document_id]
-
-        # Save document to memory buffer instead of disk
-        try:
-            buffer = BytesIO()
-            doc.save(buffer)
-            buffer.seek(0)
-            file_content = buffer.getvalue()
-
-            # Encode as base64
-            content_base64 = base64.b64encode(file_content).decode("utf-8")
-
-            # Get file name from path
-            file_name = os.path.basename(file_path)
-
-            return {
-                "saved": True,
-                "file_path": file_path,
-                "file": {
-                    "content": content_base64,
-                    "name": file_name,
-                    "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                },
-            }
-        except Exception as e:
-            return {
-                "saved": False,
-                "file_path": file_path,
-                "file": {
-                    "content": "",
-                    "name": os.path.basename(file_path),
-                    "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                },
-                "error": f"Could not generate document for streaming: {str(e)}",
-            }
+        save_result = _save_document_to_dict(document_id, file_path)
+        return ActionResult(data=save_result, cost_usd=0.0)
 
 
 @doc_maker.action("add_page_break")
@@ -1443,10 +1475,13 @@ class AddPageBreakAction(ActionHandler):
         document_id = inputs["document_id"]
         files = inputs.get("files", [])
 
-        load_document_from_files(document_id, files)
+        try:
+            load_document_from_files(document_id, files)
+        except ValueError as e:
+            return ActionError(message=str(e))
 
         if document_id not in documents:
-            raise ValueError(f"Document {document_id} not found")
+            return ActionError(message=f"Document {document_id} not found")
 
         doc = documents[document_id]
         paragraph = doc.add_paragraph()
