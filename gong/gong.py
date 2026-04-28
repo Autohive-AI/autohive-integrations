@@ -3,6 +3,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
 )
 from typing import Dict, Any, Optional
 
@@ -36,15 +37,17 @@ class GongAPIClient:
 
         # Use the context's fetch method for authenticated requests (OAuth handled by SDK)
         if method == "GET":
-            return await self.context.fetch(url, params=params, headers=headers)
+            response = await self.context.fetch(url, params=params, headers=headers)
         elif method == "POST":
-            return await self.context.fetch(url, method="POST", json=data, headers=headers)
+            response = await self.context.fetch(url, method="POST", json=data, headers=headers)
         elif method == "PUT":
-            return await self.context.fetch(url, method="PUT", json=data, headers=headers)
+            response = await self.context.fetch(url, method="PUT", json=data, headers=headers)
         elif method == "DELETE":
-            return await self.context.fetch(url, method="DELETE", headers=headers)
+            response = await self.context.fetch(url, method="DELETE", headers=headers)
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
+
+        return response.data
 
 
 # ---- Action Handlers ----
@@ -53,54 +56,54 @@ class GongAPIClient:
 @gong.action("list_calls")
 class ListCallsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        client = GongAPIClient(context)
-
-        # Build query parameters with proper date format
-        params = {}
-
-        if inputs.get("from_date"):
-            # Convert YYYY-MM-DD to datetime format required by Gong
-            from datetime import datetime
-
-            from_dt = datetime.strptime(inputs["from_date"], "%Y-%m-%d")
-            params["fromDateTime"] = from_dt.strftime("%Y-%m-%dT00:00:00.000Z")
-        if inputs.get("to_date"):
-            from datetime import datetime
-
-            to_dt = datetime.strptime(inputs["to_date"], "%Y-%m-%d")
-            params["toDateTime"] = to_dt.strftime("%Y-%m-%dT23:59:59.999Z")
-        if inputs.get("user_ids"):
-            params["userIds"] = inputs["user_ids"]
-        if inputs.get("limit"):
-            params["limit"] = inputs["limit"]
-        if inputs.get("cursor"):
-            params["cursor"] = inputs["cursor"]
-
-        # Add default date range if none provided (last 30 days)
-        if not inputs.get("from_date") and not inputs.get("to_date"):
-            from datetime import datetime, timedelta
-
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=30)
-            params["fromDateTime"] = start_date.strftime("%Y-%m-%dT00:00:00.000Z")
-            params["toDateTime"] = end_date.strftime("%Y-%m-%dT23:59:59.999Z")
-
         try:
-            response = await client._make_request("calls", params=params)
+            client = GongAPIClient(context)
+
+            # Build query parameters with proper date format
+            params = {}
+
+            if inputs.get("from_date"):
+                # Convert YYYY-MM-DD to datetime format required by Gong
+                from datetime import datetime
+
+                from_dt = datetime.strptime(inputs["from_date"], "%Y-%m-%d")
+                params["fromDateTime"] = from_dt.strftime("%Y-%m-%dT00:00:00.000Z")
+            if inputs.get("to_date"):
+                from datetime import datetime
+
+                to_dt = datetime.strptime(inputs["to_date"], "%Y-%m-%d")
+                params["toDateTime"] = to_dt.strftime("%Y-%m-%dT23:59:59.999Z")
+            if inputs.get("user_ids"):
+                params["userIds"] = inputs["user_ids"]
+            if inputs.get("limit"):
+                params["limit"] = inputs["limit"]
+            if inputs.get("cursor"):
+                params["cursor"] = inputs["cursor"]
+
+            # Add default date range if none provided (last 30 days)
+            if not inputs.get("from_date") and not inputs.get("to_date"):
+                from datetime import datetime, timedelta
+
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=30)
+                params["fromDateTime"] = start_date.strftime("%Y-%m-%dT00:00:00.000Z")
+                params["toDateTime"] = end_date.strftime("%Y-%m-%dT23:59:59.999Z")
+
+            body = await client._make_request("calls", params=params)
 
             calls = []
-            for call in response.get("calls", []):
+            for call in body.get("calls", []):
                 # Filter out private calls
                 if bool(call.get("isPrivate", False)):
                     continue
                 calls.append(
                     {
-                        "id": call.get("id"),
-                        "title": call.get("title", ""),
-                        "started": call.get("started"),
-                        "duration": call.get("duration", 0),
-                        "participants": call.get("participants", []),
-                        "outcome": call.get("outcome", ""),
+                        "id": call.get("id") or "",
+                        "title": call.get("title") or "",
+                        "started": call.get("started") or "",
+                        "duration": call.get("duration") or 0,
+                        "participants": call.get("participants") or [],
+                        "outcome": call.get("outcome") or "",
                     }
                 )
 
@@ -110,39 +113,27 @@ class ListCallsAction(ActionHandler):
             return ActionResult(
                 data={
                     "calls": calls,
-                    "has_more": response.get("hasMore", False),
-                    "next_cursor": response.get("nextCursor"),
-                }
+                    "has_more": body.get("hasMore", False),
+                    "next_cursor": body.get("nextCursor"),
+                },
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "calls": [],
-                    "has_more": False,
-                    "next_cursor": None,
-                    "error": str(e),
-                }
-            )
+            return ActionError(message=str(e))
 
 
 @gong.action("get_call_transcript")
 class GetCallTranscriptAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        client = GongAPIClient(context)
         call_id = inputs["call_id"]
 
         try:
-            response = await client._make_request(f"calls/{call_id}")
-            call_data = response.get("call", response)
+            client = GongAPIClient(context)
+            body = await client._make_request(f"calls/{call_id}")
+            call_data = body.get("call", body)
 
             if bool(call_data.get("isPrivate", False)):
-                return ActionResult(
-                    data={
-                        "call_id": call_id,
-                        "transcript": [],
-                        "error": "private_call_filtered",
-                    }
-                )
+                return ActionError(message="private_call_filtered")
 
             speaker_map = {}
 
@@ -155,8 +146,8 @@ class GetCallTranscriptAction(ActionHandler):
             }
 
             try:
-                ext_response = await client._make_request("calls/extensive", method="POST", data=ext_data)
-                ext_calls = ext_response.get("calls", [])
+                ext_body = await client._make_request("calls/extensive", method="POST", data=ext_data)
+                ext_calls = ext_body.get("calls", [])
 
                 if ext_calls:
                     ext_call = ext_calls[0]
@@ -187,10 +178,10 @@ class GetCallTranscriptAction(ActionHandler):
                     "fromDateTime": "2015-01-01T00:00:00.000Z",
                 }
             }
-            response = await client._make_request("calls/transcript", method="POST", data=transcript_data)
+            transcript_body = await client._make_request("calls/transcript", method="POST", data=transcript_data)
 
             transcript = []
-            call_transcripts = response.get("callTranscripts", [])
+            call_transcripts = transcript_body.get("callTranscripts", [])
             if call_transcripts:
                 for segment in call_transcripts[0].get("transcript", []):
                     raw_speaker_id = segment.get("speakerId", "")
@@ -213,34 +204,23 @@ class GetCallTranscriptAction(ActionHandler):
                             }
                         )
 
-            return ActionResult(data={"call_id": call_id, "transcript": transcript})
+            return ActionResult(data={"call_id": call_id, "transcript": transcript}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"call_id": call_id, "transcript": [], "error": str(e)})
+            return ActionError(message=str(e))
 
 
 @gong.action("get_call_details")
 class GetCallDetailsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        client = GongAPIClient(context)
         call_id = inputs["call_id"]
 
         try:
-            response = await client._make_request(f"calls/{call_id}")
-            call = response.get("call", response)
+            client = GongAPIClient(context)
+            body = await client._make_request(f"calls/{call_id}")
+            call = body.get("call", body)
 
             if bool(call.get("isPrivate", False)):
-                return ActionResult(
-                    data={
-                        "id": call_id,
-                        "title": "",
-                        "started": "",
-                        "duration": 0,
-                        "participants": [],
-                        "outcome": "",
-                        "crm_data": {},
-                        "error": "private_call_filtered",
-                    }
-                )
+                return ActionError(message="private_call_filtered")
 
             participants = []
             crm_data = call.get("crmData", {})
@@ -265,8 +245,8 @@ class GetCallDetailsAction(ActionHandler):
                     if started_str:
                         extensive_data["filter"]["fromDateTime"] = "2015-01-01T00:00:00Z"
 
-                    ext_response = await client._make_request("calls/extensive", method="POST", data=extensive_data)
-                    ext_calls = ext_response.get("calls", [])
+                    ext_body = await client._make_request("calls/extensive", method="POST", data=extensive_data)
+                    ext_calls = ext_body.get("calls", [])
                     if ext_calls:
                         ext_call = ext_calls[0]
                         participants = ext_call.get("parties", [])
@@ -278,35 +258,23 @@ class GetCallDetailsAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "id": call.get("id", call_id),
-                    "title": call.get("title", "Unknown Call"),
-                    "started": call.get("started", ""),
-                    "duration": call.get("duration", 0),
+                    "id": call.get("id") or call_id,
+                    "title": call.get("title") or "Unknown Call",
+                    "started": call.get("started") or "",
+                    "duration": call.get("duration") or 0,
                     "participants": participants,
-                    "outcome": call.get("outcome", ""),
+                    "outcome": call.get("outcome") or "",
                     "crm_data": crm_data,
-                }
+                },
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": call_id,
-                    "title": "",
-                    "started": "",
-                    "duration": 0,
-                    "participants": [],
-                    "outcome": "",
-                    "crm_data": {},
-                    "error": str(e),
-                }
-            )
+            return ActionError(message=str(e))
 
 
 @gong.action("search_calls")
 class SearchCallsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        client = GongAPIClient(context)
-
         # Use calls/extensive endpoint with proper JSON structure
         data = {
             "filter": {"fromDateTime": None, "toDateTime": None},
@@ -340,13 +308,14 @@ class SearchCallsAction(ActionHandler):
             data["filter"]["toDateTime"] = datetime.now().strftime("%Y-%m-%dT23:59:59.999Z")
 
         try:
-            response = await client._make_request("calls/extensive", method="POST", data=data)
+            client = GongAPIClient(context)
+            body = await client._make_request("calls/extensive", method="POST", data=data)
 
             # Filter calls based on search query in content
             query = inputs["query"].lower()
             results = []
 
-            for call in response.get("calls", []):
+            for call in body.get("calls", []):
                 # Skip private calls
                 if bool(call.get("isPrivate", False)):
                     continue
@@ -386,41 +355,40 @@ class SearchCallsAction(ActionHandler):
                 if content_match:
                     results.append(
                         {
-                            "call_id": call.get("id"),
-                            "title": call.get("title", ""),
-                            "started": call.get("started"),
+                            "call_id": call.get("id") or "",
+                            "title": call.get("title") or "",
+                            "started": call.get("started") or "",
                             "relevance_score": len(matched_segments)
                             + (1 if query in call.get("title", "").lower() else 0),
                             "matched_segments": matched_segments,
                         }
                     )
 
-            return ActionResult(data={"results": results, "total_count": len(results)})
+            return ActionResult(data={"results": results, "total_count": len(results)}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"results": [], "total_count": 0, "error": str(e)})
+            return ActionError(message=str(e))
 
 
 @gong.action("list_users")
 class ListUsersAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        client = GongAPIClient(context)
-
         params = {"limit": inputs.get("limit", 100)}
 
         if inputs.get("cursor"):
             params["cursor"] = inputs["cursor"]
 
         try:
-            response = await client._make_request("users", params=params)
+            client = GongAPIClient(context)
+            body = await client._make_request("users", params=params)
 
             users = []
-            for user in response.get("users", []):
+            for user in body.get("users", []):
                 users.append(
                     {
-                        "id": user.get("id"),
-                        "name": user.get("name", ""),
-                        "email": user.get("email", ""),
-                        "role": user.get("role", ""),
+                        "id": user.get("id") or "",
+                        "name": user.get("name") or "",
+                        "email": user.get("email") or "",
+                        "role": user.get("role") or "",
                         "active": user.get("active", True),
                     }
                 )
@@ -428,16 +396,10 @@ class ListUsersAction(ActionHandler):
             return ActionResult(
                 data={
                     "users": users,
-                    "has_more": response.get("hasMore", False),
-                    "next_cursor": response.get("nextCursor"),
-                }
+                    "has_more": body.get("hasMore", False),
+                    "next_cursor": body.get("nextCursor"),
+                },
+                cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "users": [],
-                    "has_more": False,
-                    "next_cursor": None,
-                    "error": str(e),
-                }
-            )
+            return ActionError(message=str(e))

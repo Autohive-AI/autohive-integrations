@@ -1,6 +1,6 @@
 {
     "name": "Gong",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "An integration with Gong to access call recordings, transcripts, and CRM data.",
     "entry_point": "gong.py",
     "auth": {
