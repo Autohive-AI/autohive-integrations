@@ -320,12 +320,12 @@ class CreateComment(ActionHandler):
             }
 
             # Add optional parent comment ID for replies
-            if "parent_id" in inputs and inputs["parent_id"]:
-                request_body["parentCommentID"] = inputs["parent_id"]
+            if inputs.get("parent_id"):
+                request_body["parentCommentID"] = inputs.get("parent_id")
 
             # Add optional user ID to create comment on behalf of another user (admin only)
-            if "user_id" in inputs and inputs["user_id"]:
-                request_body["userID"] = inputs["user_id"]
+            if inputs.get("user_id"):
+                request_body["userID"] = inputs.get("user_id")
 
             response = await context.fetch(
                 service_endpoint + "comments",
@@ -355,8 +355,8 @@ class CreateThread(ActionHandler):
             request_body = {"channelID": channel_id, "text": content}
 
             # Add optional user ID to create thread on behalf of another user (admin only)
-            if "user_id" in inputs and inputs["user_id"]:
-                request_body["userID"] = inputs["user_id"]
+            if inputs.get("user_id"):
+                request_body["userID"] = inputs.get("user_id")
 
             response = await context.fetch(
                 service_endpoint + "threads",
