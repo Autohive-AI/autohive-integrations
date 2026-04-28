@@ -134,6 +134,9 @@ async def save_and_return_presentation(
             "error": f"Could not generate presentation for streaming: {str(e)}",
         }
 
+    if "error" in save_result:
+        return ActionError(message=save_result["error"])
+
     combined_result = original_result.copy()
     combined_result.update(
         {
@@ -142,8 +145,6 @@ async def save_and_return_presentation(
             "file": save_result["file"],
         }
     )
-    if "error" in save_result:
-        return ActionError(message=save_result["error"])
     return ActionResult(data=combined_result, cost_usd=0.0)
 
 
