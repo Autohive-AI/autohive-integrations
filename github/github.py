@@ -114,7 +114,8 @@ class GitHubAPI:
         all_items = []
         headers = GitHubAPI.get_headers(context)
         while True:
-            response = await context.fetch(url, params=params, headers=headers)
+            fetch_result = await context.fetch(url, params=params, headers=headers)
+            response = fetch_result.data
 
             # Extract items from response
             if data_key and isinstance(response, dict):
@@ -178,13 +179,13 @@ class GitHubAPI:
         if license_template:
             data["license_template"] = license_template
 
-        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def get_repository(context: ExecutionContext, owner: str, repo: str) -> Dict[str, Any]:
         """Get repository details"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def list_repositories(
@@ -241,7 +242,7 @@ class GitHubAPI:
         """Update repository settings"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}"
         data = {k: v for k, v in kwargs.items() if v is not None}
-        return await context.fetch(url, method="PATCH", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="PATCH", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def delete_repository(context: ExecutionContext, owner: str, repo: str) -> None:
@@ -280,7 +281,7 @@ class GitHubAPI:
     async def get_commit(context: ExecutionContext, owner: str, repo: str, sha: str) -> Dict[str, Any]:
         """Get a specific commit"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/commits/{sha}"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def compare_branches(
@@ -288,7 +289,7 @@ class GitHubAPI:
     ) -> Dict[str, Any]:
         """Compare two branches"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/compare/{base}...{head}"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     # ---- Issue Operations ----
 
@@ -318,7 +319,7 @@ class GitHubAPI:
     async def get_issue(context: ExecutionContext, owner: str, repo: str, issue_number: int) -> Dict[str, Any]:
         """Get a specific issue"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/issues/{issue_number}"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def create_issue(
@@ -344,7 +345,7 @@ class GitHubAPI:
         if milestone:
             data["milestone"] = milestone
 
-        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def update_issue(
@@ -376,7 +377,7 @@ class GitHubAPI:
         if milestone is not None:
             data["milestone"] = milestone
 
-        return await context.fetch(url, method="PATCH", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="PATCH", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def get_issue_comments(
@@ -393,7 +394,7 @@ class GitHubAPI:
         """Create a comment on an issue"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/issues/{issue_number}/comments"
         data = {"body": body}
-        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))).data
 
     # ---- Pull Request Operations ----
 
@@ -443,8 +444,8 @@ class GitHubAPI:
         all_prs: List[Dict[str, Any]] = []
 
         while True:
-            response = await context.fetch(url, params=params, headers=headers)
-            items = response.get("items", [])
+            fetch_result = await context.fetch(url, params=params, headers=headers)
+            items = fetch_result.data.get("items", [])
             if not items:
                 break
 
@@ -464,7 +465,7 @@ class GitHubAPI:
     async def get_pull_request(context: ExecutionContext, owner: str, repo: str, pull_number: int) -> Dict[str, Any]:
         """Get detailed information about a pull request"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/pulls/{pull_number}"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def create_pull_request(
@@ -491,7 +492,7 @@ class GitHubAPI:
         if body:
             data["body"] = body
 
-        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def update_pull_request(
@@ -500,7 +501,7 @@ class GitHubAPI:
         """Update a pull request"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/pulls/{pull_number}"
         data = {k: v for k, v in kwargs.items() if v is not None}
-        return await context.fetch(url, method="PATCH", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="PATCH", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def merge_pull_request(
@@ -521,7 +522,7 @@ class GitHubAPI:
         if commit_message:
             data["commit_message"] = commit_message
 
-        return await context.fetch(url, method="PUT", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="PUT", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def add_pull_request_reviewers(
@@ -541,7 +542,7 @@ class GitHubAPI:
         if team_reviewers:
             data["team_reviewers"] = team_reviewers
 
-        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def remove_pull_request_reviewers(
@@ -561,7 +562,7 @@ class GitHubAPI:
         if team_reviewers:
             data["team_reviewers"] = team_reviewers
 
-        return await context.fetch(url, method="DELETE", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="DELETE", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def list_pull_request_reviewers(
@@ -569,7 +570,7 @@ class GitHubAPI:
     ) -> Dict[str, Any]:
         """List reviewers for a pull request"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def create_pull_request_review(
@@ -592,7 +593,7 @@ class GitHubAPI:
         if comments:
             data["comments"] = comments
 
-        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))).data
 
     # ---- Branch Operations ----
 
@@ -606,7 +607,7 @@ class GitHubAPI:
     async def get_branch(context: ExecutionContext, owner: str, repo: str, branch: str) -> Dict[str, Any]:
         """Get branch details"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/branches/{branch}"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def create_branch(
@@ -615,7 +616,7 @@ class GitHubAPI:
         """Create a new branch"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/git/refs"
         data = {"ref": f"refs/heads/{branch_name}", "sha": sha}
-        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def delete_branch(context: ExecutionContext, owner: str, repo: str, branch: str) -> None:
@@ -627,7 +628,7 @@ class GitHubAPI:
     async def get_branch_protection(context: ExecutionContext, owner: str, repo: str, branch: str) -> Dict[str, Any]:
         """Get branch protection rules"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/branches/{branch}/protection"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     # ---- Webhook Operations ----
 
@@ -652,12 +653,14 @@ class GitHubAPI:
 
         data = {"name": "web", "active": active, "events": events, "config": config}
 
-        return await context.fetch(
-            webhook_url,
-            method="POST",
-            json=data,
-            headers=GitHubAPI.get_headers(context),
-        )
+        return (
+            await context.fetch(
+                webhook_url,
+                method="POST",
+                json=data,
+                headers=GitHubAPI.get_headers(context),
+            )
+        ).data
 
     @staticmethod
     async def list_webhooks(context: ExecutionContext, owner: str, repo: str) -> List[Dict[str, Any]]:
@@ -669,7 +672,7 @@ class GitHubAPI:
     async def get_webhook(context: ExecutionContext, owner: str, repo: str, hook_id: int) -> Dict[str, Any]:
         """Get webhook details"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/hooks/{hook_id}"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def delete_webhook(context: ExecutionContext, owner: str, repo: str, hook_id: int) -> None:
@@ -690,11 +693,12 @@ class GitHubAPI:
         if ref:
             params["ref"] = ref
 
-        response = await context.fetch(
+        fetch_result = await context.fetch(
             url,
             params=params if params else None,
             headers=GitHubAPI.get_headers(context),
         )
+        response = fetch_result.data
 
         # Decode base64 content
         content = base64.b64decode(response.get("content", "").replace("\n", "")).decode("utf-8")
@@ -729,7 +733,7 @@ class GitHubAPI:
         if branch:
             data["branch"] = branch
 
-        return await context.fetch(url, method="PUT", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="PUT", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def update_file(
@@ -754,7 +758,7 @@ class GitHubAPI:
         if branch:
             data["branch"] = branch
 
-        return await context.fetch(url, method="PUT", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="PUT", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def delete_file(
@@ -774,7 +778,7 @@ class GitHubAPI:
         if branch:
             data["branch"] = branch
 
-        return await context.fetch(url, method="DELETE", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="DELETE", json=data, headers=GitHubAPI.get_headers(context))).data
 
     # ---- Gist Operations ----
 
@@ -788,13 +792,13 @@ class GitHubAPI:
         """Create a gist"""
         url = f"{GitHubAPI.BASE_URL}/gists"
         data = {"description": description, "public": public, "files": files}
-        return await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, method="POST", json=data, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def get_gist(context: ExecutionContext, gist_id: str) -> Dict[str, Any]:
         """Get gist details"""
         url = f"{GitHubAPI.BASE_URL}/gists/{gist_id}"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def list_gists(context: ExecutionContext, username: str = None) -> List[Dict[str, Any]]:
@@ -822,7 +826,7 @@ class GitHubAPI:
         else:
             url = f"{GitHubAPI.BASE_URL}/user"
 
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     # ---- Organization Operations ----
 
@@ -888,7 +892,7 @@ class GitHubAPI:
         """
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/tags"
         params = {"per_page": per_page, "page": page}
-        return await context.fetch(url, params=params, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, params=params, headers=GitHubAPI.get_headers(context))).data
 
     # -------------------------------------------------------------------------
     # Release Operations
@@ -917,7 +921,7 @@ class GitHubAPI:
         """
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/releases"
         params = {"per_page": per_page, "page": page}
-        return await context.fetch(url, params=params, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, params=params, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def get_release(context: ExecutionContext, owner: str, repo: str, release_id: int) -> Dict[str, Any]:
@@ -933,7 +937,7 @@ class GitHubAPI:
             Release object with full details including assets
         """
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/releases/{release_id}"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def get_latest_release(context: ExecutionContext, owner: str, repo: str) -> Dict[str, Any]:
@@ -950,7 +954,7 @@ class GitHubAPI:
             Latest release object
         """
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/releases/latest"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     @staticmethod
     async def get_release_by_tag(context: ExecutionContext, owner: str, repo: str, tag: str) -> Dict[str, Any]:
@@ -969,7 +973,7 @@ class GitHubAPI:
         """
         encoded_tag = quote(tag, safe="")
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/releases/tags/{encoded_tag}"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
     # ---- Rate Limiting ----
 
@@ -977,7 +981,7 @@ class GitHubAPI:
     async def get_rate_limit(context: ExecutionContext) -> Dict[str, Any]:
         """Get current rate limit status"""
         url = f"{GitHubAPI.BASE_URL}/rate_limit"
-        return await context.fetch(url, headers=GitHubAPI.get_headers(context))
+        return (await context.fetch(url, headers=GitHubAPI.get_headers(context))).data
 
 
 # ============================================================================
@@ -1905,8 +1909,7 @@ class GetBranchProtection(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            # Branch protection not enabled
-            return ActionResult(data={"enabled": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=f"Branch protection not available: {e}")
 
 
 @github.action("diff_branch_to_branch")

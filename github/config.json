@@ -90,7 +90,10 @@
             "type": "string"
           },
           "description": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "private": {
             "type": "boolean"
@@ -105,7 +108,10 @@
             "type": "string"
           },
           "pushed_at": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "clone_url": {
             "type": "string"
@@ -357,7 +363,10 @@
             "type": "string"
           },
           "description": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "private": {
             "type": "boolean"
@@ -980,7 +989,10 @@
             "type": "integer"
           },
           "body": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "created_at": {
             "type": "string"
@@ -1031,7 +1043,10 @@
               "type": "integer"
             },
             "body": {
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "created_at": {
               "type": "string"
@@ -2579,7 +2594,10 @@
             "type": "string"
           },
           "description": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "public": {
             "type": "boolean"
@@ -3133,24 +3151,45 @@
             "default": 1
           }
         },
-        "required": ["owner", "repo"]
+        "required": [
+          "owner",
+          "repo"
+        ]
       },
       "output_schema": {
         "type": "array",
         "items": {
           "type": "object",
           "properties": {
-            "name": { "type": "string" },
+            "name": {
+              "type": "string"
+            },
             "commit": {
               "type": "object",
               "properties": {
-                "sha": { "type": "string" },
-                "url": { "type": "string" }
+                "sha": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
               }
             },
-            "zipball_url": { "type": ["string", "null"] },
-            "tarball_url": { "type": ["string", "null"] },
-            "node_id": { "type": "string" }
+            "zipball_url": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tarball_url": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "node_id": {
+              "type": "string"
+            }
           }
         }
       }
@@ -3180,26 +3219,73 @@
             "default": 1
           }
         },
-        "required": ["owner", "repo"]
+        "required": [
+          "owner",
+          "repo"
+        ]
       },
       "output_schema": {
         "type": "array",
         "items": {
           "type": "object",
           "properties": {
-            "id": { "type": "integer" },
-            "tag_name": { "type": "string" },
-            "name": { "type": ["string", "null"] },
-            "body": { "type": ["string", "null"] },
-            "draft": { "type": "boolean" },
-            "prerelease": { "type": "boolean" },
-            "created_at": { "type": "string" },
-            "published_at": { "type": ["string", "null"] },
-            "html_url": { "type": "string" },
-            "tarball_url": { "type": ["string", "null"] },
-            "zipball_url": { "type": ["string", "null"] },
-            "author": { "type": ["object", "null"] },
-            "assets": { "type": "array" }
+            "id": {
+              "type": "integer"
+            },
+            "tag_name": {
+              "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "body": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "draft": {
+              "type": "boolean"
+            },
+            "prerelease": {
+              "type": "boolean"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "published_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "html_url": {
+              "type": "string"
+            },
+            "tarball_url": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "zipball_url": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "author": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "assets": {
+              "type": "array"
+            }
           }
         }
       }
@@ -3223,25 +3309,78 @@
             "description": "The unique identifier of the release"
           }
         },
-        "required": ["owner", "repo", "release_id"]
+        "required": [
+          "owner",
+          "repo",
+          "release_id"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "id": { "type": "integer" },
-          "tag_name": { "type": "string" },
-          "target_commitish": { "type": "string" },
-          "name": { "type": ["string", "null"] },
-          "body": { "type": ["string", "null"] },
-          "draft": { "type": "boolean" },
-          "prerelease": { "type": "boolean" },
-          "created_at": { "type": "string" },
-          "published_at": { "type": ["string", "null"] },
-          "html_url": { "type": "string" },
-          "tarball_url": { "type": ["string", "null"] },
-          "zipball_url": { "type": ["string", "null"] },
-          "author": { "type": ["object", "null"] },
-          "assets": { "type": "array" }
+          "id": {
+            "type": "integer"
+          },
+          "tag_name": {
+            "type": "string"
+          },
+          "target_commitish": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "draft": {
+            "type": "boolean"
+          },
+          "prerelease": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "html_url": {
+            "type": "string"
+          },
+          "tarball_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zipball_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "author": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "assets": {
+            "type": "array"
+          }
         }
       }
     },
@@ -3260,25 +3399,77 @@
             "description": "Repository name"
           }
         },
-        "required": ["owner", "repo"]
+        "required": [
+          "owner",
+          "repo"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "id": { "type": "integer" },
-          "tag_name": { "type": "string" },
-          "target_commitish": { "type": "string" },
-          "name": { "type": ["string", "null"] },
-          "body": { "type": ["string", "null"] },
-          "draft": { "type": "boolean" },
-          "prerelease": { "type": "boolean" },
-          "created_at": { "type": "string" },
-          "published_at": { "type": ["string", "null"] },
-          "html_url": { "type": "string" },
-          "tarball_url": { "type": ["string", "null"] },
-          "zipball_url": { "type": ["string", "null"] },
-          "author": { "type": ["object", "null"] },
-          "assets": { "type": "array" }
+          "id": {
+            "type": "integer"
+          },
+          "tag_name": {
+            "type": "string"
+          },
+          "target_commitish": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "draft": {
+            "type": "boolean"
+          },
+          "prerelease": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "html_url": {
+            "type": "string"
+          },
+          "tarball_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zipball_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "author": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "assets": {
+            "type": "array"
+          }
         }
       }
     },
@@ -3301,25 +3492,78 @@
             "description": "Tag name (e.g., 'v1.0.0')"
           }
         },
-        "required": ["owner", "repo", "tag"]
+        "required": [
+          "owner",
+          "repo",
+          "tag"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "id": { "type": "integer" },
-          "tag_name": { "type": "string" },
-          "target_commitish": { "type": "string" },
-          "name": { "type": ["string", "null"] },
-          "body": { "type": ["string", "null"] },
-          "draft": { "type": "boolean" },
-          "prerelease": { "type": "boolean" },
-          "created_at": { "type": "string" },
-          "published_at": { "type": ["string", "null"] },
-          "html_url": { "type": "string" },
-          "tarball_url": { "type": ["string", "null"] },
-          "zipball_url": { "type": ["string", "null"] },
-          "author": { "type": ["object", "null"] },
-          "assets": { "type": "array" }
+          "id": {
+            "type": "integer"
+          },
+          "tag_name": {
+            "type": "string"
+          },
+          "target_commitish": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "draft": {
+            "type": "boolean"
+          },
+          "prerelease": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "html_url": {
+            "type": "string"
+          },
+          "tarball_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zipball_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "author": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "assets": {
+            "type": "array"
+          }
         }
       }
     }
