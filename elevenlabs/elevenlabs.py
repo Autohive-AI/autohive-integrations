@@ -226,7 +226,7 @@ class SpeechToTextConvertAction(ActionHandler):
             async with aiohttp.ClientSession() as session:
                 form = aiohttp.FormData()
                 form.add_field("model_id", model_id)
-                form.add_field("file_url", file_url)
+                form.add_field("source_url", file_url)
                 if inputs.get("language_code"):
                     form.add_field("language_code", inputs["language_code"])
                 if inputs.get("timestamps_granularity"):
