@@ -16,6 +16,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
 )
 from typing import Dict, Any, Tuple, List
 from urllib.parse import quote
@@ -47,9 +48,10 @@ async def get_current_user_urn(context: ExecutionContext) -> str:
     """Fetch the current authenticated user's URN."""
     user_info_url = "https://api.linkedin.com/v2/userinfo"
     user_response = await context.fetch(user_info_url, method="GET")
+    body = user_response.data
 
-    if isinstance(user_response, dict) and user_response.get("sub"):
-        return f"urn:li:person:{user_response.get('sub')}"
+    if isinstance(body, dict) and body.get("sub"):
+        return f"urn:li:person:{body.get('sub')}"
     raise ValueError("Could not determine current user. Please ensure proper authentication.")
 
 
@@ -103,12 +105,13 @@ async def initialize_image_upload(context: ExecutionContext, owner_urn: str) -> 
     payload = {"initializeUploadRequest": {"owner": owner_urn}}
 
     response = await context.fetch(url, method="POST", json=payload, headers=get_linkedin_headers())
+    body = response.data
 
-    if isinstance(response, dict) and "value" in response:
-        value = response["value"]
+    if isinstance(body, dict) and "value" in body:
+        value = body["value"]
         return {"upload_url": value.get("uploadUrl"), "image_urn": value.get("image")}
 
-    raise ValueError(f"Failed to initialize image upload: {response}")
+    raise ValueError(f"Failed to initialize image upload: {body}")
 
 
 async def upload_image_binary(context: ExecutionContext, upload_url: str, image_data: bytes, content_type: str) -> None:
@@ -210,23 +213,18 @@ class UserInfoActionHandler(ActionHandler):
         url = "https://api.linkedin.com/v2/userinfo"
 
         response = await context.fetch(url, method="GET")
+        body = response.data
 
-        if isinstance(response, dict) and response.get("sub"):
+        if isinstance(body, dict) and body.get("sub"):
             return ActionResult(
                 data={
                     "result": "User information retrieved successfully.",
-                    "user_info": response,
+                    "user_info": body,
                 }
             )
-        else:
-            error_details = response.get("error", "Unknown error") if isinstance(response, dict) else "Unknown error"
-            return ActionResult(
-                data={
-                    "result": "Failed to retrieve user information.",
-                    "user_info": None,
-                    "details": error_details,
-                }
-            )
+
+        error_details = body.get("error", "Unknown error") if isinstance(body, dict) else "Unknown error"
+        return ActionError(message=f"Failed to retrieve user information: {error_details}")
 
 
 # =============================================================================
@@ -258,13 +256,8 @@ class CreatePostActionHandler(ActionHandler):
 
         # Validate file count before any API calls
         if len(files) > MAX_IMAGES_PER_POST:
-            return ActionResult(
-                data={
-                    "result": f"Too many images. Maximum allowed is {MAX_IMAGES_PER_POST}, got {len(files)}.",
-                    "post_id": None,
-                    "post_url": None,
-                    "images_uploaded": 0,
-                }
+            return ActionError(
+                message=f"Too many images. Maximum allowed is {MAX_IMAGES_PER_POST}, got {len(files)}."
             )
 
         # Validate all files upfront before any uploads
@@ -274,25 +267,11 @@ class CreatePostActionHandler(ActionHandler):
                 content, content_type, alt_text = validate_file_input(file_obj)
                 validated_images.append((content, content_type, alt_text))
             except ValueError as e:
-                return ActionResult(
-                    data={
-                        "result": f"Invalid file at index {idx}: {str(e)}",
-                        "post_id": None,
-                        "post_url": None,
-                        "images_uploaded": 0,
-                    }
-                )
+                return ActionError(message=f"Invalid file at index {idx}: {str(e)}")
 
         # Require at least text or files
         if not text and not files:
-            return ActionResult(
-                data={
-                    "result": "Post must have either text or at least one file.",
-                    "post_id": None,
-                    "post_url": None,
-                    "images_uploaded": 0,
-                }
-            )
+            return ActionError(message="Post must have either text or at least one file.")
 
         # Determine author URN
         if author_id:
@@ -301,16 +280,7 @@ class CreatePostActionHandler(ActionHandler):
             try:
                 author_urn = await get_current_user_urn(context)
             except Exception as e:
-                return ActionResult(
-                    data={
-                        "result": "Failed to create post. Could not determine current user.",
-                        "post_id": None,
-                        "post_url": None,
-                        "images_uploaded": 0,
-                        "post_data": None,
-                        "details": str(e),
-                    }
-                )
+                return ActionError(message=f"Failed to create post. Could not determine current user: {str(e)}")
 
         # Upload images if provided
         uploaded_image_urns: List[Tuple[str, str]] = []
@@ -319,16 +289,7 @@ class CreatePostActionHandler(ActionHandler):
                 image_urn = await upload_image_from_base64(context, author_urn, content, content_type)
                 uploaded_image_urns.append((image_urn, alt_text))
             except Exception as e:
-                return ActionResult(
-                    data={
-                        "result": f"Failed to upload image at index {idx}: {str(e)}",
-                        "post_id": None,
-                        "post_url": None,
-                        "images_uploaded": idx,
-                        "post_data": None,
-                        "details": str(e),
-                    }
-                )
+                return ActionError(message=f"Failed to upload image at index {idx}: {str(e)}")
 
         # Build post payload
         posts_url = "https://api.linkedin.com/rest/posts"
@@ -371,15 +332,7 @@ class CreatePostActionHandler(ActionHandler):
             status, headers, body = await post_to_linkedin(posts_url, payload, access_token)
 
             if status >= 400:
-                return ActionResult(
-                    data={
-                        "result": f"Failed to create post: HTTP {status}",
-                        "post_id": None,
-                        "post_url": None,
-                        "images_uploaded": len(uploaded_image_urns),
-                        "details": body,
-                    }
-                )
+                return ActionError(message=f"Failed to create post: HTTP {status} {body}")
 
             post_id = headers.get("x-restli-id") or headers.get("X-RestLi-Id")
             post_url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
@@ -393,17 +346,7 @@ class CreatePostActionHandler(ActionHandler):
                 }
             )
         except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to create post: {error_message}",
-                    "post_id": None,
-                    "post_url": None,
-                    "images_uploaded": len(uploaded_image_urns),
-                    "details": error_details,
-                }
-            )
+            return ActionError(message=f"Failed to create post: {str(e)}")
 
 
 @linkedin.action("share_article")
@@ -424,14 +367,7 @@ class ShareArticleActionHandler(ActionHandler):
             try:
                 author_urn = await get_current_user_urn(context)
             except Exception as e:
-                return ActionResult(
-                    data={
-                        "result": "Failed to share article. Could not determine current user.",
-                        "post_id": None,
-                        "post_url": None,
-                        "details": str(e),
-                    }
-                )
+                return ActionError(message=f"Failed to share article. Could not determine current user: {str(e)}")
 
         posts_url = "https://api.linkedin.com/rest/posts"
 
@@ -460,14 +396,7 @@ class ShareArticleActionHandler(ActionHandler):
             status, headers, body = await post_to_linkedin(posts_url, payload, access_token)
 
             if status >= 400:
-                return ActionResult(
-                    data={
-                        "result": f"Failed to share article: HTTP {status}",
-                        "post_id": None,
-                        "post_url": None,
-                        "details": body,
-                    }
-                )
+                return ActionError(message=f"Failed to share article: HTTP {status} {body}")
 
             post_id = headers.get("x-restli-id") or headers.get("X-RestLi-Id")
             post_url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
@@ -480,16 +409,7 @@ class ShareArticleActionHandler(ActionHandler):
                 }
             )
         except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to share article: {error_message}",
-                    "post_id": None,
-                    "post_url": None,
-                    "details": error_details,
-                }
-            )
+            return ActionError(message=f"Failed to share article: {str(e)}")
 
 
 @linkedin.action("reshare_post")
@@ -508,14 +428,7 @@ class ResharePostActionHandler(ActionHandler):
             try:
                 author_urn = await get_current_user_urn(context)
             except Exception as e:
-                return ActionResult(
-                    data={
-                        "result": "Failed to reshare post. Could not determine current user.",
-                        "post_id": None,
-                        "post_url": None,
-                        "details": str(e),
-                    }
-                )
+                return ActionError(message=f"Failed to reshare post. Could not determine current user: {str(e)}")
 
         posts_url = "https://api.linkedin.com/rest/posts"
 
@@ -538,14 +451,7 @@ class ResharePostActionHandler(ActionHandler):
             status, headers, body = await post_to_linkedin(posts_url, payload, access_token)
 
             if status >= 400:
-                return ActionResult(
-                    data={
-                        "result": f"Failed to reshare post: HTTP {status}",
-                        "post_id": None,
-                        "post_url": None,
-                        "details": body,
-                    }
-                )
+                return ActionError(message=f"Failed to reshare post: HTTP {status} {body}")
 
             post_id = headers.get("x-restli-id") or headers.get("X-RestLi-Id")
             post_url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
@@ -558,16 +464,7 @@ class ResharePostActionHandler(ActionHandler):
                 }
             )
         except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to reshare post: {error_message}",
-                    "post_id": None,
-                    "post_url": None,
-                    "details": error_details,
-                }
-            )
+            return ActionError(message=f"Failed to reshare post: {str(e)}")
 
 
 @linkedin.action("update_post")
@@ -590,15 +487,7 @@ class UpdatePostActionHandler(ActionHandler):
 
             return ActionResult(data={"result": "Post updated successfully.", "post_urn": post_urn})
         except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to update post: {error_message}",
-                    "post_urn": post_urn,
-                    "details": error_details,
-                }
-            )
+            return ActionError(message=f"Failed to update post: {str(e)}")
 
 
 @linkedin.action("delete_post")
@@ -618,15 +507,7 @@ class DeletePostActionHandler(ActionHandler):
 
             return ActionResult(data={"result": "Post deleted successfully.", "post_urn": post_urn})
         except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to delete post: {error_message}",
-                    "post_urn": post_urn,
-                    "details": error_details,
-                }
-            )
+            return ActionError(message=f"Failed to delete post: {str(e)}")
 
 
 # =============================================================================
@@ -649,14 +530,7 @@ class CreateCommentActionHandler(ActionHandler):
             try:
                 actor_urn = await get_current_user_urn(context)
             except Exception as e:
-                return ActionResult(
-                    data={
-                        "result": "Failed to create comment. Could not determine current user.",
-                        "comment_id": None,
-                        "comment": None,
-                        "details": str(e),
-                    }
-                )
+                return ActionError(message=f"Failed to create comment. Could not determine current user: {str(e)}")
 
         encoded_post_urn = encode_urn(post_urn)
         url = f"https://api.linkedin.com/rest/socialActions/{encoded_post_urn}/comments"
@@ -665,27 +539,19 @@ class CreateCommentActionHandler(ActionHandler):
 
         try:
             response = await context.fetch(url, method="POST", json=payload, headers=get_linkedin_headers())
+            body = response.data
 
-            comment_id = response.get("id") if isinstance(response, dict) else None
+            comment_id = body.get("id") if isinstance(body, dict) else None
 
             return ActionResult(
                 data={
                     "result": "Comment created successfully.",
                     "comment_id": comment_id,
-                    "comment": response,
+                    "comment": body,
                 }
             )
         except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to create comment: {error_message}",
-                    "comment_id": None,
-                    "comment": None,
-                    "details": error_details,
-                }
-            )
+            return ActionError(message=f"Failed to create comment: {str(e)}")
 
 
 @linkedin.action("delete_comment")
@@ -703,12 +569,7 @@ class DeleteCommentActionHandler(ActionHandler):
             try:
                 actor_urn = await get_current_user_urn(context)
             except Exception as e:
-                return ActionResult(
-                    data={
-                        "result": "Failed to delete comment. Could not determine current user.",
-                        "details": str(e),
-                    }
-                )
+                return ActionError(message=f"Failed to delete comment. Could not determine current user: {str(e)}")
 
         encoded_post_urn = encode_urn(post_urn)
         encoded_actor = encode_urn(actor_urn)
@@ -725,15 +586,7 @@ class DeleteCommentActionHandler(ActionHandler):
                 }
             )
         except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to delete comment: {error_message}",
-                    "comment_id": comment_id,
-                    "details": error_details,
-                }
-            )
+            return ActionError(message=f"Failed to delete comment: {str(e)}")
 
 
 # =============================================================================
@@ -756,13 +609,7 @@ class CreateReactionActionHandler(ActionHandler):
             try:
                 actor_urn = await get_current_user_urn(context)
             except Exception as e:
-                return ActionResult(
-                    data={
-                        "result": "Failed to create reaction. Could not determine current user.",
-                        "reaction": None,
-                        "details": str(e),
-                    }
-                )
+                return ActionError(message=f"Failed to create reaction. Could not determine current user: {str(e)}")
 
         encoded_actor = encode_urn(actor_urn)
         url = f"https://api.linkedin.com/rest/reactions?actor={encoded_actor}"
@@ -772,17 +619,9 @@ class CreateReactionActionHandler(ActionHandler):
         try:
             response = await context.fetch(url, method="POST", json=payload, headers=get_linkedin_headers())
 
-            return ActionResult(data={"result": "Reaction created successfully.", "reaction": response})
+            return ActionResult(data={"result": "Reaction created successfully.", "reaction": response.data})
         except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to create reaction: {error_message}",
-                    "reaction": None,
-                    "details": error_details,
-                }
-            )
+            return ActionError(message=f"Failed to create reaction: {str(e)}")
 
 
 @linkedin.action("delete_reaction")
@@ -799,12 +638,7 @@ class DeleteReactionActionHandler(ActionHandler):
             try:
                 actor_urn = await get_current_user_urn(context)
             except Exception as e:
-                return ActionResult(
-                    data={
-                        "result": "Failed to delete reaction. Could not determine current user.",
-                        "details": str(e),
-                    }
-                )
+                return ActionError(message=f"Failed to delete reaction. Could not determine current user: {str(e)}")
 
         encoded_actor = encode_urn(actor_urn)
         encoded_target = encode_urn(target_urn)
@@ -820,12 +654,4 @@ class DeleteReactionActionHandler(ActionHandler):
                 }
             )
         except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to remove reaction: {error_message}",
-                    "target_urn": target_urn,
-                    "details": error_details,
-                }
-            )
+            return ActionError(message=f"Failed to remove reaction: {str(e)}")

@@ -7,9 +7,10 @@ without making actual LinkedIn API calls.
 
 from typing import Any
 from unittest.mock import patch
-from urllib.parse import quote
 
 import pytest
+
+from autohive_integrations_sdk import FetchResponse, ResultType
 
 from context import linkedin, linkedin_module
 
@@ -28,6 +29,10 @@ class MockExecutionContext:
         self.auth = {}
         self._responses = responses or {}
         self._requests = []
+
+    @staticmethod
+    def _wrap(body: Any) -> FetchResponse:
+        return FetchResponse(status=200, headers={}, data=body)
 
     async def fetch(
         self,
@@ -52,7 +57,7 @@ class MockExecutionContext:
 
         # Userinfo endpoint
         if "/userinfo" in url and method == "GET":
-            return self._responses.get(
+            return self._wrap(self._responses.get(
                 "GET /userinfo",
                 {
                     "sub": "abc123",
@@ -64,11 +69,11 @@ class MockExecutionContext:
                     "email": "test@example.com",
                     "email_verified": True,
                 },
-            )
+            ))
 
         # Posts endpoint - CREATE
         if "/rest/posts" in url and method == "POST" and "X-RestLi-Method" not in (headers or {}):
-            return self._responses.get(
+            return self._wrap(self._responses.get(
                 "POST /posts",
                 {
                     "id": "urn:li:share:123456789",
@@ -79,11 +84,11 @@ class MockExecutionContext:
                     "createdAt": 1705849200000,
                     "publishedAt": 1705849200000,
                 },
-            )
+            ))
 
         # Posts endpoint - GET single
         if "/rest/posts/" in url and method == "GET":
-            return self._responses.get(
+            return self._wrap(self._responses.get(
                 "GET /posts/{urn}",
                 {
                     "id": "urn:li:share:123456789",
@@ -95,11 +100,11 @@ class MockExecutionContext:
                     "publishedAt": 1705849200000,
                     "lastModifiedAt": 1705849200000,
                 },
-            )
+            ))
 
         # Posts endpoint - GET list (finder)
         if "/rest/posts?" in url and method == "GET":
-            return self._responses.get(
+            return self._wrap(self._responses.get(
                 "GET /posts",
                 {
                     "elements": [
@@ -120,7 +125,7 @@ class MockExecutionContext:
                     ],
                     "paging": {"start": 0, "count": 10},
                 },
-            )
+            ))
 
         # Posts endpoint - UPDATE
         if (
@@ -129,15 +134,15 @@ class MockExecutionContext:
             and headers
             and headers.get("X-RestLi-Method") == "PARTIAL_UPDATE"
         ):
-            return self._responses.get("PATCH /posts", {})
+            return self._wrap(self._responses.get("PATCH /posts", {}))
 
         # Posts endpoint - DELETE
         if "/rest/posts/" in url and method == "DELETE":
-            return self._responses.get("DELETE /posts", {})
+            return self._wrap(self._responses.get("DELETE /posts", {}))
 
         # Comments endpoint - GET
         if "/socialActions/" in url and "/comments" in url and method == "GET":
-            return self._responses.get(
+            return self._wrap(self._responses.get(
                 "GET /comments",
                 {
                     "elements": [
@@ -150,11 +155,11 @@ class MockExecutionContext:
                     ],
                     "paging": {"start": 0, "count": 10},
                 },
-            )
+            ))
 
         # Comments endpoint - CREATE
         if "/socialActions/" in url and "/comments" in url and method == "POST":
-            return self._responses.get(
+            return self._wrap(self._responses.get(
                 "POST /comments",
                 {
                     "id": "comment456",
@@ -162,15 +167,15 @@ class MockExecutionContext:
                     "message": {"text": "Test comment"},
                     "object": "urn:li:activity:123456",
                 },
-            )
+            ))
 
         # Comments endpoint - DELETE
         if "/socialActions/" in url and "/comments/" in url and method == "DELETE":
-            return self._responses.get("DELETE /comments", {})
+            return self._wrap(self._responses.get("DELETE /comments", {}))
 
         # Reactions endpoint - GET
         if "/rest/reactions/(entity:" in url and method == "GET":
-            return self._responses.get(
+            return self._wrap(self._responses.get(
                 "GET /reactions",
                 {
                     "elements": [
@@ -182,28 +187,28 @@ class MockExecutionContext:
                     ],
                     "paging": {"start": 0, "count": 10, "total": 1},
                 },
-            )
+            ))
 
         # Reactions endpoint - CREATE
         if "/rest/reactions?" in url and method == "POST":
-            return self._responses.get(
+            return self._wrap(self._responses.get(
                 "POST /reactions",
                 {
                     "id": "urn:li:reaction:(urn:li:person:abc123,urn:li:activity:123)",
                     "reactionType": "LIKE",
                     "created": {"time": 1705849200000},
                 },
-            )
+            ))
 
         # Reactions endpoint - DELETE
         if "/rest/reactions/(actor:" in url and method == "DELETE":
-            return self._responses.get("DELETE /reactions", {})
+            return self._wrap(self._responses.get("DELETE /reactions", {}))
 
         # Images endpoint - Initialize upload
         if "/rest/images?action=initializeUpload" in url and method == "POST":
             # Generate a unique image URN based on the number of image init calls
             image_count = len([r for r in self._requests if "initializeUpload" in r["url"]])
-            return self._responses.get(
+            return self._wrap(self._responses.get(
                 "POST /images/initializeUpload",
                 {
                     "value": {
@@ -211,13 +216,13 @@ class MockExecutionContext:
                         "image": f"urn:li:image:{image_count}",
                     }
                 },
-            )
+            ))
 
         # Images endpoint - Binary upload
         if "api.linkedin.com/upload/" in url and method == "PUT":
-            return self._responses.get("PUT /images/upload", {})
+            return self._wrap(self._responses.get("PUT /images/upload", {}))
 
-        return {}
+        return self._wrap({})
 
 
 # =============================================================================
@@ -284,10 +289,9 @@ async def test_get_user_info_error():
     }
     context = MockExecutionContext(responses)
     result = await linkedin.execute_action("get_user_info", {}, context)
-    data = result.result.data
 
-    assert data["result"] == "Failed to retrieve user information."
-    assert data["user_info"] is None
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Failed to retrieve user information" in result.result.message
 
 
 # =============================================================================
@@ -923,11 +927,9 @@ async def test_create_post_too_many_images():
     ]
 
     result = await linkedin.execute_action("create_post", {"text": "Too many images", "files": files}, context)
-    data = result.result.data
 
-    assert "Too many images" in data["result"]
-    assert data["post_id"] is None
-    assert data["images_uploaded"] == 0
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Too many images" in result.result.message
 
     # Verify no API calls were made
     assert len(context._requests) == 0
@@ -951,11 +953,10 @@ async def test_create_post_invalid_image_type():
         },
         context,
     )
-    data = result.result.data
 
-    assert "Invalid file" in data["result"]
-    assert "Unsupported image type" in data["result"]
-    assert data["post_id"] is None
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Invalid file" in result.result.message
+    assert "Unsupported image type" in result.result.message
 
     # Verify no API calls were made
     assert len(context._requests) == 0
@@ -1030,10 +1031,9 @@ async def test_create_post_no_content():
     context = MockExecutionContext({})
 
     result = await linkedin.execute_action("create_post", {}, context)
-    data = result.result.data
 
-    assert "must have either text or at least one file" in data["result"]
-    assert data["post_id"] is None
+    assert result.type == ResultType.ACTION_ERROR
+    assert "must have either text or at least one file" in result.result.message
 
 
 @patch.object(linkedin_module, "post_to_linkedin")
@@ -1136,10 +1136,10 @@ async def test_create_post_missing_file_content():
         },
         context,
     )
-    data = result.result.data
 
-    assert "Invalid file" in data["result"]
-    assert "content" in data["result"].lower()
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Invalid file" in result.result.message
+    assert "content" in result.result.message.lower()
 
 
 async def test_create_post_missing_file_content_type():
@@ -1154,10 +1154,10 @@ async def test_create_post_missing_file_content_type():
         },
         context,
     )
-    data = result.result.data
 
-    assert "Invalid file" in data["result"]
-    assert "contentType" in data["result"]
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Invalid file" in result.result.message
+    assert "contentType" in result.result.message
 
 
 @patch.object(linkedin_module, "post_to_linkedin")

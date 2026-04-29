@@ -1,6 +1,6 @@
 {
     "name": "LinkedIn",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "description": "Comprehensive LinkedIn integration for content sharing, post management, comments, and reactions using API version 202601.",
     "entry_point": "linkedin.py",
     "auth": {
@@ -79,13 +79,6 @@
                                 "description": "Whether the email has been verified."
                             }
                         }
-                    },
-                    "details": {
-                        "type": [
-                            "string",
-                            "null"
-                        ],
-                        "description": "Error details if the operation failed."
                     }
                 },
                 "required": [
@@ -198,14 +191,6 @@
                     "images_uploaded": {
                         "type": "integer",
                         "description": "Number of images successfully uploaded."
-                    },
-                    "details": {
-                        "type": [
-                            "string",
-                            "object",
-                            "null"
-                        ],
-                        "description": "Error details if the operation failed."
                     }
                 },
                 "required": [
@@ -276,14 +261,6 @@
                             "null"
                         ],
                         "description": "Direct URL to the post on LinkedIn."
-                    },
-                    "details": {
-                        "type": [
-                            "string",
-                            "object",
-                            "null"
-                        ],
-                        "description": "Error details if the operation failed."
                     }
                 },
                 "required": [
@@ -344,14 +321,6 @@
                             "null"
                         ],
                         "description": "Direct URL to the post on LinkedIn."
-                    },
-                    "details": {
-                        "type": [
-                            "string",
-                            "object",
-                            "null"
-                        ],
-                        "description": "Error details if the operation failed."
                     }
                 },
                 "required": [
@@ -389,14 +358,6 @@
                     "post_urn": {
                         "type": "string",
                         "description": "The URN of the updated post."
-                    },
-                    "details": {
-                        "type": [
-                            "string",
-                            "object",
-                            "null"
-                        ],
-                        "description": "Error details if the operation failed."
                     }
                 },
                 "required": [
@@ -429,14 +390,6 @@
                     "post_urn": {
                         "type": "string",
                         "description": "The URN of the deleted post."
-                    },
-                    "details": {
-                        "type": [
-                            "string",
-                            "object",
-                            "null"
-                        ],
-                        "description": "Error details if the operation failed."
                     }
                 },
                 "required": [
@@ -488,14 +441,6 @@
                             "null"
                         ],
                         "description": "The full comment data returned by LinkedIn API."
-                    },
-                    "details": {
-                        "type": [
-                            "string",
-                            "object",
-                            "null"
-                        ],
-                        "description": "Error details if the operation failed."
                     }
                 },
                 "required": [
@@ -537,14 +482,6 @@
                     "comment_id": {
                         "type": "string",
                         "description": "The ID of the deleted comment."
-                    },
-                    "details": {
-                        "type": [
-                            "string",
-                            "object",
-                            "null"
-                        ],
-                        "description": "Error details if the operation failed."
                     }
                 },
                 "required": [
@@ -597,14 +534,6 @@
                             "null"
                         ],
                         "description": "The reaction data returned by LinkedIn API."
-                    },
-                    "details": {
-                        "type": [
-                            "string",
-                            "object",
-                            "null"
-                        ],
-                        "description": "Error details if the operation failed."
                     }
                 },
                 "required": [
@@ -641,14 +570,6 @@
                     "target_urn": {
                         "type": "string",
                         "description": "The URN of the target."
-                    },
-                    "details": {
-                        "type": [
-                            "string",
-                            "object",
-                            "null"
-                        ],
-                        "description": "Error details if the operation failed."
                     }
                 },
                 "required": [
