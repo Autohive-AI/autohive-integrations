@@ -19,21 +19,21 @@ ELEVENLABS_API_BASE_URL = "https://api.elevenlabs.io/v1"
 # ---- Helper Functions ----
 
 
+def get_api_key(context: ExecutionContext) -> str:
+    """Return the ElevenLabs API key from context.auth.
+
+    Supports both the flat custom-auth shape used in local tests
+    (``{"api_key": "..."}`` ) and the production wrapped shape
+    (``{"credentials": {"api_key": "..."}}``) produced by the SDK.
+    """
+    auth = context.auth
+    creds = auth.get("credentials", auth)
+    return creds.get("api_key", "")
+
+
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
-    """
-    Build authentication headers for ElevenLabs API requests.
-    ElevenLabs uses a custom header 'xi-api-key' for authentication.
-
-    Args:
-        context: ExecutionContext containing auth credentials
-
-    Returns:
-        Dictionary with xi-api-key header
-    """
-    credentials = context.auth.get("credentials", {})
-    api_key = credentials.get("api_key", "")
-
-    return {"xi-api-key": api_key, "Content-Type": "application/json"}
+    """Build authentication headers for ElevenLabs API requests."""
+    return {"xi-api-key": get_api_key(context), "Content-Type": "application/json"}
 
 
 # ---- Action Handlers ----
@@ -158,8 +158,7 @@ class DownloadHistoryAudioAction(ActionHandler):
         try:
             history_item_id = inputs["history_item_id"]
 
-            credentials = context.auth.get("credentials", {})
-            api_key = credentials.get("api_key", "")
+            api_key = get_api_key(context)
 
             # Download binary audio using aiohttp
             url = f"{ELEVENLABS_API_BASE_URL}/history/{history_item_id}/audio"
@@ -218,9 +217,7 @@ class SpeechToTextConvertAction(ActionHandler):
         try:
             file_url = inputs["file_url"]
             model_id = inputs.get("model_id", "scribe_v1")
-
-            credentials = context.auth.get("credentials", {})
-            api_key = credentials.get("api_key", "")
+            api_key = get_api_key(context)
 
             # Pass the URL directly to ElevenLabs — they fetch the file on their end
             async with aiohttp.ClientSession() as session:
@@ -301,8 +298,7 @@ class TextToSpeechAction(ActionHandler):
             voice_id = inputs["voice_id"]
             text = inputs["text"]
 
-            credentials = context.auth.get("credentials", {})
-            api_key = credentials.get("api_key", "")
+            api_key = get_api_key(context)
 
             # Build request body
             body = {"text": text}
