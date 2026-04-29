@@ -222,17 +222,11 @@ class SpeechToTextConvertAction(ActionHandler):
             credentials = context.auth.get("credentials", {})
             api_key = credentials.get("api_key", "")
 
-            # Download the file first then POST as multipart
+            # Pass the URL directly to ElevenLabs — they fetch the file on their end
             async with aiohttp.ClientSession() as session:
-                async with session.get(file_url) as file_resp:
-                    if file_resp.status != 200:
-                        return ActionError(message=f"Failed to download file: HTTP {file_resp.status}")
-                    file_bytes = await file_resp.read()
-                    content_type = file_resp.headers.get("Content-Type", "audio/mpeg")
-
                 form = aiohttp.FormData()
                 form.add_field("model_id", model_id)
-                form.add_field("file", file_bytes, filename="audio", content_type=content_type)
+                form.add_field("file_url", file_url)
                 if inputs.get("language_code"):
                     form.add_field("language_code", inputs["language_code"])
                 if inputs.get("timestamps_granularity"):
