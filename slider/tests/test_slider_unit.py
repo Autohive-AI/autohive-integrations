@@ -9,7 +9,7 @@ sys.path.insert(0, _parent)
 sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
-from unittest.mock import MagicMock  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("slide_maker_mod", os.path.join(_parent, "slide_maker.py"))
@@ -32,10 +32,8 @@ pytestmark = pytest.mark.unit
 @pytest.fixture
 def mock_context():
     ctx = MagicMock(name="ExecutionContext")
-    ctx.auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "test_token"},  # nosec B105
-    }
+    ctx.fetch = AsyncMock(name="fetch")
+    ctx.auth = {}
     return ctx
 
 
