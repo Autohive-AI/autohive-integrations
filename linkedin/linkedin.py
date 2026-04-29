@@ -1,12 +1,12 @@
 """
 LinkedIn Integration for Autohive
 
-This module provides comprehensive LinkedIn integration including:
+This module provides LinkedIn integration including:
 - User profile information retrieval
 - Content sharing/posting (text, articles, reshares)
-- Post management (get, update, delete)
-- Comments management (get, create, delete)
-- Reactions management (get, create, delete)
+- Post management (update, delete)
+- Comment creation and deletion
+- Reaction creation and deletion
 
 All actions use the LinkedIn API with version 202601.
 """
@@ -570,88 +570,6 @@ class ResharePostActionHandler(ActionHandler):
             )
 
 
-@linkedin.action("get_post")
-class GetPostActionHandler(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        """Retrieve a single post by its URN."""
-        post_urn = inputs.get("post_urn")
-
-        encoded_urn = encode_urn(post_urn)
-        url = f"https://api.linkedin.com/rest/posts/{encoded_urn}"
-
-        try:
-            response = await context.fetch(url, method="GET", headers=get_linkedin_headers())
-
-            return ActionResult(data={"result": "Post retrieved successfully.", "post": response})
-        except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to retrieve post: {error_message}",
-                    "post": None,
-                    "details": error_details,
-                }
-            )
-
-
-@linkedin.action("get_posts")
-class GetPostsActionHandler(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        """Retrieve posts by author."""
-        author_id = inputs.get("author_id")
-        count = inputs.get("count", 10)
-        start = inputs.get("start", 0)
-        sort_by = inputs.get("sort_by", "LAST_MODIFIED")
-
-        # Determine author URN
-        if author_id:
-            author_urn = f"urn:li:person:{author_id}"
-        else:
-            try:
-                author_urn = await get_current_user_urn(context)
-            except Exception as e:
-                return ActionResult(
-                    data={
-                        "result": "Failed to get posts. Could not determine author.",
-                        "posts": None,
-                        "paging": None,
-                        "details": str(e),
-                    }
-                )
-
-        encoded_author = encode_urn(author_urn)
-        url = f"https://api.linkedin.com/rest/posts?author={encoded_author}&q=author&count={count}&start={start}&sortBy={sort_by}"
-
-        headers = get_linkedin_headers()
-        headers["X-RestLi-Method"] = "FINDER"
-
-        try:
-            response = await context.fetch(url, method="GET", headers=headers)
-
-            posts = response.get("elements", []) if isinstance(response, dict) else []
-            paging = response.get("paging") if isinstance(response, dict) else None
-
-            return ActionResult(
-                data={
-                    "result": "Posts retrieved successfully.",
-                    "posts": posts,
-                    "paging": paging,
-                }
-            )
-        except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to retrieve posts: {error_message}",
-                    "posts": None,
-                    "paging": None,
-                    "details": error_details,
-                }
-            )
-
-
 @linkedin.action("update_post")
 class UpdatePostActionHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -714,41 +632,6 @@ class DeletePostActionHandler(ActionHandler):
 # =============================================================================
 # COMMENTS MANAGEMENT ACTIONS
 # =============================================================================
-
-
-@linkedin.action("get_comments")
-class GetCommentsActionHandler(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        """Retrieve comments on a post or share."""
-        post_urn = inputs.get("post_urn")
-
-        encoded_urn = encode_urn(post_urn)
-        url = f"https://api.linkedin.com/rest/socialActions/{encoded_urn}/comments"
-
-        try:
-            response = await context.fetch(url, method="GET", headers=get_linkedin_headers())
-
-            comments = response.get("elements", []) if isinstance(response, dict) else []
-            paging = response.get("paging") if isinstance(response, dict) else None
-
-            return ActionResult(
-                data={
-                    "result": "Comments retrieved successfully.",
-                    "comments": comments,
-                    "paging": paging,
-                }
-            )
-        except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to retrieve comments: {error_message}",
-                    "comments": None,
-                    "paging": None,
-                    "details": error_details,
-                }
-            )
 
 
 @linkedin.action("create_comment")
@@ -856,42 +739,6 @@ class DeleteCommentActionHandler(ActionHandler):
 # =============================================================================
 # REACTIONS MANAGEMENT ACTIONS
 # =============================================================================
-
-
-@linkedin.action("get_reactions")
-class GetReactionsActionHandler(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        """Retrieve reactions on a post."""
-        post_urn = inputs.get("post_urn")
-        sort = inputs.get("sort", "REVERSE_CHRONOLOGICAL")
-
-        encoded_urn = encode_urn(post_urn)
-        url = f"https://api.linkedin.com/rest/reactions/(entity:{encoded_urn})?q=entity&sort=(value:{sort})"
-
-        try:
-            response = await context.fetch(url, method="GET", headers=get_linkedin_headers())
-
-            reactions = response.get("elements", []) if isinstance(response, dict) else []
-            paging = response.get("paging") if isinstance(response, dict) else None
-
-            return ActionResult(
-                data={
-                    "result": "Reactions retrieved successfully.",
-                    "reactions": reactions,
-                    "paging": paging,
-                }
-            )
-        except Exception as e:
-            error_message = str(e)
-            error_details = getattr(e, "response_data", str(e))
-            return ActionResult(
-                data={
-                    "result": f"Failed to retrieve reactions: {error_message}",
-                    "reactions": None,
-                    "paging": None,
-                    "details": error_details,
-                }
-            )
 
 
 @linkedin.action("create_reaction")
