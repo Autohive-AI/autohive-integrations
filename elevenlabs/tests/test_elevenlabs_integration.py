@@ -14,9 +14,9 @@ import importlib
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, _parent)
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock
-from autohive_integrations_sdk import FetchResponse
+import pytest  # noqa: E402
+from unittest.mock import MagicMock, AsyncMock  # noqa: E402
+from autohive_integrations_sdk import FetchResponse  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("elevenlabs_mod", os.path.join(_parent, "elevenlabs.py"))
 _mod = importlib.util.module_from_spec(_spec)
