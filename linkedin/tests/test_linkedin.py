@@ -57,75 +57,83 @@ class MockExecutionContext:
 
         # Userinfo endpoint
         if "/userinfo" in url and method == "GET":
-            return self._wrap(self._responses.get(
-                "GET /userinfo",
-                {
-                    "sub": "abc123",
-                    "name": "Test User",
-                    "given_name": "Test",
-                    "family_name": "User",
-                    "picture": "https://media.licdn.com/pic.jpg",
-                    "locale": {"country": "US", "language": "en"},
-                    "email": "test@example.com",
-                    "email_verified": True,
-                },
-            ))
+            return self._wrap(
+                self._responses.get(
+                    "GET /userinfo",
+                    {
+                        "sub": "abc123",
+                        "name": "Test User",
+                        "given_name": "Test",
+                        "family_name": "User",
+                        "picture": "https://media.licdn.com/pic.jpg",
+                        "locale": {"country": "US", "language": "en"},
+                        "email": "test@example.com",
+                        "email_verified": True,
+                    },
+                )
+            )
 
         # Posts endpoint - CREATE
         if "/rest/posts" in url and method == "POST" and "X-RestLi-Method" not in (headers or {}):
-            return self._wrap(self._responses.get(
-                "POST /posts",
-                {
-                    "id": "urn:li:share:123456789",
-                    "author": "urn:li:person:abc123",
-                    "lifecycleState": "PUBLISHED",
-                    "visibility": "PUBLIC",
-                    "commentary": "Test post",
-                    "createdAt": 1705849200000,
-                    "publishedAt": 1705849200000,
-                },
-            ))
+            return self._wrap(
+                self._responses.get(
+                    "POST /posts",
+                    {
+                        "id": "urn:li:share:123456789",
+                        "author": "urn:li:person:abc123",
+                        "lifecycleState": "PUBLISHED",
+                        "visibility": "PUBLIC",
+                        "commentary": "Test post",
+                        "createdAt": 1705849200000,
+                        "publishedAt": 1705849200000,
+                    },
+                )
+            )
 
         # Posts endpoint - GET single
         if "/rest/posts/" in url and method == "GET":
-            return self._wrap(self._responses.get(
-                "GET /posts/{urn}",
-                {
-                    "id": "urn:li:share:123456789",
-                    "author": "urn:li:person:abc123",
-                    "lifecycleState": "PUBLISHED",
-                    "visibility": "PUBLIC",
-                    "commentary": "Test post content",
-                    "createdAt": 1705849200000,
-                    "publishedAt": 1705849200000,
-                    "lastModifiedAt": 1705849200000,
-                },
-            ))
+            return self._wrap(
+                self._responses.get(
+                    "GET /posts/{urn}",
+                    {
+                        "id": "urn:li:share:123456789",
+                        "author": "urn:li:person:abc123",
+                        "lifecycleState": "PUBLISHED",
+                        "visibility": "PUBLIC",
+                        "commentary": "Test post content",
+                        "createdAt": 1705849200000,
+                        "publishedAt": 1705849200000,
+                        "lastModifiedAt": 1705849200000,
+                    },
+                )
+            )
 
         # Posts endpoint - GET list (finder)
         if "/rest/posts?" in url and method == "GET":
-            return self._wrap(self._responses.get(
-                "GET /posts",
-                {
-                    "elements": [
-                        {
-                            "id": "urn:li:share:111",
-                            "author": "urn:li:person:abc123",
-                            "commentary": "Post 1",
-                            "visibility": "PUBLIC",
-                            "lifecycleState": "PUBLISHED",
-                        },
-                        {
-                            "id": "urn:li:share:222",
-                            "author": "urn:li:person:abc123",
-                            "commentary": "Post 2",
-                            "visibility": "PUBLIC",
-                            "lifecycleState": "PUBLISHED",
-                        },
-                    ],
-                    "paging": {"start": 0, "count": 10},
-                },
-            ))
+            return self._wrap(
+                self._responses.get(
+                    "GET /posts",
+                    {
+                        "elements": [
+                            {
+                                "id": "urn:li:share:111",
+                                "author": "urn:li:person:abc123",
+                                "commentary": "Post 1",
+                                "visibility": "PUBLIC",
+                                "lifecycleState": "PUBLISHED",
+                            },
+                            {
+                                "id": "urn:li:share:222",
+                                "author": "urn:li:person:abc123",
+                                "commentary": "Post 2",
+                                "visibility": "PUBLIC",
+                                "lifecycleState": "PUBLISHED",
+                            },
+                        ],
+                        "paging": {"start": 0, "count": 10},
+                    },
+                )
+            )
 
         # Posts endpoint - UPDATE
         if (
@@ -142,32 +150,36 @@ class MockExecutionContext:
 
         # Comments endpoint - GET
         if "/socialActions/" in url and "/comments" in url and method == "GET":
-            return self._wrap(self._responses.get(
-                "GET /comments",
-                {
-                    "elements": [
-                        {
-                            "id": "comment123",
-                            "actor": "urn:li:person:commenter1",
-                            "message": {"text": "Great post!"},
-                            "created": {"time": 1705849200000},
-                        }
-                    ],
-                    "paging": {"start": 0, "count": 10},
-                },
-            ))
+            return self._wrap(
+                self._responses.get(
+                    "GET /comments",
+                    {
+                        "elements": [
+                            {
+                                "id": "comment123",
+                                "actor": "urn:li:person:commenter1",
+                                "message": {"text": "Great post!"},
+                                "created": {"time": 1705849200000},
+                            }
+                        ],
+                        "paging": {"start": 0, "count": 10},
+                    },
+                )
+            )
 
         # Comments endpoint - CREATE
         if "/socialActions/" in url and "/comments" in url and method == "POST":
-            return self._wrap(self._responses.get(
-                "POST /comments",
-                {
-                    "id": "comment456",
-                    "actor": "urn:li:person:abc123",
-                    "message": {"text": "Test comment"},
-                    "object": "urn:li:activity:123456",
-                },
-            ))
+            return self._wrap(
+                self._responses.get(
+                    "POST /comments",
+                    {
+                        "id": "comment456",
+                        "actor": "urn:li:person:abc123",
+                        "message": {"text": "Test comment"},
+                        "object": "urn:li:activity:123456",
+                    },
+                )
+            )
 
         # Comments endpoint - DELETE
         if "/socialActions/" in url and "/comments/" in url and method == "DELETE":
@@ -175,30 +187,34 @@ class MockExecutionContext:
 
         # Reactions endpoint - GET
         if "/rest/reactions/(entity:" in url and method == "GET":
-            return self._wrap(self._responses.get(
-                "GET /reactions",
-                {
-                    "elements": [
-                        {
-                            "id": "urn:li:reaction:(urn:li:person:user1,urn:li:activity:123)",
-                            "reactionType": "LIKE",
-                            "created": {"time": 1705849200000},
-                        }
-                    ],
-                    "paging": {"start": 0, "count": 10, "total": 1},
-                },
-            ))
+            return self._wrap(
+                self._responses.get(
+                    "GET /reactions",
+                    {
+                        "elements": [
+                            {
+                                "id": "urn:li:reaction:(urn:li:person:user1,urn:li:activity:123)",
+                                "reactionType": "LIKE",
+                                "created": {"time": 1705849200000},
+                            }
+                        ],
+                        "paging": {"start": 0, "count": 10, "total": 1},
+                    },
+                )
+            )
 
         # Reactions endpoint - CREATE
         if "/rest/reactions?" in url and method == "POST":
-            return self._wrap(self._responses.get(
-                "POST /reactions",
-                {
-                    "id": "urn:li:reaction:(urn:li:person:abc123,urn:li:activity:123)",
-                    "reactionType": "LIKE",
-                    "created": {"time": 1705849200000},
-                },
-            ))
+            return self._wrap(
+                self._responses.get(
+                    "POST /reactions",
+                    {
+                        "id": "urn:li:reaction:(urn:li:person:abc123,urn:li:activity:123)",
+                        "reactionType": "LIKE",
+                        "created": {"time": 1705849200000},
+                    },
+                )
+            )
 
         # Reactions endpoint - DELETE
         if "/rest/reactions/(actor:" in url and method == "DELETE":
@@ -208,15 +224,17 @@ class MockExecutionContext:
         if "/rest/images?action=initializeUpload" in url and method == "POST":
             # Generate a unique image URN based on the number of image init calls
             image_count = len([r for r in self._requests if "initializeUpload" in r["url"]])
-            return self._wrap(self._responses.get(
-                "POST /images/initializeUpload",
-                {
-                    "value": {
-                        "uploadUrl": f"https://api.linkedin.com/upload/image{image_count}",
-                        "image": f"urn:li:image:{image_count}",
-                    }
-                },
-            ))
+            return self._wrap(
+                self._responses.get(
+                    "POST /images/initializeUpload",
+                    {
+                        "value": {
+                            "uploadUrl": f"https://api.linkedin.com/upload/image{image_count}",
+                            "image": f"urn:li:image:{image_count}",
+                        }
+                    },
+                )
+            )
 
         # Images endpoint - Binary upload
         if "api.linkedin.com/upload/" in url and method == "PUT":

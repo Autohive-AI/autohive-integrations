@@ -256,9 +256,7 @@ class CreatePostActionHandler(ActionHandler):
 
         # Validate file count before any API calls
         if len(files) > MAX_IMAGES_PER_POST:
-            return ActionError(
-                message=f"Too many images. Maximum allowed is {MAX_IMAGES_PER_POST}, got {len(files)}."
-            )
+            return ActionError(message=f"Too many images. Maximum allowed is {MAX_IMAGES_PER_POST}, got {len(files)}.")
 
         # Validate all files upfront before any uploads
         validated_images: List[Tuple[str, str, str]] = []
