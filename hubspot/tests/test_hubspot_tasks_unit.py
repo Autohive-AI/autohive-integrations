@@ -12,7 +12,9 @@ from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location("hubspot_mod", os.path.join(_parent, "hubspot.py"))
+_spec = importlib.util.spec_from_file_location(
+    "hubspot_mod", os.path.join(_parent, "hubspot.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -44,11 +46,17 @@ SAMPLE_TASK_RESPONSE = {
 class TestCreateTask:
     @pytest.mark.asyncio
     async def test_create_task_with_contact_association(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TASK_RESPONSE)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=SAMPLE_TASK_RESPONSE
+        )
 
         result = await hubspot.execute_action(
             "create_task",
-            {"hs_task_body": "Follow up tomorrow", "hs_timestamp": 1700000000000, "contact_id": "501"},
+            {
+                "hs_task_body": "Follow up tomorrow",
+                "hs_timestamp": 1700000000000,
+                "contact_id": "501",
+            },
             mock_context,
         )
 
@@ -64,7 +72,9 @@ class TestCreateTask:
 
     @pytest.mark.asyncio
     async def test_create_task_multiple_associations(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TASK_RESPONSE)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=SAMPLE_TASK_RESPONSE
+        )
 
         await hubspot.execute_action(
             "create_task",
@@ -80,7 +90,11 @@ class TestCreateTask:
 
         associations = mock_context.fetch.call_args.kwargs["json"]["associations"]
         assert len(associations) == 3
-        assert [a["types"][0]["associationTypeId"] for a in associations] == [204, 192, 216]
+        assert [a["types"][0]["associationTypeId"] for a in associations] == [
+            204,
+            192,
+            216,
+        ]
 
     @pytest.mark.asyncio
     async def test_create_task_exception_returns_action_error(self, mock_context):
@@ -88,7 +102,11 @@ class TestCreateTask:
 
         result = await hubspot.execute_action(
             "create_task",
-            {"hs_task_body": "Will fail", "hs_timestamp": 1700000000000, "contact_id": "501"},
+            {
+                "hs_task_body": "Will fail",
+                "hs_timestamp": 1700000000000,
+                "contact_id": "501",
+            },
             mock_context,
         )
 
@@ -97,7 +115,9 @@ class TestCreateTask:
 
     @pytest.mark.asyncio
     async def test_create_task_with_direct_associations_object(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TASK_RESPONSE)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=SAMPLE_TASK_RESPONSE
+        )
 
         await hubspot.execute_action(
             "create_task",
@@ -107,7 +127,12 @@ class TestCreateTask:
                 "associations": [
                     {
                         "to": {"id": "501"},
-                        "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 204}],
+                        "types": [
+                            {
+                                "associationCategory": "HUBSPOT_DEFINED",
+                                "associationTypeId": 204,
+                            }
+                        ],
                     }
                 ],
             },
@@ -119,8 +144,12 @@ class TestCreateTask:
         assert payload["associations"][0]["types"][0]["associationTypeId"] == 204
 
     @pytest.mark.asyncio
-    async def test_create_task_without_timestamp_returns_validation_error(self, mock_context):
-        result = await hubspot.execute_action("create_task", {"hs_task_body": "No timestamp"}, mock_context)
+    async def test_create_task_without_timestamp_returns_validation_error(
+        self, mock_context
+    ):
+        result = await hubspot.execute_action(
+            "create_task", {"hs_task_body": "No timestamp"}, mock_context
+        )
 
         assert result.type == ResultType.VALIDATION_ERROR
         assert "timestamp" in result.result["message"]
@@ -130,8 +159,13 @@ class TestCreateTask:
 class TestUpdateTask:
     @pytest.mark.asyncio
     async def test_update_task_body(self, mock_context):
-        updated_response = {"id": "23456", "properties": {"hs_task_body": "Updated content"}}
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=updated_response)
+        updated_response = {
+            "id": "23456",
+            "properties": {"hs_task_body": "Updated content"},
+        }
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=updated_response
+        )
 
         result = await hubspot.execute_action(
             "update_task",
@@ -146,7 +180,9 @@ class TestUpdateTask:
 
     @pytest.mark.asyncio
     async def test_update_task_additional_properties(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TASK_RESPONSE)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=SAMPLE_TASK_RESPONSE
+        )
 
         result = await hubspot.execute_action(
             "update_task",
@@ -165,7 +201,9 @@ class TestUpdateTask:
 
     @pytest.mark.asyncio
     async def test_update_task_no_properties_returns_action_error(self, mock_context):
-        result = await hubspot.execute_action("update_task", {"task_id": "23456"}, mock_context)
+        result = await hubspot.execute_action(
+            "update_task", {"task_id": "23456"}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert result.result.message == "No properties provided to update"
@@ -188,9 +226,13 @@ class TestUpdateTask:
 class TestDeleteTask:
     @pytest.mark.asyncio
     async def test_delete_task_success(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
+        mock_context.fetch.return_value = FetchResponse(
+            status=204, headers={}, data=None
+        )
 
-        result = await hubspot.execute_action("delete_task", {"task_id": "23456"}, mock_context)
+        result = await hubspot.execute_action(
+            "delete_task", {"task_id": "23456"}, mock_context
+        )
 
         assert result.result.data["success"] is True
         assert result.result.data["task_id"] == "23456"
@@ -201,7 +243,9 @@ class TestDeleteTask:
     async def test_delete_task_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Not found")
 
-        result = await hubspot.execute_action("delete_task", {"task_id": "99999"}, mock_context)
+        result = await hubspot.execute_action(
+            "delete_task", {"task_id": "99999"}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Failed to delete task" in result.result.message
@@ -219,9 +263,13 @@ class TestGetTask:
                 "hs_lastmodifieddate": "1700000100000",
             },
         }
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response_data)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=response_data
+        )
 
-        result = await hubspot.execute_action("get_task", {"task_id": "23456"}, mock_context)
+        result = await hubspot.execute_action(
+            "get_task", {"task_id": "23456"}, mock_context
+        )
 
         assert result.result.data["success"] is True
         assert result.result.data["task"]["id"] == "23456"
@@ -232,7 +280,9 @@ class TestGetTask:
     async def test_get_task_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Not found")
 
-        result = await hubspot.execute_action("get_task", {"task_id": "bad-id"}, mock_context)
+        result = await hubspot.execute_action(
+            "get_task", {"task_id": "bad-id"}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Failed to retrieve task" in result.result.message
@@ -243,12 +293,26 @@ class TestListTasks:
     async def test_list_tasks_success(self, mock_context):
         response_data = {
             "results": [
-                {"id": "1", "properties": {"hs_task_body": "Task 1", "hs_timestamp": "1700000000000"}},
-                {"id": "2", "properties": {"hs_task_body": "Task 2", "hs_timestamp": "1700000100000"}},
+                {
+                    "id": "1",
+                    "properties": {
+                        "hs_task_body": "Task 1",
+                        "hs_timestamp": "1700000000000",
+                    },
+                },
+                {
+                    "id": "2",
+                    "properties": {
+                        "hs_task_body": "Task 2",
+                        "hs_timestamp": "1700000100000",
+                    },
+                },
             ],
             "paging": {"next": {"after": "abc123"}},
         }
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response_data)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=response_data
+        )
 
         result = await hubspot.execute_action("list_tasks", {"limit": 2}, mock_context)
 
@@ -261,7 +325,9 @@ class TestListTasks:
 
     @pytest.mark.asyncio
     async def test_list_tasks_default_limit(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": []}
+        )
 
         await hubspot.execute_action("list_tasks", {}, mock_context)
 
