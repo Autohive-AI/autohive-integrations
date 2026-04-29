@@ -59,7 +59,10 @@ class ListVoicesAction(ActionHandler):
             headers = get_auth_headers(context)
 
             response = await context.fetch(
-                f"{ELEVENLABS_API_BASE_URL}/voices", method="GET", headers=headers, params=params if params else None
+                f"{ELEVENLABS_API_BASE_URL}/voices",
+                method="GET",
+                headers=headers,
+                params=params if params else None,
             )
 
             voices = response.data.get("voices", [])
@@ -107,7 +110,9 @@ class GetVoiceSettingsAction(ActionHandler):
             headers = get_auth_headers(context)
 
             response = await context.fetch(
-                f"{ELEVENLABS_API_BASE_URL}/voices/{voice_id}/settings", method="GET", headers=headers
+                f"{ELEVENLABS_API_BASE_URL}/voices/{voice_id}/settings",
+                method="GET",
+                headers=headers,
             )
 
             return ActionResult(data={"settings": response.data}, cost_usd=0.0)
@@ -132,7 +137,10 @@ class ListHistoryAction(ActionHandler):
             headers = get_auth_headers(context)
 
             response = await context.fetch(
-                f"{ELEVENLABS_API_BASE_URL}/history", method="GET", headers=headers, params=params if params else None
+                f"{ELEVENLABS_API_BASE_URL}/history",
+                method="GET",
+                headers=headers,
+                params=params if params else None,
             )
 
             history = response.data.get("history", [])
@@ -191,10 +199,100 @@ class GetUserSubscriptionAction(ActionHandler):
             headers = get_auth_headers(context)
 
             response = await context.fetch(
-                f"{ELEVENLABS_API_BASE_URL}/user/subscription", method="GET", headers=headers
+                f"{ELEVENLABS_API_BASE_URL}/user/subscription",
+                method="GET",
+                headers=headers,
             )
 
             return ActionResult(data={"subscription": response.data}, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@elevenlabs.action("speech_to_text_convert")
+class SpeechToTextConvertAction(ActionHandler):
+    """Transcribe audio/video file using ElevenLabs Scribe."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            file_url = inputs["file_url"]
+            model_id = inputs.get("model_id", "scribe_v1")
+
+            credentials = context.auth.get("credentials", {})
+            api_key = credentials.get("api_key", "")
+
+            # Download the file first then POST as multipart
+            async with aiohttp.ClientSession() as session:
+                async with session.get(file_url) as file_resp:
+                    if file_resp.status != 200:
+                        return ActionError(message=f"Failed to download file: HTTP {file_resp.status}")
+                    file_bytes = await file_resp.read()
+                    content_type = file_resp.headers.get("Content-Type", "audio/mpeg")
+
+                form = aiohttp.FormData()
+                form.add_field("model_id", model_id)
+                form.add_field("file", file_bytes, filename="audio", content_type=content_type)
+                if inputs.get("language_code"):
+                    form.add_field("language_code", inputs["language_code"])
+                if inputs.get("timestamps_granularity"):
+                    form.add_field("timestamps_granularity", inputs["timestamps_granularity"])
+                if inputs.get("diarize") is not None:
+                    form.add_field("diarize", str(inputs["diarize"]).lower())
+
+                async with session.post(
+                    f"{ELEVENLABS_API_BASE_URL}/speech-to-text",
+                    headers={"xi-api-key": api_key},
+                    data=form,
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return ActionResult(data=data, cost_usd=0.0)
+                    else:
+                        error_text = await resp.text()
+                        return ActionError(message=f"HTTP {resp.status}: {error_text}")
+
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@elevenlabs.action("speech_to_text_get")
+class SpeechToTextGetAction(ActionHandler):
+    """Retrieve a transcript by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            transcription_id = inputs["transcription_id"]
+            headers = get_auth_headers(context)
+
+            response = await context.fetch(
+                f"{ELEVENLABS_API_BASE_URL}/speech-to-text/transcripts/{transcription_id}",
+                method="GET",
+                headers=headers,
+            )
+
+            return ActionResult(data=response.data, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@elevenlabs.action("speech_to_text_delete")
+class SpeechToTextDeleteAction(ActionHandler):
+    """Delete a transcript by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            transcription_id = inputs["transcription_id"]
+            headers = get_auth_headers(context)
+
+            await context.fetch(
+                f"{ELEVENLABS_API_BASE_URL}/speech-to-text/transcripts/{transcription_id}",
+                method="DELETE",
+                headers=headers,
+            )
+
+            return ActionResult(data={"result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
