@@ -6,7 +6,7 @@ Connects Autohive to the ElevenLabs API to enable text-to-speech conversion, voi
 
 This integration provides access to ElevenLabs' AI text-to-speech platform. It allows users to convert text to lifelike speech, browse and discover available voices, manage voice settings, check subscription status and usage, and track audio generation history directly from Autohive.
 
-The integration uses ElevenLabs API v1 with API Key authentication and implements 7 actions (6 free, 1 paid).
+The integration uses ElevenLabs API v1 with API Key authentication and implements 10 actions (9 free, 1 paid).
 
 ## Setup & Authentication
 
@@ -235,8 +235,63 @@ To test the integration:
 3. Monitor credit usage
 4. Manage audio assets
 
+### Speech to Text (3 actions - FREE/PAID)
+
+#### `speech_to_text_convert`
+Transcribes an audio or video file using ElevenLabs Scribe. Accepts a publicly accessible file URL, downloads it, and submits it for transcription.
+
+**Inputs:**
+- `file_url` (required): Public URL of the audio/video file to transcribe
+- `model_id` (optional): Scribe model to use — `scribe_v1` or `scribe_v2` (default: `scribe_v1`)
+- `language_code` (optional): ISO 639-1 language code (e.g. `en`, `fr`). Leave blank for auto-detection
+- `timestamps_granularity` (optional): Level of timestamp detail — `none`, `word`, or `character`
+- `diarize` (optional): Enable speaker diarization to identify different speakers
+
+**Outputs:**
+- `transcription_id`: Unique ID of the created transcript (use with get/delete actions)
+- `text`: The full transcript text
+- `language_code`: Detected or specified language code
+- `language_probability`: Confidence score for the detected language
+- `words`: Word-level detail including timing and confidence (if timestamps requested)
+
+**Cost:** Based on audio duration
+
+---
+
+#### `speech_to_text_get`
+Retrieves a previously created transcript by its ID.
+
+**Inputs:**
+- `transcription_id` (required): The ID of the transcript to retrieve
+
+**Outputs:**
+- `transcription_id`: Unique ID of the transcript
+- `text`: The full transcript text
+- `language_code`: Language code of the transcript
+- `language_probability`: Confidence score for detected language
+- `words`: Word-level detail
+
+**Cost:** FREE (0 credits)
+
+---
+
+#### `speech_to_text_delete`
+Deletes a transcript by its ID.
+
+**Inputs:**
+- `transcription_id` (required): The ID of the transcript to delete
+
+**Outputs:**
+- `result`: `true` if the transcript was deleted successfully
+
+**Cost:** FREE (0 credits)
+
+---
+
 ## Version History
 
+- **2.0.0** - SDK 2.0 upgrade + Speech-to-Text actions added
+  - Speech-to-Text: speech_to_text_convert, speech_to_text_get, speech_to_text_delete (3 actions)
 - **1.0.0** - Initial release with 7 actions
   - Text-to-Speech: text_to_speech (1 action - PAID)
   - Voice Management: list_voices, get_voice, get_voice_settings (3 actions - FREE)
