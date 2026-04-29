@@ -280,14 +280,11 @@ class TestSpeechToTextConvert:
     def _make_session_mock(
         self,
         *,
-        file_status=200,
-        file_body=b"AUDIO",
-        file_content_type="audio/mpeg",
         post_status=200,
         post_json=None,
         post_text="",
     ):
-        """Build a mock aiohttp session that handles GET (file download) then POST (transcribe)."""
+        """Build a mock aiohttp session that handles POST (transcribe via source_url)."""
         if post_json is None:
             post_json = {
                 "transcription_id": "tid1",
@@ -296,15 +293,6 @@ class TestSpeechToTextConvert:
                 "language_probability": 0.99,
                 "words": [],
             }
-
-        file_resp = MagicMock()
-        file_resp.status = file_status
-        file_resp.read = AsyncMock(return_value=file_body)
-        file_resp.headers = {"Content-Type": file_content_type}
-
-        file_cm = MagicMock()
-        file_cm.__aenter__ = AsyncMock(return_value=file_resp)
-        file_cm.__aexit__ = AsyncMock(return_value=False)
 
         post_resp = MagicMock()
         post_resp.status = post_status
@@ -316,7 +304,6 @@ class TestSpeechToTextConvert:
         post_cm.__aexit__ = AsyncMock(return_value=False)
 
         session = MagicMock()
-        session.get = MagicMock(return_value=file_cm)
         session.post = MagicMock(return_value=post_cm)
 
         session_cm = MagicMock()
@@ -337,16 +324,6 @@ class TestSpeechToTextConvert:
         assert data["transcription_id"] == "tid1"
         assert data["text"] == "hello"
         assert data["language_code"] == "en"
-
-    async def test_file_download_failure(self, ctx):
-        session_cls, _ = self._make_session_mock(file_status=403)
-        inputs = {"file_url": "https://example.com/secret.mp3"}
-
-        with patch("elevenlabs.elevenlabs.aiohttp.ClientSession", session_cls):
-            result = await elevenlabs.execute_action("speech_to_text_convert", inputs, ctx)
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "Failed to download file" in result.result.message
 
     async def test_api_error(self, ctx):
         session_cls, _ = self._make_session_mock(post_status=422, post_text="invalid model")
