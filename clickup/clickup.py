@@ -1,5 +1,13 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+)
 from typing import Dict, Any
+import base64
+import io
+import aiohttp
 
 # Create the integration using the config.json
 clickup = Integration.load()
@@ -27,24 +35,30 @@ class CreateTaskAction(ActionHandler):
             data = {"name": inputs["name"]}
 
             # Add optional fields
-            if "description" in inputs and inputs["description"]:
-                data["description"] = inputs["description"]
-            if "assignees" in inputs and inputs["assignees"]:
-                data["assignees"] = inputs["assignees"]
-            if "status" in inputs and inputs["status"]:
-                data["status"] = inputs["status"]
-            if "priority" in inputs and inputs["priority"] is not None:
-                data["priority"] = inputs["priority"]
-            if "due_date" in inputs and inputs["due_date"]:
-                data["due_date"] = inputs["due_date"]
-            if "due_date_time" in inputs and inputs["due_date_time"] is not None:
-                data["due_date_time"] = inputs["due_date_time"]
-            if "start_date" in inputs and inputs["start_date"]:
-                data["start_date"] = inputs["start_date"]
-            if "tags" in inputs and inputs["tags"]:
-                data["tags"] = inputs["tags"]
+            if inputs.get("description"):
+                data["description"] = inputs.get("description")
+            if inputs.get("assignees"):
+                data["assignees"] = inputs.get("assignees")
+            if inputs.get("status"):
+                data["status"] = inputs.get("status")
+            if inputs.get("priority") is not None:
+                data["priority"] = inputs.get("priority")
+            if inputs.get("due_date"):
+                data["due_date"] = inputs.get("due_date")
+            if inputs.get("due_date_time") is not None:
+                data["due_date_time"] = inputs.get("due_date_time")
+            if inputs.get("start_date"):
+                data["start_date"] = inputs.get("start_date")
+            if inputs.get("tags"):
+                data["tags"] = inputs.get("tags")
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/list/{list_id}/task", method="POST", json=data)
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/list/{list_id}/task",
+                    method="POST",
+                    json=data,
+                )
+            ).data
 
             return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
 
@@ -62,12 +76,16 @@ class GetTaskAction(ActionHandler):
 
             # Build query params
             params = {}
-            if "include_subtasks" in inputs and inputs["include_subtasks"]:
+            if inputs.get("include_subtasks"):
                 params["include_subtasks"] = "true"
 
-            response = await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/task/{task_id}", method="GET", params=params if params else None
-            )
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/task/{task_id}",
+                    method="GET",
+                    params=params if params else None,
+                )
+            ).data
 
             return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
 
@@ -85,20 +103,20 @@ class UpdateTaskAction(ActionHandler):
             data = {}
 
             # Add only provided fields
-            if "name" in inputs and inputs["name"]:
-                data["name"] = inputs["name"]
-            if "description" in inputs and inputs["description"]:
-                data["description"] = inputs["description"]
-            if "status" in inputs and inputs["status"]:
-                data["status"] = inputs["status"]
-            if "priority" in inputs and inputs["priority"] is not None:
-                data["priority"] = inputs["priority"]
-            if "assignees" in inputs and inputs["assignees"]:
-                data["assignees"] = inputs["assignees"]
-            if "due_date" in inputs and inputs["due_date"]:
-                data["due_date"] = inputs["due_date"]
+            if inputs.get("name"):
+                data["name"] = inputs.get("name")
+            if inputs.get("description"):
+                data["description"] = inputs.get("description")
+            if inputs.get("status"):
+                data["status"] = inputs.get("status")
+            if inputs.get("priority") is not None:
+                data["priority"] = inputs.get("priority")
+            if inputs.get("assignees"):
+                data["assignees"] = inputs.get("assignees")
+            if inputs.get("due_date"):
+                data["due_date"] = inputs.get("due_date")
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}", method="PUT", json=data)
+            response = (await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}", method="PUT", json=data)).data
 
             return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
 
@@ -132,30 +150,159 @@ class GetTasksAction(ActionHandler):
 
             # Build query params
             params = {}
-            if "archived" in inputs and inputs["archived"] is not None:
-                params["archived"] = "true" if inputs["archived"] else "false"
-            if "page" in inputs:
-                params["page"] = inputs["page"]
-            if "order_by" in inputs and inputs["order_by"]:
-                params["order_by"] = inputs["order_by"]
-            if "reverse" in inputs and inputs["reverse"] is not None:
-                params["reverse"] = "true" if inputs["reverse"] else "false"
-            if "subtasks" in inputs and inputs["subtasks"] is not None:
-                params["subtasks"] = "true" if inputs["subtasks"] else "false"
-            if "statuses" in inputs and inputs["statuses"]:
-                params["statuses[]"] = inputs["statuses"]
-            if "assignees" in inputs and inputs["assignees"]:
-                params["assignees[]"] = inputs["assignees"]
+            if inputs.get("archived") is not None:
+                params["archived"] = "true" if inputs.get("archived") else "false"
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
+            if inputs.get("order_by"):
+                params["order_by"] = inputs.get("order_by")
+            if inputs.get("reverse") is not None:
+                params["reverse"] = "true" if inputs.get("reverse") else "false"
+            if inputs.get("subtasks") is not None:
+                params["subtasks"] = "true" if inputs.get("subtasks") else "false"
+            if inputs.get("statuses"):
+                params["statuses[]"] = inputs.get("statuses")
+            if inputs.get("assignees"):
+                params["assignees[]"] = inputs.get("assignees")
 
-            response = await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/list/{list_id}/task", method="GET", params=params if params else None
-            )
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/list/{list_id}/task",
+                    method="GET",
+                    params=params if params else None,
+                )
+            ).data
 
             tasks = response.get("tasks", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0)
+
+
+@clickup.action("create_task_attachment")
+class CreateTaskAttachmentAction(ActionHandler):
+    """Upload a file attachment to a task using the v3 Attachments API."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            # Required path parameters for the v3 endpoint. workspace_id must match the
+            # workspace that owns the task — a mismatch causes ClickUp to return 404.
+            workspace_id = inputs["workspace_id"]
+            task_id = inputs["task_id"]
+
+            # The Autohive platform delivers file attachments from chat as an object
+            # with `name`, `content` (base64), and `contentType` fields.
+            file_obj = inputs["file"]
+
+            # Optional `filename` input overrides the filename used in the upload; falls
+            # back to the uploaded file's own name.
+            default_filename = file_obj.get("name", "attachment")
+            filename = inputs.get("filename") or default_filename
+            content_b64 = file_obj.get("content", "")
+            content_type = file_obj.get("contentType", "application/octet-stream")
+
+            if not content_b64:
+                return ActionResult(
+                    data={
+                        "attachment": {},
+                        "result": False,
+                        "error": f"File '{filename}' has no content provided",
+                    },
+                    cost_usd=0.0,
+                )
+
+            # Strip whitespace/newlines and re-pad — base64 coming through transport
+            # layers is sometimes reformatted and loses padding, which trips the strict
+            # decoder below.
+            content_b64_cleaned = (
+                content_b64.strip().replace("\n", "").replace("\r", "").replace(" ", "").replace("\t", "")
+            )
+            padding_needed = len(content_b64_cleaned) % 4
+            if padding_needed != 0:
+                content_b64_cleaned += "=" * (4 - padding_needed)
+
+            try:
+                file_bytes = base64.b64decode(content_b64_cleaned, validate=True)
+            except Exception as e:
+                return ActionResult(
+                    data={
+                        "attachment": {},
+                        "result": False,
+                        "error": f"Failed to decode file '{filename}': {str(e)}. Content must be valid base64.",
+                    },
+                    cost_usd=0.0,
+                )
+
+            if not file_bytes:
+                return ActionResult(
+                    data={
+                        "attachment": {},
+                        "result": False,
+                        "error": f"File '{filename}' decoded to empty content",
+                    },
+                    cost_usd=0.0,
+                )
+
+            # context.fetch serialises request bodies as JSON and can't build multipart
+            # form-data, so we pull the OAuth token from context and send the request via
+            # raw aiohttp. See the same pattern in front/front.py and box/box.py.
+            auth_token = None
+            if context.auth and "credentials" in context.auth:
+                auth_token = context.auth["credentials"].get("access_token")
+
+            if not auth_token:
+                return ActionResult(
+                    data={
+                        "attachment": {},
+                        "result": False,
+                        "error": "No authentication token available",
+                    },
+                    cost_usd=0.0,
+                )
+
+            # ClickUp v3 Attachments endpoint. The path nests under /tasks/{task_id} —
+            # the ClickUp docs describe the path template as
+            # /workspaces/{workspace_id}/{entity_type}/{entity_id}/attachments with
+            # entity_type = "tasks" for tasks (or "custom_fields" for file-type custom
+            # fields, which this action doesn't expose).
+            url = f"https://api.clickup.com/api/v3/workspaces/{workspace_id}/tasks/{task_id}/attachments"
+
+            # Build multipart/form-data body. ClickUp v2 used the field name "attachment"
+            # for the file part; v3 docs don't explicitly state the field name, so we
+            # inherit the v2 convention. If a 400 comes back complaining about the file
+            # field, try "file" instead.
+            form = aiohttp.FormData()
+            bio = io.BytesIO(file_bytes)
+            bio.seek(0)
+            form.add_field("attachment", bio, filename=filename, content_type=content_type)
+            # v3 supports an optional body field that overrides the stored filename
+            # independently of the multipart part's filename.
+            if inputs.get("filename"):
+                form.add_field("filename", inputs.get("filename"))
+
+            headers = {"Authorization": f"Bearer {auth_token}"}
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, data=form, headers=headers) as resp:
+                    if resp.status >= 400:
+                        # ClickUp 404 "Not Found or Authorized" usually means workspace_id
+                        # and task_id don't match, or the OAuth user lacks access.
+                        error_text = await resp.text()
+                        return ActionResult(
+                            data={
+                                "attachment": {},
+                                "result": False,
+                                "error": f"HTTP {resp.status}: {error_text} (url={url})",
+                            },
+                            cost_usd=0.0,
+                        )
+                    response_data = await resp.json()
+
+            return ActionResult(data={"attachment": response_data, "result": True}, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionResult(data={"attachment": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
 # ---- List Handlers ----
@@ -171,33 +318,41 @@ class CreateListAction(ActionHandler):
             parent_type = None
             parent_id = None
 
-            if "folder_id" in inputs and inputs["folder_id"]:
+            if inputs.get("folder_id"):
                 parent_type = "folder"
-                parent_id = inputs["folder_id"]
-            elif "space_id" in inputs and inputs["space_id"]:
+                parent_id = inputs.get("folder_id")
+            elif inputs.get("space_id"):
                 parent_type = "space"
-                parent_id = inputs["space_id"]
+                parent_id = inputs.get("space_id")
             else:
                 return ActionResult(
-                    data={"list": {}, "result": False, "error": "Either folder_id or space_id is required"},
+                    data={
+                        "list": {},
+                        "result": False,
+                        "error": "Either folder_id or space_id is required",
+                    },
                     cost_usd=0.0,
                 )
 
             data = {"name": inputs["name"]}
 
             # Add optional fields
-            if "content" in inputs and inputs["content"]:
-                data["content"] = inputs["content"]
-            if "due_date" in inputs and inputs["due_date"]:
-                data["due_date"] = inputs["due_date"]
-            if "priority" in inputs and inputs["priority"] is not None:
-                data["priority"] = inputs["priority"]
-            if "status" in inputs and inputs["status"]:
-                data["status"] = inputs["status"]
+            if inputs.get("content"):
+                data["content"] = inputs.get("content")
+            if inputs.get("due_date"):
+                data["due_date"] = inputs.get("due_date")
+            if inputs.get("priority") is not None:
+                data["priority"] = inputs.get("priority")
+            if inputs.get("status"):
+                data["status"] = inputs.get("status")
 
-            response = await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/{parent_type}/{parent_id}/list", method="POST", json=data
-            )
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/{parent_type}/{parent_id}/list",
+                    method="POST",
+                    json=data,
+                )
+            ).data
 
             return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
 
@@ -213,7 +368,7 @@ class GetListAction(ActionHandler):
         try:
             list_id = inputs["list_id"]
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="GET")
+            response = (await context.fetch(f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="GET")).data
 
             return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
 
@@ -230,16 +385,16 @@ class UpdateListAction(ActionHandler):
             list_id = inputs["list_id"]
             data = {}
 
-            if "name" in inputs and inputs["name"]:
-                data["name"] = inputs["name"]
-            if "content" in inputs and inputs["content"]:
-                data["content"] = inputs["content"]
-            if "due_date" in inputs and inputs["due_date"]:
-                data["due_date"] = inputs["due_date"]
-            if "priority" in inputs and inputs["priority"] is not None:
-                data["priority"] = inputs["priority"]
+            if inputs.get("name"):
+                data["name"] = inputs.get("name")
+            if inputs.get("content"):
+                data["content"] = inputs.get("content")
+            if inputs.get("due_date"):
+                data["due_date"] = inputs.get("due_date")
+            if inputs.get("priority") is not None:
+                data["priority"] = inputs.get("priority")
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="PUT", json=data)
+            response = (await context.fetch(f"{CLICKUP_API_BASE_URL}/list/{list_id}", method="PUT", json=data)).data
 
             return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
 
@@ -273,27 +428,33 @@ class GetListsAction(ActionHandler):
             parent_type = None
             parent_id = None
 
-            if "folder_id" in inputs and inputs["folder_id"]:
+            if inputs.get("folder_id"):
                 parent_type = "folder"
-                parent_id = inputs["folder_id"]
-            elif "space_id" in inputs and inputs["space_id"]:
+                parent_id = inputs.get("folder_id")
+            elif inputs.get("space_id"):
                 parent_type = "space"
-                parent_id = inputs["space_id"]
+                parent_id = inputs.get("space_id")
             else:
                 return ActionResult(
-                    data={"lists": [], "result": False, "error": "Either folder_id or space_id is required"},
+                    data={
+                        "lists": [],
+                        "result": False,
+                        "error": "Either folder_id or space_id is required",
+                    },
                     cost_usd=0.0,
                 )
 
             params = {}
-            if "archived" in inputs and inputs["archived"] is not None:
-                params["archived"] = "true" if inputs["archived"] else "false"
+            if inputs.get("archived") is not None:
+                params["archived"] = "true" if inputs.get("archived") else "false"
 
-            response = await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/{parent_type}/{parent_id}/list",
-                method="GET",
-                params=params if params else None,
-            )
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/{parent_type}/{parent_id}/list",
+                    method="GET",
+                    params=params if params else None,
+                )
+            ).data
 
             lists = response.get("lists", [])
             return ActionResult(data={"lists": lists, "result": True}, cost_usd=0.0)
@@ -314,7 +475,13 @@ class CreateFolderAction(ActionHandler):
             space_id = inputs["space_id"]
             data = {"name": inputs["name"]}
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/space/{space_id}/folder", method="POST", json=data)
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/space/{space_id}/folder",
+                    method="POST",
+                    json=data,
+                )
+            ).data
 
             return ActionResult(data={"folder": response, "result": True}, cost_usd=0.0)
 
@@ -330,7 +497,7 @@ class GetFolderAction(ActionHandler):
         try:
             folder_id = inputs["folder_id"]
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="GET")
+            response = (await context.fetch(f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="GET")).data
 
             return ActionResult(data={"folder": response, "result": True}, cost_usd=0.0)
 
@@ -347,7 +514,13 @@ class UpdateFolderAction(ActionHandler):
             folder_id = inputs["folder_id"]
             data = {"name": inputs["name"]}
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/folder/{folder_id}", method="PUT", json=data)
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/folder/{folder_id}",
+                    method="PUT",
+                    json=data,
+                )
+            ).data
 
             return ActionResult(data={"folder": response, "result": True}, cost_usd=0.0)
 
@@ -380,12 +553,16 @@ class GetFoldersAction(ActionHandler):
             space_id = inputs["space_id"]
 
             params = {}
-            if "archived" in inputs and inputs["archived"] is not None:
-                params["archived"] = "true" if inputs["archived"] else "false"
+            if inputs.get("archived") is not None:
+                params["archived"] = "true" if inputs.get("archived") else "false"
 
-            response = await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/space/{space_id}/folder", method="GET", params=params if params else None
-            )
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/space/{space_id}/folder",
+                    method="GET",
+                    params=params if params else None,
+                )
+            ).data
 
             folders = response.get("folders", [])
             return ActionResult(data={"folders": folders, "result": True}, cost_usd=0.0)
@@ -405,7 +582,7 @@ class GetSpaceAction(ActionHandler):
         try:
             space_id = inputs["space_id"]
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/space/{space_id}", method="GET")
+            response = (await context.fetch(f"{CLICKUP_API_BASE_URL}/space/{space_id}", method="GET")).data
 
             return ActionResult(data={"space": response, "result": True}, cost_usd=0.0)
 
@@ -422,12 +599,16 @@ class GetSpacesAction(ActionHandler):
             team_id = inputs["team_id"]
 
             params = {}
-            if "archived" in inputs and inputs["archived"] is not None:
-                params["archived"] = "true" if inputs["archived"] else "false"
+            if inputs.get("archived") is not None:
+                params["archived"] = "true" if inputs.get("archived") else "false"
 
-            response = await context.fetch(
-                f"{CLICKUP_API_BASE_URL}/team/{team_id}/space", method="GET", params=params if params else None
-            )
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/team/{team_id}/space",
+                    method="GET",
+                    params=params if params else None,
+                )
+            ).data
 
             spaces = response.get("spaces", [])
             return ActionResult(data={"spaces": spaces, "result": True}, cost_usd=0.0)
@@ -445,7 +626,7 @@ class GetAuthorizedTeamsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/team", method="GET")
+            response = (await context.fetch(f"{CLICKUP_API_BASE_URL}/team", method="GET")).data
 
             teams = response.get("teams", [])
             return ActionResult(data={"teams": teams, "result": True}, cost_usd=0.0)
@@ -467,12 +648,18 @@ class CreateTaskCommentAction(ActionHandler):
             data = {"comment_text": inputs["comment_text"]}
 
             # Add optional fields
-            if "assignee" in inputs and inputs["assignee"]:
-                data["assignee"] = inputs["assignee"]
-            if "notify_all" in inputs and inputs["notify_all"] is not None:
-                data["notify_all"] = inputs["notify_all"]
+            if inputs.get("assignee"):
+                data["assignee"] = inputs.get("assignee")
+            if inputs.get("notify_all") is not None:
+                data["notify_all"] = inputs.get("notify_all")
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment", method="POST", json=data)
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment",
+                    method="POST",
+                    json=data,
+                )
+            ).data
 
             return ActionResult(data={"comment": response, "result": True}, cost_usd=0.0)
 
@@ -488,7 +675,7 @@ class GetTaskCommentsAction(ActionHandler):
         try:
             task_id = inputs["task_id"]
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment", method="GET")
+            response = (await context.fetch(f"{CLICKUP_API_BASE_URL}/task/{task_id}/comment", method="GET")).data
 
             comments = response.get("comments", [])
             return ActionResult(data={"comments": comments, "result": True}, cost_usd=0.0)
@@ -506,7 +693,13 @@ class UpdateCommentAction(ActionHandler):
             comment_id = inputs["comment_id"]
             data = {"comment_text": inputs["comment_text"]}
 
-            response = await context.fetch(f"{CLICKUP_API_BASE_URL}/comment/{comment_id}", method="PUT", json=data)
+            response = (
+                await context.fetch(
+                    f"{CLICKUP_API_BASE_URL}/comment/{comment_id}",
+                    method="PUT",
+                    json=data,
+                )
+            ).data
 
             return ActionResult(data={"comment": response, "result": True}, cost_usd=0.0)
 
