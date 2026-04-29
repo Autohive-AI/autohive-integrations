@@ -1,0 +1,400 @@
+{
+  "name": "Teams",
+  "version": "1.0.0",
+  "description": "Microsoft Teams integration for reading and sending messages, managing channels, teams, and members via the Microsoft Graph API.",
+  "display_name": "Microsoft Teams",
+  "supports_connected_account": true,
+  "entry_point": "teams.py",
+  "auth": {
+    "type": "platform",
+    "provider": "microsoft",
+    "scopes": [
+      "Team.ReadBasic.All",
+      "Channel.ReadBasic.All",
+      "Channel.Create",
+      "ChannelMessage.Read.All",
+      "ChannelMessage.Send",
+      "TeamMember.Read.All",
+      "TeamMember.ReadWrite.All",
+      "Chat.Read",
+      "Chat.ReadWrite",
+      "ChatMessage.Send"
+    ]
+  },
+  "actions": {
+    "list_teams": {
+      "display_name": "List Teams",
+      "description": "List all Microsoft Teams that the authenticated user is a member of.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the action succeeded."},
+          "teams": {
+            "type": "array",
+            "description": "List of teams the user belongs to.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type": "string", "description": "The unique team ID."},
+                "display_name": {"type": "string", "description": "The display name of the team."},
+                "description": {"type": "string", "description": "The team description."}
+              }
+            }
+          }
+        }
+      }
+    },
+    "get_team": {
+      "display_name": "Get Team",
+      "description": "Get details of a specific Microsoft Team by its ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {"type": "string", "description": "The unique identifier of the team to retrieve."}
+        },
+        "required": ["team_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the action succeeded."},
+          "team": {
+            "type": "object",
+            "description": "The team details.",
+            "properties": {
+              "id": {"type": "string", "description": "The unique team ID."},
+              "display_name": {"type": "string", "description": "The display name of the team."},
+              "description": {"type": "string", "description": "The team description."},
+              "web_url": {"type": "string", "description": "The URL to open the team in Teams."}
+            }
+          }
+        }
+      }
+    },
+    "list_channels": {
+      "display_name": "List Channels",
+      "description": "List all channels in a Microsoft Teams team.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {"type": "string", "description": "The unique identifier of the team whose channels to list."}
+        },
+        "required": ["team_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the action succeeded."},
+          "channels": {
+            "type": "array",
+            "description": "List of channels in the team.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type": "string", "description": "The unique channel ID."},
+                "display_name": {"type": "string", "description": "The display name of the channel."},
+                "description": {"type": "string", "description": "The channel description."},
+                "membership_type": {"type": "string", "description": "The membership type: standard, private, or shared."}
+              }
+            }
+          }
+        }
+      }
+    },
+    "get_channel": {
+      "display_name": "Get Channel",
+      "description": "Get details of a specific channel within a Microsoft Teams team.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {"type": "string", "description": "The unique identifier of the team the channel belongs to."},
+          "channel_id": {"type": "string", "description": "The unique identifier of the channel to retrieve."}
+        },
+        "required": ["team_id", "channel_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the action succeeded."},
+          "channel": {
+            "type": "object",
+            "description": "The channel details.",
+            "properties": {
+              "id": {"type": "string", "description": "The unique channel ID."},
+              "display_name": {"type": "string", "description": "The display name of the channel."},
+              "description": {"type": "string", "description": "The channel description."},
+              "membership_type": {"type": "string", "description": "The membership type: standard, private, or shared."},
+              "web_url": {"type": "string", "description": "The URL to open the channel in Teams."}
+            }
+          }
+        }
+      }
+    },
+    "create_channel": {
+      "display_name": "Create Channel",
+      "description": "Create a new channel in a Microsoft Teams team.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {"type": "string", "description": "The unique identifier of the team to create the channel in."},
+          "display_name": {"type": "string", "description": "The display name for the new channel."},
+          "description": {"type": "string", "description": "An optional description for the new channel."},
+          "membership_type": {
+            "type": "string",
+            "description": "The membership type for the channel: 'standard' (default) or 'private'.",
+            "enum": ["standard", "private"]
+          }
+        },
+        "required": ["team_id", "display_name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the channel was created successfully."},
+          "channel": {
+            "type": "object",
+            "description": "The newly created channel.",
+            "properties": {
+              "id": {"type": "string", "description": "The unique ID of the created channel."},
+              "display_name": {"type": "string", "description": "The display name of the created channel."}
+            }
+          }
+        }
+      }
+    },
+    "list_messages": {
+      "display_name": "List Channel Messages",
+      "description": "List messages in a Microsoft Teams channel, returned in reverse chronological order.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {"type": "string", "description": "The unique identifier of the team."},
+          "channel_id": {"type": "string", "description": "The unique identifier of the channel to read messages from."},
+          "limit": {"type": "integer", "description": "Maximum number of messages to return (default 20, max 50)."}
+        },
+        "required": ["team_id", "channel_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the action succeeded."},
+          "messages": {
+            "type": "array",
+            "description": "List of messages from the channel.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type": "string", "description": "The unique message ID."},
+                "body": {"type": "string", "description": "The text content of the message."},
+                "from": {"type": "string", "description": "The display name of the sender."},
+                "created_at": {"type": "string", "description": "The ISO 8601 timestamp when the message was created."}
+              }
+            }
+          }
+        }
+      }
+    },
+    "get_message": {
+      "display_name": "Get Message",
+      "description": "Get a specific message from a Microsoft Teams channel by its ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {"type": "string", "description": "The unique identifier of the team."},
+          "channel_id": {"type": "string", "description": "The unique identifier of the channel the message belongs to."},
+          "message_id": {"type": "string", "description": "The unique identifier of the message to retrieve."}
+        },
+        "required": ["team_id", "channel_id", "message_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the action succeeded."},
+          "message": {
+            "type": "object",
+            "description": "The message details.",
+            "properties": {
+              "id": {"type": "string", "description": "The unique message ID."},
+              "body": {"type": "string", "description": "The text content of the message."},
+              "from": {"type": "string", "description": "The display name of the sender."},
+              "created_at": {"type": "string", "description": "The ISO 8601 timestamp when the message was created."}
+            }
+          }
+        }
+      }
+    },
+    "send_channel_message": {
+      "display_name": "Send Channel Message",
+      "description": "Send a message to a Microsoft Teams channel.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {"type": "string", "description": "The unique identifier of the team containing the channel."},
+          "channel_id": {"type": "string", "description": "The unique identifier of the channel to send the message to."},
+          "message": {"type": "string", "description": "The text content of the message to send."}
+        },
+        "required": ["team_id", "channel_id", "message"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the message was sent successfully."},
+          "message_id": {"type": "string", "description": "The unique ID of the sent message."}
+        }
+      }
+    },
+    "list_members": {
+      "display_name": "List Team Members",
+      "description": "List all members of a Microsoft Teams team.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {"type": "string", "description": "The unique identifier of the team whose members to list."}
+        },
+        "required": ["team_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the action succeeded."},
+          "members": {
+            "type": "array",
+            "description": "List of members in the team.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type": "string", "description": "The membership ID."},
+                "user_id": {"type": "string", "description": "The Azure AD user ID of the member."},
+                "display_name": {"type": "string", "description": "The display name of the member."},
+                "email": {"type": "string", "description": "The email address of the member."},
+                "roles": {"type": "array", "description": "The roles held by the member (e.g. owner)."}
+              }
+            }
+          }
+        }
+      }
+    },
+    "add_member": {
+      "display_name": "Add Team Member",
+      "description": "Add a user to a Microsoft Teams team by their Azure AD user ID or email address.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {"type": "string", "description": "The unique identifier of the team to add the member to."},
+          "user_id": {"type": "string", "description": "The Azure AD user ID or email address of the user to add."},
+          "role": {
+            "type": "string",
+            "description": "The role to assign: 'member' (default) or 'owner'.",
+            "enum": ["member", "owner"]
+          }
+        },
+        "required": ["team_id", "user_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the member was added successfully."},
+          "membership_id": {"type": "string", "description": "The unique membership ID of the newly added member."}
+        }
+      }
+    },
+    "remove_member": {
+      "display_name": "Remove Team Member",
+      "description": "Remove a member from a Microsoft Teams team using their membership ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {"type": "string", "description": "The unique identifier of the team to remove the member from."},
+          "membership_id": {"type": "string", "description": "The membership ID of the member to remove (obtained from list_members)."}
+        },
+        "required": ["team_id", "membership_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the member was removed successfully."}
+        }
+      }
+    },
+    "list_chats": {
+      "display_name": "List Chats",
+      "description": "List all chats (1:1 and group chats) the authenticated user is part of.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the action succeeded."},
+          "chats": {
+            "type": "array",
+            "description": "List of chats the user participates in.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type": "string", "description": "The unique chat ID."},
+                "topic": {"type": "string", "description": "The topic or name of the chat."},
+                "chat_type": {"type": "string", "description": "The chat type: oneOnOne, group, or meeting."}
+              }
+            }
+          }
+        }
+      }
+    },
+    "list_chat_messages": {
+      "display_name": "List Chat Messages",
+      "description": "List messages from a specific chat (1:1 or group chat).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "chat_id": {"type": "string", "description": "The unique identifier of the chat to read messages from."},
+          "limit": {"type": "integer", "description": "Maximum number of messages to return (default 20, max 50)."}
+        },
+        "required": ["chat_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the action succeeded."},
+          "messages": {
+            "type": "array",
+            "description": "List of messages from the chat.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type": "string", "description": "The unique message ID."},
+                "body": {"type": "string", "description": "The text content of the message."},
+                "from": {"type": "string", "description": "The display name of the sender."},
+                "created_at": {"type": "string", "description": "The ISO 8601 timestamp when the message was created."}
+              }
+            }
+          }
+        }
+      }
+    },
+    "send_chat_message": {
+      "display_name": "Send Chat Message",
+      "description": "Send a message to a specific Teams chat (1:1 or group chat).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "chat_id": {"type": "string", "description": "The unique identifier of the chat to send the message to."},
+          "message": {"type": "string", "description": "The text content of the message to send."}
+        },
+        "required": ["chat_id", "message"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Whether the message was sent successfully."},
+          "message_id": {"type": "string", "description": "The unique ID of the sent message."}
+        }
+      }
+    }
+  }
+}
