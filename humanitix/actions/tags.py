@@ -45,4 +45,4 @@ class GetTagsAction(ActionHandler):
         if error := build_error_result(response):
             return error
 
-        return build_paginated_result(response, "tags", page, page_size)
+        return build_paginated_result(response.data, "tags", page, page_size)

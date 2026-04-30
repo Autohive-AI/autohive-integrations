@@ -25,11 +25,13 @@ async def _toggle_check(inputs: Dict[str, Any], context: ExecutionContext, actio
     if error := build_error_result(response):
         return error
 
+    data = response.data or {}
     return ActionResult(
         data={
             "result": True,
-            "scanningMessages": response.get("scanningMessages", []) if isinstance(response, dict) else [],
-        }
+            "scanningMessages": data.get("scanningMessages", []) if isinstance(data, dict) else [],
+        },
+        cost_usd=0.0,
     )
 
 

@@ -54,4 +54,4 @@ class GetEventsAction(ActionHandler):
         if error := build_error_result(response):
             return error
 
-        return build_paginated_result(response, "events", page, page_size)
+        return build_paginated_result(response.data, "events", page, page_size)

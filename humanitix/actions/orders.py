@@ -59,4 +59,4 @@ class GetOrdersAction(ActionHandler):
         if error := build_error_result(response):
             return error
 
-        return build_paginated_result(response, "orders", page, page_size)
+        return build_paginated_result(response.data, "orders", page, page_size)
