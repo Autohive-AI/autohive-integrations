@@ -1,6 +1,7 @@
 import os
 import sys
 import importlib
+import importlib.util
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
