@@ -13,6 +13,7 @@ import sys
 import importlib
 import importlib.util
 import base64
+from io import BytesIO
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
@@ -34,6 +35,15 @@ sys.modules["slide_maker_mod_intg"] = _mod
 slide_maker = _mod.slide_maker
 
 pytestmark = pytest.mark.integration
+
+
+def assert_valid_pptx(file_obj: dict) -> None:
+    """Decode base64 content and verify python-pptx can open it."""
+    from pptx import Presentation
+
+    raw = base64.b64decode(file_obj["content"] + "==")
+    prs = Presentation(BytesIO(raw))
+    assert len(prs.slides) >= 1
 
 
 @pytest.fixture
@@ -64,9 +74,7 @@ class TestCreatePresentation:
         assert file_obj["name"].endswith(".pptx")
         assert file_obj["contentType"] == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
-        # PPTX is a ZIP — verify magic bytes PK
-        raw = base64.b64decode(file_obj["content"] + "==")
-        assert raw[:2] == b"PK"
+        assert_valid_pptx(file_obj)
 
     async def test_create_with_title_and_subtitle(self, live_context):
         result = await slide_maker.execute_action(
@@ -149,9 +157,7 @@ class TestFindAndReplace:
         assert "summary" in result.result.data
         assert result.result.data["saved"] is True
 
-        # Verify output is still a valid PPTX
-        raw = base64.b64decode(result.result.data["file"]["content"] + "==")
-        assert raw[:2] == b"PK"
+        assert_valid_pptx(result.result.data["file"])
 
 
 class TestFullWorkflow:
@@ -190,7 +196,5 @@ class TestFullWorkflow:
         assert add_result.type == ResultType.ACTION
         file_obj = add_result.result.data["file"]
 
-        # Verify final binary is a valid PPTX
-        raw = base64.b64decode(file_obj["content"] + "==")
-        assert raw[:2] == b"PK"
         assert file_obj["name"].endswith(".pptx")
+        assert_valid_pptx(file_obj)
