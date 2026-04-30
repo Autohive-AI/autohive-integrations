@@ -25,6 +25,8 @@ strip_conflicting_markdown = _mod.strip_conflicting_markdown
 hex_to_rgb = _mod.hex_to_rgb
 calculate_overlap = _mod.calculate_overlap
 has_markdown_formatting = _mod.has_markdown_formatting
+calculate_best_fit_font_size = _mod.calculate_best_fit_font_size
+detect_element_type_from_markdown = _mod.detect_element_type_from_markdown
 
 pytestmark = pytest.mark.unit
 
@@ -711,3 +713,43 @@ class TestGetElementStyling:
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
+
+
+class TestDetectElementTypeFromMarkdown:
+    def test_table_detection(self):
+        table_md = "| Col1 | Col2 |\n|------|------|\n| A | B |"
+        assert detect_element_type_from_markdown(table_md) == "table"
+
+    def test_bullet_detection(self):
+        bullets_md = "- Item 1\n- Item 2\n- Item 3"
+        assert detect_element_type_from_markdown(bullets_md) == "bullets"
+
+    def test_numbered_list_detection(self):
+        numbered_md = "1. First\n2. Second\n3. Third"
+        assert detect_element_type_from_markdown(numbered_md) == "bullets"
+
+    def test_text_detection(self):
+        assert detect_element_type_from_markdown("Plain text paragraph") == "text"
+
+    def test_bold_text_is_text(self):
+        assert detect_element_type_from_markdown("**Bold heading**") == "text"
+
+
+class TestCalculateBestFitFontSize:
+    def test_short_text_stays_at_max(self):
+        size = calculate_best_fit_font_size("Hello", width_inches=8.0, height_inches=2.0, max_font_size=24)
+        assert size == 24
+
+    def test_long_text_scales_down(self):
+        long_text = "This is a very long piece of text that contains significantly more content " * 5
+        size = calculate_best_fit_font_size(long_text, width_inches=4.0, height_inches=1.0, max_font_size=18)
+        assert size < 18
+
+    def test_minimum_size_enforced(self):
+        very_long_text = "Text " * 1000
+        size = calculate_best_fit_font_size(very_long_text, width_inches=1.0, height_inches=0.5, max_font_size=18)
+        assert size >= 10
+
+    def test_empty_text_returns_max(self):
+        size = calculate_best_fit_font_size("", width_inches=5.0, height_inches=2.0, max_font_size=20)
+        assert size == 20
