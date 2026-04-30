@@ -1,6 +1,6 @@
 {
   "name": "Slide Maker",
-  "version": "20.1.0",
+  "version": "21.0.0",
   "description": "PowerPoint automation integration using python-pptx. Unified markdown-based content addition (add_elements), template filling (find_and_replace), and comprehensive slide manipulation. Optimized for AI agents with intelligent auto-positioning, overlap detection, and graceful error handling.",
   "entry_point": "slide_maker.py",
   "actions": {
