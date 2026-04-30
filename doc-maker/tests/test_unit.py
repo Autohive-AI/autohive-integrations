@@ -78,7 +78,9 @@ async def test_detect_placeholder_patterns():
     # Test formal placeholders
     is_placeholder, pattern = detect_placeholder_patterns("{{FIELD_NAME}}")
     result.assert_true(is_placeholder, "Detect {{FIELD_NAME}} as formal placeholder")
-    result.assert_equal(pattern, "formal_placeholder", "Correct pattern type for {{FIELD}}")
+    result.assert_equal(
+        pattern, "formal_placeholder", "Correct pattern type for {{FIELD}}"
+    )
 
     is_placeholder, pattern = detect_placeholder_patterns("{FIELD}")
     result.assert_true(is_placeholder, "Detect {FIELD} as formal placeholder")
@@ -89,7 +91,9 @@ async def test_detect_placeholder_patterns():
     # Test instruction text
     is_placeholder, pattern = detect_placeholder_patterns("(Note: Add details here)")
     result.assert_true(is_placeholder, "Detect instruction text")
-    result.assert_equal(pattern, "instruction_text", "Correct pattern for instruction text")
+    result.assert_equal(
+        pattern, "instruction_text", "Correct pattern for instruction text"
+    )
 
     is_placeholder, pattern = detect_placeholder_patterns("Please insert content here")
     result.assert_true(is_placeholder, "Detect 'Please insert' as instruction")
@@ -102,7 +106,9 @@ async def test_detect_placeholder_patterns():
     # Test business placeholders
     is_placeholder, pattern = detect_placeholder_patterns("company name")
     result.assert_true(is_placeholder, "Detect 'company name' as business placeholder")
-    result.assert_equal(pattern, "business_placeholder", "Correct pattern for business term")
+    result.assert_equal(
+        pattern, "business_placeholder", "Correct pattern for business term"
+    )
 
     is_placeholder, pattern = detect_placeholder_patterns("project title here")
     result.assert_true(is_placeholder, "Detect 'project title here' as placeholder")
@@ -126,11 +132,15 @@ async def test_detect_placeholder_patterns():
     result.assert_true(is_placeholder, "Detect whitespace as placeholder")
 
     # Test actual content (should NOT be placeholders)
-    is_placeholder, pattern = detect_placeholder_patterns("This is a complete sentence with actual content.")
+    is_placeholder, pattern = detect_placeholder_patterns(
+        "This is a complete sentence with actual content."
+    )
     result.assert_false(is_placeholder, "Regular content not detected as placeholder")
     result.assert_equal(pattern, "content", "Correct pattern for content")
 
-    is_placeholder, pattern = detect_placeholder_patterns("The quarterly revenue exceeded expectations.")
+    is_placeholder, pattern = detect_placeholder_patterns(
+        "The quarterly revenue exceeded expectations."
+    )
     result.assert_false(is_placeholder, "Business content not detected as placeholder")
 
     return result.summary()
@@ -142,24 +152,41 @@ async def test_has_markdown_formatting():
     result = TestResult()
 
     # Test various markdown formats
-    result.assert_true(has_markdown_formatting("**bold text**"), "Detect bold formatting")
+    result.assert_true(
+        has_markdown_formatting("**bold text**"), "Detect bold formatting"
+    )
 
-    result.assert_true(has_markdown_formatting("*italic text*"), "Detect italic formatting")
+    result.assert_true(
+        has_markdown_formatting("*italic text*"), "Detect italic formatting"
+    )
 
     result.assert_true(has_markdown_formatting("`code text`"), "Detect code formatting")
 
-    result.assert_true(has_markdown_formatting("~~strikethrough~~"), "Detect strikethrough formatting")
+    result.assert_true(
+        has_markdown_formatting("~~strikethrough~~"), "Detect strikethrough formatting"
+    )
 
-    result.assert_true(has_markdown_formatting("__underline__"), "Detect underline formatting")
+    result.assert_true(
+        has_markdown_formatting("__underline__"), "Detect underline formatting"
+    )
 
-    result.assert_true(has_markdown_formatting("Text with\nline break"), "Detect line break")
+    result.assert_true(
+        has_markdown_formatting("Text with\nline break"), "Detect line break"
+    )
 
-    result.assert_true(has_markdown_formatting("**bold** and *italic*"), "Detect mixed formatting")
+    result.assert_true(
+        has_markdown_formatting("**bold** and *italic*"), "Detect mixed formatting"
+    )
 
     # Test plain text (should be False)
-    result.assert_false(has_markdown_formatting("Plain text without formatting"), "Plain text has no formatting")
+    result.assert_false(
+        has_markdown_formatting("Plain text without formatting"),
+        "Plain text has no formatting",
+    )
 
-    result.assert_false(has_markdown_formatting("Just regular words"), "Regular text has no formatting")
+    result.assert_false(
+        has_markdown_formatting("Just regular words"), "Regular text has no formatting"
+    )
 
     return result.summary()
 
@@ -170,25 +197,37 @@ async def test_is_likely_placeholder_context():
     result = TestResult()
 
     # Test standalone words (likely placeholders)
-    result.assert_true(is_likely_placeholder_context("name", "name"), "Standalone word is placeholder context")
+    result.assert_true(
+        is_likely_placeholder_context("name", "name"),
+        "Standalone word is placeholder context",
+    )
 
     # Test form field patterns
-    result.assert_true(is_likely_placeholder_context("Name: ___", "Name"), "Form field is placeholder context")
+    result.assert_true(
+        is_likely_placeholder_context("Name: ___", "Name"),
+        "Form field is placeholder context",
+    )
 
     result.assert_true(
-        is_likely_placeholder_context("Date: ---", "Date"), "Form field with dashes is placeholder context"
+        is_likely_placeholder_context("Date: ---", "Date"),
+        "Form field with dashes is placeholder context",
     )
 
     # Test surrounded by placeholder indicators
-    result.assert_true(is_likely_placeholder_context("{{name}}", "name"), "Braced word is placeholder context")
+    result.assert_true(
+        is_likely_placeholder_context("{{name}}", "name"),
+        "Braced word is placeholder context",
+    )
 
     result.assert_true(
-        is_likely_placeholder_context("[project name]", "project name"), "Bracketed phrase is placeholder context"
+        is_likely_placeholder_context("[project name]", "project name"),
+        "Bracketed phrase is placeholder context",
     )
 
     # Test instruction phrases
     result.assert_true(
-        is_likely_placeholder_context("insert data here", "data"), "Instruction phrase is placeholder context"
+        is_likely_placeholder_context("insert data here", "data"),
+        "Instruction phrase is placeholder context",
     )
 
     result.assert_true(
@@ -198,12 +237,16 @@ async def test_is_likely_placeholder_context():
 
     # Test content text (should NOT be placeholder context)
     result.assert_false(
-        is_likely_placeholder_context("The project name should be descriptive and clear.", "name"),
+        is_likely_placeholder_context(
+            "The project name should be descriptive and clear.", "name"
+        ),
         "Word in content sentence is NOT placeholder context",
     )
 
     result.assert_false(
-        is_likely_placeholder_context("Please review the customer's data before proceeding.", "data"),
+        is_likely_placeholder_context(
+            "Please review the customer's data before proceeding.", "data"
+        ),
         "Word in instruction sentence is NOT placeholder context",
     )
 
@@ -233,27 +276,51 @@ async def test_analyze_replacement_safety():
 
     # Test unsafe content matches
     unsafe_matches = [
-        {"type": "paragraph", "index": 0, "content": "The name of the project is important."},
+        {
+            "type": "paragraph",
+            "index": 0,
+            "content": "The name of the project is important.",
+        },
         {"type": "paragraph", "index": 1, "content": "Please update the name field."},
-        {"type": "paragraph", "index": 2, "content": "The customer name should be verified."},
+        {
+            "type": "paragraph",
+            "index": 2,
+            "content": "The customer name should be verified.",
+        },
     ]
 
     analysis = analyze_replacement_safety("name", unsafe_matches)
-    result.assert_equal(analysis["safety_level"], "high_risk", "Content matches = high risk")
+    result.assert_equal(
+        analysis["safety_level"], "high_risk", "Content matches = high risk"
+    )
     result.assert_equal(analysis["unsafe_matches"], 3, "Correct unsafe match count")
 
     # Test mixed safe and unsafe matches
     mixed_matches = [
         {"type": "paragraph", "index": 0, "content": "Name: placeholder"},  # Safe
-        {"type": "paragraph", "index": 1, "content": "The name should be clear"},  # Unsafe
+        {
+            "type": "paragraph",
+            "index": 1,
+            "content": "The name should be clear",
+        },  # Unsafe
         {"type": "paragraph", "index": 2, "content": "Company Name: ___"},  # Safe
-        {"type": "paragraph", "index": 3, "content": "Update the project name"},  # Unsafe
+        {
+            "type": "paragraph",
+            "index": 3,
+            "content": "Update the project name",
+        },  # Unsafe
     ]
 
     analysis = analyze_replacement_safety("name", mixed_matches)
-    result.assert_equal(analysis["safety_level"], "high_risk", "More unsafe = high risk")
-    result.assert_true(analysis["unsafe_matches"] > analysis["safe_matches"], "More unsafe than safe")
-    result.assert_true(len(analysis["guidance"]) > 0, "Provides guidance for mixed matches")
+    result.assert_equal(
+        analysis["safety_level"], "high_risk", "More unsafe = high risk"
+    )
+    result.assert_true(
+        analysis["unsafe_matches"] > analysis["safe_matches"], "More unsafe than safe"
+    )
+    result.assert_true(
+        len(analysis["guidance"]) > 0, "Provides guidance for mixed matches"
+    )
     result.assert_true(len(analysis["alternatives"]) > 0, "Provides alternatives")
 
     return result.summary()

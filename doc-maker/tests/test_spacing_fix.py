@@ -44,7 +44,9 @@ This paragraph has **multiple** *different* `formatting` elements **mixed** toge
                 f.write(file_content)
 
             print(f"   [FILE] Spacing test saved to: {output_path}")
-            print("   [INFO] Open this file to verify proper spacing between formatted text!")
+            print(
+                "   [INFO] Open this file to verify proper spacing between formatted text!"
+            )
 
             return result
 

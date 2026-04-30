@@ -17,7 +17,9 @@ from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 # Load the module from its file location (Integration.load() needs the cwd set)
 _original_cwd = os.getcwd()
 os.chdir(_parent)
-_spec = importlib.util.spec_from_file_location("doc_maker_mod", os.path.join(_parent, "doc_maker.py"))
+_spec = importlib.util.spec_from_file_location(
+    "doc_maker_mod", os.path.join(_parent, "doc_maker.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 os.chdir(_original_cwd)
@@ -51,7 +53,9 @@ def _make_docx_bytes() -> bytes:
     return buf.read()
 
 
-def _make_file_item(name: str, data: bytes, content_type: str = "application/octet-stream") -> dict:
+def _make_file_item(
+    name: str, data: bytes, content_type: str = "application/octet-stream"
+) -> dict:
     return {
         "name": name,
         "contentType": content_type,
@@ -101,12 +105,16 @@ class TestDetectPlaceholderPatterns:
         assert is_ph is True
 
     def test_real_content_not_placeholder(self):
-        is_ph, pattern = detect_placeholder_patterns("This is a complete sentence with actual content.")
+        is_ph, pattern = detect_placeholder_patterns(
+            "This is a complete sentence with actual content."
+        )
         assert is_ph is False
         assert pattern == "content"
 
     def test_business_content_not_placeholder(self):
-        is_ph, _ = detect_placeholder_patterns("The quarterly revenue exceeded expectations.")
+        is_ph, _ = detect_placeholder_patterns(
+            "The quarterly revenue exceeded expectations."
+        )
         assert is_ph is False
 
 
@@ -147,10 +155,20 @@ class TestIsLikelyPlaceholderContext:
         assert is_likely_placeholder_context("insert data here", "data") is True
 
     def test_content_sentence_not_placeholder(self):
-        assert is_likely_placeholder_context("The project name should be descriptive.", "name") is False
+        assert (
+            is_likely_placeholder_context(
+                "The project name should be descriptive.", "name"
+            )
+            is False
+        )
 
     def test_complete_sentence_not_placeholder(self):
-        assert is_likely_placeholder_context("The date for the meeting has been set.", "date") is False
+        assert (
+            is_likely_placeholder_context(
+                "The date for the meeting has been set.", "date"
+            )
+            is False
+        )
 
 
 class TestAnalyzeReplacementSafety:
@@ -166,9 +184,21 @@ class TestAnalyzeReplacementSafety:
 
     def test_all_unsafe_matches_high_risk(self):
         matches = [
-            {"type": "paragraph", "index": 0, "content": "The name of the project is important."},
-            {"type": "paragraph", "index": 1, "content": "Please update the name field."},
-            {"type": "paragraph", "index": 2, "content": "The customer name should be verified."},
+            {
+                "type": "paragraph",
+                "index": 0,
+                "content": "The name of the project is important.",
+            },
+            {
+                "type": "paragraph",
+                "index": 1,
+                "content": "Please update the name field.",
+            },
+            {
+                "type": "paragraph",
+                "index": 2,
+                "content": "The customer name should be verified.",
+            },
         ]
         result = analyze_replacement_safety("name", matches)
         assert result["safety_level"] == "high_risk"
@@ -249,7 +279,9 @@ class TestSaveDocument:
     @pytest.mark.asyncio
     async def test_save_existing_document_succeeds(self, mock_context):
         # Create doc first
-        create_result = await doc_maker.execute_action("create_document", {}, mock_context)
+        create_result = await doc_maker.execute_action(
+            "create_document", {}, mock_context
+        )
         doc_id = create_result.result.data["document_id"]
 
         result = await doc_maker.execute_action(
@@ -310,7 +342,9 @@ class TestGetDocumentElements:
 class TestAddTable:
     @pytest.mark.asyncio
     async def test_add_table_to_document(self, mock_context):
-        create_result = await doc_maker.execute_action("create_document", {}, mock_context)
+        create_result = await doc_maker.execute_action(
+            "create_document", {}, mock_context
+        )
         doc_id = create_result.result.data["document_id"]
         docx_bytes = base64.b64decode(create_result.result.data["file"]["content"])
         file_item = _make_file_item(f"{doc_id}.docx", docx_bytes)
@@ -321,7 +355,11 @@ class TestAddTable:
                 "document_id": doc_id,
                 "rows": 3,
                 "cols": 2,
-                "data": [["Header1", "Header2"], ["Cell1", "Cell2"], ["Cell3", "Cell4"]],
+                "data": [
+                    ["Header1", "Header2"],
+                    ["Cell1", "Cell2"],
+                    ["Cell3", "Cell4"],
+                ],
                 "files": [file_item],
             },
             mock_context,
@@ -344,7 +382,9 @@ class TestAddTable:
 class TestAddMarkdownContent:
     @pytest.mark.asyncio
     async def test_add_markdown_to_existing_document(self, mock_context):
-        create_result = await doc_maker.execute_action("create_document", {}, mock_context)
+        create_result = await doc_maker.execute_action(
+            "create_document", {}, mock_context
+        )
         doc_id = create_result.result.data["document_id"]
         docx_bytes = base64.b64decode(create_result.result.data["file"]["content"])
         file_item = _make_file_item(f"{doc_id}.docx", docx_bytes)
@@ -375,7 +415,9 @@ class TestAddMarkdownContent:
 class TestAddPageBreak:
     @pytest.mark.asyncio
     async def test_add_page_break(self, mock_context):
-        create_result = await doc_maker.execute_action("create_document", {}, mock_context)
+        create_result = await doc_maker.execute_action(
+            "create_document", {}, mock_context
+        )
         doc_id = create_result.result.data["document_id"]
         docx_bytes = base64.b64decode(create_result.result.data["file"]["content"])
         file_item = _make_file_item(f"{doc_id}.docx", docx_bytes)
@@ -403,7 +445,9 @@ class TestUpdateByPosition:
     @pytest.mark.asyncio
     async def test_update_paragraph_by_position(self, mock_context):
         create_result = await doc_maker.execute_action(
-            "create_document", {"markdown_content": "# Title\n\nOriginal paragraph."}, mock_context
+            "create_document",
+            {"markdown_content": "# Title\n\nOriginal paragraph."},
+            mock_context,
         )
         doc_id = create_result.result.data["document_id"]
         docx_bytes = base64.b64decode(create_result.result.data["file"]["content"])
@@ -413,7 +457,9 @@ class TestUpdateByPosition:
             "update_by_position",
             {
                 "document_id": doc_id,
-                "updates": [{"type": "paragraph", "index": 0, "content": "Updated content"}],
+                "updates": [
+                    {"type": "paragraph", "index": 0, "content": "Updated content"}
+                ],
                 "files": [file_item],
             },
             mock_context,
@@ -428,7 +474,10 @@ class TestUpdateByPosition:
     async def test_update_missing_document(self, mock_context):
         result = await doc_maker.execute_action(
             "update_by_position",
-            {"document_id": "bad-id", "updates": [{"type": "paragraph", "index": 0, "content": "New"}]},
+            {
+                "document_id": "bad-id",
+                "updates": [{"type": "paragraph", "index": 0, "content": "New"}],
+            },
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -438,7 +487,9 @@ class TestFindAndReplace:
     @pytest.mark.asyncio
     async def test_find_and_replace_basic(self, mock_context):
         create_result = await doc_maker.execute_action(
-            "create_document", {"markdown_content": "Hello {{NAME}}, welcome to the team."}, mock_context
+            "create_document",
+            {"markdown_content": "Hello {{NAME}}, welcome to the team."},
+            mock_context,
         )
         doc_id = create_result.result.data["document_id"]
         docx_bytes = base64.b64decode(create_result.result.data["file"]["content"])
@@ -448,7 +499,9 @@ class TestFindAndReplace:
             "find_and_replace",
             {
                 "document_id": doc_id,
-                "replacements": [{"find": "{{NAME}}", "replace": "Alice", "replace_all": True}],
+                "replacements": [
+                    {"find": "{{NAME}}", "replace": "Alice", "replace_all": True}
+                ],
                 "files": [file_item],
             },
             mock_context,
@@ -462,7 +515,10 @@ class TestFindAndReplace:
     async def test_find_and_replace_missing_document(self, mock_context):
         result = await doc_maker.execute_action(
             "find_and_replace",
-            {"document_id": "bad-id", "replacements": [{"find": "foo", "replace": "bar"}]},
+            {
+                "document_id": "bad-id",
+                "replacements": [{"find": "foo", "replace": "bar"}],
+            },
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -480,7 +536,9 @@ class TestFindAndReplace:
             "find_and_replace",
             {
                 "document_id": doc_id,
-                "replacements": [{"find": "NONEXISTENT_TEXT_XYZ", "replace": "replacement"}],
+                "replacements": [
+                    {"find": "NONEXISTENT_TEXT_XYZ", "replace": "replacement"}
+                ],
                 "files": [file_item],
             },
             mock_context,
@@ -493,7 +551,9 @@ class TestFindAndReplace:
     async def test_find_and_replace_invalid_type_replacements(self, mock_context):
         # The SDK validates input schema: replacements must be array, so passing a
         # non-array non-string type triggers VALIDATION_ERROR before the handler runs.
-        create_result = await doc_maker.execute_action("create_document", {}, mock_context)
+        create_result = await doc_maker.execute_action(
+            "create_document", {}, mock_context
+        )
         doc_id = create_result.result.data["document_id"]
         docx_bytes = base64.b64decode(create_result.result.data["file"]["content"])
         file_item = _make_file_item(f"{doc_id}.docx", docx_bytes)
@@ -515,7 +575,9 @@ class TestFillTemplateFields:
     @pytest.mark.asyncio
     async def test_fill_placeholder_data(self, mock_context):
         create_result = await doc_maker.execute_action(
-            "create_document", {"markdown_content": "Dear {{CLIENT_NAME}}, your invoice is ready."}, mock_context
+            "create_document",
+            {"markdown_content": "Dear {{CLIENT_NAME}}, your invoice is ready."},
+            mock_context,
         )
         doc_id = create_result.result.data["document_id"]
         docx_bytes = base64.b64decode(create_result.result.data["file"]["content"])
@@ -540,7 +602,10 @@ class TestFillTemplateFields:
     async def test_fill_missing_document_raises(self, mock_context):
         result = await doc_maker.execute_action(
             "fill_template_fields",
-            {"document_id": "bad-id", "template_data": {"placeholder_data": {"{{X}}": "Y"}}},
+            {
+                "document_id": "bad-id",
+                "template_data": {"placeholder_data": {"{{X}}": "Y"}},
+            },
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR

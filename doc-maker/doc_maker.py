@@ -1,4 +1,10 @@
-from autohive_integrations_sdk import ActionError, ActionResult, ExecutionContext, ActionHandler, Integration
+from autohive_integrations_sdk import (
+    ActionError,
+    ActionResult,
+    ExecutionContext,
+    ActionHandler,
+    Integration,
+)
 from typing import Dict, Any, List
 from docx import Document
 from docx.shared import Inches
@@ -29,9 +35,13 @@ def process_files(files: List[Dict[str, Any]]) -> Dict[str, BytesIO]:
         for file_item in files:
             content_as_string = file_item["content"]
 
-            padded_content_string = content_as_string + "=" * (-len(content_as_string) % 4)
+            padded_content_string = content_as_string + "=" * (
+                -len(content_as_string) % 4
+            )
 
-            file_binary_data = base64.urlsafe_b64decode(padded_content_string.encode("ascii"))
+            file_binary_data = base64.urlsafe_b64decode(
+                padded_content_string.encode("ascii")
+            )
             file_stream = BytesIO(file_binary_data)
 
             processed_files[file_item["name"]] = file_stream
@@ -60,7 +70,9 @@ def load_document_from_files(document_id: str, files: List[Dict[str, Any]]) -> N
             "Files may be corrupted or not Word format."
         )
     elif document_id not in documents:
-        raise ValueError(f"Document {document_id} not found and no files provided for loading")
+        raise ValueError(
+            f"Document {document_id} not found and no files provided for loading"
+        )
 
 
 def _save_document_to_dict(document_id: str, file_path: str) -> Dict[str, Any]:
@@ -108,7 +120,10 @@ def _save_document_to_dict(document_id: str, file_path: str) -> Dict[str, Any]:
 
 
 async def save_and_return_document(
-    original_result: Dict[str, Any], document_id: str, context: ExecutionContext, custom_filename: str = None
+    original_result: Dict[str, Any],
+    document_id: str,
+    context: ExecutionContext,
+    custom_filename: str = None,
 ) -> ActionResult:
     """Helper to save document and return combined ActionResult"""
     if custom_filename:
@@ -260,7 +275,9 @@ def detect_placeholder_patterns(text: str) -> tuple[bool, str]:
             "cost",
             "description",
         ]
-        if len(original_text) < 20 and any(word in text_lower for word in business_keywords):
+        if len(original_text) < 20 and any(
+            word in text_lower for word in business_keywords
+        ):
             return True, "short_business"
 
     # Numbers and currency that look like placeholders
@@ -293,7 +310,9 @@ def parse_and_apply_markdown_formatting(target, text: str):
         paragraph.clear()
     elif hasattr(target, "paragraphs"):  # This is a table cell
         target.text = ""  # Clear cell
-        paragraph = target.paragraphs[0] if target.paragraphs else target.add_paragraph()
+        paragraph = (
+            target.paragraphs[0] if target.paragraphs else target.add_paragraph()
+        )
     else:
         raise ValueError("Target must be a paragraph or table cell")
 
@@ -339,10 +358,14 @@ def parse_and_apply_markdown_formatting(target, text: str):
             if earliest_match:
                 # Add text before the match as normal text
                 if earliest_pos > 0:
-                    processed_parts.append({"text": remaining_text[:earliest_pos], "formatting": {}})
+                    processed_parts.append(
+                        {"text": remaining_text[:earliest_pos], "formatting": {}}
+                    )
 
                 # Add the formatted text
-                processed_parts.append({"text": earliest_match.group(1), "formatting": earliest_pattern})
+                processed_parts.append(
+                    {"text": earliest_match.group(1), "formatting": earliest_pattern}
+                )
 
                 # Continue with text after the match
                 remaining_text = remaining_text[earliest_match.end() :]
@@ -393,11 +416,23 @@ def is_likely_placeholder_context(text: str, find_word: str) -> bool:
     # Surrounded by placeholder indicators
     placeholder_indicators = ["{", "}", "[", "]", "_", "-", ".", "(", ")"]
     text_around = text.replace(find_word, "").strip()
-    if len(text_around) < 10 and any(indicator in text_around for indicator in placeholder_indicators):
+    if len(text_around) < 10 and any(
+        indicator in text_around for indicator in placeholder_indicators
+    ):
         return True
 
     # In obvious placeholder phrases
-    placeholder_phrases = ["insert", "add", "enter", "type", "provide", "placeholder", "here", "tbd", "tbc"]
+    placeholder_phrases = [
+        "insert",
+        "add",
+        "enter",
+        "type",
+        "provide",
+        "placeholder",
+        "here",
+        "tbd",
+        "tbc",
+    ]
     if any(phrase in text for phrase in placeholder_phrases):
         return True
 
@@ -421,7 +456,9 @@ def analyze_replacement_safety(find_text: str, matches_found: list) -> dict:
     alternatives = []
 
     if len(safe_matches) > 0 and len(unsafe_matches) > 0:
-        guidance.append(f"Found {len(safe_matches)} safe placeholders and {len(unsafe_matches)} content text matches")
+        guidance.append(
+            f"Found {len(safe_matches)} safe placeholders and {len(unsafe_matches)} content text matches"
+        )
 
         # Suggest safer alternatives based on actual safe matches
         safe_contexts = []
@@ -434,16 +471,24 @@ def analyze_replacement_safety(find_text: str, matches_found: list) -> dict:
                     safe_contexts.append(safer_phrase.strip())
 
         if safe_contexts:
-            alternatives.extend([f"Use '{ctx}' to target form fields" for ctx in safe_contexts[:2]])
+            alternatives.extend(
+                [f"Use '{ctx}' to target form fields" for ctx in safe_contexts[:2]]
+            )
 
     elif len(unsafe_matches) > 0:
-        guidance.append(f"All {len(unsafe_matches)} matches appear to be in content text - very risky")
+        guidance.append(
+            f"All {len(unsafe_matches)} matches appear to be in content text - very risky"
+        )
         alternatives.append("Use position updates instead of text replacement")
 
     elif len(safe_matches) > 0:
-        guidance.append(f"All {len(safe_matches)} matches appear to be placeholders - relatively safe")
+        guidance.append(
+            f"All {len(safe_matches)} matches appear to be placeholders - relatively safe"
+        )
         if len(safe_matches) > 1:
-            alternatives.append(f"Add replace_all=true to confirm you want all {len(safe_matches)} instances replaced")
+            alternatives.append(
+                f"Add replace_all=true to confirm you want all {len(safe_matches)} instances replaced"
+            )
 
     return {
         "safety_level": "high_risk"
@@ -460,7 +505,9 @@ def analyze_replacement_safety(find_text: str, matches_found: list) -> dict:
                 "location": f"P{match['index']}"
                 if match["type"] == "paragraph"
                 else f"T{match['table_index']}R{match['row']}C{match['col']}",
-                "context": match["content"][:50] + "..." if len(match["content"]) > 50 else match["content"],
+                "context": match["content"][:50] + "..."
+                if len(match["content"]) > 50
+                else match["content"],
                 "safety": "SAFE" if match in safe_matches else "RISKY",
             }
             for match in matches_found[:5]  # Show first 5 matches
@@ -520,9 +567,13 @@ def analyze_document_structure(doc: Document) -> dict:
         element_index += 1
 
     # Summary statistics
-    fillable_paragraphs = len([e for e in elements if e["type"] == "paragraph" and e["is_fillable"]])
+    fillable_paragraphs = len(
+        [e for e in elements if e["type"] == "paragraph" and e["is_fillable"]]
+    )
     fillable_cells = sum(
-        len([c for c in e.get("cells", []) if c["is_fillable"]]) for e in elements if e["type"] == "table"
+        len([c for c in e.get("cells", []) if c["is_fillable"]])
+        for e in elements
+        if e["type"] == "table"
     )
 
     return {
@@ -542,7 +593,22 @@ def parse_markdown_to_docx(doc: Document, markdown_text: str) -> None:
     soup = BeautifulSoup(html, "html.parser")
 
     # Process each HTML element in order
-    for element in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "blockquote", "table", "pre"]):
+    for element in soup.find_all(
+        [
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "p",
+            "ul",
+            "ol",
+            "blockquote",
+            "table",
+            "pre",
+        ]
+    ):
         if element.name.startswith("h"):
             # Handle headings
             level = int(element.name[1])  # Extract number from h1, h2, etc.
@@ -715,15 +781,21 @@ class GetDocumentElementsAction(ActionHandler):
             data={
                 "template_summary": {
                     "structure": f"{analysis['paragraphs']}p,{analysis['tables']}t",
-                    "fillable_total": int(analysis["fillable_paragraphs"] + analysis["fillable_cells"]),
+                    "fillable_total": int(
+                        analysis["fillable_paragraphs"] + analysis["fillable_cells"]
+                    ),
                     "content_elements_hidden": int(
-                        analysis["total_elements"] - len(fillable_paragraphs) - len(fillable_cells)
+                        analysis["total_elements"]
+                        - len(fillable_paragraphs)
+                        - len(fillable_cells)
                     ),
                 },
                 "fillable_paragraphs": fillable_paragraphs,
                 "fillable_cells": fillable_cells,
                 "pattern_distribution": pattern_counts,
-                "recommended_strategy": "mixed" if len(pattern_counts) > 2 else "single_method",
+                "recommended_strategy": "mixed"
+                if len(pattern_counts) > 2
+                else "single_method",
                 "template_ready": True,
             },
             cost_usd=0.0,
@@ -769,7 +841,9 @@ class CreateDocumentAction(ActionHandler):
             "markdown_processed": bool(markdown_content),
         }
 
-        return await save_and_return_document(result, document_id, context, custom_filename)
+        return await save_and_return_document(
+            result, document_id, context, custom_filename
+        )
 
 
 @doc_maker.action("add_table")
@@ -827,7 +901,8 @@ class AddImageAction(ActionHandler):
 
             # Check if it's an image by extension or content type
             is_image_by_extension = any(
-                filename.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"]
+                filename.lower().endswith(ext)
+                for ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"]
             )
             is_image_by_content_type = content_type.startswith("image/")
 
@@ -842,7 +917,9 @@ class AddImageAction(ActionHandler):
         paragraph = doc.add_paragraph()
 
         if width and height:
-            paragraph.add_run().add_picture(image_file, width=Inches(width), height=Inches(height))
+            paragraph.add_run().add_picture(
+                image_file, width=Inches(width), height=Inches(height)
+            )
         elif width:
             paragraph.add_run().add_picture(image_file, width=Inches(width))
         elif height:
@@ -908,7 +985,11 @@ class UpdateByPositionAction(ActionHandler):
                 new_content = update["content"]
 
                 # Get paragraph by index using iter_block_items
-                paragraphs = [block for block in iter_block_items(doc) if isinstance(block, Paragraph)]
+                paragraphs = [
+                    block
+                    for block in iter_block_items(doc)
+                    if isinstance(block, Paragraph)
+                ]
 
                 if paragraph_index < len(paragraphs):
                     paragraph = paragraphs[paragraph_index]
@@ -927,22 +1008,32 @@ class UpdateByPositionAction(ActionHandler):
                 new_content = update["content"]
 
                 # Get table by index
-                tables = [block for block in iter_block_items(doc) if isinstance(block, Table)]
+                tables = [
+                    block for block in iter_block_items(doc) if isinstance(block, Table)
+                ]
 
                 if table_index < len(tables):
                     table = tables[table_index]
                     if row < len(table.rows) and col < len(table.columns):
                         cell = table.cell(row, col)
                         cell.text = new_content
-                        changes_made.append(f"Updated table {table_index} cell ({row},{col})")
+                        changes_made.append(
+                            f"Updated table {table_index} cell ({row},{col})"
+                        )
                     else:
-                        changes_made.append(f"Cell ({row},{col}) out of range in table {table_index}")
+                        changes_made.append(
+                            f"Cell ({row},{col}) out of range in table {table_index}"
+                        )
                 else:
                     changes_made.append(f"Table {table_index} not found")
 
         # Create LLM-optimized response
         successful_updates = [change for change in changes_made if "Updated" in change]
-        failed_updates = [change for change in changes_made if "not found" in change or "out of range" in change]
+        failed_updates = [
+            change
+            for change in changes_made
+            if "not found" in change or "out of range" in change
+        ]
 
         original_result = {
             "success": len(successful_updates) > 0,
@@ -950,7 +1041,9 @@ class UpdateByPositionAction(ActionHandler):
             "failed": len(failed_updates),
             "summary": f"Updated {len(successful_updates)} elements"
             + (f", {len(failed_updates)} failed" if failed_updates else ""),
-            "failures": failed_updates[:3] if failed_updates else [],  # Limit failure details
+            "failures": failed_updates[:3]
+            if failed_updates
+            else [],  # Limit failure details
         }
         return await save_and_return_document(original_result, document_id, context)
 
@@ -966,7 +1059,9 @@ class FindAndReplaceAction(ActionHandler):
             try:
                 replacements = json.loads(replacements)
             except json.JSONDecodeError:
-                return ActionError(message="Invalid replacements format: must be array or valid JSON string")
+                return ActionError(
+                    message="Invalid replacements format: must be array or valid JSON string"
+                )
 
         case_sensitive = inputs.get("case_sensitive", False)
         files = inputs.get("files", [])
@@ -986,7 +1081,9 @@ class FindAndReplaceAction(ActionHandler):
 
         for replacement in replacements:
             find_text = replacement["find"]
-            replace_text = replacement.get("replace", "")  # Default to empty string if not provided
+            replace_text = replacement.get(
+                "replace", ""
+            )  # Default to empty string if not provided
             replace_all = replacement.get("replace_all", False)
             remove_paragraph = replacement.get("remove_paragraph", False)
 
@@ -1117,7 +1214,11 @@ class FindAndReplaceAction(ActionHandler):
                     original_text = paragraph.text
                     is_full_paragraph_match = original_text.strip() == find_text.strip()
 
-                    if is_full_paragraph_match and replace_text.strip() == "" and remove_paragraph:
+                    if (
+                        is_full_paragraph_match
+                        and replace_text.strip() == ""
+                        and remove_paragraph
+                    ):
                         # Mark paragraph for removal to eliminate spacing
                         paragraphs_to_remove.append(paragraph)
                         replacements_count += 1
@@ -1126,7 +1227,12 @@ class FindAndReplaceAction(ActionHandler):
                         if case_sensitive:
                             new_text = original_text.replace(find_text, replace_text)
                         else:
-                            new_text = re.sub(re.escape(find_text), replace_text, original_text, flags=re.IGNORECASE)
+                            new_text = re.sub(
+                                re.escape(find_text),
+                                replace_text,
+                                original_text,
+                                flags=re.IGNORECASE,
+                            )
 
                         # Use centralized parser for enhanced formatting support
                         if has_markdown_formatting(new_text):
@@ -1161,7 +1267,12 @@ class FindAndReplaceAction(ActionHandler):
                                 replacements_count += 1
                         else:
                             original_text = cell.text
-                            new_text = re.sub(re.escape(find_text), replace_text, original_text, flags=re.IGNORECASE)
+                            new_text = re.sub(
+                                re.escape(find_text),
+                                replace_text,
+                                original_text,
+                                flags=re.IGNORECASE,
+                            )
                             if new_text != original_text:
                                 # Use centralized parser for enhanced formatting support
                                 if has_markdown_formatting(new_text):
@@ -1201,7 +1312,12 @@ class FindAndReplaceAction(ActionHandler):
                 )
             else:
                 # Fallback for any other format
-                optimized_blocked.append({"phrase": str(skipped), "warning": "Format error in safety analysis"})
+                optimized_blocked.append(
+                    {
+                        "phrase": str(skipped),
+                        "warning": "Format error in safety analysis",
+                    }
+                )
 
         original_result = {
             "success": total_replacements > 0
@@ -1265,12 +1381,18 @@ class FillTemplateFieldsAction(ActionHandler):
                                 replacement_count += 1
 
                 if replacement_count > 0:
-                    changes_made.append(f"Replaced '{placeholder}' {replacement_count} times")
+                    changes_made.append(
+                        f"Replaced '{placeholder}' {replacement_count} times"
+                    )
 
         # 2. Position-based updates
         if "position_data" in template_data:
-            paragraphs = [block for block in iter_block_items(doc) if isinstance(block, Paragraph)]
-            tables = [block for block in iter_block_items(doc) if isinstance(block, Table)]
+            paragraphs = [
+                block for block in iter_block_items(doc) if isinstance(block, Paragraph)
+            ]
+            tables = [
+                block for block in iter_block_items(doc) if isinstance(block, Table)
+            ]
 
             for position_key, new_content in template_data["position_data"].items():
                 if position_key.startswith("paragraph_"):
@@ -1278,7 +1400,9 @@ class FillTemplateFieldsAction(ActionHandler):
                     if idx < len(paragraphs):
                         # Use centralized parser for all content
                         if has_markdown_formatting(str(new_content)):
-                            parse_and_apply_markdown_formatting(paragraphs[idx], str(new_content))
+                            parse_and_apply_markdown_formatting(
+                                paragraphs[idx], str(new_content)
+                            )
                         else:
                             paragraphs[idx].text = str(new_content)
                         changes_made.append(f"Updated paragraph {idx}")
@@ -1296,10 +1420,14 @@ class FillTemplateFieldsAction(ActionHandler):
                             cell = table.cell(row_idx, col_idx)
                             # Use centralized parser for all content
                             if has_markdown_formatting(str(new_content)):
-                                parse_and_apply_markdown_formatting(cell, str(new_content))
+                                parse_and_apply_markdown_formatting(
+                                    cell, str(new_content)
+                                )
                             else:
                                 cell.text = str(new_content)
-                            changes_made.append(f"Updated table {table_idx} cell ({row_idx},{col_idx})")
+                            changes_made.append(
+                                f"Updated table {table_idx} cell ({row_idx},{col_idx})"
+                            )
 
         # 3. Search and replace patterns (with safety analysis)
         safety_warnings = []
@@ -1343,7 +1471,9 @@ class FillTemplateFieldsAction(ActionHandler):
 
                 # Analyze safety if multiple matches
                 if len(matches_found) > 1 and not replace_all:
-                    safety_analysis = analyze_replacement_safety(find_text, matches_found)
+                    safety_analysis = analyze_replacement_safety(
+                        find_text, matches_found
+                    )
 
                     if safety_analysis["safety_level"] == "high_risk":
                         # Block high-risk replacements
@@ -1382,14 +1512,25 @@ class FillTemplateFieldsAction(ActionHandler):
                 for paragraph in doc.paragraphs:
                     if find_text.lower() in paragraph.text.lower():
                         original_text = paragraph.text
-                        is_full_match = original_text.strip().lower() == find_text.lower()
+                        is_full_match = (
+                            original_text.strip().lower() == find_text.lower()
+                        )
 
-                        if is_full_match and replace_text.strip() == "" and remove_paragraph:
+                        if (
+                            is_full_match
+                            and replace_text.strip() == ""
+                            and remove_paragraph
+                        ):
                             paragraphs_to_remove.append(paragraph)
                             replacement_count += 1
                         else:
                             # Perform text replacement
-                            new_text = re.sub(re.escape(find_text), replace_text, original_text, flags=re.IGNORECASE)
+                            new_text = re.sub(
+                                re.escape(find_text),
+                                replace_text,
+                                original_text,
+                                flags=re.IGNORECASE,
+                            )
 
                             # Use centralized parser for enhanced formatting support
                             if has_markdown_formatting(new_text):
@@ -1415,7 +1556,10 @@ class FillTemplateFieldsAction(ActionHandler):
                             if find_text.lower() in cell.text.lower():
                                 original_text = cell.text
                                 new_text = re.sub(
-                                    re.escape(find_text), replace_text, original_text, flags=re.IGNORECASE
+                                    re.escape(find_text),
+                                    replace_text,
+                                    original_text,
+                                    flags=re.IGNORECASE,
                                 )
 
                                 # Use centralized parser for enhanced formatting support
@@ -1428,30 +1572,42 @@ class FillTemplateFieldsAction(ActionHandler):
                                     replacement_count += 1
 
                 if replacement_count > 0:
-                    changes_made.append(f"Found and replaced '{find_text}' {replacement_count} times")
+                    changes_made.append(
+                        f"Found and replaced '{find_text}' {replacement_count} times"
+                    )
 
         # Create LLM-optimized response with prominent safety warnings
-        has_critical_warnings = any("CRITICAL_WARNING" in str(warning) for warning in safety_warnings)
+        has_critical_warnings = any(
+            "CRITICAL_WARNING" in str(warning) for warning in safety_warnings
+        )
         blocked_operations = len([w for w in safety_warnings if "BLOCKED" in str(w)])
 
         change_summary = {}
         for change in changes_made:
             if "Replaced" in change:
-                change_summary["placeholders"] = change_summary.get("placeholders", 0) + 1
+                change_summary["placeholders"] = (
+                    change_summary.get("placeholders", 0) + 1
+                )
             elif "Found and replaced" in change:
                 change_summary["searches"] = change_summary.get("searches", 0) + 1
             elif "Updated" in change:
                 change_summary["positions"] = change_summary.get("positions", 0) + 1
 
         original_result = {
-            "SAFETY_STATUS": "CRITICAL_ISSUES_DETECTED" if has_critical_warnings else "OK",
+            "SAFETY_STATUS": "CRITICAL_ISSUES_DETECTED"
+            if has_critical_warnings
+            else "OK",
             "success": len(changes_made) > 0 and not has_critical_warnings,
             "completed_operations": len(changes_made),
             "blocked_operations": blocked_operations,
             "safety_warnings": safety_warnings,
             "filled_summary": change_summary,
-            "template_status": "partially_complete" if blocked_operations > 0 else "complete",
-            "action_required": "Review safety warnings and use more specific context" if safety_warnings else "none",
+            "template_status": "partially_complete"
+            if blocked_operations > 0
+            else "complete",
+            "action_required": "Review safety warnings and use more specific context"
+            if safety_warnings
+            else "none",
         }
         return await save_and_return_document(original_result, document_id, context)
 
