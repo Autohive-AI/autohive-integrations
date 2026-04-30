@@ -50,9 +50,7 @@ pytestmark = pytest.mark.integration
 ACCESS_TOKEN = os.environ.get("LINKEDIN_ACCESS_TOKEN", "")
 
 # 1x1 PNG (LinkedIn-acceptable image), small enough to upload quickly.
-SAMPLE_PNG_BASE64 = (
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-)
+SAMPLE_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 
 
 @pytest.fixture
@@ -85,6 +83,7 @@ def live_context():
                 if text:
                     try:
                         import json as _json
+
                         body = _json.loads(text)
                     except ValueError:
                         body = text
@@ -223,5 +222,3 @@ class TestResharePost:
                 assert rdel.result.data["result"] == "Post deleted successfully."
             odel = await linkedin.execute_action("delete_post", {"post_urn": original_id}, live_context)
             assert odel.result.data["result"] == "Post deleted successfully."
-
-
