@@ -9,7 +9,7 @@ All actions use the Humanitix Public API v1.
 from autohive_integrations_sdk import Integration
 
 
-humanitix = Integration.load("config.json")
+humanitix = Integration.load()
 
 # Import actions to register handlers
 import actions  # noqa: F401, E402

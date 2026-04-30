@@ -2,37 +2,11 @@
 Humanitix Check In / Check Out actions - Manage ticket check-in status for events.
 """
 
-from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionContext
+from autohive_integrations_sdk import ActionHandler, ActionResult, ActionError, ExecutionContext
 from typing import Dict, Any
 
 from humanitix import humanitix
-from helpers import get_api_headers, build_url, build_error_result
-
-
-async def _toggle_check(inputs: Dict[str, Any], context: ExecutionContext, action: str) -> ActionResult:
-    event_id = inputs["event_id"]
-    ticket_id = inputs["ticket_id"]
-    override_location = inputs.get("override_location")
-
-    headers = get_api_headers(context)
-    headers["Content-Type"] = "application/json"
-
-    params = {"overrideLocation": override_location} if override_location else None
-    url = build_url(f"events/{event_id}/tickets/{ticket_id}/{action}", params)
-
-    response = await context.fetch(url, method="POST", headers=headers)
-
-    if error := build_error_result(response):
-        return error
-
-    data = response.data or {}
-    return ActionResult(
-        data={
-            "result": True,
-            "scanningMessages": data.get("scanningMessages", []) if isinstance(data, dict) else [],
-        },
-        cost_usd=0.0,
-    )
+from helpers import get_api_headers, build_url
 
 
 @humanitix.action("check_in")
@@ -46,7 +20,33 @@ class CheckInAction(ActionHandler):
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        return await _toggle_check(inputs, context, "check-in")
+        event_id = inputs["event_id"]
+        ticket_id = inputs["ticket_id"]
+        override_location = inputs.get("override_location")
+
+        headers = get_api_headers(context)
+        headers["Content-Type"] = "application/json"
+
+        params = {"overrideLocation": override_location} if override_location else None
+        url = build_url(f"events/{event_id}/tickets/{ticket_id}/check-in", params)
+
+        response = await context.fetch(url, method="POST", headers=headers)
+
+        if response.status >= 400:
+            data = response.data or {}
+            msg = (
+                data.get("message", f"HTTP {response.status}") if isinstance(data, dict) else f"HTTP {response.status}"
+            )
+            return ActionError(message=msg)
+
+        data = response.data or {}
+        return ActionResult(
+            data={
+                "result": True,
+                "scanningMessages": data.get("scanningMessages", []) if isinstance(data, dict) else [],
+            },
+            cost_usd=0.0,
+        )
 
 
 @humanitix.action("check_out")
@@ -60,4 +60,30 @@ class CheckOutAction(ActionHandler):
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        return await _toggle_check(inputs, context, "check-out")
+        event_id = inputs["event_id"]
+        ticket_id = inputs["ticket_id"]
+        override_location = inputs.get("override_location")
+
+        headers = get_api_headers(context)
+        headers["Content-Type"] = "application/json"
+
+        params = {"overrideLocation": override_location} if override_location else None
+        url = build_url(f"events/{event_id}/tickets/{ticket_id}/check-out", params)
+
+        response = await context.fetch(url, method="POST", headers=headers)
+
+        if response.status >= 400:
+            data = response.data or {}
+            msg = (
+                data.get("message", f"HTTP {response.status}") if isinstance(data, dict) else f"HTTP {response.status}"
+            )
+            return ActionError(message=msg)
+
+        data = response.data or {}
+        return ActionResult(
+            data={
+                "result": True,
+                "scanningMessages": data.get("scanningMessages", []) if isinstance(data, dict) else [],
+            },
+            cost_usd=0.0,
+        )
