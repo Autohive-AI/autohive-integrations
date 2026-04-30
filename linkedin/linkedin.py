@@ -5,10 +5,14 @@ This module provides LinkedIn integration including:
 - User profile information retrieval
 - Content sharing/posting (text, articles, reshares)
 - Post management (update, delete)
-- Comment creation and deletion
-- Reaction creation and deletion
 
 All actions use the LinkedIn API with version 202601.
+
+Comment and reaction actions are not included because they require LinkedIn's
+Community Management API product approval (a partnership level beyond the
+self-serve "Share on LinkedIn" product). w_member_social on its own returns
+HTTP 403 ACCESS_DENIED for the partnerApiComments / partnerApiReactions
+backend services.
 """
 
 from autohive_integrations_sdk import (
@@ -481,7 +485,9 @@ class UpdatePostActionHandler(ActionHandler):
         headers["X-RestLi-Method"] = "PARTIAL_UPDATE"
 
         try:
-            await context.fetch(url, method="POST", json=payload, headers=headers)
+            response = await context.fetch(url, method="POST", json=payload, headers=headers)
+            if response.status >= 400:
+                return ActionError(message=f"Failed to update post: HTTP {response.status} {response.data}")
 
             return ActionResult(data={"result": "Post updated successfully.", "post_urn": post_urn})
         except Exception as e:
@@ -501,155 +507,10 @@ class DeletePostActionHandler(ActionHandler):
         headers["X-RestLi-Method"] = "DELETE"
 
         try:
-            await context.fetch(url, method="DELETE", headers=headers)
+            response = await context.fetch(url, method="DELETE", headers=headers)
+            if response.status >= 400:
+                return ActionError(message=f"Failed to delete post: HTTP {response.status} {response.data}")
 
             return ActionResult(data={"result": "Post deleted successfully.", "post_urn": post_urn})
         except Exception as e:
             return ActionError(message=f"Failed to delete post: {str(e)}")
-
-
-# =============================================================================
-# COMMENTS MANAGEMENT ACTIONS
-# =============================================================================
-
-
-@linkedin.action("create_comment")
-class CreateCommentActionHandler(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        """Create a comment on a post."""
-        post_urn = inputs.get("post_urn")
-        message = inputs.get("message")
-        author_id = inputs.get("author_id")
-
-        # Determine author URN
-        if author_id:
-            actor_urn = f"urn:li:person:{author_id}"
-        else:
-            try:
-                actor_urn = await get_current_user_urn(context)
-            except Exception as e:
-                return ActionError(message=f"Failed to create comment. Could not determine current user: {str(e)}")
-
-        encoded_post_urn = encode_urn(post_urn)
-        url = f"https://api.linkedin.com/rest/socialActions/{encoded_post_urn}/comments"
-
-        payload = {"actor": actor_urn, "object": post_urn, "message": {"text": message}}
-
-        try:
-            response = await context.fetch(url, method="POST", json=payload, headers=get_linkedin_headers())
-            body = response.data
-
-            comment_id = body.get("id") if isinstance(body, dict) else None
-
-            return ActionResult(
-                data={
-                    "result": "Comment created successfully.",
-                    "comment_id": comment_id,
-                    "comment": body,
-                }
-            )
-        except Exception as e:
-            return ActionError(message=f"Failed to create comment: {str(e)}")
-
-
-@linkedin.action("delete_comment")
-class DeleteCommentActionHandler(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        """Delete a comment."""
-        post_urn = inputs.get("post_urn")
-        comment_id = inputs.get("comment_id")
-        author_id = inputs.get("author_id")
-
-        # Determine actor URN for the deletion
-        if author_id:
-            actor_urn = f"urn:li:person:{author_id}"
-        else:
-            try:
-                actor_urn = await get_current_user_urn(context)
-            except Exception as e:
-                return ActionError(message=f"Failed to delete comment. Could not determine current user: {str(e)}")
-
-        encoded_post_urn = encode_urn(post_urn)
-        encoded_actor = encode_urn(actor_urn)
-        encoded_comment_id = quote(str(comment_id), safe="")
-        url = f"https://api.linkedin.com/rest/socialActions/{encoded_post_urn}/comments/{encoded_comment_id}?actor={encoded_actor}"
-
-        try:
-            await context.fetch(url, method="DELETE", headers=get_linkedin_headers())
-
-            return ActionResult(
-                data={
-                    "result": "Comment deleted successfully.",
-                    "comment_id": comment_id,
-                }
-            )
-        except Exception as e:
-            return ActionError(message=f"Failed to delete comment: {str(e)}")
-
-
-# =============================================================================
-# REACTIONS MANAGEMENT ACTIONS
-# =============================================================================
-
-
-@linkedin.action("create_reaction")
-class CreateReactionActionHandler(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        """Add a reaction to a post or comment."""
-        target_urn = inputs.get("target_urn")
-        reaction_type = inputs.get("reaction_type", "LIKE")
-        author_id = inputs.get("author_id")
-
-        # Determine actor URN
-        if author_id:
-            actor_urn = f"urn:li:person:{author_id}"
-        else:
-            try:
-                actor_urn = await get_current_user_urn(context)
-            except Exception as e:
-                return ActionError(message=f"Failed to create reaction. Could not determine current user: {str(e)}")
-
-        encoded_actor = encode_urn(actor_urn)
-        url = f"https://api.linkedin.com/rest/reactions?actor={encoded_actor}"
-
-        payload = {"root": target_urn, "reactionType": reaction_type}
-
-        try:
-            response = await context.fetch(url, method="POST", json=payload, headers=get_linkedin_headers())
-
-            return ActionResult(data={"result": "Reaction created successfully.", "reaction": response.data})
-        except Exception as e:
-            return ActionError(message=f"Failed to create reaction: {str(e)}")
-
-
-@linkedin.action("delete_reaction")
-class DeleteReactionActionHandler(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        """Remove a reaction from a post or comment."""
-        target_urn = inputs.get("target_urn")
-        author_id = inputs.get("author_id")
-
-        # Determine actor URN
-        if author_id:
-            actor_urn = f"urn:li:person:{author_id}"
-        else:
-            try:
-                actor_urn = await get_current_user_urn(context)
-            except Exception as e:
-                return ActionError(message=f"Failed to delete reaction. Could not determine current user: {str(e)}")
-
-        encoded_actor = encode_urn(actor_urn)
-        encoded_target = encode_urn(target_urn)
-        url = f"https://api.linkedin.com/rest/reactions/(actor:{encoded_actor},entity:{encoded_target})"
-
-        try:
-            await context.fetch(url, method="DELETE", headers=get_linkedin_headers())
-
-            return ActionResult(
-                data={
-                    "result": "Reaction removed successfully.",
-                    "target_urn": target_urn,
-                }
-            )
-        except Exception as e:
-            return ActionError(message=f"Failed to remove reaction: {str(e)}")
