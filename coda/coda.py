@@ -41,23 +41,23 @@ class ListDocsAction(ActionHandler):
             # Build query parameters
             params = {}
 
-            if "is_owner" in inputs and inputs["is_owner"] is not None:
-                params["isOwner"] = str(inputs["is_owner"]).lower()
+            if inputs.get("is_owner") is not None:
+                params["isOwner"] = str(inputs.get("is_owner")).lower()
 
-            if "query" in inputs and inputs["query"]:
-                params["query"] = inputs["query"]
+            if inputs.get("query"):
+                params["query"] = inputs.get("query")
 
-            if "source_doc" in inputs and inputs["source_doc"]:
-                params["sourceDoc"] = inputs["source_doc"]
+            if inputs.get("source_doc"):
+                params["sourceDoc"] = inputs.get("source_doc")
 
-            if "is_published" in inputs and inputs["is_published"] is not None:
-                params["isPublished"] = str(inputs["is_published"]).lower()
+            if inputs.get("is_published") is not None:
+                params["isPublished"] = str(inputs.get("is_published")).lower()
 
-            if "is_starred" in inputs and inputs["is_starred"] is not None:
-                params["isStarred"] = str(inputs["is_starred"]).lower()
+            if inputs.get("is_starred") is not None:
+                params["isStarred"] = str(inputs.get("is_starred")).lower()
 
-            if "limit" in inputs and inputs["limit"]:
-                params["limit"] = inputs["limit"]
+            if inputs.get("limit"):
+                params["limit"] = inputs.get("limit")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -84,7 +84,7 @@ class GetDocAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required doc_id
-            doc_id = inputs["doc_id"]
+            doc_id = inputs.get("doc_id")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -110,17 +110,17 @@ class CreateDocAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Build request body
-            body = {"title": inputs["title"]}
+            body = {"title": inputs.get("title")}
 
             # Add optional fields if provided
-            if "source_doc" in inputs and inputs["source_doc"]:
-                body["sourceDoc"] = inputs["source_doc"]
+            if inputs.get("source_doc"):
+                body["sourceDoc"] = inputs.get("source_doc")
 
-            if "timezone" in inputs and inputs["timezone"]:
-                body["timezone"] = inputs["timezone"]
+            if inputs.get("timezone"):
+                body["timezone"] = inputs.get("timezone")
 
-            if "folder_id" in inputs and inputs["folder_id"]:
-                body["folderId"] = inputs["folder_id"]
+            if inputs.get("folder_id"):
+                body["folderId"] = inputs.get("folder_id")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -145,16 +145,16 @@ class UpdateDocAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required doc_id
-            doc_id = inputs["doc_id"]
+            doc_id = inputs.get("doc_id")
 
             # Build request body with only provided fields
             body = {}
 
-            if "title" in inputs and inputs["title"]:
-                body["title"] = inputs["title"]
+            if inputs.get("title"):
+                body["title"] = inputs.get("title")
 
-            if "icon_name" in inputs and inputs["icon_name"]:
-                body["iconName"] = inputs["icon_name"]
+            if inputs.get("icon_name"):
+                body["iconName"] = inputs.get("icon_name")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -180,7 +180,7 @@ class DeleteDocAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required doc_id
-            doc_id = inputs["doc_id"]
+            doc_id = inputs.get("doc_id")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -205,16 +205,16 @@ class ListPagesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required doc_id
-            doc_id = inputs["doc_id"]
+            doc_id = inputs.get("doc_id")
 
             # Build query parameters
             params = {}
 
-            if "limit" in inputs and inputs["limit"]:
-                params["limit"] = inputs["limit"]
+            if inputs.get("limit"):
+                params["limit"] = inputs.get("limit")
 
-            if "page_token" in inputs and inputs["page_token"]:
-                params["pageToken"] = inputs["page_token"]
+            if inputs.get("page_token"):
+                params["pageToken"] = inputs.get("page_token")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -247,8 +247,8 @@ class GetPageAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            page_id_or_name = inputs["page_id_or_name"]
+            doc_id = inputs.get("doc_id")
+            page_id_or_name = inputs.get("page_id_or_name")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -274,31 +274,31 @@ class CreatePageAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            name = inputs["name"]
+            doc_id = inputs.get("doc_id")
+            name = inputs.get("name")
 
             # Build request body
             body = {"name": name}
 
             # Add optional fields
-            if "subtitle" in inputs and inputs["subtitle"]:
-                body["subtitle"] = inputs["subtitle"]
+            if inputs.get("subtitle"):
+                body["subtitle"] = inputs.get("subtitle")
 
-            if "icon_name" in inputs and inputs["icon_name"]:
-                body["iconName"] = inputs["icon_name"]
+            if inputs.get("icon_name"):
+                body["iconName"] = inputs.get("icon_name")
 
-            if "image_url" in inputs and inputs["image_url"]:
-                body["imageUrl"] = inputs["image_url"]
+            if inputs.get("image_url"):
+                body["imageUrl"] = inputs.get("image_url")
 
-            if "parent_page_id" in inputs and inputs["parent_page_id"]:
-                body["parentPageId"] = inputs["parent_page_id"]
+            if inputs.get("parent_page_id"):
+                body["parentPageId"] = inputs.get("parent_page_id")
 
             # Add page content if provided
-            if "content" in inputs and inputs["content"]:
+            if inputs.get("content"):
                 content_format = inputs.get("content_format", "html")
                 body["pageContent"] = {
                     "type": "canvas",
-                    "canvasContent": {"format": content_format, "content": inputs["content"]},
+                    "canvasContent": {"format": content_format, "content": inputs.get("content")},
                 }
 
             # Get auth headers
@@ -326,23 +326,23 @@ class UpdatePageAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            page_id_or_name = inputs["page_id_or_name"]
+            doc_id = inputs.get("doc_id")
+            page_id_or_name = inputs.get("page_id_or_name")
 
             # Build request body with only provided fields
             body = {}
 
-            if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
+            if inputs.get("name"):
+                body["name"] = inputs.get("name")
 
-            if "subtitle" in inputs and inputs["subtitle"]:
-                body["subtitle"] = inputs["subtitle"]
+            if inputs.get("subtitle"):
+                body["subtitle"] = inputs.get("subtitle")
 
-            if "icon_name" in inputs and inputs["icon_name"]:
-                body["iconName"] = inputs["icon_name"]
+            if inputs.get("icon_name"):
+                body["iconName"] = inputs.get("icon_name")
 
-            if "image_url" in inputs and inputs["image_url"]:
-                body["imageUrl"] = inputs["image_url"]
+            if inputs.get("image_url"):
+                body["imageUrl"] = inputs.get("image_url")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -368,8 +368,8 @@ class DeletePageAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            page_id_or_name = inputs["page_id_or_name"]
+            doc_id = inputs.get("doc_id")
+            page_id_or_name = inputs.get("page_id_or_name")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -394,22 +394,22 @@ class ListTablesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required doc_id
-            doc_id = inputs["doc_id"]
+            doc_id = inputs.get("doc_id")
 
             # Build query parameters
             params = {}
 
-            if "limit" in inputs and inputs["limit"]:
-                params["limit"] = inputs["limit"]
+            if inputs.get("limit"):
+                params["limit"] = inputs.get("limit")
 
-            if "page_token" in inputs and inputs["page_token"]:
-                params["pageToken"] = inputs["page_token"]
+            if inputs.get("page_token"):
+                params["pageToken"] = inputs.get("page_token")
 
-            if "sort_by" in inputs and inputs["sort_by"]:
-                params["sortBy"] = inputs["sort_by"]
+            if inputs.get("sort_by"):
+                params["sortBy"] = inputs.get("sort_by")
 
-            if "table_types" in inputs and inputs["table_types"]:
-                params["tableTypes"] = inputs["table_types"]
+            if inputs.get("table_types"):
+                params["tableTypes"] = inputs.get("table_types")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -442,8 +442,8 @@ class GetTableAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            table_id_or_name = inputs["table_id_or_name"]
+            doc_id = inputs.get("doc_id")
+            table_id_or_name = inputs.get("table_id_or_name")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -468,20 +468,20 @@ class ListColumnsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            table_id_or_name = inputs["table_id_or_name"]
+            doc_id = inputs.get("doc_id")
+            table_id_or_name = inputs.get("table_id_or_name")
 
             # Build query parameters
             params = {}
 
-            if "limit" in inputs and inputs["limit"]:
-                params["limit"] = inputs["limit"]
+            if inputs.get("limit"):
+                params["limit"] = inputs.get("limit")
 
-            if "page_token" in inputs and inputs["page_token"]:
-                params["pageToken"] = inputs["page_token"]
+            if inputs.get("page_token"):
+                params["pageToken"] = inputs.get("page_token")
 
-            if "visible_only" in inputs and inputs["visible_only"] is not None:
-                params["visibleOnly"] = str(inputs["visible_only"]).lower()
+            if inputs.get("visible_only") is not None:
+                params["visibleOnly"] = str(inputs.get("visible_only")).lower()
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -514,9 +514,9 @@ class GetColumnAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            table_id_or_name = inputs["table_id_or_name"]
-            column_id_or_name = inputs["column_id_or_name"]
+            doc_id = inputs.get("doc_id")
+            table_id_or_name = inputs.get("table_id_or_name")
+            column_id_or_name = inputs.get("column_id_or_name")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -541,32 +541,32 @@ class ListRowsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            table_id_or_name = inputs["table_id_or_name"]
+            doc_id = inputs.get("doc_id")
+            table_id_or_name = inputs.get("table_id_or_name")
 
             # Build query parameters
             params = {}
 
-            if "limit" in inputs and inputs["limit"]:
-                params["limit"] = inputs["limit"]
+            if inputs.get("limit"):
+                params["limit"] = inputs.get("limit")
 
-            if "page_token" in inputs and inputs["page_token"]:
-                params["pageToken"] = inputs["page_token"]
+            if inputs.get("page_token"):
+                params["pageToken"] = inputs.get("page_token")
 
-            if "query" in inputs and inputs["query"]:
-                params["query"] = inputs["query"]
+            if inputs.get("query"):
+                params["query"] = inputs.get("query")
 
-            if "sort_by" in inputs and inputs["sort_by"]:
-                params["sortBy"] = inputs["sort_by"]
+            if inputs.get("sort_by"):
+                params["sortBy"] = inputs.get("sort_by")
 
-            if "use_column_names" in inputs and inputs["use_column_names"] is not None:
-                params["useColumnNames"] = str(inputs["use_column_names"]).lower()
+            if inputs.get("use_column_names") is not None:
+                params["useColumnNames"] = str(inputs.get("use_column_names")).lower()
 
-            if "value_format" in inputs and inputs["value_format"]:
-                params["valueFormat"] = inputs["value_format"]
+            if inputs.get("value_format"):
+                params["valueFormat"] = inputs.get("value_format")
 
-            if "visible_only" in inputs and inputs["visible_only"] is not None:
-                params["visibleOnly"] = str(inputs["visible_only"]).lower()
+            if inputs.get("visible_only") is not None:
+                params["visibleOnly"] = str(inputs.get("visible_only")).lower()
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -599,18 +599,18 @@ class GetRowAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            table_id_or_name = inputs["table_id_or_name"]
-            row_id_or_name = inputs["row_id_or_name"]
+            doc_id = inputs.get("doc_id")
+            table_id_or_name = inputs.get("table_id_or_name")
+            row_id_or_name = inputs.get("row_id_or_name")
 
             # Build query parameters
             params = {}
 
-            if "use_column_names" in inputs and inputs["use_column_names"] is not None:
-                params["useColumnNames"] = str(inputs["use_column_names"]).lower()
+            if inputs.get("use_column_names") is not None:
+                params["useColumnNames"] = str(inputs.get("use_column_names")).lower()
 
-            if "value_format" in inputs and inputs["value_format"]:
-                params["valueFormat"] = inputs["value_format"]
+            if inputs.get("value_format"):
+                params["valueFormat"] = inputs.get("value_format")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -636,21 +636,21 @@ class UpsertRowsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            table_id_or_name = inputs["table_id_or_name"]
-            rows = inputs["rows"]
+            doc_id = inputs.get("doc_id")
+            table_id_or_name = inputs.get("table_id_or_name")
+            rows = inputs.get("rows")
 
             # Build request body
             body = {"rows": rows}
 
             # Add optional keyColumns for upsert behavior
-            if "key_columns" in inputs and inputs["key_columns"]:
-                body["keyColumns"] = inputs["key_columns"]
+            if inputs.get("key_columns"):
+                body["keyColumns"] = inputs.get("key_columns")
 
             # Build query parameters
             params = {}
-            if "disable_parsing" in inputs and inputs["disable_parsing"]:
-                params["disableParsing"] = str(inputs["disable_parsing"]).lower()
+            if inputs.get("disable_parsing"):
+                params["disableParsing"] = str(inputs.get("disable_parsing")).lower()
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -676,18 +676,18 @@ class UpdateRowAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            table_id_or_name = inputs["table_id_or_name"]
-            row_id_or_name = inputs["row_id_or_name"]
-            cells = inputs["cells"]
+            doc_id = inputs.get("doc_id")
+            table_id_or_name = inputs.get("table_id_or_name")
+            row_id_or_name = inputs.get("row_id_or_name")
+            cells = inputs.get("cells")
 
             # Build request body
             body = {"row": {"cells": cells}}
 
             # Build query parameters
             params = {}
-            if "disable_parsing" in inputs and inputs["disable_parsing"]:
-                params["disableParsing"] = str(inputs["disable_parsing"]).lower()
+            if inputs.get("disable_parsing"):
+                params["disableParsing"] = str(inputs.get("disable_parsing")).lower()
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -712,9 +712,9 @@ class DeleteRowAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            table_id_or_name = inputs["table_id_or_name"]
-            row_id_or_name = inputs["row_id_or_name"]
+            doc_id = inputs.get("doc_id")
+            table_id_or_name = inputs.get("table_id_or_name")
+            row_id_or_name = inputs.get("row_id_or_name")
 
             # Get auth headers
             headers = get_auth_headers(context)
@@ -739,9 +739,9 @@ class DeleteRowsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             # Extract required parameters
-            doc_id = inputs["doc_id"]
-            table_id_or_name = inputs["table_id_or_name"]
-            row_ids = inputs["row_ids"]
+            doc_id = inputs.get("doc_id")
+            table_id_or_name = inputs.get("table_id_or_name")
+            row_ids = inputs.get("row_ids")
 
             # Build request body
             body = {"rowIds": row_ids}
