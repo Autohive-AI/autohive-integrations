@@ -1,6 +1,6 @@
 {
   "name": "coda",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Coda integration for managing documents, pages, tables, and rows",
   "entry_point": "coda.py",
   "auth": {
@@ -69,10 +69,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -106,10 +102,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -155,10 +147,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -200,10 +188,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -237,10 +221,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -292,10 +272,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -334,10 +310,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -405,10 +377,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -463,10 +431,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -505,10 +469,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -569,10 +529,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -611,10 +567,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -676,10 +628,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -723,10 +671,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -811,10 +755,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -873,10 +813,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -960,10 +896,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -1033,10 +965,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -1080,10 +1008,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
@@ -1130,10 +1054,6 @@
           "result": {
             "type": "boolean",
             "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if operation failed"
           }
         },
         "required": [
