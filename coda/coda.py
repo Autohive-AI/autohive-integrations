@@ -83,13 +83,10 @@ class GetDocAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required doc_id
-            doc_id = inputs.get("doc_id")
+            doc_id = inputs["doc_id"]
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}"
             response = await context.fetch(url, method="GET", headers=headers)
 
@@ -109,10 +106,8 @@ class CreateDocAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Build request body
-            body = {"title": inputs.get("title")}
+            body = {"title": inputs["title"]}
 
-            # Add optional fields if provided
             if inputs.get("source_doc"):
                 body["sourceDoc"] = inputs.get("source_doc")
 
@@ -122,10 +117,8 @@ class CreateDocAction(ActionHandler):
             if inputs.get("folder_id"):
                 body["folderId"] = inputs.get("folder_id")
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs"
             response = await context.fetch(url, method="POST", headers=headers, json=body)
 
@@ -144,10 +137,8 @@ class UpdateDocAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required doc_id
-            doc_id = inputs.get("doc_id")
+            doc_id = inputs["doc_id"]
 
-            # Build request body with only provided fields
             body = {}
 
             if inputs.get("title"):
@@ -156,10 +147,8 @@ class UpdateDocAction(ActionHandler):
             if inputs.get("icon_name"):
                 body["iconName"] = inputs.get("icon_name")
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}"
             response = await context.fetch(url, method="PATCH", headers=headers, json=body)
 
@@ -179,13 +168,10 @@ class DeleteDocAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required doc_id
-            doc_id = inputs.get("doc_id")
+            doc_id = inputs["doc_id"]
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}"
             response = await context.fetch(url, method="DELETE", headers=headers)
 
@@ -204,10 +190,8 @@ class ListPagesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required doc_id
-            doc_id = inputs.get("doc_id")
+            doc_id = inputs["doc_id"]
 
-            # Build query parameters
             params = {}
 
             if inputs.get("limit"):
@@ -216,14 +200,11 @@ class ListPagesAction(ActionHandler):
             if inputs.get("page_token"):
                 params["pageToken"] = inputs.get("page_token")
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages"
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
-            # Extract pages from response
             pages = response.data.get("items", [])
             next_page_token = response.data.get("nextPageToken")
 
@@ -246,14 +227,11 @@ class GetPageAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            page_id_or_name = inputs.get("page_id_or_name")
+            doc_id = inputs["doc_id"]
+            page_id_or_name = inputs["page_id_or_name"]
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages/{page_id_or_name}"
             response = await context.fetch(url, method="GET", headers=headers)
 
@@ -273,14 +251,11 @@ class CreatePageAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            name = inputs.get("name")
+            doc_id = inputs["doc_id"]
+            name = inputs["name"]
 
-            # Build request body
             body = {"name": name}
 
-            # Add optional fields
             if inputs.get("subtitle"):
                 body["subtitle"] = inputs.get("subtitle")
 
@@ -293,7 +268,6 @@ class CreatePageAction(ActionHandler):
             if inputs.get("parent_page_id"):
                 body["parentPageId"] = inputs.get("parent_page_id")
 
-            # Add page content if provided
             if inputs.get("content"):
                 content_format = inputs.get("content_format", "html")
                 body["pageContent"] = {
@@ -301,10 +275,8 @@ class CreatePageAction(ActionHandler):
                     "canvasContent": {"format": content_format, "content": inputs.get("content")},
                 }
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages"
             response = await context.fetch(url, method="POST", headers=headers, json=body)
 
@@ -325,11 +297,9 @@ class UpdatePageAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            page_id_or_name = inputs.get("page_id_or_name")
+            doc_id = inputs["doc_id"]
+            page_id_or_name = inputs["page_id_or_name"]
 
-            # Build request body with only provided fields
             body = {}
 
             if inputs.get("name"):
@@ -344,10 +314,8 @@ class UpdatePageAction(ActionHandler):
             if inputs.get("image_url"):
                 body["imageUrl"] = inputs.get("image_url")
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages/{page_id_or_name}"
             response = await context.fetch(url, method="PUT", headers=headers, json=body)
 
@@ -367,14 +335,11 @@ class DeletePageAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            page_id_or_name = inputs.get("page_id_or_name")
+            doc_id = inputs["doc_id"]
+            page_id_or_name = inputs["page_id_or_name"]
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages/{page_id_or_name}"
             response = await context.fetch(url, method="DELETE", headers=headers)
 
@@ -393,10 +358,8 @@ class ListTablesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required doc_id
-            doc_id = inputs.get("doc_id")
+            doc_id = inputs["doc_id"]
 
-            # Build query parameters
             params = {}
 
             if inputs.get("limit"):
@@ -411,14 +374,11 @@ class ListTablesAction(ActionHandler):
             if inputs.get("table_types"):
                 params["tableTypes"] = inputs.get("table_types")
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables"
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
-            # Extract tables from response
             tables = response.data.get("items", [])
             next_page_token = response.data.get("nextPageToken")
 
@@ -441,14 +401,11 @@ class GetTableAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            table_id_or_name = inputs.get("table_id_or_name")
+            doc_id = inputs["doc_id"]
+            table_id_or_name = inputs["table_id_or_name"]
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}"
             response = await context.fetch(url, method="GET", headers=headers)
 
@@ -467,11 +424,9 @@ class ListColumnsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            table_id_or_name = inputs.get("table_id_or_name")
+            doc_id = inputs["doc_id"]
+            table_id_or_name = inputs["table_id_or_name"]
 
-            # Build query parameters
             params = {}
 
             if inputs.get("limit"):
@@ -483,14 +438,11 @@ class ListColumnsAction(ActionHandler):
             if inputs.get("visible_only") is not None:
                 params["visibleOnly"] = str(inputs.get("visible_only")).lower()
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/columns"
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
-            # Extract columns from response
             columns = response.data.get("items", [])
             next_page_token = response.data.get("nextPageToken")
 
@@ -513,15 +465,12 @@ class GetColumnAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            table_id_or_name = inputs.get("table_id_or_name")
-            column_id_or_name = inputs.get("column_id_or_name")
+            doc_id = inputs["doc_id"]
+            table_id_or_name = inputs["table_id_or_name"]
+            column_id_or_name = inputs["column_id_or_name"]
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/columns/{column_id_or_name}"
             response = await context.fetch(url, method="GET", headers=headers)
 
@@ -540,11 +489,9 @@ class ListRowsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            table_id_or_name = inputs.get("table_id_or_name")
+            doc_id = inputs["doc_id"]
+            table_id_or_name = inputs["table_id_or_name"]
 
-            # Build query parameters
             params = {}
 
             if inputs.get("limit"):
@@ -568,14 +515,11 @@ class ListRowsAction(ActionHandler):
             if inputs.get("visible_only") is not None:
                 params["visibleOnly"] = str(inputs.get("visible_only")).lower()
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows"
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
-            # Extract rows from response
             rows = response.data.get("items", [])
             next_page_token = response.data.get("nextPageToken")
 
@@ -598,12 +542,10 @@ class GetRowAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            table_id_or_name = inputs.get("table_id_or_name")
-            row_id_or_name = inputs.get("row_id_or_name")
+            doc_id = inputs["doc_id"]
+            table_id_or_name = inputs["table_id_or_name"]
+            row_id_or_name = inputs["row_id_or_name"]
 
-            # Build query parameters
             params = {}
 
             if inputs.get("use_column_names") is not None:
@@ -612,10 +554,8 @@ class GetRowAction(ActionHandler):
             if inputs.get("value_format"):
                 params["valueFormat"] = inputs.get("value_format")
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows/{row_id_or_name}"
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
@@ -635,27 +575,21 @@ class UpsertRowsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            table_id_or_name = inputs.get("table_id_or_name")
-            rows = inputs.get("rows")
+            doc_id = inputs["doc_id"]
+            table_id_or_name = inputs["table_id_or_name"]
+            rows = inputs["rows"]
 
-            # Build request body
             body = {"rows": rows}
 
-            # Add optional keyColumns for upsert behavior
             if inputs.get("key_columns"):
                 body["keyColumns"] = inputs.get("key_columns")
 
-            # Build query parameters
             params = {}
             if inputs.get("disable_parsing"):
                 params["disableParsing"] = str(inputs.get("disable_parsing")).lower()
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows"
             response = await context.fetch(url, method="POST", headers=headers, params=params, json=body)
 
@@ -675,24 +609,19 @@ class UpdateRowAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            table_id_or_name = inputs.get("table_id_or_name")
-            row_id_or_name = inputs.get("row_id_or_name")
-            cells = inputs.get("cells")
+            doc_id = inputs["doc_id"]
+            table_id_or_name = inputs["table_id_or_name"]
+            row_id_or_name = inputs["row_id_or_name"]
+            cells = inputs["cells"]
 
-            # Build request body
             body = {"row": {"cells": cells}}
 
-            # Build query parameters
             params = {}
             if inputs.get("disable_parsing"):
                 params["disableParsing"] = str(inputs.get("disable_parsing")).lower()
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows/{row_id_or_name}"
             response = await context.fetch(url, method="PUT", headers=headers, params=params, json=body)
 
@@ -711,15 +640,12 @@ class DeleteRowAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            table_id_or_name = inputs.get("table_id_or_name")
-            row_id_or_name = inputs.get("row_id_or_name")
+            doc_id = inputs["doc_id"]
+            table_id_or_name = inputs["table_id_or_name"]
+            row_id_or_name = inputs["row_id_or_name"]
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows/{row_id_or_name}"
             response = await context.fetch(url, method="DELETE", headers=headers)
 
@@ -738,18 +664,14 @@ class DeleteRowsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Extract required parameters
-            doc_id = inputs.get("doc_id")
-            table_id_or_name = inputs.get("table_id_or_name")
-            row_ids = inputs.get("row_ids")
+            doc_id = inputs["doc_id"]
+            table_id_or_name = inputs["table_id_or_name"]
+            row_ids = inputs["row_ids"]
 
-            # Build request body
             body = {"rowIds": row_ids}
 
-            # Get auth headers
             headers = get_auth_headers(context)
 
-            # Make API request
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows"
             response = await context.fetch(url, method="DELETE", headers=headers, json=body)
 
