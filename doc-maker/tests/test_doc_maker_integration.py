@@ -13,6 +13,7 @@ import sys
 import importlib
 import importlib.util
 import base64
+from io import BytesIO
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
@@ -34,6 +35,15 @@ sys.modules["doc_maker_mod_intg"] = _mod
 doc_maker = _mod.doc_maker
 
 pytestmark = pytest.mark.integration
+
+
+def assert_valid_docx(file_obj: dict) -> None:
+    """Decode base64 content and verify python-docx can open it."""
+    from docx import Document
+
+    raw = base64.b64decode(file_obj["content"] + "==")
+    doc = Document(BytesIO(raw))
+    assert doc is not None
 
 
 @pytest.fixture
@@ -64,9 +74,7 @@ class TestCreateDocument:
         assert "content" in file_obj
         assert file_obj["name"].endswith(".docx")
 
-        # Verify the content is valid base64-encoded DOCX (ZIP magic bytes PK)
-        raw = base64.b64decode(file_obj["content"] + "==")
-        assert raw[:2] == b"PK"
+        assert_valid_docx(file_obj)
 
     async def test_create_document_with_title(self, live_context):
         result = await doc_maker.execute_action("create_document", {"title": "My Integration Test Doc"}, live_context)
@@ -138,8 +146,7 @@ class TestSaveDocument:
         assert "file" in data
         assert data["file"]["name"].endswith(".docx")
 
-        raw = base64.b64decode(data["file"]["content"] + "==")
-        assert raw[:2] == b"PK"
+        assert_valid_docx(data["file"])
 
     async def test_save_missing_document_returns_error(self, live_context):
         result = await doc_maker.execute_action(
