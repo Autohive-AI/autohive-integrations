@@ -217,7 +217,9 @@ async def test_add_image():
 
     # Create a simple test image (1x1 pixel PNG)
     # This is a minimal PNG file in base64
-    test_image_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77ywAAAABJRU5ErkJggg=="
+    test_image_base64 = (  # noqa: E501
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77ywAAAABJRU5ErkJggg=="
+    )
 
     # First create a document
     initial_content = """# Document with Image
@@ -658,7 +660,9 @@ to demonstrate document modification capabilities."""
             )
 
             # Add a test image
-            test_image_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77ywAAAABJRU5ErkJggg=="
+            test_image_base64 = (  # noqa: E501
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77ywAAAABJRU5ErkJggg=="
+            )
 
             image_inputs = {
                 "document_id": document_id,
