@@ -93,23 +93,17 @@ class TestRunner:
 
         # Run integration tests
         if "integration" in test_types:
-            result = await self.run_test_suite(
-                "Integration Tests", run_integration_tests_wrapper
-            )
+            result = await self.run_test_suite("Integration Tests", run_integration_tests_wrapper)
             self.results.append(result)
 
         # Run template filling tests
         if "template" in test_types:
-            result = await self.run_test_suite(
-                "Template Filling Tests", run_template_tests_wrapper
-            )
+            result = await self.run_test_suite("Template Filling Tests", run_template_tests_wrapper)
             self.results.append(result)
 
         # Run spacing tests
         if "spacing" in test_types:
-            result = await self.run_test_suite(
-                "Spacing Tests", run_spacing_tests_wrapper
-            )
+            result = await self.run_test_suite("Spacing Tests", run_spacing_tests_wrapper)
             self.results.append(result)
 
         # Print final summary
@@ -144,9 +138,7 @@ class TestRunner:
 
         success_rate = (total_passed / total_tests * 100) if total_tests > 0 else 0
 
-        print(
-            f"\nOverall: {total_passed}/{total_tests} tests passed ({success_rate:.1f}%)"
-        )
+        print(f"\nOverall: {total_passed}/{total_tests} tests passed ({success_rate:.1f}%)")
         print(f"Time: {elapsed:.2f}s")
 
         if all_success:
@@ -212,12 +204,8 @@ Examples:
     )
 
     parser.add_argument("--unit", action="store_true", help="Run only unit tests")
-    parser.add_argument(
-        "--integration", action="store_true", help="Run only integration tests"
-    )
-    parser.add_argument(
-        "--template", action="store_true", help="Run only template tests"
-    )
+    parser.add_argument("--integration", action="store_true", help="Run only integration tests")
+    parser.add_argument("--template", action="store_true", help="Run only template tests")
     parser.add_argument("--spacing", action="store_true", help="Run only spacing tests")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 

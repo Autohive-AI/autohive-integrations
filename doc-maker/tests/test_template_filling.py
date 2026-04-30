@@ -13,15 +13,11 @@ async def test_template_analysis_and_filling():
     auth = {}
 
     # Load the existing comprehensive template file
-    template_path = os.path.join(
-        os.path.dirname(__file__), "ORIGINAL_COMPREHENSIVE_TEMPLATE.docx"
-    )
+    template_path = os.path.join(os.path.dirname(__file__), "ORIGINAL_COMPREHENSIVE_TEMPLATE.docx")
 
     if not os.path.exists(template_path):
         print(f"[ERROR] Original template not found: {template_path}")
-        print(
-            "[INFO] Run create_original_templates.py first to create the template files!"
-        )
+        print("[INFO] Run create_original_templates.py first to create the template files!")
         return None
 
     # Read the template file
@@ -44,14 +40,10 @@ async def test_template_analysis_and_filling():
     async with ExecutionContext(auth=auth) as context:
         try:
             # Load existing template (this creates a new document_id but loads the existing file)
-            template_result = await doc_maker.execute_action(
-                "create_document", create_inputs, context
-            )
+            template_result = await doc_maker.execute_action("create_document", create_inputs, context)
             document_id = template_result["document_id"]
 
-            print(
-                f"[SUCCESS] Template created with {template_result['paragraph_count']} paragraphs"
-            )
+            print(f"[SUCCESS] Template created with {template_result['paragraph_count']} paragraphs")
 
             # Step 2: Analyze template structure
             analysis_inputs = {
@@ -60,33 +52,23 @@ async def test_template_analysis_and_filling():
                 "files": [template_result["file"]],
             }
 
-            analysis_result = await doc_maker.execute_action(
-                "get_document_elements", analysis_inputs, context
-            )
+            analysis_result = await doc_maker.execute_action("get_document_elements", analysis_inputs, context)
 
             print("[ANALYSIS] Template structure:")
             print(f"   Template summary: {analysis_result['template_summary']}")
-            print(
-                f"   Fillable total: {analysis_result['template_summary']['fillable_total']}"
-            )
-            print(
-                f"   Fillable paragraphs: {len(analysis_result['fillable_paragraphs'])}"
-            )
+            print(f"   Fillable total: {analysis_result['template_summary']['fillable_total']}")
+            print(f"   Fillable paragraphs: {len(analysis_result['fillable_paragraphs'])}")
             print(f"   Fillable cells: {len(analysis_result['fillable_cells'])}")
 
             # Show some fillable elements
             print("   Detected fillable elements:")
             for elem in analysis_result["fillable_paragraphs"][:5]:  # Show first 5
-                print(
-                    f"     - {elem['id']}: '{elem['content'][:50]}...' (pattern: {elem['pattern']})"
-                )
+                print(f"     - {elem['id']}: '{elem['content'][:50]}...' (pattern: {elem['pattern']})")
 
             if analysis_result["fillable_cells"]:
                 print("   First fillable cells:")
                 for cell in analysis_result["fillable_cells"][:3]:
-                    print(
-                        f"     - {cell['id']}: '{cell['content']}' at {cell['location']}"
-                    )
+                    print(f"     - {cell['id']}: '{cell['content']}' at {cell['location']}")
 
             # Step 3: Fill template using comprehensive approach
             template_data = {
@@ -146,9 +128,7 @@ async def test_template_analysis_and_filling():
                 "files": [template_result["file"]],
             }
 
-            filled_result = await doc_maker.execute_action(
-                "fill_template_fields", fill_inputs, context
-            )
+            filled_result = await doc_maker.execute_action("fill_template_fields", fill_inputs, context)
 
             print("[SUCCESS] Template filled successfully!")
             print(f"   Success: {filled_result['success']}")
@@ -157,23 +137,17 @@ async def test_template_analysis_and_filling():
             if filled_result.get("filled_summary"):
                 print(f"   Filled summary: {filled_result['filled_summary']}")
             if filled_result.get("safety_warnings"):
-                print(
-                    f"   Safety warnings: {len(filled_result['safety_warnings'])} warnings"
-                )
+                print(f"   Safety warnings: {len(filled_result['safety_warnings'])} warnings")
 
             # Save filled template with new name
             file_content = base64.b64decode(filled_result["file"]["content"])
-            output_path = os.path.join(
-                os.path.dirname(__file__), "COMPREHENSIVE_TEMPLATE_EDITED.docx"
-            )
+            output_path = os.path.join(os.path.dirname(__file__), "COMPREHENSIVE_TEMPLATE_EDITED.docx")
 
             with open(output_path, "wb") as f:
                 f.write(file_content)
 
             print(f"   [FILE] Edited template saved to: {output_path}")
-            print(
-                "   [INFO] Compare ORIGINAL_COMPREHENSIVE_TEMPLATE.docx with COMPREHENSIVE_TEMPLATE_EDITED.docx!"
-            )
+            print("   [INFO] Compare ORIGINAL_COMPREHENSIVE_TEMPLATE.docx with COMPREHENSIVE_TEMPLATE_EDITED.docx!")
 
             return filled_result
 
@@ -189,9 +163,7 @@ async def test_natural_language_placeholders():
     auth = {}
 
     # Load the existing natural language template file
-    template_path = os.path.join(
-        os.path.dirname(__file__), "ORIGINAL_NATURAL_TEMPLATE.docx"
-    )
+    template_path = os.path.join(os.path.dirname(__file__), "ORIGINAL_NATURAL_TEMPLATE.docx")
 
     if not os.path.exists(template_path):
         print(f"[ERROR] Original natural template not found: {template_path}")
@@ -218,9 +190,7 @@ async def test_natural_language_placeholders():
     async with ExecutionContext(auth=auth) as context:
         try:
             # Load existing template
-            template_result = await doc_maker.execute_action(
-                "create_document", create_inputs, context
-            )
+            template_result = await doc_maker.execute_action("create_document", create_inputs, context)
             document_id = template_result["document_id"]
 
             # Analyze to see what's detected as fillable
@@ -275,9 +245,7 @@ async def test_natural_language_placeholders():
                 "files": [template_result["file"]],
             }
 
-            filled_result = await doc_maker.execute_action(
-                "find_and_replace", replace_inputs, context
-            )
+            filled_result = await doc_maker.execute_action("find_and_replace", replace_inputs, context)
 
             print("[SUCCESS] Natural language template filled!")
             print(f"   Success: {filled_result['success']}")
@@ -288,17 +256,13 @@ async def test_natural_language_placeholders():
 
             # Save edited natural template with new name
             file_content = base64.b64decode(filled_result["file"]["content"])
-            output_path = os.path.join(
-                os.path.dirname(__file__), "NATURAL_TEMPLATE_EDITED.docx"
-            )
+            output_path = os.path.join(os.path.dirname(__file__), "NATURAL_TEMPLATE_EDITED.docx")
 
             with open(output_path, "wb") as f:
                 f.write(file_content)
 
             print(f"   [FILE] Edited natural template saved to: {output_path}")
-            print(
-                "   [INFO] Compare ORIGINAL_NATURAL_TEMPLATE.docx with NATURAL_TEMPLATE_EDITED.docx!"
-            )
+            print("   [INFO] Compare ORIGINAL_NATURAL_TEMPLATE.docx with NATURAL_TEMPLATE_EDITED.docx!")
 
             return filled_result
 
@@ -340,13 +304,9 @@ async def main():
         print("\n[SUCCESS] All template filling tests passed!")
         print("[FILES] Template comparison files:")
         print("   ORIGINAL -> EDITED:")
-        print(
-            "   - ORIGINAL_COMPREHENSIVE_TEMPLATE.docx -> COMPREHENSIVE_TEMPLATE_EDITED.docx"
-        )
+        print("   - ORIGINAL_COMPREHENSIVE_TEMPLATE.docx -> COMPREHENSIVE_TEMPLATE_EDITED.docx")
         print("   - ORIGINAL_NATURAL_TEMPLATE.docx -> NATURAL_TEMPLATE_EDITED.docx")
-        print(
-            "\n[INFO] Open original and edited files side-by-side to see template modifications!"
-        )
+        print("\n[INFO] Open original and edited files side-by-side to see template modifications!")
     else:
         print("\n[WARNING] Some template tests failed.")
 

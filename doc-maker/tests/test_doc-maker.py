@@ -120,9 +120,7 @@ and customer focus has positioned us well for continued growth in 2025.
 
             # Save the file locally for inspection
             file_content = base64.b64decode(result["file"]["content"])
-            output_path = os.path.join(
-                os.path.dirname(__file__), "output_test_document.docx"
-            )
+            output_path = os.path.join(os.path.dirname(__file__), "output_test_document.docx")
 
             with open(output_path, "wb") as f:
                 f.write(file_content)
@@ -184,9 +182,7 @@ This content was added using the `add_markdown_content` action.
                 "files": [result["file"]],  # Pass the current document
             }
 
-            append_result = await doc_maker.execute_action(
-                "add_markdown_content", append_inputs, context
-            )
+            append_result = await doc_maker.execute_action("add_markdown_content", append_inputs, context)
 
             print("[SUCCESS] Content added successfully!")
             print(f"   Elements added: {append_result['elements_added']}")
@@ -194,9 +190,7 @@ This content was added using the `add_markdown_content` action.
 
             # Save the updated document
             file_content = base64.b64decode(append_result["file"]["content"])
-            output_path = os.path.join(
-                os.path.dirname(__file__), "output_test_append.docx"
-            )
+            output_path = os.path.join(os.path.dirname(__file__), "output_test_append.docx")
 
             with open(output_path, "wb") as f:
                 f.write(file_content)
@@ -238,9 +232,7 @@ The image appears here:"""
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create initial document
-            result = await doc_maker.execute_action(
-                "create_document", create_inputs, context
-            )
+            result = await doc_maker.execute_action("create_document", create_inputs, context)
             document_id = result["document_id"]
 
             # Add image to the document
@@ -258,18 +250,14 @@ The image appears here:"""
                 ],
             }
 
-            image_result = await doc_maker.execute_action(
-                "add_image", image_inputs, context
-            )
+            image_result = await doc_maker.execute_action("add_image", image_inputs, context)
 
             print("[SUCCESS] Image added successfully!")
             print(f"   Image added: {image_result['image_added']}")
 
             # Save the document with image
             file_content = base64.b64decode(image_result["file"]["content"])
-            output_path = os.path.join(
-                os.path.dirname(__file__), "output_test_with_image.docx"
-            )
+            output_path = os.path.join(os.path.dirname(__file__), "output_test_with_image.docx")
 
             with open(output_path, "wb") as f:
                 f.write(file_content)
@@ -301,9 +289,7 @@ The following table shows our quarterly sales data:"""
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create initial document
-            result = await doc_maker.execute_action(
-                "create_document", create_inputs, context
-            )
+            result = await doc_maker.execute_action("create_document", create_inputs, context)
             document_id = result["document_id"]
 
             # Add structured table
@@ -323,20 +309,14 @@ The following table shows our quarterly sales data:"""
                 "files": [result["file"]],
             }
 
-            table_result = await doc_maker.execute_action(
-                "add_table", table_inputs, context
-            )
+            table_result = await doc_maker.execute_action("add_table", table_inputs, context)
 
             print("[SUCCESS] Table added successfully!")
-            print(
-                f"   Table dimensions: {table_result['table_rows']}x{table_result['table_cols']}"
-            )
+            print(f"   Table dimensions: {table_result['table_rows']}x{table_result['table_cols']}")
 
             # Save the document with table
             file_content = base64.b64decode(table_result["file"]["content"])
-            output_path = os.path.join(
-                os.path.dirname(__file__), "output_test_with_table.docx"
-            )
+            output_path = os.path.join(os.path.dirname(__file__), "output_test_with_table.docx")
 
             with open(output_path, "wb") as f:
                 f.write(file_content)
@@ -372,17 +352,13 @@ Some content here that will be on page 1."""
     async with ExecutionContext(auth=auth) as context:
         try:
             # Create initial document
-            result = await doc_maker.execute_action(
-                "create_document", create_inputs, context
-            )
+            result = await doc_maker.execute_action("create_document", create_inputs, context)
             document_id = result["document_id"]
 
             # Add page break
             page_break_inputs = {"document_id": document_id, "files": [result["file"]]}
 
-            page_break_result = await doc_maker.execute_action(
-                "add_page_break", page_break_inputs, context
-            )
+            page_break_result = await doc_maker.execute_action("add_page_break", page_break_inputs, context)
 
             # Add content after page break
             page2_content = """# Page 2 Content
@@ -399,18 +375,14 @@ This demonstrates that the page break functionality works correctly."""
                 "files": [page_break_result["file"]],
             }
 
-            final_result = await doc_maker.execute_action(
-                "add_markdown_content", append_inputs, context
-            )
+            final_result = await doc_maker.execute_action("add_markdown_content", append_inputs, context)
 
             print("[SUCCESS] Page break added successfully!")
             print(f"   Page break added: {page_break_result['page_break_added']}")
 
             # Save the document with page break
             file_content = base64.b64decode(final_result["file"]["content"])
-            output_path = os.path.join(
-                os.path.dirname(__file__), "output_test_page_break.docx"
-            )
+            output_path = os.path.join(os.path.dirname(__file__), "output_test_page_break.docx")
 
             with open(output_path, "wb") as f:
                 f.write(file_content)
@@ -608,9 +580,7 @@ to demonstrate markdown-to-Word conversion capabilities.*"""
             # Add a page break before additional content
             page_break_inputs = {"document_id": document_id, "files": [result["file"]]}
 
-            page_break_result = await doc_maker.execute_action(
-                "add_page_break", page_break_inputs, context
-            )
+            page_break_result = await doc_maker.execute_action("add_page_break", page_break_inputs, context)
 
             # Add a structured table using the direct table action
             additional_content = """
@@ -625,9 +595,7 @@ to demonstrate document modification capabilities."""
                 "files": [page_break_result["file"]],
             }
 
-            append_result = await doc_maker.execute_action(
-                "add_markdown_content", append_inputs, context
-            )
+            append_result = await doc_maker.execute_action("add_markdown_content", append_inputs, context)
 
             # Add a structured table with detailed sales data
             detailed_table_data = [
@@ -655,9 +623,7 @@ to demonstrate document modification capabilities."""
                 "files": [append_result["file"]],
             }
 
-            table_result = await doc_maker.execute_action(
-                "add_table", table_inputs, context
-            )
+            table_result = await doc_maker.execute_action("add_table", table_inputs, context)
 
             # Add a test image
             test_image_base64 = (  # noqa: E501
@@ -678,23 +644,17 @@ to demonstrate document modification capabilities."""
                 ],
             }
 
-            final_result = await doc_maker.execute_action(
-                "add_image", image_inputs, context
-            )
+            final_result = await doc_maker.execute_action("add_image", image_inputs, context)
 
             # Save the comprehensive document
             file_content = base64.b64decode(final_result["file"]["content"])
-            output_path = os.path.join(
-                os.path.dirname(__file__), "COMPREHENSIVE_SHOWCASE.docx"
-            )
+            output_path = os.path.join(os.path.dirname(__file__), "COMPREHENSIVE_SHOWCASE.docx")
 
             with open(output_path, "wb") as f:
                 f.write(file_content)
 
             print(f"   [FILE] Comprehensive showcase saved to: {output_path}")
-            print(
-                "   [INFO] This file demonstrates ALL integration features in one document!"
-            )
+            print("   [INFO] This file demonstrates ALL integration features in one document!")
 
             return final_result
 
@@ -747,9 +707,7 @@ async def main():
     print(f"\nResults: {passed}/{total} tests passed")
 
     if passed == total:
-        print(
-            "[SUCCESS] All tests passed! Check the generated .docx files in the tests directory."
-        )
+        print("[SUCCESS] All tests passed! Check the generated .docx files in the tests directory.")
     else:
         print("[WARNING] Some tests failed. Check the error messages above.")
 
