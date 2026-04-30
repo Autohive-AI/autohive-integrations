@@ -21,7 +21,8 @@ def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     Returns:
         Dictionary with Authorization and Content-Type headers
     """
-    api_token = context.auth.get("api_token", "")
+    credentials = context.auth.get("credentials", {})
+    api_token = credentials.get("api_token", "")
 
     return {"Authorization": f"Bearer {api_token}", "Content-Type": "application/json"}
 
