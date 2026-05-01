@@ -11,7 +11,9 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location("google_sheets_data_mod", os.path.join(_parent, "google_sheets.py"))
+_spec = importlib.util.spec_from_file_location(
+    "google_sheets_data_mod", os.path.join(_parent, "google_sheets.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 sys.modules["google_sheets_data_mod"] = _mod
 _spec.loader.exec_module(_mod)
@@ -52,7 +54,9 @@ class TestReadRange:
         }
 
         result = await google_sheets.execute_action(
-            "sheets_read_range", {"spreadsheet_id": "sid", "range": "Sheet1!A1:B2"}, mock_context
+            "sheets_read_range",
+            {"spreadsheet_id": "sid", "range": "Sheet1!A1:B2"},
+            mock_context,
         )
 
         assert result.result.data["range"] == "Sheet1!A1:B2"
@@ -62,10 +66,14 @@ class TestReadRange:
     @patch("google_sheets_data_mod.build")
     async def test_empty_range_returns_empty_values(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
-        service.spreadsheets().values().get().execute.return_value = {"range": "Sheet1!A1"}
+        service.spreadsheets().values().get().execute.return_value = {
+            "range": "Sheet1!A1"
+        }
 
         result = await google_sheets.execute_action(
-            "sheets_read_range", {"spreadsheet_id": "sid", "range": "Sheet1!A1"}, mock_context
+            "sheets_read_range",
+            {"spreadsheet_id": "sid", "range": "Sheet1!A1"},
+            mock_context,
         )
 
         assert result.result.data["values"] == []
@@ -74,7 +82,10 @@ class TestReadRange:
     @patch("google_sheets_data_mod.build")
     async def test_value_render_option_passed(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
-        service.spreadsheets().values().get().execute.return_value = {"range": "A1", "values": []}
+        service.spreadsheets().values().get().execute.return_value = {
+            "range": "A1",
+            "values": [],
+        }
 
         await google_sheets.execute_action(
             "sheets_read_range",
@@ -89,11 +100,18 @@ class TestReadRange:
     @patch("google_sheets_data_mod.build")
     async def test_datetime_render_option_passed(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
-        service.spreadsheets().values().get().execute.return_value = {"range": "A1", "values": []}
+        service.spreadsheets().values().get().execute.return_value = {
+            "range": "A1",
+            "values": [],
+        }
 
         await google_sheets.execute_action(
             "sheets_read_range",
-            {"spreadsheet_id": "sid", "range": "A1", "dateTimeRenderOption": "FORMATTED_STRING"},
+            {
+                "spreadsheet_id": "sid",
+                "range": "A1",
+                "dateTimeRenderOption": "FORMATTED_STRING",
+            },
             mock_context,
         )
 
@@ -109,10 +127,14 @@ class TestReadRange:
         mock_resp = MagicMock()
         mock_resp.status = 400
         mock_resp.reason = "Bad Request"
-        service.spreadsheets().values().get().execute.side_effect = HttpError(mock_resp, b"Bad Request")
+        service.spreadsheets().values().get().execute.side_effect = HttpError(
+            mock_resp, b"Bad Request"
+        )
 
         result = await google_sheets.execute_action(
-            "sheets_read_range", {"spreadsheet_id": "sid", "range": "Bad!Range"}, mock_context
+            "sheets_read_range",
+            {"spreadsheet_id": "sid", "range": "Bad!Range"},
+            mock_context,
         )
 
         assert result.type == ResultType.ACTION_ERROR
@@ -120,7 +142,9 @@ class TestReadRange:
 
     @pytest.mark.asyncio
     @patch("google_sheets_data_mod.build")
-    async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
+    async def test_generic_exception_returns_action_error(
+        self, mock_build, mock_context
+    ):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().get().execute.side_effect = Exception("Timeout")
 
@@ -149,7 +173,11 @@ class TestWriteRange:
 
         result = await google_sheets.execute_action(
             "sheets_write_range",
-            {"spreadsheet_id": "sid", "range": "Sheet1!A1:B2", "values": [["Name", "Age"], ["Alice", "30"]]},
+            {
+                "spreadsheet_id": "sid",
+                "range": "Sheet1!A1:B2",
+                "values": [["Name", "Age"], ["Alice", "30"]],
+            },
             mock_context,
         )
 
@@ -159,13 +187,20 @@ class TestWriteRange:
 
     @pytest.mark.asyncio
     @patch("google_sheets_data_mod.build")
-    async def test_dry_run_returns_estimate_without_write(self, mock_build, mock_context):
+    async def test_dry_run_returns_estimate_without_write(
+        self, mock_build, mock_context
+    ):
         service = make_sheets_service(mock_build)
         service.spreadsheets().get().execute.return_value = {"spreadsheetId": "sid"}
 
         result = await google_sheets.execute_action(
             "sheets_write_range",
-            {"spreadsheet_id": "sid", "range": "A1", "values": [["a", "b"], ["c", "d"]], "dry_run": True},
+            {
+                "spreadsheet_id": "sid",
+                "range": "A1",
+                "values": [["a", "b"], ["c", "d"]],
+                "dry_run": True,
+            },
             mock_context,
         )
 
@@ -200,7 +235,9 @@ class TestWriteRange:
         mock_resp = MagicMock()
         mock_resp.status = 403
         mock_resp.reason = "Forbidden"
-        service.spreadsheets().values().update().execute.side_effect = HttpError(mock_resp, b"Forbidden")
+        service.spreadsheets().values().update().execute.side_effect = HttpError(
+            mock_resp, b"Forbidden"
+        )
 
         result = await google_sheets.execute_action(
             "sheets_write_range",
@@ -213,9 +250,13 @@ class TestWriteRange:
 
     @pytest.mark.asyncio
     @patch("google_sheets_data_mod.build")
-    async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
+    async def test_generic_exception_returns_action_error(
+        self, mock_build, mock_context
+    ):
         service = make_sheets_service(mock_build)
-        service.spreadsheets().values().update().execute.side_effect = Exception("Write failed")
+        service.spreadsheets().values().update().execute.side_effect = Exception(
+            "Write failed"
+        )
 
         result = await google_sheets.execute_action(
             "sheets_write_range",
@@ -241,7 +282,11 @@ class TestAppendRows:
 
         result = await google_sheets.execute_action(
             "sheets_append_rows",
-            {"spreadsheet_id": "sid", "range": "Sheet1", "rows": [["a", "b"], ["c", "d"], ["e", "f"]]},
+            {
+                "spreadsheet_id": "sid",
+                "range": "Sheet1",
+                "rows": [["a", "b"], ["c", "d"], ["e", "f"]],
+            },
             mock_context,
         )
 
@@ -286,7 +331,9 @@ class TestAppendRows:
         mock_resp = MagicMock()
         mock_resp.status = 429
         mock_resp.reason = "Too Many Requests"
-        service.spreadsheets().values().append().execute.side_effect = HttpError(mock_resp, b"Rate limited")
+        service.spreadsheets().values().append().execute.side_effect = HttpError(
+            mock_resp, b"Rate limited"
+        )
 
         result = await google_sheets.execute_action(
             "sheets_append_rows",
@@ -299,9 +346,13 @@ class TestAppendRows:
 
     @pytest.mark.asyncio
     @patch("google_sheets_data_mod.build")
-    async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
+    async def test_generic_exception_returns_action_error(
+        self, mock_build, mock_context
+    ):
         service = make_sheets_service(mock_build)
-        service.spreadsheets().values().append().execute.side_effect = Exception("Append failed")
+        service.spreadsheets().values().append().execute.side_effect = Exception(
+            "Append failed"
+        )
 
         result = await google_sheets.execute_action(
             "sheets_append_rows",

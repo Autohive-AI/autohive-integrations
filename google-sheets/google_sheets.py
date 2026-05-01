@@ -1,4 +1,10 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ActionError,
+)
 from typing import Dict, Any, List
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -10,8 +16,10 @@ SPREADSHEET_MIMETYPE = "application/vnd.google-apps.spreadsheet"
 
 
 def build_credentials(context: ExecutionContext) -> Credentials:
-    access_token = context.auth["credentials"]["access_token"]
-    return Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")  # nosec B106
+    access_token = context.auth.get("credentials", {}).get("access_token", "")
+    return Credentials(
+        token=access_token, token_uri="https://oauth2.googleapis.com/token"
+    )  # nosec B106
 
 
 def build_sheets_service(context: ExecutionContext):
@@ -72,7 +80,9 @@ class GetSpreadsheet(ActionHandler):
             service = build_sheets_service(context)
             spreadsheet_id = inputs["spreadsheet_id"]
             include_grid = bool(inputs.get("include_grid_data", False))
-            request = service.spreadsheets().get(spreadsheetId=spreadsheet_id, includeGridData=include_grid)
+            request = service.spreadsheets().get(
+                spreadsheetId=spreadsheet_id, includeGridData=include_grid
+            )
             spreadsheet = request.execute()
             return ActionResult(data={"spreadsheet": spreadsheet}, cost_usd=0.0)
         except HttpError as e:
@@ -120,7 +130,10 @@ class ReadRange(ActionHandler):
                 params["dateTimeRenderOption"] = dt_render
             result = service.spreadsheets().values().get(**params).execute()
             return ActionResult(
-                data={"range": result.get("range", a1), "values": result.get("values", [])},
+                data={
+                    "range": result.get("range", a1),
+                    "values": result.get("values", []),
+                },
                 cost_usd=0.0,
             )
         except HttpError as e:
@@ -142,7 +155,11 @@ class WriteRange(ActionHandler):
             if dry_run:
                 # Validate by attempting a read of the target range to ensure spreadsheet exists
                 service = build_sheets_service(context)
-                _ = service.spreadsheets().get(spreadsheetId=spreadsheet_id, includeGridData=False).execute()
+                _ = (
+                    service.spreadsheets()
+                    .get(spreadsheetId=spreadsheet_id, includeGridData=False)
+                    .execute()
+                )
                 # Estimate cells
                 rows = len(values)
                 cols = max((len(r) for r in values), default=0)
@@ -208,7 +225,9 @@ class AppendRows(ActionHandler):
                 )
                 .execute()
             )
-            return ActionResult(data={"updates": result.get("updates", result)}, cost_usd=0.0)
+            return ActionResult(
+                data={"updates": result.get("updates", result)}, cost_usd=0.0
+            )
         except HttpError as e:
             return ActionError(message=f"Google Sheets API error: {str(e)}")
         except Exception as e:
@@ -235,9 +254,13 @@ class FormatRange(ActionHandler):
                 }
             ]
             result = (
-                service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests}).execute()
+                service.spreadsheets()
+                .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+                .execute()
             )
-            return ActionResult(data={"replies": result.get("replies", [])}, cost_usd=0.0)
+            return ActionResult(
+                data={"replies": result.get("replies", [])}, cost_usd=0.0
+            )
         except HttpError as e:
             return ActionError(message=f"Google Sheets API error: {str(e)}")
         except Exception as e:
@@ -273,9 +296,13 @@ class FreezePanes(ActionHandler):
             ]
 
             result = (
-                service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests}).execute()
+                service.spreadsheets()
+                .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+                .execute()
             )
-            return ActionResult(data={"replies": result.get("replies", [])}, cost_usd=0.0)
+            return ActionResult(
+                data={"replies": result.get("replies", [])}, cost_usd=0.0
+            )
         except HttpError as e:
             return ActionError(message=f"Google Sheets API error: {str(e)}")
         except Exception as e:
@@ -291,18 +318,26 @@ class SheetsBatchUpdate(ActionHandler):
             dry_run = bool(inputs.get("dry_run", False))
 
             # Basic validation: ensure it's a list of dicts
-            if not isinstance(requests, list) or not all(isinstance(r, dict) for r in requests):
+            if not isinstance(requests, list) or not all(
+                isinstance(r, dict) for r in requests
+            ):
                 return ActionError(message="requests must be an array of objects")
 
             if dry_run:
                 # Validate by fetching spreadsheet metadata
                 service = build_sheets_service(context)
-                _ = service.spreadsheets().get(spreadsheetId=spreadsheet_id, includeGridData=False).execute()
+                _ = (
+                    service.spreadsheets()
+                    .get(spreadsheetId=spreadsheet_id, includeGridData=False)
+                    .execute()
+                )
                 return ActionResult(data={"replies": [], "dryRun": True}, cost_usd=0.0)
 
             service = build_sheets_service(context)
             result = (
-                service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests}).execute()
+                service.spreadsheets()
+                .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+                .execute()
             )
             return ActionResult(
                 data={"replies": result.get("replies", []), "dryRun": False},

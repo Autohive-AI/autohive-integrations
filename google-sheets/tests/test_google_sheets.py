@@ -57,7 +57,9 @@ class MockIntegration:
 
         return decorator
 
-    async def execute_action(self, action_name: str, inputs: Dict[str, Any], context: MockExecutionContext):
+    async def execute_action(
+        self, action_name: str, inputs: Dict[str, Any], context: MockExecutionContext
+    ):
         if action_name in self._actions:
             handler = self._actions[action_name]()
             return await handler.execute(inputs, context)
@@ -119,7 +121,9 @@ class TestGoogleSheetsIntegration:
         assert result["nextPageToken"] == "next_token"
 
         # Verify API calls
-        mock_build.assert_called_once_with("drive", "v3", credentials=mock_build.call_args[1]["credentials"])
+        mock_build.assert_called_once_with(
+            "drive", "v3", credentials=mock_build.call_args[1]["credentials"]
+        )
 
     @patch("google_sheets.build")
     async def test_list_spreadsheets_with_filters(self, mock_build):
@@ -333,7 +337,9 @@ async def run_all_tests():
     test_instance = TestGoogleSheetsIntegration()
 
     # List all test methods
-    test_methods = [method for method in dir(test_instance) if method.startswith("test_")]
+    test_methods = [
+        method for method in dir(test_instance) if method.startswith("test_")
+    ]
 
     print("Running Google Sheets integration tests...")
     print("=" * 50)

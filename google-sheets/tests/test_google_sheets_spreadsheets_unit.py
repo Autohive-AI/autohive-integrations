@@ -11,7 +11,9 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location("google_sheets_mod", os.path.join(_parent, "google_sheets.py"))
+_spec = importlib.util.spec_from_file_location(
+    "google_sheets_mod", os.path.join(_parent, "google_sheets.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 sys.modules["google_sheets_mod"] = _mod
 _spec.loader.exec_module(_mod)
@@ -58,21 +60,27 @@ class TestListSpreadsheets:
             "files": [{"id": "abc", "name": "My Sheet"}],
         }
 
-        result = await google_sheets.execute_action("sheets_list_spreadsheets", {}, mock_context)
+        result = await google_sheets.execute_action(
+            "sheets_list_spreadsheets", {}, mock_context
+        )
 
         assert result.result.data["files"][0]["id"] == "abc"
         assert "nextPageToken" not in result.result.data
 
     @pytest.mark.asyncio
     @patch("google_sheets_mod.build")
-    async def test_next_page_token_included_when_present(self, mock_build, mock_context):
+    async def test_next_page_token_included_when_present(
+        self, mock_build, mock_context
+    ):
         drive = make_drive_service(mock_build)
         drive.files().list().execute.return_value = {
             "files": [],
             "nextPageToken": "tok123",
         }
 
-        result = await google_sheets.execute_action("sheets_list_spreadsheets", {}, mock_context)
+        result = await google_sheets.execute_action(
+            "sheets_list_spreadsheets", {}, mock_context
+        )
 
         assert result.result.data["nextPageToken"] == "tok123"
 
@@ -82,7 +90,9 @@ class TestListSpreadsheets:
         drive = make_drive_service(mock_build)
         drive.files().list().execute.return_value = {"files": []}
 
-        await google_sheets.execute_action("sheets_list_spreadsheets", {"name_contains": "Budget"}, mock_context)
+        await google_sheets.execute_action(
+            "sheets_list_spreadsheets", {"name_contains": "Budget"}, mock_context
+        )
 
         call_kwargs = drive.files().list.call_args.kwargs
         assert "name contains 'Budget'" in call_kwargs["q"]
@@ -93,7 +103,9 @@ class TestListSpreadsheets:
         drive = make_drive_service(mock_build)
         drive.files().list().execute.return_value = {"files": []}
 
-        await google_sheets.execute_action("sheets_list_spreadsheets", {"owner": "me"}, mock_context)
+        await google_sheets.execute_action(
+            "sheets_list_spreadsheets", {"owner": "me"}, mock_context
+        )
 
         call_kwargs = drive.files().list.call_args.kwargs
         assert "'me' in owners" in call_kwargs["q"]
@@ -104,7 +116,9 @@ class TestListSpreadsheets:
         drive = make_drive_service(mock_build)
         drive.files().list().execute.return_value = {"files": []}
 
-        await google_sheets.execute_action("sheets_list_spreadsheets", {"owner": "user@example.com"}, mock_context)
+        await google_sheets.execute_action(
+            "sheets_list_spreadsheets", {"owner": "user@example.com"}, mock_context
+        )
 
         call_kwargs = drive.files().list.call_args.kwargs
         assert "'user@example.com' in owners" in call_kwargs["q"]
@@ -115,7 +129,9 @@ class TestListSpreadsheets:
         drive = make_drive_service(mock_build)
         drive.files().list().execute.return_value = {"files": []}
 
-        await google_sheets.execute_action("sheets_list_spreadsheets", {"name_contains": "Test's Sheet"}, mock_context)
+        await google_sheets.execute_action(
+            "sheets_list_spreadsheets", {"name_contains": "Test's Sheet"}, mock_context
+        )
 
         call_kwargs = drive.files().list.call_args.kwargs
         assert "name contains 'Test\\'s Sheet'" in call_kwargs["q"]
@@ -131,18 +147,24 @@ class TestListSpreadsheets:
         mock_resp.reason = "Forbidden"
         drive.files().list().execute.side_effect = HttpError(mock_resp, b"Forbidden")
 
-        result = await google_sheets.execute_action("sheets_list_spreadsheets", {}, mock_context)
+        result = await google_sheets.execute_action(
+            "sheets_list_spreadsheets", {}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Google Drive API error" in result.result.message
 
     @pytest.mark.asyncio
     @patch("google_sheets_mod.build")
-    async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
+    async def test_generic_exception_returns_action_error(
+        self, mock_build, mock_context
+    ):
         drive = make_drive_service(mock_build)
         drive.files().list().execute.side_effect = Exception("Network timeout")
 
-        result = await google_sheets.execute_action("sheets_list_spreadsheets", {}, mock_context)
+        result = await google_sheets.execute_action(
+            "sheets_list_spreadsheets", {}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Network timeout" in result.result.message
@@ -156,9 +178,14 @@ class TestGetSpreadsheet:
     @patch("google_sheets_mod.build")
     async def test_happy_path_returns_spreadsheet(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
-        service.spreadsheets().get().execute.return_value = {"spreadsheetId": "sid1", "title": "My Sheet"}
+        service.spreadsheets().get().execute.return_value = {
+            "spreadsheetId": "sid1",
+            "title": "My Sheet",
+        }
 
-        result = await google_sheets.execute_action("sheets_get_spreadsheet", {"spreadsheet_id": "sid1"}, mock_context)
+        result = await google_sheets.execute_action(
+            "sheets_get_spreadsheet", {"spreadsheet_id": "sid1"}, mock_context
+        )
 
         assert result.result.data["spreadsheet"]["spreadsheetId"] == "sid1"
 
@@ -169,10 +196,14 @@ class TestGetSpreadsheet:
         service.spreadsheets().get().execute.return_value = {"spreadsheetId": "sid1"}
 
         await google_sheets.execute_action(
-            "sheets_get_spreadsheet", {"spreadsheet_id": "sid1", "include_grid_data": True}, mock_context
+            "sheets_get_spreadsheet",
+            {"spreadsheet_id": "sid1", "include_grid_data": True},
+            mock_context,
         )
 
-        service.spreadsheets().get.assert_called_with(spreadsheetId="sid1", includeGridData=True)
+        service.spreadsheets().get.assert_called_with(
+            spreadsheetId="sid1", includeGridData=True
+        )
 
     @pytest.mark.asyncio
     @patch("google_sheets_mod.build")
@@ -183,7 +214,9 @@ class TestGetSpreadsheet:
         mock_resp = MagicMock()
         mock_resp.status = 404
         mock_resp.reason = "Not Found"
-        service.spreadsheets().get().execute.side_effect = HttpError(mock_resp, b"Not Found")
+        service.spreadsheets().get().execute.side_effect = HttpError(
+            mock_resp, b"Not Found"
+        )
 
         result = await google_sheets.execute_action(
             "sheets_get_spreadsheet", {"spreadsheet_id": "bad_id"}, mock_context
@@ -194,11 +227,17 @@ class TestGetSpreadsheet:
 
     @pytest.mark.asyncio
     @patch("google_sheets_mod.build")
-    async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
+    async def test_generic_exception_returns_action_error(
+        self, mock_build, mock_context
+    ):
         service = make_sheets_service(mock_build)
-        service.spreadsheets().get().execute.side_effect = Exception("Connection refused")
+        service.spreadsheets().get().execute.side_effect = Exception(
+            "Connection refused"
+        )
 
-        result = await google_sheets.execute_action("sheets_get_spreadsheet", {"spreadsheet_id": "sid1"}, mock_context)
+        result = await google_sheets.execute_action(
+            "sheets_get_spreadsheet", {"spreadsheet_id": "sid1"}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Connection refused" in result.result.message
@@ -219,7 +258,9 @@ class TestListSheets:
             ]
         }
 
-        result = await google_sheets.execute_action("sheets_list_sheets", {"spreadsheet_id": "sid1"}, mock_context)
+        result = await google_sheets.execute_action(
+            "sheets_list_sheets", {"spreadsheet_id": "sid1"}, mock_context
+        )
 
         assert len(result.result.data["sheets"]) == 2
         assert result.result.data["sheets"][0]["title"] == "Sheet1"
@@ -230,7 +271,9 @@ class TestListSheets:
         service = make_sheets_service(mock_build)
         service.spreadsheets().get().execute.return_value = {"sheets": []}
 
-        result = await google_sheets.execute_action("sheets_list_sheets", {"spreadsheet_id": "sid1"}, mock_context)
+        result = await google_sheets.execute_action(
+            "sheets_list_sheets", {"spreadsheet_id": "sid1"}, mock_context
+        )
 
         assert result.result.data["sheets"] == []
 
@@ -243,19 +286,27 @@ class TestListSheets:
         mock_resp = MagicMock()
         mock_resp.status = 403
         mock_resp.reason = "Forbidden"
-        service.spreadsheets().get().execute.side_effect = HttpError(mock_resp, b"Forbidden")
+        service.spreadsheets().get().execute.side_effect = HttpError(
+            mock_resp, b"Forbidden"
+        )
 
-        result = await google_sheets.execute_action("sheets_list_sheets", {"spreadsheet_id": "sid1"}, mock_context)
+        result = await google_sheets.execute_action(
+            "sheets_list_sheets", {"spreadsheet_id": "sid1"}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
 
     @pytest.mark.asyncio
     @patch("google_sheets_mod.build")
-    async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
+    async def test_generic_exception_returns_action_error(
+        self, mock_build, mock_context
+    ):
         service = make_sheets_service(mock_build)
         service.spreadsheets().get().execute.side_effect = Exception("API down")
 
-        result = await google_sheets.execute_action("sheets_list_sheets", {"spreadsheet_id": "sid1"}, mock_context)
+        result = await google_sheets.execute_action(
+            "sheets_list_sheets", {"spreadsheet_id": "sid1"}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "API down" in result.result.message
@@ -288,13 +339,19 @@ class TestDuplicateSpreadsheet:
 
     @pytest.mark.asyncio
     @patch("google_sheets_mod.build")
-    async def test_parent_folder_id_included_when_provided(self, mock_build, mock_context):
+    async def test_parent_folder_id_included_when_provided(
+        self, mock_build, mock_context
+    ):
         drive = make_drive_service(mock_build)
         drive.files().copy().execute.return_value = {"id": "new_id", "name": "Copy"}
 
         await google_sheets.execute_action(
             "sheets_duplicate_spreadsheet",
-            {"source_spreadsheet_id": "src", "new_title": "Copy", "parent_folder_id": "folder123"},
+            {
+                "source_spreadsheet_id": "src",
+                "new_title": "Copy",
+                "parent_folder_id": "folder123",
+            },
             mock_context,
         )
 
@@ -323,7 +380,9 @@ class TestDuplicateSpreadsheet:
 
     @pytest.mark.asyncio
     @patch("google_sheets_mod.build")
-    async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
+    async def test_generic_exception_returns_action_error(
+        self, mock_build, mock_context
+    ):
         drive = make_drive_service(mock_build)
         drive.files().copy().execute.side_effect = Exception("Quota exceeded")
 
