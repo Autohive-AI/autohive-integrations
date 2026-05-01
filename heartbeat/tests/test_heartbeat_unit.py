@@ -1,11 +1,10 @@
+import importlib.util
 import os
 import sys
-import importlib
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
+os.chdir(_parent)
 sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock  # noqa: E402
@@ -15,13 +14,19 @@ from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 _spec = importlib.util.spec_from_file_location("heartbeat_mod", os.path.join(_parent, "heartbeat.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
+sys.modules["heartbeat_mod"] = _mod
 
 heartbeat = _mod.heartbeat  # the Integration instance
 HeartbeatDataParser = _mod.HeartbeatDataParser
 
 pytestmark = pytest.mark.unit
 
-SAMPLE_CHANNEL = {"id": "ch-1", "name": "General", "description": "General channel", "private": False}
+SAMPLE_CHANNEL = {
+    "id": "ch-1",
+    "name": "General",
+    "description": "General channel",
+    "private": False,
+}
 SAMPLE_THREAD = {
     "id": "th-1",
     "title": "Hello World",
@@ -31,7 +36,12 @@ SAMPLE_THREAD = {
     "createdAt": "2024-01-01T00:00:00Z",
     "url": "https://heartbeat.chat/thread/th-1",
 }
-SAMPLE_USER = {"id": "u-1", "email": "alice@example.com", "name": "Alice", "bio": "Engineer"}
+SAMPLE_USER = {
+    "id": "u-1",
+    "email": "alice@example.com",
+    "name": "Alice",
+    "bio": "Engineer",
+}
 SAMPLE_EVENT = {
     "id": "ev-1",
     "title": "Community Meetup",
@@ -52,7 +62,7 @@ SAMPLE_COMMENT = {
 def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {"api_key": "test-api-key"}  # nosec B105
+    ctx.auth = {"credentials": {"api_key": "test-api-key"}}  # nosec B105
     return ctx
 
 
@@ -426,7 +436,9 @@ class TestCreateComment:
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_COMMENT)
 
         result = await heartbeat.execute_action(
-            "create_heartbeat_comment", {"thread_id": "th-1", "content": "Nice thread!"}, mock_context
+            "create_heartbeat_comment",
+            {"thread_id": "th-1", "content": "Nice thread!"},
+            mock_context,
         )
 
         assert result.result.data["comment"]["id"] == "cm-1"
@@ -437,7 +449,9 @@ class TestCreateComment:
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_COMMENT)
 
         await heartbeat.execute_action(
-            "create_heartbeat_comment", {"thread_id": "th-1", "content": "Hello"}, mock_context
+            "create_heartbeat_comment",
+            {"thread_id": "th-1", "content": "Hello"},
+            mock_context,
         )
 
         call_args = mock_context.fetch.call_args
@@ -449,7 +463,9 @@ class TestCreateComment:
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_COMMENT)
 
         await heartbeat.execute_action(
-            "create_heartbeat_comment", {"thread_id": "th-1", "content": "Hello"}, mock_context
+            "create_heartbeat_comment",
+            {"thread_id": "th-1", "content": "Hello"},
+            mock_context,
         )
 
         payload = mock_context.fetch.call_args.kwargs["json"]
@@ -488,7 +504,9 @@ class TestCreateComment:
         mock_context.fetch.side_effect = Exception("Create failed")
 
         result = await heartbeat.execute_action(
-            "create_heartbeat_comment", {"thread_id": "th-1", "content": "Hello"}, mock_context
+            "create_heartbeat_comment",
+            {"thread_id": "th-1", "content": "Hello"},
+            mock_context,
         )
 
         assert result.type == ResultType.ACTION_ERROR
@@ -504,7 +522,9 @@ class TestCreateThread:
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_THREAD)
 
         result = await heartbeat.execute_action(
-            "create_heartbeat_thread", {"channel_id": "ch-1", "content": "Hello World"}, mock_context
+            "create_heartbeat_thread",
+            {"channel_id": "ch-1", "content": "Hello World"},
+            mock_context,
         )
 
         assert result.result.data["thread"]["id"] == "th-1"
@@ -514,7 +534,9 @@ class TestCreateThread:
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_THREAD)
 
         await heartbeat.execute_action(
-            "create_heartbeat_thread", {"channel_id": "ch-1", "content": "Hello"}, mock_context
+            "create_heartbeat_thread",
+            {"channel_id": "ch-1", "content": "Hello"},
+            mock_context,
         )
 
         call_args = mock_context.fetch.call_args
@@ -526,7 +548,9 @@ class TestCreateThread:
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_THREAD)
 
         await heartbeat.execute_action(
-            "create_heartbeat_thread", {"channel_id": "ch-1", "content": "Hello"}, mock_context
+            "create_heartbeat_thread",
+            {"channel_id": "ch-1", "content": "Hello"},
+            mock_context,
         )
 
         payload = mock_context.fetch.call_args.kwargs["json"]
@@ -551,7 +575,9 @@ class TestCreateThread:
         mock_context.fetch.side_effect = Exception("Thread create error")
 
         result = await heartbeat.execute_action(
-            "create_heartbeat_thread", {"channel_id": "ch-1", "content": "Hello"}, mock_context
+            "create_heartbeat_thread",
+            {"channel_id": "ch-1", "content": "Hello"},
+            mock_context,
         )
 
         assert result.type == ResultType.ACTION_ERROR

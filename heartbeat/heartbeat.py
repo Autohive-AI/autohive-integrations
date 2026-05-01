@@ -1,4 +1,10 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ActionError,
+)
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -9,7 +15,8 @@ service_endpoint = "https://api.heartbeat.chat/v0/"
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     """Get authentication headers with bearer token from custom auth."""
     headers = {}
-    api_key = context.auth.get("api_key")
+    credentials = context.auth.get("credentials", {})
+    api_key = credentials.get("api_key", "")
 
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -257,7 +264,10 @@ class GetUser(ActionHandler):
                 headers=get_auth_headers(context),
             )
 
-            return ActionResult(data={"user": HeartbeatDataParser.parse_user(response.data)}, cost_usd=0.0)
+            return ActionResult(
+                data={"user": HeartbeatDataParser.parse_user(response.data)},
+                cost_usd=0.0,
+            )
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -298,7 +308,10 @@ class GetEvent(ActionHandler):
                 headers=get_auth_headers(context),
             )
 
-            return ActionResult(data={"event": HeartbeatDataParser.parse_event(response.data)}, cost_usd=0.0)
+            return ActionResult(
+                data={"event": HeartbeatDataParser.parse_event(response.data)},
+                cost_usd=0.0,
+            )
 
         except Exception as e:
             return ActionError(message=str(e))
