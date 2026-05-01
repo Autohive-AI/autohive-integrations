@@ -29,6 +29,38 @@ jobs:
       pull-requests: write
       actions: read
     steps:
+      - name: Resolve PR number
+        id: pr
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          # workflow_run.pull_requests is populated for same-repo PRs but
+          # is empty for fork PRs (the head SHA is in a different repo).
+          INLINE_PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+        run: |
+          set -euo pipefail
+          # Both INLINE_PR and HEAD_SHA come from the workflow_run event
+          # payload — they cannot be influenced by code that ran on the
+          # original runner. Never read the PR number from the artifact:
+          # the validation job executes fork-controlled code (pytest,
+          # imported integration modules), so any file it produces must
+          # be treated as untrusted.
+          PR="$INLINE_PR"
+          if [ -z "$PR" ] || [ "$PR" = "null" ]; then
+            # Fork PR: pull_requests array is empty. Look up the PR via
+            # the API using the trusted head SHA.
+            PR=$(gh api "repos/$REPO/commits/$HEAD_SHA/pulls" \
+                  --jq ".[] | select(.head.sha == \"$HEAD_SHA\") | .number" \
+                  | head -1)
+          fi
+          if [ -z "$PR" ]; then
+            echo "::error::Could not resolve PR number for head SHA $HEAD_SHA"
+            exit 1
+          fi
+          echo "number=$PR" >> "$GITHUB_OUTPUT"
+
       - name: Download comment artifact
         uses: actions/download-artifact@v4
         with:
@@ -42,16 +74,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -f validation-artifact/pr-number.txt ]; then
-            echo "::error::Artifact missing pr-number.txt"
-            exit 1
-          fi
-          PR=$(tr -d '[:space:]' < validation-artifact/pr-number.txt)
-          if [ -z "$PR" ]; then
-            echo "::error::Empty PR number in artifact"
-            exit 1
-          fi
-          echo "pr=$PR" >> "$GITHUB_OUTPUT"
           if [ -f validation-artifact/delete.marker ]; then
             echo "action=delete" >> "$GITHUB_OUTPUT"
           elif [ -f validation-artifact/comment.md ]; then
@@ -65,7 +87,7 @@ jobs:
         if: steps.meta.outputs.action == 'delete'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          number: ${{ steps.meta.outputs.pr }}
+          number: ${{ steps.pr.outputs.number }}
           header: validation-results
           delete: true
 
@@ -73,6 +95,6 @@ jobs:
         if: steps.meta.outputs.action == 'post'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          number: ${{ steps.meta.outputs.pr }}
+          number: ${{ steps.pr.outputs.number }}
           header: validation-results
           path: validation-artifact/comment.md
