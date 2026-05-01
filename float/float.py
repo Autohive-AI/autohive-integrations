@@ -101,7 +101,7 @@ class FloatConnectedAccountHandler(ConnectedAccountHandler):
 
             # Extract account information
             # Float typically returns account details including company name
-            account_data = response if isinstance(response, dict) else {}
+            account_data = response.data if isinstance(response.data, dict) else {}
 
             # Try to get the current user's information from the account endpoint
             # Float API typically returns the account owner's information
@@ -2889,3 +2889,4 @@ class GetProjectsReportHandler(ActionHandler):
 
         except Exception as e:
             return ActionError(message=f"Failed to generate projects report: {str(e)}")
+
