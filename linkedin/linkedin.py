@@ -356,8 +356,8 @@ class ShareArticleActionHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         """Share an article post on LinkedIn with URL, title, and description."""
         commentary = inputs.get("commentary", "")
-        article_url = inputs.get("article_url")
-        article_title = inputs.get("article_title")
+        article_url = inputs["article_url"]
+        article_title = inputs["article_title"]
         article_description = inputs.get("article_description", "")
         author_id = inputs.get("author_id")
         visibility = inputs.get("visibility", "PUBLIC")
@@ -418,7 +418,7 @@ class ShareArticleActionHandler(ActionHandler):
 class ResharePostActionHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         """Reshare an existing LinkedIn post."""
-        original_post_urn = inputs.get("original_post_urn")
+        original_post_urn = inputs["original_post_urn"]
         commentary = inputs.get("commentary", "")
         author_id = inputs.get("author_id")
         visibility = inputs.get("visibility", "PUBLIC")
@@ -473,8 +473,8 @@ class ResharePostActionHandler(ActionHandler):
 class UpdatePostActionHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         """Update an existing post's commentary."""
-        post_urn = inputs.get("post_urn")
-        commentary = inputs.get("commentary")
+        post_urn = inputs["post_urn"]
+        commentary = inputs["commentary"]
 
         encoded_urn = encode_urn(post_urn)
         url = f"https://api.linkedin.com/rest/posts/{encoded_urn}"
@@ -498,7 +498,7 @@ class UpdatePostActionHandler(ActionHandler):
 class DeletePostActionHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         """Delete a post."""
-        post_urn = inputs.get("post_urn")
+        post_urn = inputs["post_urn"]
 
         encoded_urn = encode_urn(post_urn)
         url = f"https://api.linkedin.com/rest/posts/{encoded_urn}"
