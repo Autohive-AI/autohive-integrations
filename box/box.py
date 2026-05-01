@@ -67,6 +67,7 @@ class ListFiles(ActionHandler):
             file_extensions = inputs.get("file_extensions", [])
             folder_id = inputs.get("folder_id")
             page_size = inputs.get("pageSize", 100)
+            page_token = inputs.get("pageToken")
 
             if query or file_extensions or folder_id:
                 # Use search API
@@ -86,10 +87,14 @@ class ListFiles(ActionHandler):
                     "type": "file",
                     "fields": "id,name,type,size,modified_at,created_at",
                 }
+                if page_token:
+                    params["marker"] = page_token
             else:
                 # List recent files from root
                 url = f"{BOX_API_BASE}/folders/0/items"
                 params = {"limit": page_size, "fields": "id,name,type,size,modified_at,created_at"}
+                if page_token:
+                    params["marker"] = page_token
 
             response = await context.fetch(url, method="GET", params=params)
             data = response.data
@@ -129,9 +134,12 @@ class ListFolderContents(ActionHandler):
             folder_id = inputs["folder_id"]
             recursive = inputs.get("recursive", False)
             page_size = inputs.get("pageSize", 100)
+            page_token = inputs.get("pageToken")
 
             url = f"{BOX_API_BASE}/folders/{folder_id}/items"
             params = {"limit": page_size, "fields": "id,name,type,size,created_at,modified_at"}
+            if page_token:
+                params["marker"] = page_token
 
             response = await context.fetch(url, method="GET", params=params)
             data = response.data
