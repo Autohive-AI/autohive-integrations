@@ -1,0 +1,78 @@
+name: Validate Integration Comment
+
+# Posts the validation-results comment to the PR.
+#
+# Why a separate workflow?
+# ------------------------
+# When a pull request is opened from a fork, GitHub deliberately downgrades
+# the GITHUB_TOKEN provided to `pull_request`-triggered workflows to
+# read-only — even if the workflow declares `permissions: pull-requests:
+# write`. That means the validation workflow can't post a sticky comment
+# directly on fork PRs.
+#
+# This companion workflow runs on `workflow_run` (which executes in the
+# base repository's context with normal token permissions) and posts the
+# comment using the artifact uploaded by validate-integration.yml.
+#
+# See: https://docs.github.com/actions/security-guides/automatic-token-authentication
+
+on:
+  workflow_run:
+    workflows: ['Validate Integration (Tooling)']
+    types: [completed]
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.event == 'pull_request'
+    permissions:
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Download comment artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: validation-comment
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: validation-artifact
+
+      - name: Determine action
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f validation-artifact/pr-number.txt ]; then
+            echo "::error::Artifact missing pr-number.txt"
+            exit 1
+          fi
+          PR=$(tr -d '[:space:]' < validation-artifact/pr-number.txt)
+          if [ -z "$PR" ]; then
+            echo "::error::Empty PR number in artifact"
+            exit 1
+          fi
+          echo "pr=$PR" >> "$GITHUB_OUTPUT"
+          if [ -f validation-artifact/delete.marker ]; then
+            echo "action=delete" >> "$GITHUB_OUTPUT"
+          elif [ -f validation-artifact/comment.md ]; then
+            echo "action=post" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Artifact missing both comment.md and delete.marker"
+            exit 1
+          fi
+
+      - name: Delete stale comment
+        if: steps.meta.outputs.action == 'delete'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          number: ${{ steps.meta.outputs.pr }}
+          header: validation-results
+          delete: true
+
+      - name: Post sticky comment
+        if: steps.meta.outputs.action == 'post'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          number: ${{ steps.meta.outputs.pr }}
+          header: validation-results
+          path: validation-artifact/comment.md
