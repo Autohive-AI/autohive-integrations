@@ -5,7 +5,6 @@ import importlib.util
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-_repo_root = os.path.abspath(os.path.join(_parent, ".."))
 
 # The 'supadata/' integration folder has an __init__.py that shadows the 'supadata'
 # PyPI package. Pre-load the real package from site-packages before exec_module runs,
