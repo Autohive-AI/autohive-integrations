@@ -1133,9 +1133,6 @@ async def get_thread_id_from_ticket(ticket_id: str, context: ExecutionContext) -
     :return: The conversation thread ID or None if not found.
     """
     ticket_url = f"https://api.hubapi.com/crm/v3/objects/tickets/{ticket_id}?properties=hs_conversations_originating_thread_id"
-    ticket_response = await context.fetch(
-        ticket_url, headers={"Content-Type": "application/json"}
-    )
     ticket_response = await context.fetch(ticket_url, headers={"Content-Type": "application/json"})
     ticket_data = await parse_response(ticket_response)
     return ticket_data.get("properties", {}).get("hs_conversations_originating_thread_id")
