@@ -364,6 +364,8 @@ class SearchCallsAction(ActionHandler):
                         }
                     )
 
+            limit = inputs.get("limit", 50)
+            results = results[:limit]
             return ActionResult(data={"results": results, "total_count": len(results)}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
