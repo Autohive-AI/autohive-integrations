@@ -1,4 +1,2 @@
 autohive-integrations-sdk~=2.0.0
 aiohttp
-pytest
-pytest-asyncio
