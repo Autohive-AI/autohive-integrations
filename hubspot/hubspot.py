@@ -472,29 +472,17 @@ class CreateTaskActionHandler(ActionHandler):
         properties = {"hs_task_body": task_body, "hs_timestamp": str(timestamp)}
 
         if inputs.get("hs_task_subject") or inputs.get("task_subject"):
-            properties["hs_task_subject"] = inputs.get("hs_task_subject") or inputs.get(
-                "task_subject"
-            )
+            properties["hs_task_subject"] = inputs.get("hs_task_subject") or inputs.get("task_subject")
         if inputs.get("hs_task_status") or inputs.get("task_status"):
-            properties["hs_task_status"] = inputs.get("hs_task_status") or inputs.get(
-                "task_status"
-            )
+            properties["hs_task_status"] = inputs.get("hs_task_status") or inputs.get("task_status")
         if inputs.get("hs_task_priority") or inputs.get("task_priority"):
-            properties["hs_task_priority"] = inputs.get(
-                "hs_task_priority"
-            ) or inputs.get("task_priority")
+            properties["hs_task_priority"] = inputs.get("hs_task_priority") or inputs.get("task_priority")
         if inputs.get("hs_task_type") or inputs.get("task_type"):
-            properties["hs_task_type"] = inputs.get("hs_task_type") or inputs.get(
-                "task_type"
-            )
+            properties["hs_task_type"] = inputs.get("hs_task_type") or inputs.get("task_type")
         if inputs.get("hubspot_owner_id") or inputs.get("owner_id"):
-            properties["hubspot_owner_id"] = str(
-                inputs.get("hubspot_owner_id") or inputs.get("owner_id")
-            )
+            properties["hubspot_owner_id"] = str(inputs.get("hubspot_owner_id") or inputs.get("owner_id"))
         if inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp"):
-            properties["hs_task_reminders"] = str(
-                inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp")
-            )
+            properties["hs_task_reminders"] = str(inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp"))
 
         # Build associations array
         associations = []
@@ -592,39 +580,23 @@ class UpdateTaskActionHandler(ActionHandler):
         properties = {}
 
         if inputs.get("hs_task_body") or inputs.get("task_body"):
-            properties["hs_task_body"] = inputs.get("hs_task_body") or inputs.get(
-                "task_body"
-            )
+            properties["hs_task_body"] = inputs.get("hs_task_body") or inputs.get("task_body")
 
         if inputs.get("hs_timestamp") or inputs.get("timestamp"):
-            properties["hs_timestamp"] = str(
-                inputs.get("hs_timestamp") or inputs.get("timestamp")
-            )
+            properties["hs_timestamp"] = str(inputs.get("hs_timestamp") or inputs.get("timestamp"))
 
         if inputs.get("hs_task_subject") or inputs.get("task_subject"):
-            properties["hs_task_subject"] = inputs.get("hs_task_subject") or inputs.get(
-                "task_subject"
-            )
+            properties["hs_task_subject"] = inputs.get("hs_task_subject") or inputs.get("task_subject")
         if inputs.get("hs_task_status") or inputs.get("task_status"):
-            properties["hs_task_status"] = inputs.get("hs_task_status") or inputs.get(
-                "task_status"
-            )
+            properties["hs_task_status"] = inputs.get("hs_task_status") or inputs.get("task_status")
         if inputs.get("hs_task_priority") or inputs.get("task_priority"):
-            properties["hs_task_priority"] = inputs.get(
-                "hs_task_priority"
-            ) or inputs.get("task_priority")
+            properties["hs_task_priority"] = inputs.get("hs_task_priority") or inputs.get("task_priority")
         if inputs.get("hs_task_type") or inputs.get("task_type"):
-            properties["hs_task_type"] = inputs.get("hs_task_type") or inputs.get(
-                "task_type"
-            )
+            properties["hs_task_type"] = inputs.get("hs_task_type") or inputs.get("task_type")
         if inputs.get("hubspot_owner_id") or inputs.get("owner_id"):
-            properties["hubspot_owner_id"] = str(
-                inputs.get("hubspot_owner_id") or inputs.get("owner_id")
-            )
+            properties["hubspot_owner_id"] = str(inputs.get("hubspot_owner_id") or inputs.get("owner_id"))
         if inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp"):
-            properties["hs_task_reminders"] = str(
-                inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp")
-            )
+            properties["hs_task_reminders"] = str(inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp"))
 
         # Allow additional properties to be updated
         if inputs.get("additional_properties"):
@@ -751,11 +723,7 @@ class GetTaskActionHandler(ActionHandler):
                 "hs_lastmodifieddate",
             ]:
                 if timestamp_field in task_props and task_props[timestamp_field]:
-                    task_props[timestamp_field] = (
-                        convert_hubspot_timestamp_to_utc_string(
-                            task_props[timestamp_field]
-                        )
-                    )
+                    task_props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(task_props[timestamp_field])
 
             return ActionResult(
                 data={
@@ -827,10 +795,8 @@ class ListTasksActionHandler(ActionHandler):
                     "hs_lastmodifieddate",
                 ]:
                     if timestamp_field in task_props and task_props[timestamp_field]:
-                        task_props[timestamp_field] = (
-                            convert_hubspot_timestamp_to_utc_string(
-                                task_props[timestamp_field]
-                            )
+                        task_props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(
+                            task_props[timestamp_field]
                         )
 
             return ActionResult(
@@ -870,9 +836,7 @@ class GetContactEmailsActionHandler(ActionHandler):
         try:
             # Get associated emails using v4 associations API
             associations_url = f"https://api.hubapi.com/crm/v4/objects/contacts/{contact_id}/associations/emails"
-            associations_response = await context.fetch(
-                associations_url, headers={"Content-Type": "application/json"}
-            )
+            associations_response = await context.fetch(associations_url, headers={"Content-Type": "application/json"})
             associations_data = await parse_response(associations_response)
 
             recent_emails = []
@@ -903,10 +867,8 @@ class GetContactEmailsActionHandler(ActionHandler):
                         and "hs_timestamp" in email_data["properties"]
                         and email_data["properties"]["hs_timestamp"]
                     ):
-                        email_data["properties"]["hs_timestamp"] = (
-                            convert_hubspot_timestamp_to_utc_string(
-                                email_data["properties"]["hs_timestamp"]
-                            )
+                        email_data["properties"]["hs_timestamp"] = convert_hubspot_timestamp_to_utc_string(
+                            email_data["properties"]["hs_timestamp"]
                         )
 
                     recent_emails.append(email_data)
@@ -1112,9 +1074,7 @@ class GetRecentContactsActionHandler(ActionHandler):
         limit = inputs.get("limit", 100)
         url = f"https://api.hubapi.com/crm/v3/objects/contacts?limit={limit}&sort=createdat"
 
-        response = await context.fetch(
-            url, headers={"Content-Type": "application/json"}
-        )
+        response = await context.fetch(url, headers={"Content-Type": "application/json"})
         recent_contacts = await parse_response(response)
         return ActionResult(data={"recent_contacts": recent_contacts}, cost_usd=None)
 
@@ -1132,7 +1092,9 @@ async def get_thread_id_from_ticket(ticket_id: str, context: ExecutionContext) -
     :param context: Execution context with fetch utility.
     :return: The conversation thread ID or None if not found.
     """
-    ticket_url = f"https://api.hubapi.com/crm/v3/objects/tickets/{ticket_id}?properties=hs_conversations_originating_thread_id"
+    ticket_url = (
+        f"https://api.hubapi.com/crm/v3/objects/tickets/{ticket_id}?properties=hs_conversations_originating_thread_id"
+    )
     ticket_response = await context.fetch(ticket_url, headers={"Content-Type": "application/json"})
     ticket_data = await parse_response(ticket_response)
     return ticket_data.get("properties", {}).get("hs_conversations_originating_thread_id")
@@ -1160,9 +1122,7 @@ class GetRecentTicketsActionHandler(ActionHandler):
         sort_property = inputs.get("sort_property", "hs_lastmodifieddate")
 
         sort_direction_map = {"DESC": "DESCENDING", "ASC": "ASCENDING"}
-        sort_direction = sort_direction_map.get(
-            inputs.get("sort_direction", "DESC"), "DESCENDING"
-        )
+        sort_direction = sort_direction_map.get(inputs.get("sort_direction", "DESC"), "DESCENDING")
 
         url = "https://api.hubapi.com/crm/v3/objects/tickets/search"
 
@@ -1246,9 +1206,7 @@ class GetTicketConversationActionHandler(ActionHandler):
 
         try:
             conversation_url = f"https://api.hubapi.com/conversations/v3/conversations/threads/{thread_id}/messages"
-            conversation_response = await context.fetch(
-                conversation_url, headers={"Content-Type": "application/json"}
-            )
+            conversation_response = await context.fetch(conversation_url, headers={"Content-Type": "application/json"})
             conversation_data = await parse_response(conversation_response)
 
             if conversation_data.get("results"):
@@ -1430,11 +1388,7 @@ class GetCompanyNotesActionHandler(ActionHandler):
                         "hs_lastmodifieddate",
                     ]:
                         if timestamp_field in props and props[timestamp_field]:
-                            props[timestamp_field] = (
-                                convert_hubspot_timestamp_to_utc_string(
-                                    props[timestamp_field]
-                                )
-                            )
+                            props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(props[timestamp_field])
 
             return ActionResult(
                 data={
@@ -1484,9 +1438,7 @@ class GetCompanyActionHandler(ActionHandler):
             )
 
         url += f"?properties={properties_param}"
-        response = await context.fetch(
-            url, headers={"Content-Type": "application/json"}
-        )
+        response = await context.fetch(url, headers={"Content-Type": "application/json"})
         company = await parse_response(response)
 
         return ActionResult(data={"company": company}, cost_usd=None)
@@ -1635,9 +1587,7 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
         try:
             # Step 1: Get all owners from HubSpot
             owners_url = "https://api.hubapi.com/crm/v3/owners/"
-            owners_response = await context.fetch(
-                owners_url, headers={"Content-Type": "application/json"}
-            )
+            owners_response = await context.fetch(owners_url, headers={"Content-Type": "application/json"})
             owners_data = await parse_response(owners_response)
 
             # Step 2: Find the owner ID by matching the name
@@ -1723,9 +1673,7 @@ class GetCompanyPropertiesActionHandler(ActionHandler):
         include_details = inputs.get("include_details", False)
         url = "https://api.hubapi.com/crm/v3/properties/companies"
 
-        response = await context.fetch(
-            url, headers={"Content-Type": "application/json"}
-        )
+        response = await context.fetch(url, headers={"Content-Type": "application/json"})
         properties_data = await parse_response(response)
 
         results = properties_data.get("results", [])
@@ -1749,9 +1697,7 @@ class GetCompanyPropertiesActionHandler(ActionHandler):
             # Return just property names (backward compatible)
             properties = [prop.get("name") for prop in results if prop.get("name")]
 
-        custom_count = sum(
-            1 for prop in results if not prop.get("hubspotDefined", True)
-        )
+        custom_count = sum(1 for prop in results if not prop.get("hubspotDefined", True))
 
         return ActionResult(
             data={
@@ -1771,9 +1717,7 @@ class GetDealPropertiesActionHandler(ActionHandler):
         include_details = inputs.get("include_details", False)
         url = "https://api.hubapi.com/crm/v3/properties/deals"
 
-        response = await context.fetch(
-            url, headers={"Content-Type": "application/json"}
-        )
+        response = await context.fetch(url, headers={"Content-Type": "application/json"})
         properties_data = await parse_response(response)
 
         results = properties_data.get("results", [])
@@ -1797,9 +1741,7 @@ class GetDealPropertiesActionHandler(ActionHandler):
             # Return just property names
             properties = [prop.get("name") for prop in results if prop.get("name")]
 
-        custom_count = sum(
-            1 for prop in results if not prop.get("hubspotDefined", True)
-        )
+        custom_count = sum(1 for prop in results if not prop.get("hubspotDefined", True))
 
         return ActionResult(
             data={
@@ -1819,9 +1761,7 @@ class GetContactPropertiesActionHandler(ActionHandler):
         include_details = inputs.get("include_details", False)
         url = "https://api.hubapi.com/crm/v3/properties/contacts"
 
-        response = await context.fetch(
-            url, headers={"Content-Type": "application/json"}
-        )
+        response = await context.fetch(url, headers={"Content-Type": "application/json"})
         properties_data = await parse_response(response)
 
         results = properties_data.get("results", [])
@@ -1845,9 +1785,7 @@ class GetContactPropertiesActionHandler(ActionHandler):
             # Return just property names
             properties = [prop.get("name") for prop in results if prop.get("name")]
 
-        custom_count = sum(
-            1 for prop in results if not prop.get("hubspotDefined", True)
-        )
+        custom_count = sum(1 for prop in results if not prop.get("hubspotDefined", True))
 
         return ActionResult(
             data={
@@ -1931,11 +1869,7 @@ class GetDealNotesActionHandler(ActionHandler):
                         "hs_lastmodifieddate",
                     ]:
                         if timestamp_field in props and props[timestamp_field]:
-                            props[timestamp_field] = (
-                                convert_hubspot_timestamp_to_utc_string(
-                                    props[timestamp_field]
-                                )
-                            )
+                            props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(props[timestamp_field])
 
             return ActionResult(
                 data={"deal_id": deal_id, "notes": notes, "total": len(notes)},
@@ -1963,9 +1897,7 @@ async def fetch_transcript(transcript_id: str, context: ExecutionContext):
         return None
 
 
-async def fetch_calls_with_transcripts(
-    association_filter: dict, limit: int, context: ExecutionContext
-):
+async def fetch_calls_with_transcripts(association_filter: dict, limit: int, context: ExecutionContext):
     """
     Fetch calls for a given association filter, then enrich each call that has a transcript
     by fetching the full transcript utterances from the transcripts API.
@@ -2008,9 +1940,7 @@ async def fetch_calls_with_transcripts(
                 "hs_lastmodifieddate",
             ]:
                 if call["properties"].get(field):
-                    call["properties"][field] = convert_hubspot_timestamp_to_utc_string(
-                        call["properties"][field]
-                    )
+                    call["properties"][field] = convert_hubspot_timestamp_to_utc_string(call["properties"][field])
 
     # Fetch transcripts in parallel for calls that have one.
     # Note: hs_call_transcription_id can be null even when a transcript exists (known HubSpot bug).
@@ -2083,11 +2013,7 @@ async def fetch_meetings(association_filter: dict, limit: int, context: Executio
                 "hs_meeting_end_time",
             ]:
                 if meeting["properties"].get(field):
-                    meeting["properties"][field] = (
-                        convert_hubspot_timestamp_to_utc_string(
-                            meeting["properties"][field]
-                        )
-                    )
+                    meeting["properties"][field] = convert_hubspot_timestamp_to_utc_string(meeting["properties"][field])
 
     return meetings
 
@@ -2130,9 +2056,7 @@ class GetContactCallsAndMeetingsActionHandler(ActionHandler):
             )
 
         except Exception as e:
-            return ActionError(
-                message=f"Failed to retrieve calls and meetings for contact {contact_id}: {str(e)}"
-            )
+            return ActionError(message=f"Failed to retrieve calls and meetings for contact {contact_id}: {str(e)}")
 
 
 @hubspot.action("get_deal_calls_and_meetings")
@@ -2173,9 +2097,7 @@ class GetDealCallsAndMeetingsActionHandler(ActionHandler):
             )
 
         except Exception as e:
-            return ActionError(
-                message=f"Failed to retrieve calls and meetings for deal {deal_id}: {str(e)}"
-            )
+            return ActionError(message=f"Failed to retrieve calls and meetings for deal {deal_id}: {str(e)}")
 
 
 @hubspot.action("get_deals")
@@ -2196,16 +2118,10 @@ class GetDealsActionHandler(ActionHandler):
         :return: Dictionary with a "deals" key containing deals data.
         """
 
-        fetch_all = inputs.get(
-            "fetch_all", False
-        )  # Default to single page to prevent context overflow
+        fetch_all = inputs.get("fetch_all", False)  # Default to single page to prevent context overflow
         limit_per_page = min(inputs.get("limit", 50), 100)  # HubSpot max is 100
         sort_property = inputs.get("sort_property", "hs_lastmodifieddate")
-        sort_direction = (
-            "DESCENDING"
-            if inputs.get("sort_direction", "DESC") == "DESC"
-            else "ASCENDING"
-        )
+        sort_direction = "DESCENDING" if inputs.get("sort_direction", "DESC") == "DESC" else "ASCENDING"
         delay_between_requests = inputs.get(
             "delay_between_requests", 0
         )  # Default to 0 (no delay) for backward compatibility
@@ -2280,9 +2196,7 @@ class GetDealsActionHandler(ActionHandler):
                     year = int(inputs["year"])
                     # Create start and end of year in UTC milliseconds
                     start_of_year = datetime(year, 1, 1, tzinfo=timezone.utc)
-                    end_of_year = datetime(
-                        year, 12, 31, 23, 59, 59, tzinfo=timezone.utc
-                    )
+                    end_of_year = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
 
                     start_ms = int(start_of_year.timestamp() * 1000)
                     end_ms = int(end_of_year.timestamp() * 1000)
@@ -2386,9 +2300,7 @@ class GetDealsActionHandler(ActionHandler):
                             "total_duplicates_removed": 0,
                         }
                     context._deduplication_stats["pages_with_duplicates"] += 1
-                    context._deduplication_stats["total_duplicates_removed"] += (
-                        duplicates_removed
-                    )
+                    context._deduplication_stats["total_duplicates_removed"] += duplicates_removed
             else:
                 has_more = False
 
@@ -2449,12 +2361,8 @@ class GetDealsActionHandler(ActionHandler):
             "deduplication": {
                 "enabled": True,
                 "unique_deals_count": len(unique_deal_ids),
-                "duplicates_removed": deduplication_stats["total_duplicates_removed"]
-                if deduplication_stats
-                else 0,
-                "pages_with_duplicates": deduplication_stats["pages_with_duplicates"]
-                if deduplication_stats
-                else 0,
+                "duplicates_removed": deduplication_stats["total_duplicates_removed"] if deduplication_stats else 0,
+                "pages_with_duplicates": deduplication_stats["pages_with_duplicates"] if deduplication_stats else 0,
             },
         }
 
@@ -2510,9 +2418,7 @@ class GetDealActionHandler(ActionHandler):
         properties_param = ",".join(properties)
         url = f"https://api.hubapi.com/crm/v3/objects/deals/{deal_id}?properties={properties_param}"
 
-        response = await context.fetch(
-            url, headers={"Content-Type": "application/json"}
-        )
+        response = await context.fetch(url, headers={"Content-Type": "application/json"})
         deal = await parse_response(response)
 
         # Convert deal dates from UTC timestamps to readable UTC strings
@@ -2542,9 +2448,7 @@ class SearchDealsActionHandler(ActionHandler):
         :return: Parsed JSON response containing filtered deals with comprehensive pagination.
         """
 
-        fetch_all = inputs.get(
-            "fetch_all", False
-        )  # Default to single page to prevent context overflow
+        fetch_all = inputs.get("fetch_all", False)  # Default to single page to prevent context overflow
         limit_per_page = min(inputs.get("limit", 50), 100)  # HubSpot max is 100
 
         deals = []
@@ -2613,9 +2517,7 @@ class SearchDealsActionHandler(ActionHandler):
                     year = int(inputs["year"])
                     # Create start and end of year in UTC milliseconds
                     start_of_year = datetime(year, 1, 1, tzinfo=timezone.utc)
-                    end_of_year = datetime(
-                        year, 12, 31, 23, 59, 59, tzinfo=timezone.utc
-                    )
+                    end_of_year = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
 
                     start_ms = int(start_of_year.timestamp() * 1000)
                     end_ms = int(end_of_year.timestamp() * 1000)
@@ -2688,11 +2590,7 @@ class SearchDealsActionHandler(ActionHandler):
 
             # Add sorting
             if inputs.get("sort_property"):
-                sort_direction = (
-                    "DESCENDING"
-                    if inputs.get("sort_direction", "DESC") == "DESC"
-                    else "ASCENDING"
-                )
+                sort_direction = "DESCENDING" if inputs.get("sort_direction", "DESC") == "DESC" else "ASCENDING"
                 request_body["sorts"] = [
                     {
                         "propertyName": inputs["sort_property"],
@@ -2716,9 +2614,7 @@ class SearchDealsActionHandler(ActionHandler):
                 if inputs.get("close_date_start") or inputs.get("close_date_end"):
                     filtered_deals = []
                     start_date_obj = (
-                        parse_date_string_to_utc(inputs["close_date_start"])
-                        if inputs.get("close_date_start")
-                        else None
+                        parse_date_string_to_utc(inputs["close_date_start"]) if inputs.get("close_date_start") else None
                     )
                     end_date_obj = (
                         parse_date_string_to_utc(inputs["close_date_end"]) if inputs.get("close_date_end") else None
@@ -2728,9 +2624,7 @@ class SearchDealsActionHandler(ActionHandler):
                         closedate_str = deal.get("properties", {}).get("closedate")
                         if closedate_str:
                             try:
-                                if isinstance(
-                                    closedate_str, str
-                                ) and closedate_str.endswith("Z"):
+                                if isinstance(closedate_str, str) and closedate_str.endswith("Z"):
                                     closedate_obj = datetime.fromisoformat(
                                         closedate_str.replace("Z", "+00:00")
                                     ).replace(tzinfo=None)
