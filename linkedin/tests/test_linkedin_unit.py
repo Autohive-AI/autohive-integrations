@@ -1,917 +1,575 @@
 """
-Tests for LinkedIn Integration
+Unit tests for the LinkedIn integration.
 
-Tests all actions with mocked API responses to verify correct behavior
-without making actual LinkedIn API calls.
+Covers all six actions (get_user_info, create_post, share_article,
+reshare_post, update_post, delete_post) plus the image-upload helpers.
 """
 
-from typing import Any
-from unittest.mock import patch
+import importlib.util
+import os
+import sys
 
-import pytest
+_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
+sys.path.insert(0, _parent)
+sys.path.insert(0, _deps)
 
-from autohive_integrations_sdk import FetchResponse, ResultType
+import pytest  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
-from context import linkedin, linkedin_module
+from autohive_integrations_sdk import FetchResponse  # noqa: E402
+from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
+_spec = importlib.util.spec_from_file_location("linkedin_mod", os.path.join(_parent, "linkedin.py"))
+_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
 
+linkedin = _mod.linkedin
 
-class MockExecutionContext:
-    """
-    Mock execution context that simulates LinkedIn API responses.
-
-    Routes requests based on URL patterns and HTTP methods to return
-    pre-configured responses for testing.
-    """
-
-    def __init__(self, responses: dict[str, Any] = None):
-        self.auth = {}
-        self._responses = responses or {}
-        self._requests = []
-
-    @staticmethod
-    def _wrap(body: Any) -> FetchResponse:
-        return FetchResponse(status=200, headers={}, data=body)
-
-    async def fetch(
-        self,
-        url: str,
-        method: str = "GET",
-        params: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-        json: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-        **kwargs,
-    ):
-        self._requests.append(
-            {
-                "url": url,
-                "method": method,
-                "params": params,
-                "data": data,
-                "json": json,
-                "headers": headers,
-            }
-        )
-
-        # Userinfo endpoint
-        if "/userinfo" in url and method == "GET":
-            return self._wrap(
-                self._responses.get(
-                    "GET /userinfo",
-                    {
-                        "sub": "abc123",
-                        "name": "Test User",
-                        "given_name": "Test",
-                        "family_name": "User",
-                        "picture": "https://media.licdn.com/pic.jpg",
-                        "locale": {"country": "US", "language": "en"},
-                        "email": "test@example.com",
-                        "email_verified": True,
-                    },
-                )
-            )
-
-        # Posts endpoint - CREATE
-        if "/rest/posts" in url and method == "POST" and "X-RestLi-Method" not in (headers or {}):
-            return self._wrap(
-                self._responses.get(
-                    "POST /posts",
-                    {
-                        "id": "urn:li:share:123456789",
-                        "author": "urn:li:person:abc123",
-                        "lifecycleState": "PUBLISHED",
-                        "visibility": "PUBLIC",
-                        "commentary": "Test post",
-                        "createdAt": 1705849200000,
-                        "publishedAt": 1705849200000,
-                    },
-                )
-            )
-
-        # Posts endpoint - GET single
-        if "/rest/posts/" in url and method == "GET":
-            return self._wrap(
-                self._responses.get(
-                    "GET /posts/{urn}",
-                    {
-                        "id": "urn:li:share:123456789",
-                        "author": "urn:li:person:abc123",
-                        "lifecycleState": "PUBLISHED",
-                        "visibility": "PUBLIC",
-                        "commentary": "Test post content",
-                        "createdAt": 1705849200000,
-                        "publishedAt": 1705849200000,
-                        "lastModifiedAt": 1705849200000,
-                    },
-                )
-            )
-
-        # Posts endpoint - GET list (finder)
-        if "/rest/posts?" in url and method == "GET":
-            return self._wrap(
-                self._responses.get(
-                    "GET /posts",
-                    {
-                        "elements": [
-                            {
-                                "id": "urn:li:share:111",
-                                "author": "urn:li:person:abc123",
-                                "commentary": "Post 1",
-                                "visibility": "PUBLIC",
-                                "lifecycleState": "PUBLISHED",
-                            },
-                            {
-                                "id": "urn:li:share:222",
-                                "author": "urn:li:person:abc123",
-                                "commentary": "Post 2",
-                                "visibility": "PUBLIC",
-                                "lifecycleState": "PUBLISHED",
-                            },
-                        ],
-                        "paging": {"start": 0, "count": 10},
-                    },
-                )
-            )
-
-        # Posts endpoint - UPDATE
-        if (
-            "/rest/posts/" in url
-            and method == "POST"
-            and headers
-            and headers.get("X-RestLi-Method") == "PARTIAL_UPDATE"
-        ):
-            return self._wrap(self._responses.get("PATCH /posts", {}))
-
-        # Posts endpoint - DELETE
-        if "/rest/posts/" in url and method == "DELETE":
-            return self._wrap(self._responses.get("DELETE /posts", {}))
-
-        # Comments endpoint - GET
-        if "/socialActions/" in url and "/comments" in url and method == "GET":
-            return self._wrap(
-                self._responses.get(
-                    "GET /comments",
-                    {
-                        "elements": [
-                            {
-                                "id": "comment123",
-                                "actor": "urn:li:person:commenter1",
-                                "message": {"text": "Great post!"},
-                                "created": {"time": 1705849200000},
-                            }
-                        ],
-                        "paging": {"start": 0, "count": 10},
-                    },
-                )
-            )
-
-        # Comments endpoint - CREATE
-        if "/socialActions/" in url and "/comments" in url and method == "POST":
-            return self._wrap(
-                self._responses.get(
-                    "POST /comments",
-                    {
-                        "id": "comment456",
-                        "actor": "urn:li:person:abc123",
-                        "message": {"text": "Test comment"},
-                        "object": "urn:li:activity:123456",
-                    },
-                )
-            )
-
-        # Comments endpoint - DELETE
-        if "/socialActions/" in url and "/comments/" in url and method == "DELETE":
-            return self._wrap(self._responses.get("DELETE /comments", {}))
-
-        # Reactions endpoint - GET
-        if "/rest/reactions/(entity:" in url and method == "GET":
-            return self._wrap(
-                self._responses.get(
-                    "GET /reactions",
-                    {
-                        "elements": [
-                            {
-                                "id": "urn:li:reaction:(urn:li:person:user1,urn:li:activity:123)",
-                                "reactionType": "LIKE",
-                                "created": {"time": 1705849200000},
-                            }
-                        ],
-                        "paging": {"start": 0, "count": 10, "total": 1},
-                    },
-                )
-            )
-
-        # Reactions endpoint - CREATE
-        if "/rest/reactions?" in url and method == "POST":
-            return self._wrap(
-                self._responses.get(
-                    "POST /reactions",
-                    {
-                        "id": "urn:li:reaction:(urn:li:person:abc123,urn:li:activity:123)",
-                        "reactionType": "LIKE",
-                        "created": {"time": 1705849200000},
-                    },
-                )
-            )
-
-        # Reactions endpoint - DELETE
-        if "/rest/reactions/(actor:" in url and method == "DELETE":
-            return self._wrap(self._responses.get("DELETE /reactions", {}))
-
-        # Images endpoint - Initialize upload
-        if "/rest/images?action=initializeUpload" in url and method == "POST":
-            # Generate a unique image URN based on the number of image init calls
-            image_count = len([r for r in self._requests if "initializeUpload" in r["url"]])
-            return self._wrap(
-                self._responses.get(
-                    "POST /images/initializeUpload",
-                    {
-                        "value": {
-                            "uploadUrl": f"https://api.linkedin.com/upload/image{image_count}",
-                            "image": f"urn:li:image:{image_count}",
-                        }
-                    },
-                )
-            )
-
-        # Images endpoint - Binary upload
-        if "api.linkedin.com/upload/" in url and method == "PUT":
-            return self._wrap(self._responses.get("PUT /images/upload", {}))
-
-        return self._wrap({})
+pytestmark = pytest.mark.unit  # asyncio_mode = "auto" handles async tests automatically
 
 
-# =============================================================================
-# GET USER INFO TESTS
-# =============================================================================
-
-
-async def test_get_user_info_success():
-    """Test getting user info returns correct structure."""
-    responses = {
-        "GET /userinfo": {
-            "sub": "user123",
-            "name": "John Doe",
-            "given_name": "John",
-            "family_name": "Doe",
-            "picture": "https://media.licdn.com/profile.jpg",
-            "locale": {"country": "US", "language": "en"},
-            "email": "john.doe@example.com",
-            "email_verified": True,
-        }
+@pytest.fixture
+def mock_context():
+    ctx = MagicMock(name="ExecutionContext")
+    ctx.fetch = AsyncMock(name="fetch")
+    ctx.auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "test_token"},  # nosec B105
     }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action("get_user_info", {}, context)
-    data = result.result.data
-
-    assert data["result"] == "User information retrieved successfully."
-    assert data["user_info"]["sub"] == "user123"
-    assert data["user_info"]["name"] == "John Doe"
-    assert data["user_info"]["given_name"] == "John"
-    assert data["user_info"]["family_name"] == "Doe"
-    assert data["user_info"]["email"] == "john.doe@example.com"
-    assert data["user_info"]["email_verified"]
+    return ctx
 
 
-async def test_get_user_info_without_email():
-    """Test getting user info when email scope not granted."""
-    responses = {
-        "GET /userinfo": {
-            "sub": "user456",
-            "name": "Jane Smith",
-            "given_name": "Jane",
-            "family_name": "Smith",
-            "picture": "https://media.licdn.com/jane.jpg",
-            "locale": {"country": "GB", "language": "en"},
-        }
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action("get_user_info", {}, context)
-    data = result.result.data
-
-    assert data["result"] == "User information retrieved successfully."
-    assert data["user_info"]["sub"] == "user456"
-    assert data["user_info"]["name"] == "Jane Smith"
-    assert "email" not in data["user_info"]
-
-
-async def test_get_user_info_error():
-    """Test handling error response from userinfo endpoint."""
-    responses = {
-        "GET /userinfo": {
-            "error": "invalid_token",
-            "error_description": "The access token is invalid",
-        }
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action("get_user_info", {}, context)
-
-    assert result.type == ResultType.ACTION_ERROR
-    assert "Failed to retrieve user information" in result.result.message
-
-
-# =============================================================================
-# SHARE CONTENT TESTS
-# =============================================================================
-
-# =============================================================================
-# SHARE ARTICLE TESTS
-# =============================================================================
-
-
-@patch.object(linkedin_module, "post_to_linkedin")
-async def test_share_article_success(mock_post):
-    """Test sharing an article successfully."""
-    mock_post.return_value = (201, {"x-restli-id": "urn:li:share:article123"}, None)
-
-    responses = {
-        "GET /userinfo": {"sub": "article_user", "name": "Article User"},
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "share_article",
-        {
-            "article_url": "https://example.com/article",
-            "article_title": "Test Article",
-            "article_description": "Article description",
-            "commentary": "Check out this article!",
-        },
-        context,
-    )
-    data = result.result.data
-
-    assert data["result"] == "Article shared successfully."
-    assert data["post_id"] == "urn:li:share:article123"
-    assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:share:article123"
-
-    # Verify article content in payload
-    mock_post.assert_called_once()
-    payload = mock_post.call_args[0][1]
-    assert payload["content"]["article"]["source"] == "https://example.com/article"
-    assert payload["content"]["article"]["title"] == "Test Article"
-    assert payload["commentary"] == "Check out this article!"
-
-
-@patch.object(linkedin_module, "post_to_linkedin")
-async def test_share_article_minimal(mock_post):
-    """Test sharing article with only required fields."""
-    mock_post.return_value = (201, {"x-restli-id": "urn:li:share:min_article"}, None)
-
-    responses = {
-        "GET /userinfo": {"sub": "min_user", "name": "Min User"},
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "share_article",
-        {"article_url": "https://example.com/min", "article_title": "Minimal Article"},
-        context,
-    )
-    data = result.result.data
-
-    assert data["result"] == "Article shared successfully."
-
-    mock_post.assert_called_once()
-    payload = mock_post.call_args[0][1]
-    assert payload["commentary"] == ""  # Default empty
-    assert payload["content"]["article"]["description"] == ""  # Default empty
-
-
-# =============================================================================
-# RESHARE POST TESTS
-# =============================================================================
-
-
-@patch.object(linkedin_module, "post_to_linkedin")
-async def test_reshare_post_success(mock_post):
-    """Test resharing a post successfully."""
-    mock_post.return_value = (201, {"x-restli-id": "urn:li:share:reshare123"}, None)
-
-    responses = {
-        "GET /userinfo": {"sub": "reshare_user", "name": "Reshare User"},
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "reshare_post",
-        {"original_post_urn": "urn:li:share:original123", "commentary": "Great post!"},
-        context,
-    )
-    data = result.result.data
-
-    assert data["result"] == "Post reshared successfully."
-    assert data["post_id"] == "urn:li:share:reshare123"
-    assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:share:reshare123"
-
-    mock_post.assert_called_once()
-    payload = mock_post.call_args[0][1]
-    assert payload["reshareContext"]["parent"] == "urn:li:share:original123"
-    assert payload["commentary"] == "Great post!"
-
-
-@patch.object(linkedin_module, "post_to_linkedin")
-async def test_reshare_post_no_commentary(mock_post):
-    """Test resharing without commentary."""
-    mock_post.return_value = (201, {"x-restli-id": "urn:li:share:reshare456"}, None)
-
-    responses = {
-        "GET /userinfo": {"sub": "reshare_user2", "name": "Reshare User 2"},
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action("reshare_post", {"original_post_urn": "urn:li:share:original456"}, context)
-    data = result.result.data
-
-    assert data["result"] == "Post reshared successfully."
-
-    mock_post.assert_called_once()
-    payload = mock_post.call_args[0][1]
-    assert payload["commentary"] == ""  # Default empty
-
-
-# =============================================================================
-# UPDATE POST TESTS
-# =============================================================================
-
-
-async def test_update_post_success():
-    """Test updating a post's commentary."""
-    responses = {"PATCH /posts": {}}
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "update_post",
-        {"post_urn": "urn:li:share:update123", "commentary": "Updated content"},
-        context,
-    )
-    data = result.result.data
-
-    assert data["result"] == "Post updated successfully."
-    assert data["post_urn"] == "urn:li:share:update123"
-
-    # Verify PARTIAL_UPDATE header
-    post_calls = [r for r in context._requests if "/rest/posts/" in r["url"] and r["method"] == "POST"]
-    assert post_calls[0]["headers"]["X-RestLi-Method"] == "PARTIAL_UPDATE"
-
-    # Verify patch payload
-    payload = post_calls[0]["json"]
-    assert payload["patch"]["$set"]["commentary"] == "Updated content"
-
-
-# =============================================================================
-# DELETE POST TESTS
-# =============================================================================
-
-
-async def test_delete_post_success():
-    """Test deleting a post."""
-    responses = {"DELETE /posts": {}}
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action("delete_post", {"post_urn": "urn:li:share:delete123"}, context)
-    data = result.result.data
-
-    assert data["result"] == "Post deleted successfully."
-    assert data["post_urn"] == "urn:li:share:delete123"
-
-    # Verify DELETE method and header
-    delete_calls = [r for r in context._requests if r["method"] == "DELETE"]
-    assert len(delete_calls) == 1
-    assert delete_calls[0]["headers"]["X-RestLi-Method"] == "DELETE"
-
-
-# =============================================================================
-# CREATE POST TESTS (with image support)
-# =============================================================================
-
-# Sample base64-encoded 1x1 pixel images for testing
+# 1x1 PNG / JPEG samples for image-upload tests
 SAMPLE_JPEG_BASE64 = "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBEQCEAwEPwAB//9k="  # noqa: E501
 SAMPLE_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 
-
-@patch.object(linkedin_module, "post_to_linkedin")
-async def test_create_post_text_only(mock_post):
-    """Test creating a text-only post with no images."""
-    # Mock post_to_linkedin to return success with post ID in headers
-    mock_post.return_value = (201, {"x-restli-id": "urn:li:share:text123"}, None)
-
-    responses = {
-        "GET /userinfo": {"sub": "text_user", "name": "Text User"},
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action("create_post", {"text": "Hello from create_post!"}, context)
-    data = result.result.data
-
-    assert data["result"] == "Post created successfully."
-    assert data["post_id"] == "urn:li:share:text123"
-    assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:share:text123"
-    assert data["images_uploaded"] == 0
-
-    # Verify no image upload calls were made
-    image_calls = [r for r in context._requests if "initializeUpload" in r["url"]]
-    assert len(image_calls) == 0
-
-    # Verify post_to_linkedin was called with correct payload (no content field)
-    mock_post.assert_called_once()
-    call_args = mock_post.call_args
-    payload = call_args[0][1]  # Second positional arg is payload
-    assert "content" not in payload
-    assert payload["commentary"] == "Hello from create_post!"
+USERINFO_RESPONSE = FetchResponse(
+    status=200,
+    headers={},
+    data={"sub": "abc123", "name": "Test User", "email": "test@example.com"},
+)
 
 
-@patch.object(linkedin_module, "post_to_linkedin")
-async def test_create_post_single_image(mock_post):
-    """Test creating a post with a single image."""
-    mock_post.return_value = (201, {"x-restli-id": "urn:li:share:img123"}, None)
-
-    responses = {
-        "GET /userinfo": {"sub": "img_user", "name": "Image User"},
-        "POST /images/initializeUpload": {
+def _image_init_response(image_urn: str = "urn:li:image:test") -> FetchResponse:
+    return FetchResponse(
+        status=200,
+        headers={},
+        data={
             "value": {
-                "uploadUrl": "https://api.linkedin.com/upload/image1",
-                "image": "urn:li:image:single123",
+                "uploadUrl": "https://api.linkedin.com/upload/test",
+                "image": image_urn,
             }
         },
-        "PUT /images/upload": {},
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "create_post",
-        {
-            "text": "Check out this image!",
-            "files": [
-                {
-                    "content": SAMPLE_JPEG_BASE64,
-                    "name": "photo.jpg",
-                    "contentType": "image/jpeg",
-                }
-            ],
-        },
-        context,
-    )
-    data = result.result.data
-
-    assert data["result"] == "Post created successfully."
-    assert data["post_id"] == "urn:li:share:img123"
-    assert data["images_uploaded"] == 1
-
-    # Verify image upload was called
-    init_calls = [r for r in context._requests if "initializeUpload" in r["url"]]
-    assert len(init_calls) == 1
-
-    # Verify post payload has content.media for single image
-    mock_post.assert_called_once()
-    payload = mock_post.call_args[0][1]
-    assert "content" in payload
-    assert "media" in payload["content"]
-    assert "id" in payload["content"]["media"]
-
-
-@patch.object(linkedin_module, "post_to_linkedin")
-async def test_create_post_multi_image(mock_post):
-    """Test creating a post with multiple images."""
-    mock_post.return_value = (201, {"x-restli-id": "urn:li:share:multi123"}, None)
-
-    responses = {
-        "GET /userinfo": {"sub": "multi_user", "name": "Multi User"},
-        "POST /images/initializeUpload": {
-            "value": {
-                "uploadUrl": "https://api.linkedin.com/upload/img",
-                "image": "urn:li:image:multi",
-            }
-        },
-        "PUT /images/upload": {},
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "create_post",
-        {
-            "text": "Multiple images!",
-            "files": [
-                {
-                    "content": SAMPLE_JPEG_BASE64,
-                    "name": "image1.jpg",
-                    "contentType": "image/jpeg",
-                },
-                {
-                    "content": SAMPLE_PNG_BASE64,
-                    "name": "image2.png",
-                    "contentType": "image/png",
-                },
-                {
-                    "content": SAMPLE_JPEG_BASE64,
-                    "name": "image3.jpg",
-                    "contentType": "image/jpeg",
-                },
-            ],
-        },
-        context,
-    )
-    data = result.result.data
-
-    assert data["result"] == "Post created successfully."
-    assert data["images_uploaded"] == 3
-
-    # Verify 3 image uploads were initiated
-    init_calls = [r for r in context._requests if "initializeUpload" in r["url"]]
-    assert len(init_calls) == 3
-
-    # Verify post payload has content.multiImage structure
-    mock_post.assert_called_once()
-    payload = mock_post.call_args[0][1]
-    assert "content" in payload
-    assert "multiImage" in payload["content"]
-    assert "images" in payload["content"]["multiImage"]
-    assert len(payload["content"]["multiImage"]["images"]) == 3
-
-
-async def test_create_post_too_many_images():
-    """Test that >20 images are rejected before any API calls."""
-    context = MockExecutionContext({})
-
-    # Create 21 files
-    files = [
-        {
-            "content": SAMPLE_JPEG_BASE64,
-            "name": f"image{i}.jpg",
-            "contentType": "image/jpeg",
-        }
-        for i in range(21)
-    ]
-
-    result = await linkedin.execute_action("create_post", {"text": "Too many images", "files": files}, context)
-
-    # Either the schema (maxItems) or the action's own check rejects this; both
-    # are acceptable since either way no API call is made.
-    assert result.type in (ResultType.ACTION_ERROR, ResultType.VALIDATION_ERROR)
-
-    # Verify no API calls were made
-    assert len(context._requests) == 0
-
-
-async def test_create_post_invalid_image_type():
-    """Test that unsupported image types are rejected."""
-    context = MockExecutionContext({})
-
-    result = await linkedin.execute_action(
-        "create_post",
-        {
-            "text": "Invalid image type",
-            "files": [
-                {
-                    "content": "base64data",
-                    "name": "image.bmp",
-                    "contentType": "image/bmp",
-                }
-            ],
-        },
-        context,
     )
 
-    assert result.type == ResultType.ACTION_ERROR
-    assert "Invalid file" in result.result.message
-    assert "Unsupported image type" in result.result.message
 
-    # Verify no API calls were made
-    assert len(context._requests) == 0
+def _image_upload_response() -> FetchResponse:
+    return FetchResponse(status=201, headers={}, data=None)
 
 
-@patch.object(linkedin_module, "post_to_linkedin")
-async def test_create_post_image_with_alt_text(mock_post):
-    """Test that alt text (derived from filename) is included in the post payload."""
-    mock_post.return_value = (201, {"x-restli-id": "urn:li:share:alt123"}, None)
-
-    responses = {
-        "GET /userinfo": {"sub": "alt_user", "name": "Alt User"},
-        "POST /images/initializeUpload": {
-            "value": {
-                "uploadUrl": "https://api.linkedin.com/upload/alt",
-                "image": "urn:li:image:alt123",
-            }
-        },
-        "PUT /images/upload": {},
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "create_post",
-        {
-            "text": "Image with alt text",
-            "files": [
-                {
-                    "content": SAMPLE_JPEG_BASE64,
-                    "name": "A beautiful sunset over the mountains.jpg",
-                    "contentType": "image/jpeg",
-                }
-            ],
-        },
-        context,
-    )
-    data = result.result.data
-
-    assert data["result"] == "Post created successfully."
-
-    # Verify alt text (derived from filename) is in the payload
-    mock_post.assert_called_once()
-    payload = mock_post.call_args[0][1]
-    assert payload["content"]["media"]["altText"] == "A beautiful sunset over the mountains"
+# ---- get_user_info ----
 
 
-@patch.object(linkedin_module, "post_to_linkedin")
-async def test_create_post_visibility_options(mock_post):
-    """Test that visibility options are correctly applied."""
-    mock_post.return_value = (201, {"x-restli-id": "urn:li:share:vis123"}, None)
+class TestGetUserInfo:
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "sub": "user123",
+                "name": "John Doe",
+                "given_name": "John",
+                "family_name": "Doe",
+                "email": "john.doe@example.com",
+                "email_verified": True,
+            },
+        )
 
-    responses = {
-        "GET /userinfo": {"sub": "vis_user", "name": "Visibility User"},
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "create_post",
-        {"text": "Connections only post", "visibility": "CONNECTIONS"},
-        context,
-    )
-    data = result.result.data
+        result = await linkedin.execute_action("get_user_info", {}, mock_context)
 
-    assert data["result"] == "Post created successfully."
+        data = result.result.data
+        assert data["result"] == "User information retrieved successfully."
+        assert data["user_info"]["sub"] == "user123"
+        assert data["user_info"]["email"] == "john.doe@example.com"
 
-    # Verify visibility in payload
-    mock_post.assert_called_once()
-    payload = mock_post.call_args[0][1]
-    assert payload["visibility"] == "CONNECTIONS"
+    async def test_request_url_and_method(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"sub": "x"})
 
+        await linkedin.execute_action("get_user_info", {}, mock_context)
 
-async def test_create_post_no_content():
-    """Test that a post with neither text nor files is rejected."""
-    context = MockExecutionContext({})
+        call = mock_context.fetch.call_args
+        assert call.args[0] == "https://api.linkedin.com/v2/userinfo"
+        assert call.kwargs["method"] == "GET"
 
-    result = await linkedin.execute_action("create_post", {}, context)
+    async def test_missing_sub_returns_action_error(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"error": "invalid_token", "error_description": "The access token is invalid"},
+        )
 
-    assert result.type == ResultType.ACTION_ERROR
-    assert "must have either text or at least one file" in result.result.message
+        result = await linkedin.execute_action("get_user_info", {}, mock_context)
 
-
-@patch.object(linkedin_module, "post_to_linkedin")
-async def test_create_post_image_only(mock_post):
-    """Test creating a post with only an image and no text."""
-    mock_post.return_value = (201, {"x-restli-id": "urn:li:share:imgonly123"}, None)
-
-    responses = {
-        "GET /userinfo": {"sub": "imgonly_user", "name": "Image Only User"},
-        "POST /images/initializeUpload": {
-            "value": {
-                "uploadUrl": "https://api.linkedin.com/upload/imgonly",
-                "image": "urn:li:image:only123",
-            }
-        },
-        "PUT /images/upload": {},
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "create_post",
-        {
-            "files": [
-                {
-                    "content": SAMPLE_PNG_BASE64,
-                    "name": "photo.png",
-                    "contentType": "image/png",
-                }
-            ]
-        },
-        context,
-    )
-    data = result.result.data
-
-    assert data["result"] == "Post created successfully."
-    assert data["images_uploaded"] == 1
-
-    # Verify commentary is empty string
-    mock_post.assert_called_once()
-    payload = mock_post.call_args[0][1]
-    assert payload["commentary"] == ""
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Failed to retrieve user information" in result.result.message
 
 
-@patch.object(linkedin_module, "post_to_linkedin")
-async def test_create_post_with_author_id(mock_post):
-    """Test creating a post with explicit author_id."""
-    mock_post.return_value = (201, {"x-restli-id": "urn:li:share:auth123"}, None)
-
-    responses = {
-        "POST /images/initializeUpload": {
-            "value": {
-                "uploadUrl": "https://api.linkedin.com/upload/auth",
-                "image": "urn:li:image:auth123",
-            }
-        },
-        "PUT /images/upload": {},
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "create_post",
-        {
-            "text": "Post with explicit author",
-            "author_id": "explicit_author",
-            "files": [
-                {
-                    "content": SAMPLE_JPEG_BASE64,
-                    "name": "photo.jpg",
-                    "contentType": "image/jpeg",
-                }
-            ],
-        },
-        context,
-    )
-    data = result.result.data
-
-    assert data["result"] == "Post created successfully."
-
-    # Verify no userinfo call was made
-    userinfo_calls = [r for r in context._requests if "/userinfo" in r["url"]]
-    assert len(userinfo_calls) == 0
-
-    # Verify author in image init payload
-    init_calls = [r for r in context._requests if "initializeUpload" in r["url"]]
-    assert init_calls[0]["json"]["initializeUploadRequest"]["owner"] == "urn:li:person:explicit_author"
-
-    # Verify author in post payload
-    mock_post.assert_called_once()
-    payload = mock_post.call_args[0][1]
-    assert payload["author"] == "urn:li:person:explicit_author"
+# ---- create_post ----
 
 
-async def test_create_post_missing_file_content():
-    """Test that file without content is rejected."""
-    context = MockExecutionContext({})
+class TestCreatePost:
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_text_only_happy_path(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:text123"}, None)
+        mock_context.fetch.return_value = USERINFO_RESPONSE
 
-    result = await linkedin.execute_action(
-        "create_post",
-        {
-            "text": "Missing file content",
-            "files": [{"name": "photo.jpg", "contentType": "image/jpeg"}],
-        },
-        context,
-    )
+        result = await linkedin.execute_action("create_post", {"text": "Hello from create_post!"}, mock_context)
 
-    # SDK schema validation rejects this before the action runs; the action's
-    # validate_file_input() would also reject it. Either result type is fine.
-    assert result.type in (ResultType.ACTION_ERROR, ResultType.VALIDATION_ERROR)
+        data = result.result.data
+        assert data["result"] == "Post created successfully."
+        assert data["post_id"] == "urn:li:share:text123"
+        assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:share:text123"
+        assert data["images_uploaded"] == 0
+
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_text_only_payload_has_no_content_field(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:1"}, None)
+        mock_context.fetch.return_value = USERINFO_RESPONSE
+
+        await linkedin.execute_action("create_post", {"text": "hi"}, mock_context)
+
+        payload = mock_post.call_args.args[1]
+        assert "content" not in payload
+        assert payload["commentary"] == "hi"
+
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_single_image_payload_has_media(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:img"}, None)
+        mock_context.fetch.side_effect = [
+            USERINFO_RESPONSE,
+            _image_init_response("urn:li:image:single"),
+            _image_upload_response(),
+        ]
+
+        result = await linkedin.execute_action(
+            "create_post",
+            {
+                "text": "Image post",
+                "files": [{"content": SAMPLE_JPEG_BASE64, "name": "photo.jpg", "contentType": "image/jpeg"}],
+            },
+            mock_context,
+        )
+
+        assert result.result.data["images_uploaded"] == 1
+        payload = mock_post.call_args.args[1]
+        assert payload["content"]["media"]["id"] == "urn:li:image:single"
+
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_multi_image_payload_has_multiImage(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:multi"}, None)
+        mock_context.fetch.side_effect = [
+            USERINFO_RESPONSE,
+            _image_init_response("urn:li:image:1"),
+            _image_upload_response(),
+            _image_init_response("urn:li:image:2"),
+            _image_upload_response(),
+            _image_init_response("urn:li:image:3"),
+            _image_upload_response(),
+        ]
+
+        result = await linkedin.execute_action(
+            "create_post",
+            {
+                "text": "Multi",
+                "files": [
+                    {"content": SAMPLE_JPEG_BASE64, "name": f"img{i}.jpg", "contentType": "image/jpeg"}
+                    for i in range(3)
+                ],
+            },
+            mock_context,
+        )
+
+        assert result.result.data["images_uploaded"] == 3
+        images = mock_post.call_args.args[1]["content"]["multiImage"]["images"]
+        assert len(images) == 3
+
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_alt_text_derived_from_filename(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:alt"}, None)
+        mock_context.fetch.side_effect = [
+            USERINFO_RESPONSE,
+            _image_init_response(),
+            _image_upload_response(),
+        ]
+
+        await linkedin.execute_action(
+            "create_post",
+            {
+                "text": "Alt",
+                "files": [
+                    {
+                        "content": SAMPLE_JPEG_BASE64,
+                        "name": "A beautiful sunset over the mountains.jpg",
+                        "contentType": "image/jpeg",
+                    }
+                ],
+            },
+            mock_context,
+        )
+
+        payload = mock_post.call_args.args[1]
+        assert payload["content"]["media"]["altText"] == "A beautiful sunset over the mountains"
+
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_visibility_passed_through(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:vis"}, None)
+        mock_context.fetch.return_value = USERINFO_RESPONSE
+
+        await linkedin.execute_action(
+            "create_post", {"text": "Connections only", "visibility": "CONNECTIONS"}, mock_context
+        )
+
+        payload = mock_post.call_args.args[1]
+        assert payload["visibility"] == "CONNECTIONS"
+
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_author_id_skips_userinfo_lookup(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:auth"}, None)
+        mock_context.fetch.side_effect = [
+            _image_init_response("urn:li:image:auth"),
+            _image_upload_response(),
+        ]
+
+        await linkedin.execute_action(
+            "create_post",
+            {
+                "text": "Explicit author",
+                "author_id": "explicit_author",
+                "files": [{"content": SAMPLE_JPEG_BASE64, "name": "photo.jpg", "contentType": "image/jpeg"}],
+            },
+            mock_context,
+        )
+
+        urls = [c.args[0] for c in mock_context.fetch.call_args_list]
+        assert not any("/userinfo" in u for u in urls)
+        payload = mock_post.call_args.args[1]
+        assert payload["author"] == "urn:li:person:explicit_author"
+
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_image_only_post(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:imgonly"}, None)
+        mock_context.fetch.side_effect = [
+            USERINFO_RESPONSE,
+            _image_init_response(),
+            _image_upload_response(),
+        ]
+
+        result = await linkedin.execute_action(
+            "create_post",
+            {"files": [{"content": SAMPLE_PNG_BASE64, "name": "photo.png", "contentType": "image/png"}]},
+            mock_context,
+        )
+
+        assert result.result.data["images_uploaded"] == 1
+        assert mock_post.call_args.args[1]["commentary"] == ""
+
+    async def test_too_many_images_rejected_before_api_call(self, mock_context):
+        files = [
+            {"content": SAMPLE_JPEG_BASE64, "name": f"image{i}.jpg", "contentType": "image/jpeg"} for i in range(21)
+        ]
+
+        result = await linkedin.execute_action("create_post", {"text": "Too many", "files": files}, mock_context)
+
+        assert result.type in (ResultType.ACTION_ERROR, ResultType.VALIDATION_ERROR)
+        mock_context.fetch.assert_not_called()
+
+    async def test_unsupported_image_type_rejected(self, mock_context):
+        result = await linkedin.execute_action(
+            "create_post",
+            {
+                "text": "Bad type",
+                "files": [{"content": "base64data", "name": "image.bmp", "contentType": "image/bmp"}],
+            },
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Unsupported image type" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    async def test_no_text_no_files_rejected(self, mock_context):
+        result = await linkedin.execute_action("create_post", {}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "must have either text or at least one file" in result.result.message
+
+    async def test_missing_file_content_rejected(self, mock_context):
+        result = await linkedin.execute_action(
+            "create_post",
+            {"text": "x", "files": [{"name": "photo.jpg", "contentType": "image/jpeg"}]},
+            mock_context,
+        )
+
+        assert result.type in (ResultType.ACTION_ERROR, ResultType.VALIDATION_ERROR)
+
+    async def test_missing_file_content_type_rejected(self, mock_context):
+        result = await linkedin.execute_action(
+            "create_post",
+            {"text": "x", "files": [{"content": SAMPLE_JPEG_BASE64, "name": "photo.jpg"}]},
+            mock_context,
+        )
+
+        assert result.type in (ResultType.ACTION_ERROR, ResultType.VALIDATION_ERROR)
+
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_post_failure_returns_action_error(self, mock_post, mock_context):
+        mock_post.return_value = (500, {}, "Internal Server Error")
+        mock_context.fetch.return_value = USERINFO_RESPONSE
+
+        result = await linkedin.execute_action("create_post", {"text": "x"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 500" in result.result.message
 
 
-async def test_create_post_missing_file_content_type():
-    """Test that file without contentType is rejected."""
-    context = MockExecutionContext({})
-
-    result = await linkedin.execute_action(
-        "create_post",
-        {
-            "text": "Missing content type",
-            "files": [{"content": SAMPLE_JPEG_BASE64, "name": "photo.jpg"}],
-        },
-        context,
-    )
-
-    assert result.type in (ResultType.ACTION_ERROR, ResultType.VALIDATION_ERROR)
+# ---- share_article ----
 
 
-@patch.object(linkedin_module, "post_to_linkedin")
-async def test_create_post_multi_image_with_alt_texts(mock_post):
-    """Test that alt texts (derived from filenames) are included for all images in multi-image post."""
-    mock_post.return_value = (201, {"x-restli-id": "urn:li:share:multialt123"}, None)
+class TestShareArticle:
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_happy_path(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:article"}, None)
+        mock_context.fetch.return_value = USERINFO_RESPONSE
 
-    responses = {
-        "GET /userinfo": {"sub": "multi_alt_user", "name": "Multi Alt User"},
-        "POST /images/initializeUpload": {
-            "value": {
-                "uploadUrl": "https://api.linkedin.com/upload/multialt",
-                "image": "urn:li:image:multialt",
-            }
-        },
-        "PUT /images/upload": {},
-    }
-    context = MockExecutionContext(responses)
-    result = await linkedin.execute_action(
-        "create_post",
-        {
-            "text": "Multiple images with alt texts",
-            "files": [
-                {
-                    "content": SAMPLE_JPEG_BASE64,
-                    "name": "First image.jpg",
-                    "contentType": "image/jpeg",
-                },
-                {
-                    "content": SAMPLE_PNG_BASE64,
-                    "name": "Second image.png",
-                    "contentType": "image/png",
-                },
-            ],
-        },
-        context,
-    )
-    data = result.result.data
+        result = await linkedin.execute_action(
+            "share_article",
+            {
+                "article_url": "https://example.com/article",
+                "article_title": "Test Article",
+                "article_description": "Description",
+                "commentary": "Check this out!",
+            },
+            mock_context,
+        )
 
-    assert data["result"] == "Post created successfully."
-    assert data["images_uploaded"] == 2
+        data = result.result.data
+        assert data["result"] == "Article shared successfully."
+        assert data["post_id"] == "urn:li:share:article"
 
-    # Verify alt texts (derived from filenames) in multiImage payload
-    mock_post.assert_called_once()
-    payload = mock_post.call_args[0][1]
-    images = payload["content"]["multiImage"]["images"]
-    assert images[0]["altText"] == "First image"
-    assert images[1]["altText"] == "Second image"
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_payload_has_article_content(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:1"}, None)
+        mock_context.fetch.return_value = USERINFO_RESPONSE
+
+        await linkedin.execute_action(
+            "share_article",
+            {
+                "article_url": "https://example.com/a",
+                "article_title": "T",
+                "commentary": "c",
+            },
+            mock_context,
+        )
+
+        article = mock_post.call_args.args[1]["content"]["article"]
+        assert article["source"] == "https://example.com/a"
+        assert article["title"] == "T"
+
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_minimal_inputs_use_defaults(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:min"}, None)
+        mock_context.fetch.return_value = USERINFO_RESPONSE
+
+        await linkedin.execute_action(
+            "share_article",
+            {"article_url": "https://example.com/min", "article_title": "Min"},
+            mock_context,
+        )
+
+        payload = mock_post.call_args.args[1]
+        assert payload["commentary"] == ""
+        assert payload["content"]["article"]["description"] == ""
+
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_post_failure_returns_action_error(self, mock_post, mock_context):
+        mock_post.return_value = (500, {}, "boom")
+        mock_context.fetch.return_value = USERINFO_RESPONSE
+
+        result = await linkedin.execute_action(
+            "share_article",
+            {"article_url": "https://example.com", "article_title": "T"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 500" in result.result.message
+
+
+# ---- reshare_post ----
+
+
+class TestResharePost:
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_happy_path(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:reshare"}, None)
+        mock_context.fetch.return_value = USERINFO_RESPONSE
+
+        result = await linkedin.execute_action(
+            "reshare_post",
+            {"original_post_urn": "urn:li:share:original123", "commentary": "Great post!"},
+            mock_context,
+        )
+
+        data = result.result.data
+        assert data["result"] == "Post reshared successfully."
+        assert data["post_id"] == "urn:li:share:reshare"
+
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_payload_has_reshare_context(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:1"}, None)
+        mock_context.fetch.return_value = USERINFO_RESPONSE
+
+        await linkedin.execute_action(
+            "reshare_post",
+            {"original_post_urn": "urn:li:share:orig"},
+            mock_context,
+        )
+
+        payload = mock_post.call_args.args[1]
+        assert payload["reshareContext"]["parent"] == "urn:li:share:orig"
+        assert payload["commentary"] == ""
+
+
+# ---- update_post ----
+
+
+class TestUpdatePost:
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
+
+        result = await linkedin.execute_action(
+            "update_post",
+            {"post_urn": "urn:li:share:update123", "commentary": "Updated content"},
+            mock_context,
+        )
+
+        data = result.result.data
+        assert data["result"] == "Post updated successfully."
+        assert data["post_urn"] == "urn:li:share:update123"
+
+    async def test_partial_update_header_set(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
+
+        await linkedin.execute_action(
+            "update_post",
+            {"post_urn": "urn:li:share:1", "commentary": "x"},
+            mock_context,
+        )
+
+        call = mock_context.fetch.call_args
+        assert call.kwargs["method"] == "POST"
+        assert call.kwargs["headers"]["X-RestLi-Method"] == "PARTIAL_UPDATE"
+
+    async def test_patch_payload_structure(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
+
+        await linkedin.execute_action(
+            "update_post",
+            {"post_urn": "urn:li:share:1", "commentary": "new text"},
+            mock_context,
+        )
+
+        payload = mock_context.fetch.call_args.kwargs["json"]
+        assert payload["patch"]["$set"]["commentary"] == "new text"
+
+    async def test_error_status_returns_action_error(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=403, headers={}, data="Forbidden")
+
+        result = await linkedin.execute_action(
+            "update_post",
+            {"post_urn": "urn:li:share:1", "commentary": "x"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 403" in result.result.message
+
+
+# ---- delete_post ----
+
+
+class TestDeletePost:
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
+
+        result = await linkedin.execute_action("delete_post", {"post_urn": "urn:li:share:delete123"}, mock_context)
+
+        data = result.result.data
+        assert data["result"] == "Post deleted successfully."
+        assert data["post_urn"] == "urn:li:share:delete123"
+
+    async def test_request_method_and_header(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
+
+        await linkedin.execute_action("delete_post", {"post_urn": "urn:li:share:1"}, mock_context)
+
+        call = mock_context.fetch.call_args
+        assert call.kwargs["method"] == "DELETE"
+        assert call.kwargs["headers"]["X-RestLi-Method"] == "DELETE"
+
+    async def test_post_urn_url_encoded(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
+
+        await linkedin.execute_action("delete_post", {"post_urn": "urn:li:share:abc"}, mock_context)
+
+        url = mock_context.fetch.call_args.args[0]
+        assert "urn%3Ali%3Ashare%3Aabc" in url
+
+    async def test_error_status_returns_action_error(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=404, headers={}, data="Not Found")
+
+        result = await linkedin.execute_action("delete_post", {"post_urn": "urn:li:share:gone"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 404" in result.result.message
+
+
+# ---- helper functions ----
+
+
+class TestValidateFileInput:
+    def test_valid_jpeg(self):
+        content, ctype, alt = _mod.validate_file_input(
+            {"content": "data", "name": "photo.jpg", "contentType": "image/jpeg"}
+        )
+        assert content == "data"
+        assert ctype == "image/jpeg"
+        assert alt == "photo"
+
+    def test_alt_text_strips_extension(self):
+        _, _, alt = _mod.validate_file_input(
+            {"content": "x", "name": "Sunset over the lake.png", "contentType": "image/png"}
+        )
+        assert alt == "Sunset over the lake"
+
+    def test_missing_content_raises(self):
+        with pytest.raises(ValueError, match="content"):
+            _mod.validate_file_input({"name": "p.jpg", "contentType": "image/jpeg"})
+
+    def test_missing_content_type_raises(self):
+        with pytest.raises(ValueError, match="contentType"):
+            _mod.validate_file_input({"content": "x", "name": "p.jpg"})
+
+    def test_missing_name_raises(self):
+        with pytest.raises(ValueError, match="name"):
+            _mod.validate_file_input({"content": "x", "contentType": "image/jpeg"})
+
+    def test_unsupported_type_raises(self):
+        with pytest.raises(ValueError, match="Unsupported image type"):
+            _mod.validate_file_input({"content": "x", "name": "p.bmp", "contentType": "image/bmp"})
+
+
+class TestEncodeUrn:
+    def test_colons_encoded(self):
+        assert _mod.encode_urn("urn:li:share:123") == "urn%3Ali%3Ashare%3A123"

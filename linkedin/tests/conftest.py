@@ -1,5 +1,7 @@
-import os
-import sys
+"""Pytest configuration for the LinkedIn unit tests.
 
-# Allow `from context import ...` when pytest runs from the repo root.
-sys.path.insert(0, os.path.dirname(__file__))
+The actual test-side path setup is inlined in each test module so the test files
+are self-contained (see the skill template). This file exists to satisfy the
+repo-wide validation contract that every `tests/` directory ships either a
+`conftest.py` or a `context.py`.
+"""
