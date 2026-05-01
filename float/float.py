@@ -2889,4 +2889,3 @@ class GetProjectsReportHandler(ActionHandler):
 
         except Exception as e:
             return ActionError(message=f"Failed to generate projects report: {str(e)}")
-
