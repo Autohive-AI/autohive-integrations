@@ -22,24 +22,24 @@ class CreateTimeEntry(ActionHandler):
             }
 
             # Add optional fields
-            if "notes" in inputs:
-                payload["notes"] = inputs["notes"]
+            if inputs.get("notes") is not None:
+                payload["notes"] = inputs.get("notes")
 
-            if "hours" in inputs:
-                payload["hours"] = inputs["hours"]
+            if inputs.get("hours") is not None:
+                payload["hours"] = inputs.get("hours")
 
-            if "started_time" in inputs and "ended_time" in inputs:
-                payload["started_time"] = inputs["started_time"]
-                payload["ended_time"] = inputs["ended_time"]
+            if inputs.get("started_time") is not None and inputs.get("ended_time") is not None:
+                payload["started_time"] = inputs.get("started_time")
+                payload["ended_time"] = inputs.get("ended_time")
 
-            if "is_running" in inputs:
-                payload["is_running"] = inputs["is_running"]
+            if inputs.get("is_running") is not None:
+                payload["is_running"] = inputs.get("is_running")
 
-            if "user_id" in inputs:
-                payload["user_id"] = inputs["user_id"]
+            if inputs.get("user_id") is not None:
+                payload["user_id"] = inputs.get("user_id")
 
-            if "external_reference" in inputs:
-                payload["external_reference"] = inputs["external_reference"]
+            if inputs.get("external_reference") is not None:
+                payload["external_reference"] = inputs.get("external_reference")
 
             response = await context.fetch(f"{HARVEST_API_BASE}/time_entries", method="POST", json=payload)
 
@@ -74,38 +74,38 @@ class ListTimeEntries(ActionHandler):
             # Build query parameters
             params = {}
 
-            if "user_id" in inputs:
-                params["user_id"] = inputs["user_id"]
+            if inputs.get("user_id") is not None:
+                params["user_id"] = inputs.get("user_id")
 
-            if "client_id" in inputs:
-                params["client_id"] = inputs["client_id"]
+            if inputs.get("client_id") is not None:
+                params["client_id"] = inputs.get("client_id")
 
-            if "project_id" in inputs:
-                params["project_id"] = inputs["project_id"]
+            if inputs.get("project_id") is not None:
+                params["project_id"] = inputs.get("project_id")
 
-            if "task_id" in inputs:
-                params["task_id"] = inputs["task_id"]
+            if inputs.get("task_id") is not None:
+                params["task_id"] = inputs.get("task_id")
 
-            if "is_billed" in inputs:
-                params["is_billed"] = inputs["is_billed"]
+            if inputs.get("is_billed") is not None:
+                params["is_billed"] = inputs.get("is_billed")
 
-            if "is_running" in inputs:
-                params["is_running"] = inputs["is_running"]
+            if inputs.get("is_running") is not None:
+                params["is_running"] = inputs.get("is_running")
 
-            if "updated_since" in inputs:
-                params["updated_since"] = inputs["updated_since"]
+            if inputs.get("updated_since") is not None:
+                params["updated_since"] = inputs.get("updated_since")
 
-            if "from" in inputs:
-                params["from"] = inputs["from"]
+            if inputs.get("from") is not None:
+                params["from"] = inputs.get("from")
 
-            if "to" in inputs:
-                params["to"] = inputs["to"]
+            if inputs.get("to") is not None:
+                params["to"] = inputs.get("to")
 
-            if "page" in inputs:
-                params["page"] = inputs["page"]
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
-            if "per_page" in inputs:
-                params["per_page"] = inputs["per_page"]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
 
             response = await context.fetch(f"{HARVEST_API_BASE}/time_entries", method="GET", params=params)
             body = response.data
@@ -139,29 +139,29 @@ class UpdateTimeEntry(ActionHandler):
             # Build the update payload
             payload = {}
 
-            if "project_id" in inputs:
-                payload["project_id"] = inputs["project_id"]
+            if inputs.get("project_id") is not None:
+                payload["project_id"] = inputs.get("project_id")
 
-            if "task_id" in inputs:
-                payload["task_id"] = inputs["task_id"]
+            if inputs.get("task_id") is not None:
+                payload["task_id"] = inputs.get("task_id")
 
-            if "spent_date" in inputs:
-                payload["spent_date"] = inputs["spent_date"]
+            if inputs.get("spent_date") is not None:
+                payload["spent_date"] = inputs.get("spent_date")
 
-            if "notes" in inputs:
-                payload["notes"] = inputs["notes"]
+            if inputs.get("notes") is not None:
+                payload["notes"] = inputs.get("notes")
 
-            if "hours" in inputs:
-                payload["hours"] = inputs["hours"]
+            if inputs.get("hours") is not None:
+                payload["hours"] = inputs.get("hours")
 
-            if "started_time" in inputs:
-                payload["started_time"] = inputs["started_time"]
+            if inputs.get("started_time") is not None:
+                payload["started_time"] = inputs.get("started_time")
 
-            if "ended_time" in inputs:
-                payload["ended_time"] = inputs["ended_time"]
+            if inputs.get("ended_time") is not None:
+                payload["ended_time"] = inputs.get("ended_time")
 
-            if "external_reference" in inputs:
-                payload["external_reference"] = inputs["external_reference"]
+            if inputs.get("external_reference") is not None:
+                payload["external_reference"] = inputs.get("external_reference")
 
             response = await context.fetch(
                 f"{HARVEST_API_BASE}/time_entries/{time_entry_id}",
@@ -205,20 +205,20 @@ class ListProjects(ActionHandler):
             # Build query parameters
             params = {}
 
-            if "is_active" in inputs:
-                params["is_active"] = inputs["is_active"]
+            if inputs.get("is_active") is not None:
+                params["is_active"] = inputs.get("is_active")
 
-            if "client_id" in inputs:
-                params["client_id"] = inputs["client_id"]
+            if inputs.get("client_id") is not None:
+                params["client_id"] = inputs.get("client_id")
 
-            if "updated_since" in inputs:
-                params["updated_since"] = inputs["updated_since"]
+            if inputs.get("updated_since") is not None:
+                params["updated_since"] = inputs.get("updated_since")
 
-            if "page" in inputs:
-                params["page"] = inputs["page"]
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
-            if "per_page" in inputs:
-                params["per_page"] = inputs["per_page"]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
 
             response = await context.fetch(f"{HARVEST_API_BASE}/projects", method="GET", params=params)
             body = response.data
@@ -266,17 +266,17 @@ class ListClients(ActionHandler):
             # Build query parameters
             params = {}
 
-            if "is_active" in inputs:
-                params["is_active"] = inputs["is_active"]
+            if inputs.get("is_active") is not None:
+                params["is_active"] = inputs.get("is_active")
 
-            if "updated_since" in inputs:
-                params["updated_since"] = inputs["updated_since"]
+            if inputs.get("updated_since") is not None:
+                params["updated_since"] = inputs.get("updated_since")
 
-            if "page" in inputs:
-                params["page"] = inputs["page"]
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
-            if "per_page" in inputs:
-                params["per_page"] = inputs["per_page"]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
 
             response = await context.fetch(f"{HARVEST_API_BASE}/clients", method="GET", params=params)
             body = response.data
@@ -308,17 +308,17 @@ class ListTasks(ActionHandler):
             # Build query parameters
             params = {}
 
-            if "is_active" in inputs:
-                params["is_active"] = inputs["is_active"]
+            if inputs.get("is_active") is not None:
+                params["is_active"] = inputs.get("is_active")
 
-            if "updated_since" in inputs:
-                params["updated_since"] = inputs["updated_since"]
+            if inputs.get("updated_since") is not None:
+                params["updated_since"] = inputs.get("updated_since")
 
-            if "page" in inputs:
-                params["page"] = inputs["page"]
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
-            if "per_page" in inputs:
-                params["per_page"] = inputs["per_page"]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
 
             response = await context.fetch(f"{HARVEST_API_BASE}/tasks", method="GET", params=params)
             body = response.data
@@ -350,17 +350,17 @@ class ListUsers(ActionHandler):
             # Build query parameters
             params = {}
 
-            if "is_active" in inputs:
-                params["is_active"] = inputs["is_active"]
+            if inputs.get("is_active") is not None:
+                params["is_active"] = inputs.get("is_active")
 
-            if "updated_since" in inputs:
-                params["updated_since"] = inputs["updated_since"]
+            if inputs.get("updated_since") is not None:
+                params["updated_since"] = inputs.get("updated_since")
 
-            if "page" in inputs:
-                params["page"] = inputs["page"]
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
-            if "per_page" in inputs:
-                params["per_page"] = inputs["per_page"]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
 
             response = await context.fetch(f"{HARVEST_API_BASE}/users", method="GET", params=params)
             body = response.data
