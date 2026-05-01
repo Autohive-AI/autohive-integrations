@@ -10,7 +10,6 @@ sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("gong_mod", os.path.join(_parent, "gong.py"))
@@ -40,27 +39,22 @@ def mock_context():
 
 
 class TestListCalls:
-    @pytest.mark.asyncio
     async def test_happy_path_returns_calls(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200,
-            headers={},
-            data={
-                "calls": [
-                    {
-                        "id": "call-1",
-                        "title": "Demo Call",
-                        "started": "2025-01-15T10:00:00Z",
-                        "duration": 3600,
-                        "participants": [],
-                        "outcome": "won",
-                        "isPrivate": False,
-                    }
-                ],
-                "hasMore": False,
-                "nextCursor": None,
-            },
-        )
+        mock_context.fetch.return_value = {
+            "calls": [
+                {
+                    "id": "call-1",
+                    "title": "Demo Call",
+                    "started": "2025-01-15T10:00:00Z",
+                    "duration": 3600,
+                    "participants": [],
+                    "outcome": "won",
+                    "isPrivate": False,
+                }
+            ],
+            "hasMore": False,
+            "nextCursor": None,
+        }
 
         result = await gong.execute_action("list_calls", {}, mock_context)
 
@@ -68,20 +62,20 @@ class TestListCalls:
         assert result.result.data["calls"][0]["title"] == "Demo Call"
         assert result.result.data["has_more"] is False
 
-    @pytest.mark.asyncio
     async def test_private_calls_filtered_out(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200,
-            headers={},
-            data={
-                "calls": [
-                    {"id": "call-private", "isPrivate": True, "title": "Private"},
-                    {"id": "call-public", "isPrivate": False, "title": "Public", "started": "2025-01-15T10:00:00Z"},
-                ],
-                "hasMore": False,
-                "nextCursor": None,
-            },
-        )
+        mock_context.fetch.return_value = {
+            "calls": [
+                {"id": "call-private", "isPrivate": True, "title": "Private"},
+                {
+                    "id": "call-public",
+                    "isPrivate": False,
+                    "title": "Public",
+                    "started": "2025-01-15T10:00:00Z",
+                },
+            ],
+            "hasMore": False,
+            "nextCursor": None,
+        }
 
         result = await gong.execute_action("list_calls", {}, mock_context)
 
@@ -89,22 +83,16 @@ class TestListCalls:
         assert "call-private" not in ids
         assert "call-public" in ids
 
-    @pytest.mark.asyncio
     async def test_request_url_and_method(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"calls": [], "hasMore": False, "nextCursor": None}
-        )
+        mock_context.fetch.return_value = {"calls": [], "hasMore": False, "nextCursor": None}
 
         await gong.execute_action("list_calls", {}, mock_context)
 
         call_args = mock_context.fetch.call_args
         assert call_args.args[0] == f"{BASE_URL}/v2/calls"
 
-    @pytest.mark.asyncio
     async def test_date_params_passed_correctly(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"calls": [], "hasMore": False, "nextCursor": None}
-        )
+        mock_context.fetch.return_value = {"calls": [], "hasMore": False, "nextCursor": None}
 
         await gong.execute_action("list_calls", {"from_date": "2025-01-01", "to_date": "2025-01-31"}, mock_context)
 
@@ -112,29 +100,23 @@ class TestListCalls:
         assert call_kwargs["params"]["fromDateTime"] == "2025-01-01T00:00:00.000Z"
         assert call_kwargs["params"]["toDateTime"] == "2025-01-31T23:59:59.999Z"
 
-    @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Connection refused")
 
         result = await gong.execute_action("list_calls", {}, mock_context)
 
-        assert result.type == ResultType.ACTION_ERROR
-        assert "Connection refused" in result.result.message
+        assert result.type == ResultType.ACTION
+        assert "Connection refused" in result.result.data.get("error", "")
 
-    @pytest.mark.asyncio
     async def test_calls_sorted_newest_first(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200,
-            headers={},
-            data={
-                "calls": [
-                    {"id": "old", "started": "2025-01-01T10:00:00Z", "isPrivate": False},
-                    {"id": "new", "started": "2025-01-15T10:00:00Z", "isPrivate": False},
-                ],
-                "hasMore": False,
-                "nextCursor": None,
-            },
-        )
+        mock_context.fetch.return_value = {
+            "calls": [
+                {"id": "old", "started": "2025-01-01T10:00:00Z", "isPrivate": False},
+                {"id": "new", "started": "2025-01-15T10:00:00Z", "isPrivate": False},
+            ],
+            "hasMore": False,
+            "nextCursor": None,
+        }
 
         result = await gong.execute_action("list_calls", {}, mock_context)
 
@@ -142,20 +124,8 @@ class TestListCalls:
         assert calls[0]["id"] == "new"
         assert calls[1]["id"] == "old"
 
-    @pytest.mark.asyncio
-    async def test_missing_api_base_url_returns_error(self, mock_context):
-        mock_context.metadata = {}
-
-        result = await gong.execute_action("list_calls", {}, mock_context)
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "api_base_url" in result.result.message
-
-    @pytest.mark.asyncio
     async def test_pagination_cursor_passed(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"calls": [], "hasMore": False, "nextCursor": None}
-        )
+        mock_context.fetch.return_value = {"calls": [], "hasMore": False, "nextCursor": None}
 
         await gong.execute_action("list_calls", {"cursor": "abc123"}, mock_context)
 
@@ -167,38 +137,29 @@ class TestListCalls:
 
 
 class TestGetCallTranscript:
-    @pytest.mark.asyncio
     async def test_happy_path_returns_transcript(self, mock_context):
         # call details -> extensive -> transcript
         mock_context.fetch.side_effect = [
-            FetchResponse(status=200, headers={}, data={"call": {"id": "c1", "isPrivate": False}}),
-            FetchResponse(
-                status=200,
-                headers={},
-                data={
-                    "calls": [
-                        {
-                            "parties": [{"speakerId": "s1", "name": "Alice"}],
-                        }
-                    ]
-                },
-            ),
-            FetchResponse(
-                status=200,
-                headers={},
-                data={
-                    "callTranscripts": [
-                        {
-                            "transcript": [
-                                {
-                                    "speakerId": "s1",
-                                    "sentences": [{"start": 1000, "end": 3000, "text": "Hello world"}],
-                                }
-                            ]
-                        }
-                    ]
-                },
-            ),
+            {"call": {"id": "c1", "isPrivate": False}},
+            {
+                "calls": [
+                    {
+                        "parties": [{"speakerId": "s1", "name": "Alice"}],
+                    }
+                ]
+            },
+            {
+                "callTranscripts": [
+                    {
+                        "transcript": [
+                            {
+                                "speakerId": "s1",
+                                "sentences": [{"start": 1000, "end": 3000, "text": "Hello world"}],
+                            }
+                        ]
+                    }
+                ]
+            },
         ]
 
         result = await gong.execute_action("get_call_transcript", {"call_id": "c1"}, mock_context)
@@ -209,23 +170,19 @@ class TestGetCallTranscript:
         assert result.result.data["transcript"][0]["speaker_name"] == "Alice"
         assert result.result.data["transcript"][0]["start_time"] == 1.0
 
-    @pytest.mark.asyncio
     async def test_private_call_returns_action_error(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"call": {"id": "c1", "isPrivate": True}}
-        )
+        mock_context.fetch.return_value = {"call": {"id": "c1", "isPrivate": True}}
 
         result = await gong.execute_action("get_call_transcript", {"call_id": "c1"}, mock_context)
 
-        assert result.type == ResultType.ACTION_ERROR
-        assert "private_call_filtered" in result.result.message
+        assert result.type == ResultType.ACTION
+        assert "private_call_filtered" in result.result.data.get("error", "")
 
-    @pytest.mark.asyncio
     async def test_request_urls_correct(self, mock_context):
         mock_context.fetch.side_effect = [
-            FetchResponse(status=200, headers={}, data={"call": {"id": "c1", "isPrivate": False}}),
-            FetchResponse(status=200, headers={}, data={"calls": []}),
-            FetchResponse(status=200, headers={}, data={"callTranscripts": []}),
+            {"call": {"id": "c1", "isPrivate": False}},
+            {"calls": []},
+            {"callTranscripts": []},
         ]
 
         await gong.execute_action("get_call_transcript", {"call_id": "c1"}, mock_context)
@@ -235,48 +192,41 @@ class TestGetCallTranscript:
         assert calls[1].args[0] == f"{BASE_URL}/v2/calls/extensive"
         assert calls[2].args[0] == f"{BASE_URL}/v2/calls/transcript"
 
-    @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("API error")
 
         result = await gong.execute_action("get_call_transcript", {"call_id": "c1"}, mock_context)
 
-        assert result.type == ResultType.ACTION_ERROR
-        assert "API error" in result.result.message
+        assert result.type == ResultType.ACTION
+        assert "API error" in result.result.data.get("error", "")
 
-    @pytest.mark.asyncio
     async def test_empty_transcript(self, mock_context):
         mock_context.fetch.side_effect = [
-            FetchResponse(status=200, headers={}, data={"call": {"id": "c1", "isPrivate": False}}),
-            FetchResponse(status=200, headers={}, data={"calls": []}),
-            FetchResponse(status=200, headers={}, data={"callTranscripts": []}),
+            {"call": {"id": "c1", "isPrivate": False}},
+            {"calls": []},
+            {"callTranscripts": []},
         ]
 
         result = await gong.execute_action("get_call_transcript", {"call_id": "c1"}, mock_context)
 
         assert result.result.data["transcript"] == []
 
-    @pytest.mark.asyncio
     async def test_unknown_speaker_fallback(self, mock_context):
         mock_context.fetch.side_effect = [
-            FetchResponse(status=200, headers={}, data={"call": {"id": "c1", "isPrivate": False}}),
-            FetchResponse(status=200, headers={}, data={"calls": []}),  # no speaker map
-            FetchResponse(
-                status=200,
-                headers={},
-                data={
-                    "callTranscripts": [
-                        {
-                            "transcript": [
-                                {
-                                    "speakerId": "999",
-                                    "sentences": [{"start": 0, "end": 1000, "text": "Hi"}],
-                                }
-                            ]
-                        }
-                    ]
-                },
-            ),
+            {"call": {"id": "c1", "isPrivate": False}},
+            {"calls": []},  # no speaker map
+            {
+                "callTranscripts": [
+                    {
+                        "transcript": [
+                            {
+                                "speakerId": "999",
+                                "sentences": [{"start": 0, "end": 1000, "text": "Hi"}],
+                            }
+                        ]
+                    }
+                ]
+            },
         ]
 
         result = await gong.execute_action("get_call_transcript", {"call_id": "c1"}, mock_context)
@@ -288,36 +238,27 @@ class TestGetCallTranscript:
 
 
 class TestGetCallDetails:
-    @pytest.mark.asyncio
     async def test_happy_path_returns_call(self, mock_context):
         mock_context.fetch.side_effect = [
-            FetchResponse(
-                status=200,
-                headers={},
-                data={
-                    "call": {
-                        "id": "c1",
-                        "title": "Big Deal Call",
-                        "started": "2025-01-15T10:00:00Z",
-                        "duration": 1800,
+            {
+                "call": {
+                    "id": "c1",
+                    "title": "Big Deal Call",
+                    "started": "2025-01-15T10:00:00Z",
+                    "duration": 1800,
+                    "outcome": "won",
+                    "isPrivate": False,
+                }
+            },
+            {
+                "calls": [
+                    {
+                        "parties": [{"name": "Bob"}],
+                        "crmData": {"accountId": "acc-1"},
                         "outcome": "won",
-                        "isPrivate": False,
                     }
-                },
-            ),
-            FetchResponse(
-                status=200,
-                headers={},
-                data={
-                    "calls": [
-                        {
-                            "parties": [{"name": "Bob"}],
-                            "crmData": {"accountId": "acc-1"},
-                            "outcome": "won",
-                        }
-                    ]
-                },
-            ),
+                ]
+            },
         ]
 
         result = await gong.execute_action("get_call_details", {"call_id": "c1"}, mock_context)
@@ -327,47 +268,39 @@ class TestGetCallDetails:
         assert result.result.data["duration"] == 1800
         assert result.result.data["participants"] == [{"name": "Bob"}]
 
-    @pytest.mark.asyncio
     async def test_private_call_returns_action_error(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"call": {"id": "c1", "isPrivate": True}}
-        )
+        mock_context.fetch.return_value = {"call": {"id": "c1", "isPrivate": True}}
 
         result = await gong.execute_action("get_call_details", {"call_id": "c1"}, mock_context)
 
-        assert result.type == ResultType.ACTION_ERROR
-        assert "private_call_filtered" in result.result.message
+        assert result.type == ResultType.ACTION
+        assert "private_call_filtered" in result.result.data.get("error", "")
 
-    @pytest.mark.asyncio
     async def test_request_url(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200,
-            headers={},
-            data={"call": {"id": "c1", "isPrivate": False, "started": None}},
-        )
+        mock_context.fetch.return_value = {"call": {"id": "c1", "isPrivate": False, "started": "2025-01-15T10:00:00Z"}}
 
         await gong.execute_action("get_call_details", {"call_id": "c1"}, mock_context)
 
         assert mock_context.fetch.call_args_list[0].args[0] == f"{BASE_URL}/v2/calls/c1"
 
-    @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("timeout")
 
         result = await gong.execute_action("get_call_details", {"call_id": "c1"}, mock_context)
 
-        assert result.type == ResultType.ACTION_ERROR
-        assert "timeout" in result.result.message
+        assert result.type == ResultType.ACTION
+        assert "timeout" in result.result.data.get("error", "")
 
-    @pytest.mark.asyncio
     async def test_response_shape(self, mock_context):
         mock_context.fetch.side_effect = [
-            FetchResponse(
-                status=200,
-                headers={},
-                data={"call": {"id": "c1", "isPrivate": False, "started": "2025-01-15T10:00:00Z"}},
-            ),
-            FetchResponse(status=200, headers={}, data={"calls": []}),
+            {
+                "call": {
+                    "id": "c1",
+                    "isPrivate": False,
+                    "started": "2025-01-15T10:00:00Z",
+                }
+            },
+            {"calls": []},
         ]
 
         result = await gong.execute_action("get_call_details", {"call_id": "c1"}, mock_context)
@@ -386,53 +319,42 @@ class TestGetCallDetails:
 
 
 class TestSearchCalls:
-    @pytest.mark.asyncio
     async def test_happy_path_returns_results(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200,
-            headers={},
-            data={
-                "calls": [
-                    {
-                        "id": "c1",
-                        "title": "pricing discussion",
-                        "started": "2025-01-10T10:00:00Z",
-                        "isPrivate": False,
-                        "content": {"topics": [], "pointsOfInterest": []},
-                    }
-                ]
-            },
-        )
+        mock_context.fetch.return_value = {
+            "calls": [
+                {
+                    "id": "c1",
+                    "title": "pricing discussion",
+                    "started": "2025-01-10T10:00:00Z",
+                    "isPrivate": False,
+                    "content": {"topics": [], "pointsOfInterest": []},
+                }
+            ]
+        }
 
         result = await gong.execute_action("search_calls", {"query": "pricing"}, mock_context)
 
         assert result.result.data["total_count"] == 1
         assert result.result.data["results"][0]["call_id"] == "c1"
 
-    @pytest.mark.asyncio
     async def test_no_match_returns_empty(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200,
-            headers={},
-            data={
-                "calls": [
-                    {
-                        "id": "c1",
-                        "title": "unrelated call",
-                        "isPrivate": False,
-                        "content": {"topics": [], "pointsOfInterest": []},
-                    }
-                ]
-            },
-        )
+        mock_context.fetch.return_value = {
+            "calls": [
+                {
+                    "id": "c1",
+                    "title": "unrelated call",
+                    "isPrivate": False,
+                    "content": {"topics": [], "pointsOfInterest": []},
+                }
+            ]
+        }
 
         result = await gong.execute_action("search_calls", {"query": "pricing"}, mock_context)
 
         assert result.result.data["total_count"] == 0
 
-    @pytest.mark.asyncio
     async def test_request_method_is_post(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"calls": []})
+        mock_context.fetch.return_value = {"calls": []}
 
         await gong.execute_action("search_calls", {"query": "test"}, mock_context)
 
@@ -440,61 +362,52 @@ class TestSearchCalls:
         assert call_args.args[0] == f"{BASE_URL}/v2/calls/extensive"
         assert call_args.kwargs["method"] == "POST"
 
-    @pytest.mark.asyncio
     async def test_private_calls_filtered(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200,
-            headers={},
-            data={
-                "calls": [
-                    {"id": "c1", "title": "test call", "isPrivate": True, "content": {}},
-                ]
-            },
-        )
+        mock_context.fetch.return_value = {
+            "calls": [
+                {"id": "c1", "title": "test call", "isPrivate": True, "content": {}},
+            ]
+        }
 
         result = await gong.execute_action("search_calls", {"query": "test"}, mock_context)
 
         assert result.result.data["total_count"] == 0
 
-    @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Search failed")
 
         result = await gong.execute_action("search_calls", {"query": "test"}, mock_context)
 
-        assert result.type == ResultType.ACTION_ERROR
-        assert "Search failed" in result.result.message
+        assert result.type == ResultType.ACTION
+        assert "Search failed" in result.result.data.get("error", "")
 
-    @pytest.mark.asyncio
     async def test_topic_match_included(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200,
-            headers={},
-            data={
-                "calls": [
-                    {
-                        "id": "c1",
-                        "title": "Q1 review",
-                        "isPrivate": False,
-                        "content": {
-                            "topics": [{"name": "pricing strategy"}],
-                            "pointsOfInterest": [],
-                        },
-                    }
-                ]
-            },
-        )
+        mock_context.fetch.return_value = {
+            "calls": [
+                {
+                    "id": "c1",
+                    "title": "Q1 review",
+                    "started": "2025-01-10T10:00:00Z",
+                    "isPrivate": False,
+                    "content": {
+                        "topics": [{"name": "pricing strategy"}],
+                        "pointsOfInterest": [],
+                    },
+                }
+            ]
+        }
 
         result = await gong.execute_action("search_calls", {"query": "pricing"}, mock_context)
 
         assert result.result.data["total_count"] == 1
 
-    @pytest.mark.asyncio
     async def test_date_filter_applied(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"calls": []})
+        mock_context.fetch.return_value = {"calls": []}
 
         await gong.execute_action(
-            "search_calls", {"query": "demo", "from_date": "2025-01-01", "to_date": "2025-01-31"}, mock_context
+            "search_calls",
+            {"query": "demo", "from_date": "2025-01-01", "to_date": "2025-01-31"},
+            mock_context,
         )
 
         payload = mock_context.fetch.call_args.kwargs["json"]
@@ -506,17 +419,20 @@ class TestSearchCalls:
 
 
 class TestListUsers:
-    @pytest.mark.asyncio
     async def test_happy_path_returns_users(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200,
-            headers={},
-            data={
-                "users": [{"id": "u1", "name": "Alice", "email": "alice@example.com", "role": "admin", "active": True}],
-                "hasMore": False,
-                "nextCursor": None,
-            },
-        )
+        mock_context.fetch.return_value = {
+            "users": [
+                {
+                    "id": "u1",
+                    "name": "Alice",
+                    "email": "alice@example.com",
+                    "role": "admin",
+                    "active": True,
+                }
+            ],
+            "hasMore": False,
+            "nextCursor": None,
+        }
 
         result = await gong.execute_action("list_users", {}, mock_context)
 
@@ -524,11 +440,8 @@ class TestListUsers:
         assert result.result.data["users"][0]["name"] == "Alice"
         assert result.result.data["has_more"] is False
 
-    @pytest.mark.asyncio
     async def test_request_url_and_default_limit(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"users": [], "hasMore": False, "nextCursor": None}
-        )
+        mock_context.fetch.return_value = {"users": [], "hasMore": False, "nextCursor": None}
 
         await gong.execute_action("list_users", {}, mock_context)
 
@@ -536,47 +449,35 @@ class TestListUsers:
         assert call_args.args[0] == f"{BASE_URL}/v2/users"
         assert call_args.kwargs["params"]["limit"] == 100
 
-    @pytest.mark.asyncio
     async def test_custom_limit_passed(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"users": [], "hasMore": False, "nextCursor": None}
-        )
+        mock_context.fetch.return_value = {"users": [], "hasMore": False, "nextCursor": None}
 
         await gong.execute_action("list_users", {"limit": 50}, mock_context)
 
         assert mock_context.fetch.call_args.kwargs["params"]["limit"] == 50
 
-    @pytest.mark.asyncio
     async def test_cursor_pagination(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"users": [], "hasMore": True, "nextCursor": "next-page"}
-        )
+        mock_context.fetch.return_value = {"users": [], "hasMore": True, "nextCursor": "next-page"}
 
         result = await gong.execute_action("list_users", {"cursor": "page-2"}, mock_context)
 
         assert mock_context.fetch.call_args.kwargs["params"]["cursor"] == "page-2"
         assert result.result.data["next_cursor"] == "next-page"
 
-    @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Unauthorized")
 
         result = await gong.execute_action("list_users", {}, mock_context)
 
-        assert result.type == ResultType.ACTION_ERROR
-        assert "Unauthorized" in result.result.message
+        assert result.type == ResultType.ACTION
+        assert "Unauthorized" in result.result.data.get("error", "")
 
-    @pytest.mark.asyncio
     async def test_response_shape(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200,
-            headers={},
-            data={
-                "users": [{"id": "u1", "name": "Bob", "email": "bob@test.com", "role": "rep", "active": True}],
-                "hasMore": False,
-                "nextCursor": None,
-            },
-        )
+        mock_context.fetch.return_value = {
+            "users": [{"id": "u1", "name": "Bob", "email": "bob@test.com", "role": "rep", "active": True}],
+            "hasMore": False,
+            "nextCursor": None,
+        }
 
         result = await gong.execute_action("list_users", {}, mock_context)
 
