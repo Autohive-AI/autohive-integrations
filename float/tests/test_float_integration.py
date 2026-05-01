@@ -6,6 +6,7 @@ Requires FLOAT_API_KEY set in environment.
 Run with:
     pytest float/tests/test_float_integration.py -m integration
 """
+
 import importlib.util
 import os
 import sys
@@ -39,9 +40,7 @@ def live_context():
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
         async with aiohttp.ClientSession() as session:
-            async with session.request(
-                method, url, json=json, headers=headers or {}, params=params
-            ) as resp:
+            async with session.request(method, url, json=json, headers=headers or {}, params=params) as resp:
                 try:
                     data = await resp.json(content_type=None)
                 except Exception:

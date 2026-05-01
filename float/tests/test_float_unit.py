@@ -1,6 +1,7 @@
 """
 Unit tests for the Float integration using mocked fetch.
 """
+
 import importlib.util
 import os
 import sys
@@ -51,9 +52,7 @@ async def test_list_people_returns_data():
 @pytest.mark.asyncio
 async def test_list_people_with_filters():
     ctx = make_ctx([])
-    await float_integration.execute_action(
-        "list_people", {"active": True, "page": 1, "per_page": 10}, ctx
-    )
+    await float_integration.execute_action("list_people", {"active": True, "page": 1, "per_page": 10}, ctx)
     call_kwargs = ctx.fetch.call_args
     params = call_kwargs.kwargs.get("params", {})
     assert params.get("active") == 1
@@ -124,9 +123,7 @@ async def test_delete_person_success():
 @pytest.mark.asyncio
 async def test_create_person_required_name():
     ctx = make_ctx({"people_id": 1, "name": "New Person"})
-    result = await float_integration.execute_action(
-        "create_person", {"name": "New Person"}, ctx
-    )
+    result = await float_integration.execute_action("create_person", {"name": "New Person"}, ctx)
     assert result.result.data["name"] == "New Person"
 
 
