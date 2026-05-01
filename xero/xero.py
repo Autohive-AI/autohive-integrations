@@ -218,8 +218,8 @@ class FindContactByNameAction(ActionHandler):
         Finds contact ID by filtering contacts with matching name in Xero
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        contact_name = inputs.get("contact_name")
+        tenant_id = inputs["tenant_id"]
+        contact_name = inputs["contact_name"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -293,8 +293,8 @@ class GetAgedPayablesAction(ActionHandler):
         Fetches aged payables report from Xero API for a specific contact
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        contact_id = inputs.get("contact_id")
+        tenant_id = inputs["tenant_id"]
+        contact_id = inputs["contact_id"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -340,8 +340,8 @@ class GetAgedReceivablesAction(ActionHandler):
         Fetches aged receivables report from Xero API for a specific contact
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        contact_id = inputs.get("contact_id")
+        tenant_id = inputs["tenant_id"]
+        contact_id = inputs["contact_id"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -387,7 +387,7 @@ class GetBalanceSheetAction(ActionHandler):
         Fetches balance sheet report from Xero API
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
+        tenant_id = inputs["tenant_id"]
         if not tenant_id:
             raise ValueError("tenant_id is required")
 
@@ -434,7 +434,7 @@ class GetProfitAndLossAction(ActionHandler):
         Fetches profit and loss report from Xero API
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
+        tenant_id = inputs["tenant_id"]
         if not tenant_id:
             raise ValueError("tenant_id is required")
 
@@ -493,7 +493,7 @@ class GetTrialBalanceAction(ActionHandler):
         Fetches trial balance report from Xero API
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
+        tenant_id = inputs["tenant_id"]
         if not tenant_id:
             raise ValueError("tenant_id is required")
 
@@ -541,7 +541,7 @@ class GetAccountsAction(ActionHandler):
         (revenue, expenses, fixed assets, loans, equity/dividends, GST)
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
+        tenant_id = inputs["tenant_id"]
         if not tenant_id:
             raise ValueError("tenant_id is required")
 
@@ -589,7 +589,7 @@ class GetPaymentsAction(ActionHandler):
         Supports date filtering with where clause
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
+        tenant_id = inputs["tenant_id"]
         if not tenant_id:
             raise ValueError("tenant_id is required")
 
@@ -652,7 +652,7 @@ class GetInvoicesAction(ActionHandler):
         - Amount filtering: Total>=100.00 AND Total<=1000.00
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
+        tenant_id = inputs["tenant_id"]
         if not tenant_id:
             raise ValueError("tenant_id is required")
 
@@ -738,8 +738,8 @@ class GetInvoicePdfAction(ActionHandler):
         - success: Boolean indicating if the download was successful
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        invoice_id = inputs.get("invoice_id")
+        tenant_id = inputs["tenant_id"]
+        invoice_id = inputs["invoice_id"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -811,7 +811,7 @@ class GetBankTransactionsAction(ActionHandler):
         Supports date filtering with where clause and pagination
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
+        tenant_id = inputs["tenant_id"]
         if not tenant_id:
             raise ValueError("tenant_id is required")
 
@@ -877,9 +877,9 @@ class CreateSalesInvoiceAction(ActionHandler):
         - status: "DRAFT", "SUBMITTED", or "AUTHORISED"
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        contact = inputs.get("contact")
-        line_items = inputs.get("line_items")
+        tenant_id = inputs["tenant_id"]
+        contact = inputs["contact"]
+        line_items = inputs["line_items"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -966,9 +966,9 @@ class CreatePurchaseBillAction(ActionHandler):
         - status: "DRAFT", "SUBMITTED", or "AUTHORISED"
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        contact = inputs.get("contact")
-        line_items = inputs.get("line_items")
+        tenant_id = inputs["tenant_id"]
+        contact = inputs["contact"]
+        line_items = inputs["line_items"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -1056,8 +1056,8 @@ class UpdateSalesInvoiceAction(ActionHandler):
         - line_amount_types: "Exclusive", "Inclusive", or "NoTax"
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        invoice_id = inputs.get("invoice_id")
+        tenant_id = inputs["tenant_id"]
+        invoice_id = inputs["invoice_id"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -1072,9 +1072,9 @@ class UpdateSalesInvoiceAction(ActionHandler):
             }
 
             # Add optional fields only if provided
-            if inputs.get("contact"):
+            if inputs["contact"]:
                 invoice_data["Contact"] = inputs["contact"]
-            if inputs.get("line_items"):
+            if inputs["line_items"]:
                 invoice_data["LineItems"] = inputs["line_items"]
             if inputs.get("date"):
                 invoice_data["Date"] = inputs["date"]
@@ -1147,8 +1147,8 @@ class UpdatePurchaseBillAction(ActionHandler):
         - line_amount_types: "Exclusive", "Inclusive", or "NoTax"
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        invoice_id = inputs.get("invoice_id")
+        tenant_id = inputs["tenant_id"]
+        invoice_id = inputs["invoice_id"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -1163,9 +1163,9 @@ class UpdatePurchaseBillAction(ActionHandler):
             }
 
             # Add optional fields only if provided
-            if inputs.get("contact"):
+            if inputs["contact"]:
                 bill_data["Contact"] = inputs["contact"]
-            if inputs.get("line_items"):
+            if inputs["line_items"]:
                 bill_data["LineItems"] = inputs["line_items"]
             if inputs.get("date"):
                 bill_data["Date"] = inputs["date"]
@@ -1231,8 +1231,8 @@ class AttachFileToInvoiceAction(ActionHandler):
         - include_online: Whether to include the attachment in online invoice (default: true)
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        invoice_id = inputs.get("invoice_id")
+        tenant_id = inputs["tenant_id"]
+        invoice_id = inputs["invoice_id"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -1324,8 +1324,8 @@ class AttachFileToBillAction(ActionHandler):
         - include_online: Whether to include the attachment in online bill (default: true)
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        bill_id = inputs.get("bill_id")
+        tenant_id = inputs["tenant_id"]
+        bill_id = inputs["bill_id"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -1413,9 +1413,9 @@ class GetAttachmentsAction(ActionHandler):
         - content_length: Size of the attachment in bytes
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        endpoint = inputs.get("endpoint")
-        guid = inputs.get("guid")
+        tenant_id = inputs["tenant_id"]
+        endpoint = inputs["endpoint"]
+        guid = inputs["guid"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -1470,10 +1470,10 @@ class GetAttachmentContentAction(ActionHandler):
         - success: Boolean indicating if the download was successful
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        endpoint = inputs.get("endpoint")
-        guid = inputs.get("guid")
-        file_name = inputs.get("file_name")
+        tenant_id = inputs["tenant_id"]
+        endpoint = inputs["endpoint"]
+        guid = inputs["guid"]
+        file_name = inputs["file_name"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -1551,7 +1551,7 @@ class GetPurchaseOrdersAction(ActionHandler):
         - Contact filtering: Contact.ContactID==guid("contact-id")
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
+        tenant_id = inputs["tenant_id"]
         if not tenant_id:
             raise ValueError("tenant_id is required")
 
@@ -1630,9 +1630,9 @@ class CreatePurchaseOrderAction(ActionHandler):
         - delivery_instructions: Delivery instructions
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        contact = inputs.get("contact")
-        line_items = inputs.get("line_items")
+        tenant_id = inputs["tenant_id"]
+        contact = inputs["contact"]
+        line_items = inputs["line_items"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -1726,8 +1726,8 @@ class UpdatePurchaseOrderAction(ActionHandler):
         - delivery_instructions: Delivery instructions
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        purchase_order_id = inputs.get("purchase_order_id")
+        tenant_id = inputs["tenant_id"]
+        purchase_order_id = inputs["purchase_order_id"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -1739,9 +1739,9 @@ class UpdatePurchaseOrderAction(ActionHandler):
             po_data = {"PurchaseOrderID": purchase_order_id}
 
             # Add optional fields only if provided
-            if inputs.get("contact"):
+            if inputs["contact"]:
                 po_data["Contact"] = inputs["contact"]
-            if inputs.get("line_items"):
+            if inputs["line_items"]:
                 po_data["LineItems"] = inputs["line_items"]
             if inputs.get("date"):
                 po_data["Date"] = inputs["date"]
@@ -1808,8 +1808,8 @@ class DeletePurchaseOrderAction(ActionHandler):
         - purchase_order_id: ID of the purchase order to delete
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        purchase_order_id = inputs.get("purchase_order_id")
+        tenant_id = inputs["tenant_id"]
+        purchase_order_id = inputs["purchase_order_id"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -1862,8 +1862,8 @@ class GetPurchaseOrderHistoryAction(ActionHandler):
         - purchase_order_id: ID of the purchase order to get history for
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        purchase_order_id = inputs.get("purchase_order_id")
+        tenant_id = inputs["tenant_id"]
+        purchase_order_id = inputs["purchase_order_id"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
@@ -1909,9 +1909,9 @@ class AddNoteToPurchaseOrderAction(ActionHandler):
         - note: The note text to add
         """
         # Validate required inputs
-        tenant_id = inputs.get("tenant_id")
-        purchase_order_id = inputs.get("purchase_order_id")
-        note = inputs.get("note")
+        tenant_id = inputs["tenant_id"]
+        purchase_order_id = inputs["purchase_order_id"]
+        note = inputs["note"]
 
         if not tenant_id:
             raise ValueError("tenant_id is required")
