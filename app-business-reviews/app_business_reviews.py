@@ -10,7 +10,7 @@ app_business_reviews = Integration.load()
 @app_business_reviews.action("search_apps_ios")
 class SearchAppsIOS(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        api_key = context.auth.get("credentials", {}).get("api_key", {})
+        api_key = context.auth.get("credentials", {}).get("api_key", "")
 
         # Build SerpApi request parameters for app search
         params = {"api_key": api_key, "engine": "apple_app_store", "term": inputs["term"]}
@@ -54,7 +54,7 @@ class SearchAppsIOS(ActionHandler):
 @app_business_reviews.action("get_reviews_app_store")
 class GetReviewsAppStore(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        api_key = context.auth.get("credentials", {}).get("api_key", {})
+        api_key = context.auth.get("credentials", {}).get("api_key", "")
 
         # Get product_id - either provided directly or search by app name
         product_id = inputs.get("product_id")
@@ -160,7 +160,7 @@ class GetReviewsAppStore(ActionHandler):
 @app_business_reviews.action("search_apps_android")
 class SearchAppsAndroid(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        api_key = context.auth.get("credentials", {}).get("api_key", {})
+        api_key = context.auth.get("credentials", {}).get("api_key", "")
 
         # Build SerpApi request parameters for app search
         params = {"api_key": api_key, "engine": "google_play", "store": "apps", "q": inputs["query"]}
@@ -198,7 +198,7 @@ class SearchAppsAndroid(ActionHandler):
 @app_business_reviews.action("get_reviews_google_play")
 class GetReviewsGooglePlay(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        api_key = context.auth.get("credentials", {}).get("api_key", {})
+        api_key = context.auth.get("credentials", {}).get("api_key", "")
 
         # Get product_id - either provided directly or search by app name
         product_id = inputs.get("product_id")
@@ -315,7 +315,7 @@ class GetReviewsGooglePlay(ActionHandler):
 @app_business_reviews.action("search_places_google_maps")
 class SearchPlacesGoogleMaps(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        api_key = context.auth.get("credentials", {}).get("api_key", {})
+        api_key = context.auth.get("credentials", {}).get("api_key", "")
 
         # Build SerpApi request parameters for place search
         query_string = inputs["query"]
@@ -353,7 +353,7 @@ class SearchPlacesGoogleMaps(ActionHandler):
 @app_business_reviews.action("get_reviews_google_maps")
 class GetReviewsGoogleMaps(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        api_key = context.auth.get("credentials", {}).get("api_key", {})
+        api_key = context.auth.get("credentials", {}).get("api_key", "")
 
         # Get place_id and data_id - either provided directly or search by business name
         place_id = inputs.get("place_id")
