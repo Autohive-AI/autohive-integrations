@@ -148,6 +148,57 @@ class TestCreateDoc:
         assert "Unauthorized" in result.result.message
 
 
+# ---- update_doc ----
+
+
+class TestUpdateDoc:
+    async def test_updates_doc(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={})
+
+        result = await coda.execute_action(
+            "update_doc",
+            {"doc_id": "AbCDeFGH", "title": "Renamed", "icon_name": "rocket"},
+            mock_context,
+        )
+
+        assert result.type != ResultType.ACTION_ERROR
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{API_BASE}/docs/AbCDeFGH"
+        assert call.kwargs["method"] == "PATCH"
+        assert call.kwargs["json"]["title"] == "Renamed"
+        assert call.kwargs["json"]["iconName"] == "rocket"
+
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Forbidden")
+
+        result = await coda.execute_action("update_doc", {"doc_id": "AbCDeFGH", "title": "x"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Forbidden" in result.result.message
+
+
+# ---- delete_doc ----
+
+
+class TestDeleteDoc:
+    async def test_deletes_doc(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=202, headers={}, data={})
+
+        result = await coda.execute_action("delete_doc", {"doc_id": "AbCDeFGH"}, mock_context)
+
+        assert result.type != ResultType.ACTION_ERROR
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{API_BASE}/docs/AbCDeFGH"
+        assert call.kwargs["method"] == "DELETE"
+
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Not Found")
+
+        result = await coda.execute_action("delete_doc", {"doc_id": "missing"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
 # ---- list_pages ----
 
 
@@ -206,6 +257,129 @@ class TestGetPage:
         mock_context.fetch.side_effect = Exception("Not Found")
 
         result = await coda.execute_action("get_page", {"doc_id": "doc1", "page_id_or_name": "missing"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+# ---- create_page ----
+
+
+class TestCreatePage:
+    async def test_creates_page(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=202, headers={}, data={"id": "canvas-new", "requestId": "req1"}
+        )
+
+        result = await coda.execute_action(
+            "create_page",
+            {"doc_id": "doc1", "name": "New Page"},
+            mock_context,
+        )
+
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["data"]["id"] == "canvas-new"
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{API_BASE}/docs/doc1/pages"
+        assert call.kwargs["method"] == "POST"
+        assert call.kwargs["json"]["name"] == "New Page"
+
+    async def test_with_content_and_optional_fields(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=202, headers={}, data={"id": "canvas-new"})
+
+        await coda.execute_action(
+            "create_page",
+            {
+                "doc_id": "doc1",
+                "name": "Notes",
+                "subtitle": "My notes",
+                "icon_name": "star",
+                "image_url": "https://example.com/cover.png",
+                "parent_page_id": "canvas-parent",
+                "content": "<p>Hello</p>",
+                "content_format": "html",
+            },
+            mock_context,
+        )
+
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["subtitle"] == "My notes"
+        assert body["iconName"] == "star"
+        assert body["imageUrl"] == "https://example.com/cover.png"
+        assert body["parentPageId"] == "canvas-parent"
+        assert body["pageContent"]["type"] == "canvas"
+        assert body["pageContent"]["canvasContent"]["format"] == "html"
+        assert body["pageContent"]["canvasContent"]["content"] == "<p>Hello</p>"
+
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Forbidden")
+
+        result = await coda.execute_action("create_page", {"doc_id": "doc1", "name": "x"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+# ---- update_page ----
+
+
+class TestUpdatePage:
+    async def test_updates_page(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=202, headers={}, data={"id": "canvas-abc", "requestId": "req1"}
+        )
+
+        result = await coda.execute_action(
+            "update_page",
+            {"doc_id": "doc1", "page_id_or_name": "canvas-abc", "name": "Renamed", "subtitle": "Updated"},
+            mock_context,
+        )
+
+        assert result.type != ResultType.ACTION_ERROR
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{API_BASE}/docs/doc1/pages/canvas-abc"
+        assert call.kwargs["method"] == "PUT"
+        assert call.kwargs["json"]["name"] == "Renamed"
+        assert call.kwargs["json"]["subtitle"] == "Updated"
+
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Not Found")
+
+        result = await coda.execute_action(
+            "update_page",
+            {"doc_id": "doc1", "page_id_or_name": "missing", "name": "x"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+# ---- delete_page ----
+
+
+class TestDeletePage:
+    async def test_deletes_page(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=202, headers={}, data={"id": "canvas-abc", "requestId": "req1"}
+        )
+
+        result = await coda.execute_action(
+            "delete_page",
+            {"doc_id": "doc1", "page_id_or_name": "canvas-abc"},
+            mock_context,
+        )
+
+        assert result.type != ResultType.ACTION_ERROR
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{API_BASE}/docs/doc1/pages/canvas-abc"
+        assert call.kwargs["method"] == "DELETE"
+
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Not Found")
+
+        result = await coda.execute_action(
+            "delete_page",
+            {"doc_id": "doc1", "page_id_or_name": "missing"},
+            mock_context,
+        )
 
         assert result.type == ResultType.ACTION_ERROR
 
@@ -422,6 +596,50 @@ class TestUpsertRows:
         result = await coda.execute_action(
             "upsert_rows",
             {"doc_id": "doc1", "table_id_or_name": "grid-xyz", "rows": []},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+# ---- update_row ----
+
+
+class TestUpdateRow:
+    async def test_updates_row(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=202, headers={}, data={"requestId": "req1", "id": "i-row1"}
+        )
+        cells = [{"column": "c-col1", "value": "Bob"}]
+
+        result = await coda.execute_action(
+            "update_row",
+            {
+                "doc_id": "doc1",
+                "table_id_or_name": "grid-xyz",
+                "row_id_or_name": "i-row1",
+                "cells": cells,
+            },
+            mock_context,
+        )
+
+        assert result.type != ResultType.ACTION_ERROR
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{API_BASE}/docs/doc1/tables/grid-xyz/rows/i-row1"
+        assert call.kwargs["method"] == "PUT"
+        assert call.kwargs["json"]["row"]["cells"] == cells
+
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Not Found")
+
+        result = await coda.execute_action(
+            "update_row",
+            {
+                "doc_id": "doc1",
+                "table_id_or_name": "grid-xyz",
+                "row_id_or_name": "missing",
+                "cells": [],
+            },
             mock_context,
         )
 
