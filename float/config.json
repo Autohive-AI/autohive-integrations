@@ -1,6 +1,6 @@
 {
     "name": "Float",
-    "version": "2.0.0",
+    "version": "1.0.0",
     "description": "Comprehensive Float API integration for resource management, project scheduling, time tracking, and team management. Supports people, projects, tasks/allocations, time off, logged time, clients, departments, and roles.",
     "entry_point": "float.py",
     "supports_billing": false,
@@ -248,6 +248,10 @@
                     "default_hourly_rate": {
                         "type": "number",
                         "description": "Default hourly rate"
+                    },
+                    "avatar_file": {
+                        "type": "string",
+                        "description": "Avatar file URL"
                     }
                 },
                 "required": [
@@ -353,6 +357,30 @@
                     "expand": {
                         "type": "string",
                         "description": "Comma-separated list of related resources to expand in response"
+                    },
+                    "people_type_id": {
+                        "type": "integer",
+                        "description": "The people type ID"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)"
+                    },
+                    "employee_type": {
+                        "type": "integer",
+                        "description": "Employee type (0=employee, 1=contractor)"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)"
+                    },
+                    "work_days_hours": {
+                        "type": "object",
+                        "description": "Work days hours configuration"
+                    },
+                    "avatar_file": {
+                        "type": "string",
+                        "description": "Avatar file URL"
                     }
                 },
                 "required": [
@@ -617,6 +645,10 @@
                     "notes": {
                         "type": "string",
                         "description": "Project notes"
+                    },
+                    "budget_per_phase": {
+                        "type": "boolean",
+                        "description": "Budget per phase flag"
                     }
                 },
                 "required": [
@@ -685,6 +717,50 @@
                     "notes": {
                         "type": "string",
                         "description": "Project notes"
+                    },
+                    "project_team": {
+                        "type": "array",
+                        "description": "Project team members"
+                    },
+                    "status": {
+                        "type": "integer",
+                        "description": "Project status"
+                    },
+                    "project_manager": {
+                        "type": "integer",
+                        "description": "Project manager people_id"
+                    },
+                    "all_pms_schedule": {
+                        "type": "boolean",
+                        "description": "Allow all PMs to schedule"
+                    },
+                    "budget_total": {
+                        "type": "number",
+                        "description": "Budget total"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)"
+                    },
+                    "project_code": {
+                        "type": "string",
+                        "description": "Project code"
+                    },
+                    "non_billable": {
+                        "type": "boolean",
+                        "description": "Non-billable flag"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)"
+                    },
+                    "budget_per_phase": {
+                        "type": "boolean",
+                        "description": "Budget per phase flag"
+                    },
+                    "budget_type": {
+                        "type": "integer",
+                        "description": "Budget type"
                     }
                 },
                 "required": [
@@ -774,6 +850,14 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 200
+                    },
+                    "sort": {
+                        "type": "string",
+                        "description": "Sort field"
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Fields to include"
                     }
                 }
             },
@@ -893,6 +977,14 @@
                     "repeat_end_date": {
                         "type": "string",
                         "description": "Repeat end date"
+                    },
+                    "root_task_id": {
+                        "type": "integer",
+                        "description": "Root task ID"
+                    },
+                    "parent_task_id": {
+                        "type": "integer",
+                        "description": "Parent task ID"
                     }
                 },
                 "required": [
@@ -970,6 +1062,30 @@
                     "status": {
                         "type": "string",
                         "description": "Task status"
+                    },
+                    "billable": {
+                        "type": "boolean",
+                        "description": "Billable flag"
+                    },
+                    "repeat_state": {
+                        "type": "integer",
+                        "description": "Repeat state"
+                    },
+                    "root_task_id": {
+                        "type": "integer",
+                        "description": "Root task ID"
+                    },
+                    "repeat_end_date": {
+                        "type": "string",
+                        "description": "Repeat end date"
+                    },
+                    "parent_task_id": {
+                        "type": "integer",
+                        "description": "Parent task ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Task name"
                     }
                 },
                 "required": [
@@ -1063,6 +1179,18 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 200
+                    },
+                    "modified_since": {
+                        "type": "string",
+                        "description": "Filter modified since date"
+                    },
+                    "sort": {
+                        "type": "string",
+                        "description": "Sort field"
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Fields to include"
                     }
                 }
             },
@@ -1235,6 +1363,14 @@
                     "notes": {
                         "type": "string",
                         "description": "Notes"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "The ID of the person"
+                    },
+                    "timeoff_type_id": {
+                        "type": "integer",
+                        "description": "The ID of the time off type"
                     }
                 },
                 "required": [
@@ -1328,6 +1464,18 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 200
+                    },
+                    "modified_since": {
+                        "type": "string",
+                        "description": "Filter modified since date"
+                    },
+                    "sort": {
+                        "type": "string",
+                        "description": "Sort field"
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Fields to include"
                     }
                 }
             },
@@ -1487,6 +1635,22 @@
                     "billable": {
                         "type": "boolean",
                         "description": "Billable flag"
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Date of logged time (YYYY-MM-DD)"
+                    },
+                    "task_id": {
+                        "type": "integer",
+                        "description": "The ID of the task"
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "description": "The ID of the project"
+                    },
+                    "people_id": {
+                        "type": "integer",
+                        "description": "The ID of the person"
                     }
                 },
                 "required": [
@@ -1568,6 +1732,14 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 200
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Fields to include"
+                    },
+                    "sort": {
+                        "type": "string",
+                        "description": "Sort field"
                     }
                 }
             },
@@ -1768,6 +1940,14 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 200
+                    },
+                    "sort": {
+                        "type": "string",
+                        "description": "Sort field"
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Fields to include"
                     }
                 }
             },
@@ -1835,6 +2015,14 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 200
+                    },
+                    "sort": {
+                        "type": "string",
+                        "description": "Sort field"
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Fields to include"
                     }
                 }
             },
@@ -1902,6 +2090,14 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 200
+                    },
+                    "sort": {
+                        "type": "string",
+                        "description": "Sort field"
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Fields to include"
                     }
                 }
             },
