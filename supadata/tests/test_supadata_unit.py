@@ -16,7 +16,9 @@ for _site_dir in site.getsitepackages():
     _real_supadata = os.path.join(_site_dir, "supadata")
     if os.path.isdir(_real_supadata) and os.path.abspath(_real_supadata) != _parent:
         _supadata_spec = importlib.util.spec_from_file_location(
-            "supadata", os.path.join(_real_supadata, "__init__.py"), submodule_search_locations=[_real_supadata]
+            "supadata",
+            os.path.join(_real_supadata, "__init__.py"),
+            submodule_search_locations=[_real_supadata],
         )
         _supadata_mod = importlib.util.module_from_spec(_supadata_spec)
         sys.modules["supadata"] = _supadata_mod
@@ -149,7 +151,9 @@ class TestGetTranscript:
 
         with patch("supadata_transcribe.Supadata") as MockSupadata:
             MockSupadata.return_value.transcript.side_effect = SupadataError(
-                error="not_found", message="Video not found", details="The video could not be found"
+                error="not_found",
+                message="Video not found",
+                details="The video could not be found",
             )
 
             result = await supadata_transcribe.execute_action(

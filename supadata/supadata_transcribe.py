@@ -1,4 +1,10 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ActionError,
+)
 from typing import Dict, Any
 from supadata import Supadata, SupadataError
 
