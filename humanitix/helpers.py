@@ -32,8 +32,11 @@ async def fetch_single_resource(
     url = build_url(path, params or None)
     response = await context.fetch(url, method="GET", headers=get_api_headers(context))
     if response.status >= 400:
-        data = response.data or {}
-        return ActionError(message=data.get("message", f"HTTP {response.status}"))
+        data = response.data
+        message = (
+            data.get("message", f"HTTP {response.status}") if isinstance(data, dict) else f"HTTP {response.status}"
+        )
+        return ActionError(message=message)
     return ActionResult(data={"result": True, result_key: response.data}, cost_usd=0.0)
 
 
