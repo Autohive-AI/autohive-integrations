@@ -69,7 +69,9 @@ def mock_context():
     ctx.fetch = AsyncMock(name="fetch")
     # custom auth: flat object matching config.json fields
     ctx.auth = {
-        "api_key": "test_api_key",  # nosec B105
+        "credentials": {
+            "api_key": "test_api_key",  # nosec B105
+        }
     }
     return ctx
 
@@ -124,7 +126,7 @@ class TestGetTranscript:
 
             await supadata_transcribe.execute_action("get_transcript", {"video_url": SAMPLE_VIDEO_URL}, mock_context)
 
-            MockSupadata.assert_called_once_with(api_key="test_api_key")  # nosec B105
+            MockSupadata.assert_called_once_with(api_key="test_api_key")  # nosec B105  # noqa: S106
 
     @pytest.mark.asyncio
     async def test_sdk_called_with_correct_params(self, mock_context):

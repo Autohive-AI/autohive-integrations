@@ -11,7 +11,7 @@ supadata_transcribe = Integration.load()
 class GetTranscriptAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         video_url = inputs["video_url"]
-        api_key = context.auth.get("api_key", "")
+        api_key = context.auth.get("credentials", {}).get("api_key", "")
         try:
             supadata = Supadata(api_key=api_key)
 
