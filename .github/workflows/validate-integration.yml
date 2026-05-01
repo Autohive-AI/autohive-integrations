@@ -10,7 +10,6 @@ jobs:
     name: Validate Integration
     permissions:
       contents: read
-      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -18,6 +17,46 @@ jobs:
           fetch-depth: 0
 
       - name: Validate
+        id: validate
         uses: autohive-ai/autohive-integrations-tooling@v2
         with:
           base_ref: origin/${{ github.base_ref }}
+          # Don't post directly: pull_request workflows triggered from forks
+          # run with a read-only GITHUB_TOKEN, so the comment would 403 and
+          # the job would go red even when validation passed. Instead we
+          # upload the rendered comment as an artifact and let
+          # validate-integration-comment.yml post it from base-repo context.
+          post_comment: 'false'
+
+      - name: Stage comment artifact
+        if: always()
+        shell: bash
+        env:
+          COMMENT_PATH: ${{ steps.validate.outputs.comment_path }}
+        run: |
+          set -euo pipefail
+          mkdir -p validation-artifact
+          # Note: the PR number is intentionally NOT written to the artifact.
+          # This step runs after the validation pipeline has executed fork
+          # tests / fork-imported code on the runner, so anything written
+          # here must be considered untrusted by the companion workflow.
+          # The companion derives the target PR from the trusted
+          # workflow_run event payload (and a GitHub API lookup as the
+          # fork-PR fallback) instead of trusting an artifact value.
+          if [ -n "$COMMENT_PATH" ] && [ -f "$COMMENT_PATH" ]; then
+            cp "$COMMENT_PATH" validation-artifact/comment.md
+          else
+            # No integration directories changed (or the action bailed out
+            # before rendering). Tell the companion workflow to clear any
+            # stale comment instead of posting a new one.
+            : > validation-artifact/delete.marker
+          fi
+
+      - name: Upload comment artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-comment
+          path: validation-artifact/
+          if-no-files-found: error
+          retention-days: 1
