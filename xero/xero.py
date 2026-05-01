@@ -1072,9 +1072,9 @@ class UpdateSalesInvoiceAction(ActionHandler):
             }
 
             # Add optional fields only if provided
-            if inputs["contact"]:
+            if inputs.get("contact"):
                 invoice_data["Contact"] = inputs["contact"]
-            if inputs["line_items"]:
+            if inputs.get("line_items"):
                 invoice_data["LineItems"] = inputs["line_items"]
             if inputs.get("date"):
                 invoice_data["Date"] = inputs["date"]
@@ -1163,9 +1163,9 @@ class UpdatePurchaseBillAction(ActionHandler):
             }
 
             # Add optional fields only if provided
-            if inputs["contact"]:
+            if inputs.get("contact"):
                 bill_data["Contact"] = inputs["contact"]
-            if inputs["line_items"]:
+            if inputs.get("line_items"):
                 bill_data["LineItems"] = inputs["line_items"]
             if inputs.get("date"):
                 bill_data["Date"] = inputs["date"]
@@ -1739,9 +1739,9 @@ class UpdatePurchaseOrderAction(ActionHandler):
             po_data = {"PurchaseOrderID": purchase_order_id}
 
             # Add optional fields only if provided
-            if inputs["contact"]:
+            if inputs.get("contact"):
                 po_data["Contact"] = inputs["contact"]
-            if inputs["line_items"]:
+            if inputs.get("line_items"):
                 po_data["LineItems"] = inputs["line_items"]
             if inputs.get("date"):
                 po_data["Date"] = inputs["date"]
