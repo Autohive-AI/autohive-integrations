@@ -97,17 +97,17 @@ class CreateCompanyAction(ActionHandler):
             body = {"name": inputs["name"]}
 
             # Add optional fields if provided
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+            if inputs.get("description"):
+                body["description"] = inputs.get("description")
 
-            if "domains" in inputs and inputs["domains"]:
-                body["domains"] = inputs["domains"]
+            if inputs.get("domains"):
+                body["domains"] = inputs.get("domains")
 
-            if "note" in inputs and inputs["note"]:
-                body["note"] = inputs["note"]
+            if inputs.get("note"):
+                body["note"] = inputs.get("note")
 
-            if "custom_fields" in inputs and inputs["custom_fields"]:
-                body["custom_fields"] = inputs["custom_fields"]
+            if inputs.get("custom_fields"):
+                body["custom_fields"] = inputs.get("custom_fields")
 
             # Get auth headers and base URL
             headers = get_auth_headers(context)
@@ -163,20 +163,20 @@ class UpdateCompanyAction(ActionHandler):
             # Build request body with only provided fields
             body = {}
 
-            if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
+            if inputs.get("name"):
+                body["name"] = inputs.get("name")
 
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+            if inputs.get("description"):
+                body["description"] = inputs.get("description")
 
-            if "domains" in inputs and inputs["domains"]:
-                body["domains"] = inputs["domains"]
+            if inputs.get("domains"):
+                body["domains"] = inputs.get("domains")
 
-            if "note" in inputs and inputs["note"]:
-                body["note"] = inputs["note"]
+            if inputs.get("note"):
+                body["note"] = inputs.get("note")
 
-            if "custom_fields" in inputs and inputs["custom_fields"]:
-                body["custom_fields"] = inputs["custom_fields"]
+            if inputs.get("custom_fields"):
+                body["custom_fields"] = inputs.get("custom_fields")
 
             # Get auth headers and base URL
             headers = get_auth_headers(context)
@@ -264,20 +264,20 @@ class CreateTicketAction(ActionHandler):
         try:
             body = {"subject": inputs["subject"], "email": inputs["email"]}
 
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
-            if "priority" in inputs:
-                body["priority"] = inputs["priority"]
-            if "status" in inputs:
-                body["status"] = inputs["status"]
-            if "source" in inputs:
-                body["source"] = inputs["source"]
-            if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
-            if "company_id" in inputs:
-                body["company_id"] = inputs["company_id"]
-            if "tags" in inputs and inputs["tags"]:
-                body["tags"] = inputs["tags"]
+            if inputs.get("description"):
+                body["description"] = inputs.get("description")
+            if inputs.get("priority") is not None:
+                body["priority"] = inputs.get("priority")
+            if inputs.get("status") is not None:
+                body["status"] = inputs.get("status")
+            if inputs.get("source") is not None:
+                body["source"] = inputs.get("source")
+            if inputs.get("name"):
+                body["name"] = inputs.get("name")
+            if inputs.get("company_id") is not None:
+                body["company_id"] = inputs.get("company_id")
+            if inputs.get("tags"):
+                body["tags"] = inputs.get("tags")
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
@@ -339,16 +339,16 @@ class UpdateTicketAction(ActionHandler):
             ticket_id = inputs["ticket_id"]
             body = {}
 
-            if "subject" in inputs and inputs["subject"]:
-                body["subject"] = inputs["subject"]
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
-            if "priority" in inputs:
-                body["priority"] = inputs["priority"]
-            if "status" in inputs:
-                body["status"] = inputs["status"]
-            if "tags" in inputs and inputs["tags"]:
-                body["tags"] = inputs["tags"]
+            if inputs.get("subject"):
+                body["subject"] = inputs.get("subject")
+            if inputs.get("description"):
+                body["description"] = inputs.get("description")
+            if inputs.get("priority") is not None:
+                body["priority"] = inputs.get("priority")
+            if inputs.get("status") is not None:
+                body["status"] = inputs.get("status")
+            if inputs.get("tags"):
+                body["tags"] = inputs.get("tags")
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
@@ -391,18 +391,18 @@ class CreateContactAction(ActionHandler):
         try:
             body = {"name": inputs["name"], "email": inputs["email"]}
 
-            if "phone" in inputs and inputs["phone"]:
-                body["phone"] = inputs["phone"]
-            if "mobile" in inputs and inputs["mobile"]:
-                body["mobile"] = inputs["mobile"]
-            if "company_id" in inputs:
-                body["company_id"] = inputs["company_id"]
-            if "job_title" in inputs and inputs["job_title"]:
-                body["job_title"] = inputs["job_title"]
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
-            if "tags" in inputs and inputs["tags"]:
-                body["tags"] = inputs["tags"]
+            if inputs.get("phone"):
+                body["phone"] = inputs.get("phone")
+            if inputs.get("mobile"):
+                body["mobile"] = inputs.get("mobile")
+            if inputs.get("company_id") is not None:
+                body["company_id"] = inputs.get("company_id")
+            if inputs.get("job_title"):
+                body["job_title"] = inputs.get("job_title")
+            if inputs.get("description"):
+                body["description"] = inputs.get("description")
+            if inputs.get("tags"):
+                body["tags"] = inputs.get("tags")
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
@@ -464,18 +464,18 @@ class UpdateContactAction(ActionHandler):
             contact_id = inputs["contact_id"]
             body = {}
 
-            if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
-            if "email" in inputs and inputs["email"]:
-                body["email"] = inputs["email"]
-            if "phone" in inputs and inputs["phone"]:
-                body["phone"] = inputs["phone"]
-            if "mobile" in inputs and inputs["mobile"]:
-                body["mobile"] = inputs["mobile"]
-            if "job_title" in inputs and inputs["job_title"]:
-                body["job_title"] = inputs["job_title"]
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+            if inputs.get("name"):
+                body["name"] = inputs.get("name")
+            if inputs.get("email"):
+                body["email"] = inputs.get("email")
+            if inputs.get("phone"):
+                body["phone"] = inputs.get("phone")
+            if inputs.get("mobile"):
+                body["mobile"] = inputs.get("mobile")
+            if inputs.get("job_title"):
+                body["job_title"] = inputs.get("job_title")
+            if inputs.get("description"):
+                body["description"] = inputs.get("description")
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
@@ -578,8 +578,8 @@ class CreateNoteAction(ActionHandler):
             ticket_id = inputs["ticket_id"]
             body = {"body": inputs["body"], "private": True}
 
-            if "notify_emails" in inputs and inputs["notify_emails"]:
-                body["notify_emails"] = inputs["notify_emails"]
+            if inputs.get("notify_emails"):
+                body["notify_emails"] = inputs.get("notify_emails")
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
@@ -603,8 +603,8 @@ class CreateReplyAction(ActionHandler):
             ticket_id = inputs["ticket_id"]
             body = {"body": inputs["body"]}
 
-            if "from_email" in inputs and inputs["from_email"]:
-                body["from_email"] = inputs["from_email"]
+            if inputs.get("from_email"):
+                body["from_email"] = inputs.get("from_email")
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
