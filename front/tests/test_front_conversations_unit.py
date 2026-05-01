@@ -12,7 +12,9 @@ from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location("front_mod", os.path.join(_parent, "front.py"))
+_spec = importlib.util.spec_from_file_location(
+    "front_mod", os.path.join(_parent, "front.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -95,26 +97,41 @@ class TestFrontDataParserConversation:
 class TestGetConversation:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_CONVERSATION)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=SAMPLE_CONVERSATION
+        )
 
-        result = await front.execute_action("get_conversation", {"conversation_id": "cnv_123"}, mock_context)
+        result = await front.execute_action(
+            "get_conversation", {"conversation_id": "cnv_123"}, mock_context
+        )
 
         assert result.result.data["conversation"]["id"] == "cnv_123"
         assert result.result.data["conversation"]["subject"] == "Help with billing"
 
     @pytest.mark.asyncio
     async def test_request_url(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_CONVERSATION)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=SAMPLE_CONVERSATION
+        )
 
-        await front.execute_action("get_conversation", {"conversation_id": "cnv_123"}, mock_context)
+        await front.execute_action(
+            "get_conversation", {"conversation_id": "cnv_123"}, mock_context
+        )
 
-        assert mock_context.fetch.call_args.args[0] == "https://api2.frontapp.com/conversations/cnv_123"
+        assert (
+            mock_context.fetch.call_args.args[0]
+            == "https://api2.frontapp.com/conversations/cnv_123"
+        )
 
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"error": "Not found"})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"error": "Not found"}
+        )
 
-        result = await front.execute_action("get_conversation", {"conversation_id": "cnv_bad"}, mock_context)
+        result = await front.execute_action(
+            "get_conversation", {"conversation_id": "cnv_bad"}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Not found" in result.result.message
@@ -123,16 +140,22 @@ class TestGetConversation:
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Timeout")
 
-        result = await front.execute_action("get_conversation", {"conversation_id": "cnv_123"}, mock_context)
+        result = await front.execute_action(
+            "get_conversation", {"conversation_id": "cnv_123"}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Timeout" in result.result.message
 
     @pytest.mark.asyncio
     async def test_response_has_conversation_key(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_CONVERSATION)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=SAMPLE_CONVERSATION
+        )
 
-        result = await front.execute_action("get_conversation", {"conversation_id": "cnv_123"}, mock_context)
+        result = await front.execute_action(
+            "get_conversation", {"conversation_id": "cnv_123"}, mock_context
+        )
 
         assert "conversation" in result.result.data
 
@@ -141,7 +164,9 @@ class TestUpdateConversation:
     @pytest.mark.asyncio
     async def test_happy_path_with_patch_response(self, mock_context):
         updated_conv = {**SAMPLE_CONVERSATION, "status": "archived"}
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=updated_conv)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=updated_conv
+        )
 
         result = await front.execute_action(
             "update_conversation",
@@ -181,7 +206,9 @@ class TestUpdateConversation:
 
     @pytest.mark.asyncio
     async def test_request_method_is_patch(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_CONVERSATION)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=SAMPLE_CONVERSATION
+        )
 
         await front.execute_action(
             "update_conversation",

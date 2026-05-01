@@ -7,7 +7,10 @@ from autohive_integrations_sdk import ExecutionContext
 async def test_list_inboxes():
     print("Testing list_inboxes...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"limit": 10}
 
@@ -24,7 +27,10 @@ async def test_list_inboxes():
 async def test_get_inbox():
     print("Testing get_inbox...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"inbox_id": "inb_test123"}
 
@@ -41,13 +47,18 @@ async def test_get_inbox():
 async def test_list_inbox_conversations():
     print("Testing list_inbox_conversations...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"inbox_id": "inb_test123", "status": "open", "limit": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await front.execute_action("list_inbox_conversations", inputs, context)
+            result = await front.execute_action(
+                "list_inbox_conversations", inputs, context
+            )
             print(f"Result: {result}")
             assert result.get("result") is not None
             print("✓ list_inbox_conversations test passed")
@@ -58,7 +69,10 @@ async def test_list_inbox_conversations():
 async def test_get_conversation():
     print("Testing get_conversation...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"conversation_id": "cnv_test123"}
 
@@ -75,13 +89,18 @@ async def test_get_conversation():
 async def test_list_conversation_messages():
     print("Testing list_conversation_messages...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"conversation_id": "cnv_test123", "limit": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await front.execute_action("list_conversation_messages", inputs, context)
+            result = await front.execute_action(
+                "list_conversation_messages", inputs, context
+            )
             print(f"Result: {result}")
             assert result.get("result") is not None
             print("✓ list_conversation_messages test passed")
@@ -92,7 +111,10 @@ async def test_list_conversation_messages():
 async def test_get_message():
     print("Testing get_message...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"message_id": "msg_test123"}
 
@@ -109,13 +131,18 @@ async def test_get_message():
 async def test_download_message_attachment():
     print("Testing download_message_attachment...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"attachment_url": "https://api2.frontapp.com/download/test_attachment"}
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await front.execute_action("download_message_attachment", inputs, context)
+            result = await front.execute_action(
+                "download_message_attachment", inputs, context
+            )
             print(f"Result: {result}")
             assert result.get("result") is not None
             print("✓ download_message_attachment test passed")
@@ -126,9 +153,16 @@ async def test_download_message_attachment():
 async def test_create_message_reply():
     print("Testing create_message_reply...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
-    inputs = {"conversation_id": "cnv_test123", "body": "This is a test reply message.", "author_id": "tea_test456"}
+    inputs = {
+        "conversation_id": "cnv_test123",
+        "body": "This is a test reply message.",
+        "author_id": "tea_test456",
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -143,7 +177,10 @@ async def test_create_message_reply():
 async def test_create_message():
     print("Testing create_message...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {
         "channel_id": "cha_test123",
@@ -166,7 +203,10 @@ async def test_create_message():
 async def test_list_channels():
     print("Testing list_channels...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"limit": 10}
 
@@ -183,7 +223,10 @@ async def test_list_channels():
 async def test_list_inbox_channels():
     print("Testing list_inbox_channels...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"inbox_id": "inb_test123", "limit": 10}
 
@@ -200,7 +243,10 @@ async def test_list_inbox_channels():
 async def test_get_channel():
     print("Testing get_channel...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"channel_id": "cha_test123"}
 
@@ -217,13 +263,18 @@ async def test_get_channel():
 async def test_list_message_templates():
     print("Testing list_message_templates...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"limit": 10}
 
     async with ExecutionContext(auth=auth) as context:
         try:
-            result = await front.execute_action("list_message_templates", inputs, context)
+            result = await front.execute_action(
+                "list_message_templates", inputs, context
+            )
             print(f"Result: {result}")
             assert result.get("result") is not None
             print("✓ list_message_templates test passed")
@@ -234,7 +285,10 @@ async def test_list_message_templates():
 async def test_get_message_template():
     print("Testing get_message_template...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"message_template_id": "tpl_test123"}
 
@@ -251,9 +305,16 @@ async def test_get_message_template():
 async def test_update_conversation():
     print("Testing update_conversation...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
-    inputs = {"conversation_id": "cnv_test123", "assignee_id": "tea_test456", "status": "open"}
+    inputs = {
+        "conversation_id": "cnv_test123",
+        "assignee_id": "tea_test456",
+        "status": "open",
+    }
 
     async with ExecutionContext(auth=auth) as context:
         try:
@@ -268,7 +329,10 @@ async def test_update_conversation():
 async def test_list_teammates():
     print("Testing list_teammates...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"limit": 10}
 
@@ -285,7 +349,10 @@ async def test_list_teammates():
 async def test_get_teammate():
     print("Testing get_teammate...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"teammate_id": "tea_test123"}
 
@@ -302,7 +369,10 @@ async def test_get_teammate():
 async def test_find_teammate():
     print("Testing find_teammate...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"search_query": "john"}
 
@@ -319,7 +389,10 @@ async def test_find_teammate():
 async def test_find_inbox():
     print("Testing find_inbox...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"inbox_name": "support"}
 
@@ -336,7 +409,10 @@ async def test_find_inbox():
 async def test_find_conversation():
     print("Testing find_conversation...")
 
-    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "mock_access_token"}}  # nosec B105
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "mock_access_token"},
+    }  # nosec B105
 
     inputs = {"inbox_id": "inb_test123", "search_query": "billing", "limit": 50}
 

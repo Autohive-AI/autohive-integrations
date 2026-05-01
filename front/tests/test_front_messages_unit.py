@@ -12,7 +12,9 @@ from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location("front_mod", os.path.join(_parent, "front.py"))
+_spec = importlib.util.spec_from_file_location(
+    "front_mod", os.path.join(_parent, "front.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -84,16 +86,22 @@ class TestFrontDataParserMessage:
 class TestListConversationMessages:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": [SAMPLE_MESSAGE]})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"_results": [SAMPLE_MESSAGE]}
+        )
 
-        result = await front.execute_action("list_conversation_messages", {"conversation_id": "cnv_123"}, mock_context)
+        result = await front.execute_action(
+            "list_conversation_messages", {"conversation_id": "cnv_123"}, mock_context
+        )
 
         assert len(result.result.data["messages"]) == 1
         assert result.result.data["messages"][0]["id"] == "msg_123"
 
     @pytest.mark.asyncio
     async def test_request_url_and_limit(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"_results": []}
+        )
 
         await front.execute_action(
             "list_conversation_messages",
@@ -107,7 +115,9 @@ class TestListConversationMessages:
 
     @pytest.mark.asyncio
     async def test_limit_clamped_to_100(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"_results": []}
+        )
 
         await front.execute_action(
             "list_conversation_messages",
@@ -119,9 +129,13 @@ class TestListConversationMessages:
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"_results": []}
+        )
 
-        result = await front.execute_action("list_conversation_messages", {"conversation_id": "cnv_123"}, mock_context)
+        result = await front.execute_action(
+            "list_conversation_messages", {"conversation_id": "cnv_123"}, mock_context
+        )
 
         assert result.result.data["messages"] == []
 
@@ -129,7 +143,9 @@ class TestListConversationMessages:
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Timeout")
 
-        result = await front.execute_action("list_conversation_messages", {"conversation_id": "cnv_123"}, mock_context)
+        result = await front.execute_action(
+            "list_conversation_messages", {"conversation_id": "cnv_123"}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
 
@@ -137,26 +153,41 @@ class TestListConversationMessages:
 class TestGetMessage:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_MESSAGE)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=SAMPLE_MESSAGE
+        )
 
-        result = await front.execute_action("get_message", {"message_id": "msg_123"}, mock_context)
+        result = await front.execute_action(
+            "get_message", {"message_id": "msg_123"}, mock_context
+        )
 
         assert result.result.data["message"]["id"] == "msg_123"
         assert result.result.data["message"]["type"] == "email"
 
     @pytest.mark.asyncio
     async def test_request_url(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_MESSAGE)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=SAMPLE_MESSAGE
+        )
 
-        await front.execute_action("get_message", {"message_id": "msg_123"}, mock_context)
+        await front.execute_action(
+            "get_message", {"message_id": "msg_123"}, mock_context
+        )
 
-        assert mock_context.fetch.call_args.args[0] == "https://api2.frontapp.com/messages/msg_123"
+        assert (
+            mock_context.fetch.call_args.args[0]
+            == "https://api2.frontapp.com/messages/msg_123"
+        )
 
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"error": "Message not found"})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"error": "Message not found"}
+        )
 
-        result = await front.execute_action("get_message", {"message_id": "msg_bad"}, mock_context)
+        result = await front.execute_action(
+            "get_message", {"message_id": "msg_bad"}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Message not found" in result.result.message
@@ -165,16 +196,22 @@ class TestGetMessage:
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Connection error")
 
-        result = await front.execute_action("get_message", {"message_id": "msg_123"}, mock_context)
+        result = await front.execute_action(
+            "get_message", {"message_id": "msg_123"}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Connection error" in result.result.message
 
     @pytest.mark.asyncio
     async def test_response_has_message_key(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_MESSAGE)
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=SAMPLE_MESSAGE
+        )
 
-        result = await front.execute_action("get_message", {"message_id": "msg_123"}, mock_context)
+        result = await front.execute_action(
+            "get_message", {"message_id": "msg_123"}, mock_context
+        )
 
         assert "message" in result.result.data
 
@@ -182,7 +219,9 @@ class TestGetMessage:
 class TestCreateMessage:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"message_uid": "uid_new123"})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"message_uid": "uid_new123"}
+        )
 
         result = await front.execute_action(
             "create_message",
@@ -194,7 +233,9 @@ class TestCreateMessage:
 
     @pytest.mark.asyncio
     async def test_request_url_and_method(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"message_uid": "uid_new123"})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"message_uid": "uid_new123"}
+        )
 
         await front.execute_action(
             "create_message",
@@ -208,7 +249,9 @@ class TestCreateMessage:
 
     @pytest.mark.asyncio
     async def test_payload_includes_recipients(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"message_uid": "uid_new123"})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"message_uid": "uid_new123"}
+        )
 
         await front.execute_action(
             "create_message",
@@ -229,7 +272,9 @@ class TestCreateMessage:
 
     @pytest.mark.asyncio
     async def test_api_error_in_body(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"error": "Channel not found"})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"error": "Channel not found"}
+        )
 
         result = await front.execute_action(
             "create_message",
@@ -256,7 +301,9 @@ class TestCreateMessage:
 class TestCreateMessageReply:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"message_uid": "uid_abc123"})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"message_uid": "uid_abc123"}
+        )
 
         result = await front.execute_action(
             "create_message_reply",
@@ -268,7 +315,9 @@ class TestCreateMessageReply:
 
     @pytest.mark.asyncio
     async def test_request_url_and_method(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"message_uid": "uid_abc123"})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"message_uid": "uid_abc123"}
+        )
 
         await front.execute_action(
             "create_message_reply",
@@ -282,7 +331,9 @@ class TestCreateMessageReply:
 
     @pytest.mark.asyncio
     async def test_optional_fields_in_payload(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"message_uid": "uid_abc123"})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"message_uid": "uid_abc123"}
+        )
 
         await front.execute_action(
             "create_message_reply",
@@ -301,7 +352,9 @@ class TestCreateMessageReply:
 
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"error": "Conversation archived"})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"error": "Conversation archived"}
+        )
 
         result = await front.execute_action(
             "create_message_reply",
@@ -341,7 +394,10 @@ class TestDownloadMessageAttachment:
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
-        mock_context.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "tok"}}  # nosec B105
+        mock_context.auth = {
+            "auth_type": "PlatformOauth2",
+            "credentials": {"access_token": "tok"},
+        }  # nosec B105
 
         result = await front.execute_action(
             "download_message_attachment",
