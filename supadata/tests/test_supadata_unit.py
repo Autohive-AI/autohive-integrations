@@ -206,27 +206,52 @@ class TestGetTranscript:
     async def test_missing_video_url_returns_validation_error(self, mock_context):
         result = await supadata_transcribe.execute_action("get_transcript", {}, mock_context)
         assert result.type == ResultType.VALIDATION_ERROR
+        # The error must point at the offending field so users can fix it.
+        assert "video_url" in result.result["message"]
+
+    @pytest.mark.asyncio
+    async def test_missing_api_key_falls_back_to_empty_string(self, make_context):
+        """Companion regression test for issue #316.
+
+        When the user clears the API key (or it's not yet configured), the
+        auth lookup must default to ``""``, not ``{}``. Passing a non-string
+        to ``Supadata(api_key=...)`` would raise a ``TypeError`` deep in the
+        SDK and surface as a 500-class crash. The fallback must yield an
+        empty string so the upstream 401 is caught cleanly and converted to
+        ``ActionError`` like any other auth failure.
+        """
+        ctx = make_context(auth={})  # No credentials at all.
+
+        with patch("supadata_transcribe.Supadata") as MockSupadata:
+            MockSupadata.return_value.transcript.side_effect = SupadataError(
+                error="unauthorized",
+                message="Unauthorized",
+                details="Invalid API Key",
+            )
+
+            result = await supadata_transcribe.execute_action("get_transcript", {"video_url": SAMPLE_VIDEO_URL}, ctx)
+
+            # Default must be a string, not the {} default the original code shipped with.
+            MockSupadata.assert_called_once_with(api_key="")  # nosec B106
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Supadata API error" in result.result.message
 
 
 class TestMsToTimestamp:
-    """Tests for the _ms_to_timestamp helper method."""
+    """Tests for the ``_ms_to_timestamp`` helper method."""
 
-    def _get_handler(self) -> GetTranscriptAction:
-        return GetTranscriptAction.__new__(GetTranscriptAction)
-
-    def test_zero_ms(self):
-        assert self._get_handler()._ms_to_timestamp(0) == "00:00:00,000"
-
-    def test_one_second(self):
-        assert self._get_handler()._ms_to_timestamp(1000) == "00:00:01,000"
-
-    def test_one_minute(self):
-        assert self._get_handler()._ms_to_timestamp(60000) == "00:01:00,000"
-
-    def test_one_hour(self):
-        assert self._get_handler()._ms_to_timestamp(3600000) == "01:00:00,000"
-
-    def test_complex_timestamp(self):
-        # 1h 23m 45s 678ms
-        ms = (1 * 3600000) + (23 * 60000) + (45 * 1000) + 678
-        assert self._get_handler()._ms_to_timestamp(ms) == "01:23:45,678"
+    @pytest.mark.parametrize(
+        "milliseconds, expected",
+        [
+            (0, "00:00:00,000"),
+            (1000, "00:00:01,000"),
+            (60_000, "00:01:00,000"),
+            (3_600_000, "01:00:00,000"),
+            # 1h 23m 45s 678ms — exercises every component at once.
+            ((1 * 3_600_000) + (23 * 60_000) + (45 * 1000) + 678, "01:23:45,678"),
+        ],
+    )
+    def test_ms_to_timestamp(self, milliseconds: int, expected: str):
+        handler = GetTranscriptAction.__new__(GetTranscriptAction)
+        assert handler._ms_to_timestamp(milliseconds) == expected
