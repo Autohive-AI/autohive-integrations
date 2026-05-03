@@ -122,6 +122,35 @@ class TestGetTranscript:
         assert "Video not found" in result.result.message
 
     @pytest.mark.asyncio
+    async def test_unauthorized_returns_action_error_not_crash(self, mock_context):
+        """Regression test for issue #316.
+
+        An invalid Supadata API key surfaces as a 401 from the upstream API,
+        which the SDK raises as ``SupadataError(error="unauthorized", ...)``.
+        Before #316 was fixed, the action wrapped this in ``ValueError`` and
+        the host treated it as a Lambda 500 — polluting crash reporting with
+        what is really a user-credential problem.
+
+        The action must instead return an ``ActionError`` so the platform
+        delivers it as ``ResultType.ACTION_ERROR``.
+        """
+        with patch("supadata_transcribe.Supadata") as MockSupadata:
+            MockSupadata.return_value.transcript.side_effect = SupadataError(
+                error="unauthorized",
+                message="Unauthorized",
+                details="Invalid API Key",
+                documentation_url="https://supadata.ai/documentation/errors/unauthorized",
+            )
+
+            result = await supadata_transcribe.execute_action(
+                "get_transcript", {"video_url": SAMPLE_VIDEO_URL}, mock_context
+            )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Supadata API error" in result.result.message
+        assert "Unauthorized" in result.result.message
+
+    @pytest.mark.asyncio
     async def test_generic_exception_returns_action_error(self, mock_context):
         with patch("supadata_transcribe.Supadata") as MockSupadata:
             MockSupadata.return_value.transcript.side_effect = Exception("Connection refused")
