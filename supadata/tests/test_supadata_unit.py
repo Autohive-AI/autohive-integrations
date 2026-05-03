@@ -1,51 +1,27 @@
-import os
-import sys
-import importlib
-import importlib.util
+"""Unit tests for the Supadata integration.
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
+Mocked end-to-end: every test patches `supadata_transcribe.Supadata` so no
+real HTTP traffic is generated, and uses the `mock_context` fixture from
+the local conftest (pre-populated with a fake API key).
+"""
 
-# The 'supadata/' integration folder has an __init__.py that shadows the 'supadata'
-# PyPI package. Pre-load the real package from site-packages before exec_module runs,
-# so sys.modules['supadata'] already refers to the installed library.
-import site  # noqa: E402
+from unittest.mock import MagicMock, patch
 
-for _site_dir in site.getsitepackages():
-    _real_supadata = os.path.join(_site_dir, "supadata")
-    if os.path.isdir(_real_supadata) and os.path.abspath(_real_supadata) != _parent:
-        _supadata_spec = importlib.util.spec_from_file_location(
-            "supadata",
-            os.path.join(_real_supadata, "__init__.py"),
-            submodule_search_locations=[_real_supadata],
-        )
-        _supadata_mod = importlib.util.module_from_spec(_supadata_spec)
-        sys.modules["supadata"] = _supadata_mod
-        _supadata_spec.loader.exec_module(_supadata_mod)
-        break
+import pytest
+from autohive_integrations_sdk.integration import ResultType
+from supadata import SupadataError
 
-if _deps not in sys.path:
-    sys.path.insert(0, _deps)
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("supadata_transcribe", os.path.join(_parent, "supadata_transcribe.py"))
-_mod = importlib.util.module_from_spec(_spec)
-sys.modules["supadata_transcribe"] = _mod
-_spec.loader.exec_module(_mod)
-
-supadata_transcribe = _mod.supadata_transcribe
+from supadata_transcribe import GetTranscriptAction, supadata_transcribe
 
 pytestmark = pytest.mark.unit
+
 
 # ---- Sample Data ----
 
 SAMPLE_VIDEO_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
 
-def make_chunk(text, offset, duration):
+def make_chunk(text: str, offset: int, duration: int) -> MagicMock:
     chunk = MagicMock()
     chunk.text = text
     chunk.offset = offset
@@ -53,28 +29,12 @@ def make_chunk(text, offset, duration):
     return chunk
 
 
-def make_transcript_response(content, lang="en", available_langs=None):
+def make_transcript_response(content, lang: str = "en", available_langs=None) -> MagicMock:
     resp = MagicMock()
     resp.content = content
     resp.lang = lang
     resp.available_langs = available_langs or ["en"]
     return resp
-
-
-# ---- Fixtures ----
-
-
-@pytest.fixture
-def mock_context():
-    ctx = MagicMock(name="ExecutionContext")
-    ctx.fetch = AsyncMock(name="fetch")
-    # custom auth: flat object matching config.json fields
-    ctx.auth = {
-        "credentials": {
-            "api_key": "test_api_key",  # nosec B105
-        }
-    }
-    return ctx
 
 
 # ---- Tests ----
@@ -127,7 +87,7 @@ class TestGetTranscript:
 
             await supadata_transcribe.execute_action("get_transcript", {"video_url": SAMPLE_VIDEO_URL}, mock_context)
 
-            MockSupadata.assert_called_once_with(api_key="test_api_key")  # nosec B105  # noqa: S106
+            MockSupadata.assert_called_once_with(api_key="test_api_key")  # nosec B106
 
     @pytest.mark.asyncio
     async def test_sdk_called_with_correct_params(self, mock_context):
@@ -146,8 +106,6 @@ class TestGetTranscript:
 
     @pytest.mark.asyncio
     async def test_supadata_error_returns_action_error(self, mock_context):
-        from supadata import SupadataError
-
         with patch("supadata_transcribe.Supadata") as MockSupadata:
             MockSupadata.return_value.transcript.side_effect = SupadataError(
                 error="not_found",
@@ -224,29 +182,22 @@ class TestGetTranscript:
 class TestMsToTimestamp:
     """Tests for the _ms_to_timestamp helper method."""
 
-    def _get_handler(self):
-        # Instantiate the handler class directly
-        handler_cls = _mod.GetTranscriptAction
-        return handler_cls.__new__(handler_cls)
+    def _get_handler(self) -> GetTranscriptAction:
+        return GetTranscriptAction.__new__(GetTranscriptAction)
 
     def test_zero_ms(self):
-        handler = self._get_handler()
-        assert handler._ms_to_timestamp(0) == "00:00:00,000"
+        assert self._get_handler()._ms_to_timestamp(0) == "00:00:00,000"
 
     def test_one_second(self):
-        handler = self._get_handler()
-        assert handler._ms_to_timestamp(1000) == "00:00:01,000"
+        assert self._get_handler()._ms_to_timestamp(1000) == "00:00:01,000"
 
     def test_one_minute(self):
-        handler = self._get_handler()
-        assert handler._ms_to_timestamp(60000) == "00:01:00,000"
+        assert self._get_handler()._ms_to_timestamp(60000) == "00:01:00,000"
 
     def test_one_hour(self):
-        handler = self._get_handler()
-        assert handler._ms_to_timestamp(3600000) == "01:00:00,000"
+        assert self._get_handler()._ms_to_timestamp(3600000) == "01:00:00,000"
 
     def test_complex_timestamp(self):
-        handler = self._get_handler()
         # 1h 23m 45s 678ms
         ms = (1 * 3600000) + (23 * 60000) + (45 * 1000) + 678
-        assert handler._ms_to_timestamp(ms) == "01:23:45,678"
+        assert self._get_handler()._ms_to_timestamp(ms) == "01:23:45,678"
