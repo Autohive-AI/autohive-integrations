@@ -11,9 +11,7 @@ sys.path.insert(0, _deps)
 
 from autohive_integrations_sdk import ExecutionContext  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "google_sheets_mod", os.path.join(_parent, "google_sheets.py")
-)
+_spec = importlib.util.spec_from_file_location("google_sheets_mod", os.path.join(_parent, "google_sheets.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -43,9 +41,7 @@ def live_context():
 async def test_list_spreadsheets_integration(live_context):
     """Integration test: list spreadsheets from live Google Sheets account."""
     async with ExecutionContext(auth=live_context) as context:
-        result = await google_sheets.execute_action(
-            "sheets_list_spreadsheets", {}, context
-        )
+        result = await google_sheets.execute_action("sheets_list_spreadsheets", {}, context)
         assert result.result is not None
         assert "files" in result.result.data
 

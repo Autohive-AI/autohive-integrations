@@ -11,9 +11,7 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "google_sheets_fmt_mod", os.path.join(_parent, "google_sheets.py")
-)
+_spec = importlib.util.spec_from_file_location("google_sheets_fmt_mod", os.path.join(_parent, "google_sheets.py"))
 _mod = importlib.util.module_from_spec(_spec)
 sys.modules["google_sheets_fmt_mod"] = _mod
 _spec.loader.exec_module(_mod)
@@ -88,9 +86,7 @@ class TestFormatRange:
         call_kwargs = service.spreadsheets().batchUpdate.call_args.kwargs
         body = call_kwargs["body"]
         assert "repeatCell" in body["requests"][0]
-        assert body["requests"][0]["repeatCell"]["cell"]["userEnteredFormat"] == {
-            "bold": True
-        }
+        assert body["requests"][0]["repeatCell"]["cell"]["userEnteredFormat"] == {"bold": True}
 
     @pytest.mark.asyncio
     @patch("google_sheets_fmt_mod.build")
@@ -101,9 +97,7 @@ class TestFormatRange:
         mock_resp = MagicMock()
         mock_resp.status = 400
         mock_resp.reason = "Bad Request"
-        service.spreadsheets().batchUpdate().execute.side_effect = HttpError(
-            mock_resp, b"Bad Request"
-        )
+        service.spreadsheets().batchUpdate().execute.side_effect = HttpError(mock_resp, b"Bad Request")
 
         result = await google_sheets.execute_action(
             "sheets_format_range",
@@ -121,13 +115,9 @@ class TestFormatRange:
 
     @pytest.mark.asyncio
     @patch("google_sheets_fmt_mod.build")
-    async def test_generic_exception_returns_action_error(
-        self, mock_build, mock_context
-    ):
+    async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
-        service.spreadsheets().batchUpdate().execute.side_effect = Exception(
-            "Format failed"
-        )
+        service.spreadsheets().batchUpdate().execute.side_effect = Exception("Format failed")
 
         result = await google_sheets.execute_action(
             "sheets_format_range",
@@ -205,9 +195,7 @@ class TestFreezePanes:
         mock_resp = MagicMock()
         mock_resp.status = 403
         mock_resp.reason = "Forbidden"
-        service.spreadsheets().batchUpdate().execute.side_effect = HttpError(
-            mock_resp, b"Forbidden"
-        )
+        service.spreadsheets().batchUpdate().execute.side_effect = HttpError(mock_resp, b"Forbidden")
 
         result = await google_sheets.execute_action(
             "sheets_freeze",
@@ -219,13 +207,9 @@ class TestFreezePanes:
 
     @pytest.mark.asyncio
     @patch("google_sheets_fmt_mod.build")
-    async def test_generic_exception_returns_action_error(
-        self, mock_build, mock_context
-    ):
+    async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
-        service.spreadsheets().batchUpdate().execute.side_effect = Exception(
-            "Freeze failed"
-        )
+        service.spreadsheets().batchUpdate().execute.side_effect = Exception("Freeze failed")
 
         result = await google_sheets.execute_action(
             "sheets_freeze", {"spreadsheet_id": "sid", "sheetId": 0}, mock_context
@@ -243,9 +227,7 @@ class TestBatchUpdate:
     @patch("google_sheets_fmt_mod.build")
     async def test_happy_path_returns_replies(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
-        service.spreadsheets().batchUpdate().execute.return_value = {
-            "replies": [{}, {}]
-        }
+        service.spreadsheets().batchUpdate().execute.return_value = {"replies": [{}, {}]}
 
         result = await google_sheets.execute_action(
             "sheets_batch_update",
@@ -260,9 +242,7 @@ class TestBatchUpdate:
         assert len(result.result.data["replies"]) == 2
 
     @pytest.mark.asyncio
-    async def test_invalid_requests_not_a_list_returns_validation_error(
-        self, mock_context
-    ):
+    async def test_invalid_requests_not_a_list_returns_validation_error(self, mock_context):
         # SDK validates inputs against schema before handler runs
         result = await google_sheets.execute_action(
             "sheets_batch_update",
@@ -273,9 +253,7 @@ class TestBatchUpdate:
         assert result.type == ResultType.VALIDATION_ERROR
 
     @pytest.mark.asyncio
-    async def test_invalid_requests_list_of_non_dicts_returns_validation_error(
-        self, mock_context
-    ):
+    async def test_invalid_requests_list_of_non_dicts_returns_validation_error(self, mock_context):
         # SDK validates items are objects before handler runs
         result = await google_sheets.execute_action(
             "sheets_batch_update",
@@ -310,9 +288,7 @@ class TestBatchUpdate:
         mock_resp = MagicMock()
         mock_resp.status = 400
         mock_resp.reason = "Bad Request"
-        service.spreadsheets().batchUpdate().execute.side_effect = HttpError(
-            mock_resp, b"Bad Request"
-        )
+        service.spreadsheets().batchUpdate().execute.side_effect = HttpError(mock_resp, b"Bad Request")
 
         result = await google_sheets.execute_action(
             "sheets_batch_update",
@@ -325,13 +301,9 @@ class TestBatchUpdate:
 
     @pytest.mark.asyncio
     @patch("google_sheets_fmt_mod.build")
-    async def test_generic_exception_returns_action_error(
-        self, mock_build, mock_context
-    ):
+    async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
-        service.spreadsheets().batchUpdate().execute.side_effect = Exception(
-            "Batch failed"
-        )
+        service.spreadsheets().batchUpdate().execute.side_effect = Exception("Batch failed")
 
         result = await google_sheets.execute_action(
             "sheets_batch_update",
