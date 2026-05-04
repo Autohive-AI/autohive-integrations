@@ -1,4 +1,10 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ActionError,
+)
 from typing import Dict, Any
 import base64
 import aiohttp
@@ -13,21 +19,21 @@ ELEVENLABS_API_BASE_URL = "https://api.elevenlabs.io/v1"
 # ---- Helper Functions ----
 
 
+def get_api_key(context: ExecutionContext) -> str:
+    """Return the ElevenLabs API key from context.auth.
+
+    Supports both the flat custom-auth shape used in local tests
+    (``{"api_key": "..."}`` ) and the production wrapped shape
+    (``{"credentials": {"api_key": "..."}}``) produced by the SDK.
+    """
+    auth = context.auth
+    creds = auth.get("credentials", auth)
+    return creds.get("api_key", "")
+
+
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
-    """
-    Build authentication headers for ElevenLabs API requests.
-    ElevenLabs uses a custom header 'xi-api-key' for authentication.
-
-    Args:
-        context: ExecutionContext containing auth credentials
-
-    Returns:
-        Dictionary with xi-api-key header
-    """
-    credentials = context.auth.get("credentials", {})
-    api_key = credentials.get("api_key", "")
-
-    return {"xi-api-key": api_key, "Content-Type": "application/json"}
+    """Build authentication headers for ElevenLabs API requests."""
+    return {"xi-api-key": get_api_key(context), "Content-Type": "application/json"}
 
 
 # ---- Action Handlers ----
@@ -41,26 +47,29 @@ class ListVoicesAction(ActionHandler):
         try:
             params = {}
 
-            if "page_size" in inputs and inputs["page_size"]:
+            if inputs.get("page_size"):
                 params["page_size"] = inputs["page_size"]
-            if "category" in inputs and inputs["category"]:
+            if inputs.get("category"):
                 params["category"] = inputs["category"]
-            if "use_cases" in inputs and inputs["use_cases"]:
+            if inputs.get("use_cases"):
                 params["use_cases"] = inputs["use_cases"]
-            if "search" in inputs and inputs["search"]:
+            if inputs.get("search"):
                 params["search"] = inputs["search"]
 
             headers = get_auth_headers(context)
 
             response = await context.fetch(
-                f"{ELEVENLABS_API_BASE_URL}/voices", method="GET", headers=headers, params=params if params else None
+                f"{ELEVENLABS_API_BASE_URL}/voices",
+                method="GET",
+                headers=headers,
+                params=params if params else None,
             )
 
-            voices = response.get("voices", [])
-            return {"voices": voices, "result": True}
+            voices = response.data.get("voices", [])
+            return ActionResult(data={"voices": voices}, cost_usd=0.0)
 
         except Exception as e:
-            return {"voices": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @elevenlabs.action("get_voice")
@@ -72,7 +81,7 @@ class GetVoiceAction(ActionHandler):
             voice_id = inputs["voice_id"]
 
             params = {}
-            if "with_settings" in inputs and inputs["with_settings"]:
+            if inputs.get("with_settings"):
                 params["with_settings"] = str(inputs["with_settings"]).lower()
 
             headers = get_auth_headers(context)
@@ -84,10 +93,10 @@ class GetVoiceAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return {"voice": response, "result": True}
+            return ActionResult(data={"voice": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"voice": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @elevenlabs.action("get_voice_settings")
@@ -101,13 +110,15 @@ class GetVoiceSettingsAction(ActionHandler):
             headers = get_auth_headers(context)
 
             response = await context.fetch(
-                f"{ELEVENLABS_API_BASE_URL}/voices/{voice_id}/settings", method="GET", headers=headers
+                f"{ELEVENLABS_API_BASE_URL}/voices/{voice_id}/settings",
+                method="GET",
+                headers=headers,
             )
 
-            return {"settings": response, "result": True}
+            return ActionResult(data={"settings": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"settings": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @elevenlabs.action("list_history")
@@ -118,22 +129,25 @@ class ListHistoryAction(ActionHandler):
         try:
             params = {}
 
-            if "page_size" in inputs and inputs["page_size"]:
+            if inputs.get("page_size"):
                 params["page_size"] = inputs["page_size"]
-            if "voice_id" in inputs and inputs["voice_id"]:
+            if inputs.get("voice_id"):
                 params["voice_id"] = inputs["voice_id"]
 
             headers = get_auth_headers(context)
 
             response = await context.fetch(
-                f"{ELEVENLABS_API_BASE_URL}/history", method="GET", headers=headers, params=params if params else None
+                f"{ELEVENLABS_API_BASE_URL}/history",
+                method="GET",
+                headers=headers,
+                params=params if params else None,
             )
 
-            history = response.get("history", [])
-            return {"history": history, "result": True}
+            history = response.data.get("history", [])
+            return ActionResult(data={"history": history}, cost_usd=0.0)
 
         except Exception as e:
-            return {"history": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @elevenlabs.action("download_history_audio")
@@ -144,8 +158,7 @@ class DownloadHistoryAudioAction(ActionHandler):
         try:
             history_item_id = inputs["history_item_id"]
 
-            credentials = context.auth.get("credentials", {})
-            api_key = credentials.get("api_key", "")
+            api_key = get_api_key(context)
 
             # Download binary audio using aiohttp
             url = f"{ELEVENLABS_API_BASE_URL}/history/{history_item_id}/audio"
@@ -158,20 +171,22 @@ class DownloadHistoryAudioAction(ActionHandler):
                         # Encode as base64 following Autohive pattern (see Slider integration)
                         audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
 
-                        return {
-                            "file": {
-                                "content": audio_base64,
-                                "name": "downloaded_audio.mp3",
-                                "contentType": "audio/mpeg",
+                        return ActionResult(
+                            data={
+                                "file": {
+                                    "content": audio_base64,
+                                    "name": "downloaded_audio.mp3",
+                                    "contentType": "audio/mpeg",
+                                },
                             },
-                            "result": True,
-                        }
+                            cost_usd=0.0,
+                        )
                     else:
                         error_text = await resp.text()
-                        return {"audio": {}, "result": False, "error": f"HTTP {resp.status}: {error_text}"}
+                        return ActionError(message=f"HTTP {resp.status}: {error_text}")
 
         except Exception as e:
-            return {"audio": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @elevenlabs.action("get_user_subscription")
@@ -183,13 +198,95 @@ class GetUserSubscriptionAction(ActionHandler):
             headers = get_auth_headers(context)
 
             response = await context.fetch(
-                f"{ELEVENLABS_API_BASE_URL}/user/subscription", method="GET", headers=headers
+                f"{ELEVENLABS_API_BASE_URL}/user/subscription",
+                method="GET",
+                headers=headers,
             )
 
-            return {"subscription": response, "result": True}
+            return ActionResult(data={"subscription": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"subscription": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
+
+
+@elevenlabs.action("speech_to_text_convert")
+class SpeechToTextConvertAction(ActionHandler):
+    """Transcribe audio/video file using ElevenLabs Scribe."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            file_url = inputs["file_url"]
+            model_id = inputs.get("model_id", "scribe_v1")
+            api_key = get_api_key(context)
+
+            # Pass the URL directly to ElevenLabs — they fetch the file on their end
+            async with aiohttp.ClientSession() as session:
+                form = aiohttp.FormData()
+                form.add_field("model_id", model_id)
+                form.add_field("source_url", file_url)
+                if inputs.get("language_code"):
+                    form.add_field("language_code", inputs["language_code"])
+                if inputs.get("timestamps_granularity"):
+                    form.add_field("timestamps_granularity", inputs["timestamps_granularity"])
+                if inputs.get("diarize") is not None:
+                    form.add_field("diarize", str(inputs["diarize"]).lower())
+
+                async with session.post(
+                    f"{ELEVENLABS_API_BASE_URL}/speech-to-text",
+                    headers={"xi-api-key": api_key},
+                    data=form,
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return ActionResult(data=data, cost_usd=0.0)
+                    else:
+                        error_text = await resp.text()
+                        return ActionError(message=f"HTTP {resp.status}: {error_text}")
+
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@elevenlabs.action("speech_to_text_get")
+class SpeechToTextGetAction(ActionHandler):
+    """Retrieve a transcript by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            transcription_id = inputs["transcription_id"]
+            headers = get_auth_headers(context)
+
+            response = await context.fetch(
+                f"{ELEVENLABS_API_BASE_URL}/speech-to-text/transcripts/{transcription_id}",
+                method="GET",
+                headers=headers,
+            )
+
+            return ActionResult(data=response.data, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@elevenlabs.action("speech_to_text_delete")
+class SpeechToTextDeleteAction(ActionHandler):
+    """Delete a transcript by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            transcription_id = inputs["transcription_id"]
+            headers = get_auth_headers(context)
+
+            await context.fetch(
+                f"{ELEVENLABS_API_BASE_URL}/speech-to-text/transcripts/{transcription_id}",
+                method="DELETE",
+                headers=headers,
+            )
+
+            return ActionResult(data={"result": True}, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionError(message=str(e))
 
 
 @elevenlabs.action("text_to_speech")
@@ -201,20 +298,19 @@ class TextToSpeechAction(ActionHandler):
             voice_id = inputs["voice_id"]
             text = inputs["text"]
 
-            credentials = context.auth.get("credentials", {})
-            api_key = credentials.get("api_key", "")
+            api_key = get_api_key(context)
 
             # Build request body
             body = {"text": text}
 
-            if "model_id" in inputs and inputs["model_id"]:
+            if inputs.get("model_id"):
                 body["model_id"] = inputs["model_id"]
-            if "voice_settings" in inputs and inputs["voice_settings"]:
+            if inputs.get("voice_settings"):
                 body["voice_settings"] = inputs["voice_settings"]
 
             # Build URL with optional output_format
             url = f"{ELEVENLABS_API_BASE_URL}/text-to-speech/{voice_id}"
-            if "output_format" in inputs and inputs["output_format"]:
+            if inputs.get("output_format"):
                 url += f"?output_format={inputs['output_format']}"
 
             headers = {"xi-api-key": api_key, "Content-Type": "application/json"}
@@ -227,17 +323,19 @@ class TextToSpeechAction(ActionHandler):
                         # Encode as base64 following Autohive pattern (see Slider integration)
                         audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
 
-                        return {
-                            "file": {
-                                "content": audio_base64,
-                                "name": "generated_audio.mp3",
-                                "contentType": "audio/mpeg",
+                        return ActionResult(
+                            data={
+                                "file": {
+                                    "content": audio_base64,
+                                    "name": "generated_audio.mp3",
+                                    "contentType": "audio/mpeg",
+                                },
                             },
-                            "result": True,
-                        }
+                            cost_usd=0.0,
+                        )
                     else:
                         error_text = await resp.text()
-                        return {"audio": {}, "result": False, "error": f"HTTP {resp.status}: {error_text}"}
+                        return ActionError(message=f"HTTP {resp.status}: {error_text}")
 
         except Exception as e:
-            return {"audio": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
