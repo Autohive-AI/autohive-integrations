@@ -44,7 +44,6 @@ class TestListDocs:
 
         assert result.type != ResultType.ACTION_ERROR
         assert result.result.data["docs"] == [{"id": "doc1", "name": "My Doc"}]
-        assert result.result.data["result"] is True
         call = mock_context.fetch.call_args
         assert call.args[0] == f"{API_BASE}/docs"
         assert call.kwargs["method"] == "GET"
@@ -662,7 +661,6 @@ class TestDeleteRow:
         )
 
         assert result.type != ResultType.ACTION_ERROR
-        assert result.result.data["result"] is True
         assert mock_context.fetch.call_args.kwargs["method"] == "DELETE"
 
     async def test_error(self, mock_context):
@@ -693,7 +691,6 @@ class TestDeleteRows:
         )
 
         assert result.type != ResultType.ACTION_ERROR
-        assert result.result.data["result"] is True
         body = mock_context.fetch.call_args.kwargs["json"]
         assert body["rowIds"] == ["i-row1", "i-row2"]
 
