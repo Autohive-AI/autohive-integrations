@@ -279,7 +279,9 @@ class TestListColumns:
             pytest.skip("No tables in doc to test with")
 
         table_id = tables[0]["id"]
-        result = await coda.execute_action("list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context)
+        result = await coda.execute_action(
+            "list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context
+        )
 
         data = result.result.data
         assert "columns" in data
@@ -300,7 +302,9 @@ class TestListColumns:
             pytest.skip("No tables in doc to test with")
 
         table_id = tables[0]["id"]
-        result = await coda.execute_action("list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context)
+        result = await coda.execute_action(
+            "list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context
+        )
 
         columns = result.result.data["columns"]
         if columns:
@@ -324,7 +328,9 @@ class TestGetColumn:
             pytest.skip("No tables in doc to test with")
 
         table_id = tables[0]["id"]
-        cols_result = await coda.execute_action("list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context)
+        cols_result = await coda.execute_action(
+            "list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context
+        )
         columns = cols_result.result.data["columns"]
 
         if not columns:
@@ -497,7 +503,9 @@ class TestRowLifecycle:
 
         table_id = tables[0]["id"]
 
-        cols_result = await coda.execute_action("list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context)
+        cols_result = await coda.execute_action(
+            "list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context
+        )
         columns = cols_result.result.data["columns"]
 
         if not columns:
@@ -508,7 +516,11 @@ class TestRowLifecycle:
 
         upsert_result = await coda.execute_action(
             "upsert_rows",
-            {"doc_id": doc_id, "table_id_or_name": table_id, "rows": [{"cells": [{"column": col_id, "value": test_value}]}]},
+            {
+                "doc_id": doc_id,
+                "table_id_or_name": table_id,
+                "rows": [{"cells": [{"column": col_id, "value": test_value}]}],
+            },
             live_context,
         )
         assert "data" in upsert_result.result.data
@@ -560,7 +572,9 @@ class TestDeleteRows:
             pytest.skip("No base tables in doc to test with")
 
         table_id = tables[0]["id"]
-        cols_result = await coda.execute_action("list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context)
+        cols_result = await coda.execute_action(
+            "list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context
+        )
         columns = cols_result.result.data["columns"]
 
         if not columns:
