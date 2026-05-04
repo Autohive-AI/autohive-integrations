@@ -2208,7 +2208,7 @@ class ListStatusesHandler(ActionHandler):
                 params=params,
             )
 
-            return ActionResult(data=response.data, cost_usd=0.0)
+            return ActionResult(data=response.data if response.data is not None else [], cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=f"Failed to list statuses: {str(e)}")

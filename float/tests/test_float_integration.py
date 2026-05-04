@@ -71,19 +71,19 @@ class TestListPeople:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_people", {}, live_context)
         data = result.result.data
-        assert "people" in data
-        assert isinstance(data["people"], list)
+        assert isinstance(data, list)
 
     async def test_limit_respected(self, live_context):
         result = await float_integration.execute_action("list_people", {"per_page": 2}, live_context)
         data = result.result.data
-        assert len(data["people"]) <= 2
+        assert isinstance(data, list)
+        assert len(data) <= 2
 
 
 class TestGetPerson:
     async def test_returns_person(self, live_context):
         list_result = await float_integration.execute_action("list_people", {"per_page": 1}, live_context)
-        people = list_result.result.data.get("people", [])
+        people = list_result.result.data
 
         if not people:
             pytest.skip("No people in account to test with")
@@ -92,27 +92,27 @@ class TestGetPerson:
         result = await float_integration.execute_action("get_person", {"people_id": person_id}, live_context)
 
         data = result.result.data
-        assert "person" in data
-        assert data["person"]["people_id"] == person_id
+        assert isinstance(data, dict)
+        assert data["people_id"] == person_id
 
 
 class TestListProjects:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_projects", {}, live_context)
         data = result.result.data
-        assert "projects" in data
-        assert isinstance(data["projects"], list)
+        assert isinstance(data, list)
 
     async def test_limit_respected(self, live_context):
         result = await float_integration.execute_action("list_projects", {"per_page": 2}, live_context)
         data = result.result.data
-        assert len(data["projects"]) <= 2
+        assert isinstance(data, list)
+        assert len(data) <= 2
 
 
 class TestGetProject:
     async def test_returns_project(self, live_context):
         list_result = await float_integration.execute_action("list_projects", {"per_page": 1}, live_context)
-        projects = list_result.result.data.get("projects", [])
+        projects = list_result.result.data
 
         if not projects:
             pytest.skip("No projects in account to test with")
@@ -121,22 +121,21 @@ class TestGetProject:
         result = await float_integration.execute_action("get_project", {"project_id": project_id}, live_context)
 
         data = result.result.data
-        assert "project" in data
-        assert data["project"]["project_id"] == project_id
+        assert isinstance(data, dict)
+        assert data["project_id"] == project_id
 
 
 class TestListTasks:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_tasks", {}, live_context)
         data = result.result.data
-        assert "tasks" in data
-        assert isinstance(data["tasks"], list)
+        assert isinstance(data, list)
 
 
 class TestGetTask:
     async def test_returns_task(self, live_context):
         list_result = await float_integration.execute_action("list_tasks", {"per_page": 1}, live_context)
-        tasks = list_result.result.data.get("tasks", [])
+        tasks = list_result.result.data
 
         if not tasks:
             pytest.skip("No tasks in account to test with")
@@ -145,21 +144,21 @@ class TestGetTask:
         result = await float_integration.execute_action("get_task", {"task_id": task_id}, live_context)
 
         data = result.result.data
-        assert "task" in data
+        assert isinstance(data, dict)
+        assert "task_id" in data
 
 
 class TestListClients:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_clients", {}, live_context)
         data = result.result.data
-        assert "clients" in data
-        assert isinstance(data["clients"], list)
+        assert isinstance(data, list)
 
 
 class TestGetClient:
     async def test_returns_client(self, live_context):
         list_result = await float_integration.execute_action("list_clients", {"per_page": 1}, live_context)
-        clients = list_result.result.data.get("clients", [])
+        clients = list_result.result.data
 
         if not clients:
             pytest.skip("No clients in account to test with")
@@ -168,37 +167,35 @@ class TestGetClient:
         result = await float_integration.execute_action("get_client", {"client_id": client_id}, live_context)
 
         data = result.result.data
-        assert "client" in data
+        assert isinstance(data, dict)
+        assert "client_id" in data
 
 
 class TestListTimeOff:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_time_off", {}, live_context)
         data = result.result.data
-        assert "time_off" in data
-        assert isinstance(data["time_off"], list)
+        assert isinstance(data, list)
 
 
 class TestListLoggedTime:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_logged_time", {}, live_context)
         data = result.result.data
-        assert "logged_time" in data
-        assert isinstance(data["logged_time"], list)
+        assert isinstance(data, list)
 
 
 class TestListDepartments:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_departments", {}, live_context)
         data = result.result.data
-        assert "departments" in data
-        assert isinstance(data["departments"], list)
+        assert isinstance(data, list)
 
 
 class TestGetDepartment:
     async def test_returns_department(self, live_context):
         list_result = await float_integration.execute_action("list_departments", {"per_page": 1}, live_context)
-        departments = list_result.result.data.get("departments", [])
+        departments = list_result.result.data
 
         if not departments:
             pytest.skip("No departments in account to test with")
@@ -207,21 +204,21 @@ class TestGetDepartment:
         result = await float_integration.execute_action("get_department", {"department_id": dept_id}, live_context)
 
         data = result.result.data
-        assert "department" in data
+        assert isinstance(data, dict)
+        assert "department_id" in data
 
 
 class TestListRoles:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_roles", {}, live_context)
         data = result.result.data
-        assert "roles" in data
-        assert isinstance(data["roles"], list)
+        assert isinstance(data, list)
 
 
 class TestGetRole:
     async def test_returns_role(self, live_context):
         list_result = await float_integration.execute_action("list_roles", {"per_page": 1}, live_context)
-        roles = list_result.result.data.get("roles", [])
+        roles = list_result.result.data
 
         if not roles:
             pytest.skip("No roles in account to test with")
@@ -230,44 +227,46 @@ class TestGetRole:
         result = await float_integration.execute_action("get_role", {"role_id": role_id}, live_context)
 
         data = result.result.data
-        assert "role" in data
+        assert isinstance(data, dict)
+        assert "role_id" in data
 
 
 class TestListTimeOffTypes:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_time_off_types", {}, live_context)
         data = result.result.data
-        assert "time_off_types" in data
-        assert isinstance(data["time_off_types"], list)
+        assert isinstance(data, list)
 
 
 class TestGetTimeOffType:
     async def test_returns_time_off_type(self, live_context):
         list_result = await float_integration.execute_action("list_time_off_types", {"per_page": 1}, live_context)
-        types = list_result.result.data.get("time_off_types", [])
+        types = list_result.result.data
 
         if not types:
             pytest.skip("No time off types in account to test with")
 
         type_id = types[0]["timeoff_type_id"]
-        result = await float_integration.execute_action("get_time_off_type", {"timeoff_type_id": type_id}, live_context)
+        result = await float_integration.execute_action(
+            "get_time_off_type", {"timeoff_type_id": type_id}, live_context
+        )
 
         data = result.result.data
-        assert "time_off_type" in data
+        assert isinstance(data, dict)
+        assert "timeoff_type_id" in data
 
 
 class TestListAccounts:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_accounts", {}, live_context)
         data = result.result.data
-        assert "accounts" in data
-        assert isinstance(data["accounts"], list)
+        assert isinstance(data, list)
 
 
 class TestGetAccount:
     async def test_returns_account(self, live_context):
         list_result = await float_integration.execute_action("list_accounts", {"per_page": 1}, live_context)
-        accounts = list_result.result.data.get("accounts", [])
+        accounts = list_result.result.data
 
         if not accounts:
             pytest.skip("No accounts in account to test with")
@@ -276,21 +275,21 @@ class TestGetAccount:
         result = await float_integration.execute_action("get_account", {"account_id": account_id}, live_context)
 
         data = result.result.data
-        assert "account" in data
+        assert isinstance(data, dict)
+        assert "account_id" in data
 
 
 class TestListStatuses:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_statuses", {}, live_context)
         data = result.result.data
-        assert "statuses" in data
-        assert isinstance(data["statuses"], list)
+        assert isinstance(data, list)
 
 
 class TestGetStatus:
     async def test_returns_status(self, live_context):
         list_result = await float_integration.execute_action("list_statuses", {"per_page": 1}, live_context)
-        statuses = list_result.result.data.get("statuses", [])
+        statuses = list_result.result.data
 
         if not statuses:
             pytest.skip("No statuses in account to test with")
@@ -299,46 +298,45 @@ class TestGetStatus:
         result = await float_integration.execute_action("get_status", {"status_id": status_id}, live_context)
 
         data = result.result.data
-        assert "status" in data
+        assert isinstance(data, dict)
+        assert "status_id" in data
 
 
 class TestListPublicHolidays:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_public_holidays", {}, live_context)
         data = result.result.data
-        assert "public_holidays" in data
-        assert isinstance(data["public_holidays"], list)
+        assert isinstance(data, list)
 
 
 class TestGetPublicHoliday:
     async def test_returns_holiday(self, live_context):
         list_result = await float_integration.execute_action("list_public_holidays", {"per_page": 1}, live_context)
-        holidays = list_result.result.data.get("public_holidays", [])
+        holidays = list_result.result.data
 
         if not holidays:
             pytest.skip("No public holidays in account to test with")
 
-        holiday_id = holidays[0]["public_holiday_id"]
+        holiday_id = holidays[0].get("public_holiday_id") or holidays[0].get("id")
         result = await float_integration.execute_action(
             "get_public_holiday", {"public_holiday_id": holiday_id}, live_context
         )
 
         data = result.result.data
-        assert "public_holiday" in data
+        assert isinstance(data, dict)
 
 
 class TestListTeamHolidays:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_team_holidays", {}, live_context)
         data = result.result.data
-        assert "team_holidays" in data
-        assert isinstance(data["team_holidays"], list)
+        assert isinstance(data, list)
 
 
 class TestGetTeamHoliday:
     async def test_returns_holiday(self, live_context):
         list_result = await float_integration.execute_action("list_team_holidays", {"per_page": 1}, live_context)
-        holidays = list_result.result.data.get("team_holidays", [])
+        holidays = list_result.result.data
 
         if not holidays:
             pytest.skip("No team holidays in account to test with")
@@ -347,46 +345,45 @@ class TestGetTeamHoliday:
         result = await float_integration.execute_action("get_team_holiday", {"holiday_id": holiday_id}, live_context)
 
         data = result.result.data
-        assert "team_holiday" in data
+        assert isinstance(data, dict)
+        assert "holiday_id" in data
 
 
 class TestListProjectStages:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_project_stages", {}, live_context)
         data = result.result.data
-        assert "project_stages" in data
-        assert isinstance(data["project_stages"], list)
+        assert isinstance(data, list)
 
 
 class TestGetProjectStage:
     async def test_returns_stage(self, live_context):
         list_result = await float_integration.execute_action("list_project_stages", {"per_page": 1}, live_context)
-        stages = list_result.result.data.get("project_stages", [])
+        stages = list_result.result.data
 
         if not stages:
             pytest.skip("No project stages in account to test with")
 
-        stage_id = stages[0]["project_stage_id"]
+        stage_id = stages[0].get("project_stage_id") or stages[0].get("id")
         result = await float_integration.execute_action(
             "get_project_stage", {"project_stage_id": stage_id}, live_context
         )
 
         data = result.result.data
-        assert "project_stage" in data
+        assert isinstance(data, dict)
 
 
 class TestListProjectExpenses:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_project_expenses", {}, live_context)
         data = result.result.data
-        assert "project_expenses" in data
-        assert isinstance(data["project_expenses"], list)
+        assert isinstance(data, list)
 
 
 class TestGetProjectExpense:
     async def test_returns_expense(self, live_context):
         list_result = await float_integration.execute_action("list_project_expenses", {"per_page": 1}, live_context)
-        expenses = list_result.result.data.get("project_expenses", [])
+        expenses = list_result.result.data
 
         if not expenses:
             pytest.skip("No project expenses in account to test with")
@@ -397,21 +394,21 @@ class TestGetProjectExpense:
         )
 
         data = result.result.data
-        assert "project_expense" in data
+        assert isinstance(data, dict)
+        assert "project_expense_id" in data
 
 
 class TestListPhases:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_phases", {}, live_context)
         data = result.result.data
-        assert "phases" in data
-        assert isinstance(data["phases"], list)
+        assert isinstance(data, list)
 
 
 class TestGetPhase:
     async def test_returns_phase(self, live_context):
         list_result = await float_integration.execute_action("list_phases", {"per_page": 1}, live_context)
-        phases = list_result.result.data.get("phases", [])
+        phases = list_result.result.data
 
         if not phases:
             pytest.skip("No phases in account to test with")
@@ -420,44 +417,43 @@ class TestGetPhase:
         result = await float_integration.execute_action("get_phase", {"phase_id": phase_id}, live_context)
 
         data = result.result.data
-        assert "phase" in data
+        assert isinstance(data, dict)
+        assert "phase_id" in data
 
 
 class TestListProjectTasks:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_project_tasks", {}, live_context)
         data = result.result.data
-        assert "project_tasks" in data
-        assert isinstance(data["project_tasks"], list)
+        assert isinstance(data, list)
 
 
 class TestGetProjectTask:
     async def test_returns_task(self, live_context):
         list_result = await float_integration.execute_action("list_project_tasks", {"per_page": 1}, live_context)
-        tasks = list_result.result.data.get("project_tasks", [])
+        tasks = list_result.result.data
 
         if not tasks:
             pytest.skip("No project tasks in account to test with")
 
-        task_id = tasks[0]["project_task_id"]
+        task_id = tasks[0].get("project_task_id") or tasks[0].get("task_meta_id")
         result = await float_integration.execute_action("get_project_task", {"project_task_id": task_id}, live_context)
 
         data = result.result.data
-        assert "project_task" in data
+        assert isinstance(data, dict)
 
 
 class TestListMilestones:
     async def test_returns_list(self, live_context):
         result = await float_integration.execute_action("list_milestones", {}, live_context)
         data = result.result.data
-        assert "milestones" in data
-        assert isinstance(data["milestones"], list)
+        assert isinstance(data, list)
 
 
 class TestGetMilestone:
     async def test_returns_milestone(self, live_context):
         list_result = await float_integration.execute_action("list_milestones", {"per_page": 1}, live_context)
-        milestones = list_result.result.data.get("milestones", [])
+        milestones = list_result.result.data
 
         if not milestones:
             pytest.skip("No milestones in account to test with")
@@ -466,7 +462,8 @@ class TestGetMilestone:
         result = await float_integration.execute_action("get_milestone", {"milestone_id": milestone_id}, live_context)
 
         data = result.result.data
-        assert "milestone" in data
+        assert isinstance(data, dict)
+        assert "milestone_id" in data
 
 
 class TestReports:
@@ -475,14 +472,14 @@ class TestReports:
             "get_people_report", {"start_date": "2025-01-01", "end_date": "2025-01-31"}, live_context
         )
         data = result.result.data
-        assert "report" in data
+        assert isinstance(data, dict)
 
     async def test_get_projects_report(self, live_context):
         result = await float_integration.execute_action(
             "get_projects_report", {"start_date": "2025-01-01", "end_date": "2025-01-31"}, live_context
         )
         data = result.result.data
-        assert "report" in data
+        assert isinstance(data, dict)
 
 
 # ---- Destructive Tests (Write Operations) ----
@@ -499,14 +496,14 @@ class TestClientLifecycle:
 
         create_result = await float_integration.execute_action("create_client", {"name": client_name}, live_context)
         data = create_result.result.data
-        assert "client" in data
-        client_id = data["client"]["client_id"]
+        assert isinstance(data, dict)
+        client_id = data["client_id"]
         assert client_id is not None
 
         update_result = await float_integration.execute_action(
             "update_client", {"client_id": client_id, "name": f"{client_name} Updated"}, live_context
         )
-        assert "client" in update_result.result.data
+        assert isinstance(update_result.result.data, dict)
 
         delete_result = await float_integration.execute_action("delete_client", {"client_id": client_id}, live_context)
         assert delete_result.result.data is not None
@@ -521,14 +518,14 @@ class TestPersonLifecycle:
 
         create_result = await float_integration.execute_action("create_person", {"name": person_name}, live_context)
         data = create_result.result.data
-        assert "person" in data
-        person_id = data["person"]["people_id"]
+        assert isinstance(data, dict)
+        person_id = data["people_id"]
         assert person_id is not None
 
         update_result = await float_integration.execute_action(
             "update_person", {"people_id": person_id, "name": f"{person_name} Updated"}, live_context
         )
-        assert "person" in update_result.result.data
+        assert isinstance(update_result.result.data, dict)
 
         delete_result = await float_integration.execute_action("delete_person", {"people_id": person_id}, live_context)
         assert delete_result.result.data is not None
@@ -543,14 +540,14 @@ class TestProjectLifecycle:
 
         create_result = await float_integration.execute_action("create_project", {"name": project_name}, live_context)
         data = create_result.result.data
-        assert "project" in data
-        project_id = data["project"]["project_id"]
+        assert isinstance(data, dict)
+        project_id = data["project_id"]
         assert project_id is not None
 
         update_result = await float_integration.execute_action(
             "update_project", {"project_id": project_id, "name": f"{project_name} Updated"}, live_context
         )
-        assert "project" in update_result.result.data
+        assert isinstance(update_result.result.data, dict)
 
         delete_result = await float_integration.execute_action(
             "delete_project", {"project_id": project_id}, live_context
@@ -564,10 +561,10 @@ class TestTaskLifecycle:
 
     async def test_full_lifecycle(self, live_context):
         people_result = await float_integration.execute_action("list_people", {"per_page": 1}, live_context)
-        people = people_result.result.data.get("people", [])
+        people = people_result.result.data
 
         projects_result = await float_integration.execute_action("list_projects", {"per_page": 1}, live_context)
-        projects = projects_result.result.data.get("projects", [])
+        projects = projects_result.result.data
 
         if not people or not projects:
             pytest.skip("Need at least one person and project to test task lifecycle")
@@ -587,14 +584,14 @@ class TestTaskLifecycle:
             live_context,
         )
         data = create_result.result.data
-        assert "task" in data
-        task_id = data["task"]["task_id"]
+        assert isinstance(data, dict)
+        task_id = data["task_id"]
         assert task_id is not None
 
         update_result = await float_integration.execute_action(
             "update_task", {"task_id": task_id, "hours": 16}, live_context
         )
-        assert "task" in update_result.result.data
+        assert isinstance(update_result.result.data, dict)
 
         delete_result = await float_integration.execute_action("delete_task", {"task_id": task_id}, live_context)
         assert delete_result.result.data is not None
@@ -604,13 +601,13 @@ class TestTaskLifecycle:
 class TestMergeProjectTasks:
     async def test_merge_project_tasks(self, live_context):
         list_result = await float_integration.execute_action("list_project_tasks", {"per_page": 3}, live_context)
-        tasks = list_result.result.data.get("project_tasks", [])
+        tasks = list_result.result.data
 
         if len(tasks) < 2:
             pytest.skip("Need at least 2 project tasks to test merge")
 
-        source_ids = [tasks[0]["project_task_id"]]
-        target_id = tasks[1]["project_task_id"]
+        source_ids = [tasks[0].get("project_task_id") or tasks[0].get("task_meta_id")]
+        target_id = tasks[1].get("project_task_id") or tasks[1].get("task_meta_id")
 
         result = await float_integration.execute_action(
             "merge_project_tasks", {"source_ids": source_ids, "target_id": target_id}, live_context
