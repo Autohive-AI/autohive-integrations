@@ -247,9 +247,7 @@ class TestGetTimeOffType:
             pytest.skip("No time off types in account to test with")
 
         type_id = types[0]["timeoff_type_id"]
-        result = await float_integration.execute_action(
-            "get_time_off_type", {"timeoff_type_id": type_id}, live_context
-        )
+        result = await float_integration.execute_action("get_time_off_type", {"timeoff_type_id": type_id}, live_context)
 
         data = result.result.data
         assert isinstance(data, dict)
