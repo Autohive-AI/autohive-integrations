@@ -37,16 +37,16 @@ def live_context():
     if not API_KEY:
         pytest.skip("HUMANITIX_API_KEY not set — skipping integration tests")
 
-    import aiohttp
+    from curl_cffi.requests import AsyncSession
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
-        async with aiohttp.ClientSession() as session:
-            async with session.request(method, url, json=json, headers=headers or {}, params=params) as resp:
-                try:
-                    data = await resp.json()
-                except Exception:
-                    data = await resp.text()
-                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
+        async with AsyncSession(impersonate="chrome") as session:
+            resp = await session.request(method, url, json=json, headers=headers or {}, params=params)
+            try:
+                data = resp.json()
+            except Exception:
+                data = resp.text
+            return FetchResponse(status=resp.status_code, headers=dict(resp.headers), data=data)
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
