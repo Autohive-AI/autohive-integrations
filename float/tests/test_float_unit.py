@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, AsyncMock
 from autohive_integrations_sdk import FetchResponse
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-os.chdir(_parent)
 sys.path.insert(0, _parent)
 
 _spec = importlib.util.spec_from_file_location("float_mod", os.path.join(_parent, "float.py"))
