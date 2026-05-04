@@ -25,7 +25,9 @@ import pytest  # noqa: E402
 from unittest.mock import MagicMock, AsyncMock  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location("abr_mod", os.path.join(_parent, "app_business_reviews.py"))
+_spec = importlib.util.spec_from_file_location(
+    "abr_mod", os.path.join(_parent, "app_business_reviews.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -43,11 +45,17 @@ def live_context():
 
     import aiohttp
 
-    async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
+    async def real_fetch(
+        url, *, method="GET", json=None, headers=None, params=None, **kwargs
+    ):
         async with aiohttp.ClientSession() as session:
-            async with session.request(method, url, json=json, headers=headers or {}, params=params) as resp:
+            async with session.request(
+                method, url, json=json, headers=headers or {}, params=params
+            ) as resp:
                 data = await resp.json(content_type=None)
-                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
+                return FetchResponse(
+                    status=resp.status, headers=dict(resp.headers), data=data
+                )
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
@@ -131,7 +139,9 @@ class TestSearchPlacesGoogleMaps:
 class TestGetReviewsAppStore:
     async def test_returns_reviews_for_whatsapp(self, live_context):
         # First get a real product ID from search
-        search_result = await abr.execute_action("search_apps_ios", {"term": "WhatsApp", "num": 1}, live_context)
+        search_result = await abr.execute_action(
+            "search_apps_ios", {"term": "WhatsApp", "num": 1}, live_context
+        )
         apps = search_result.result.data["apps"]
         if not apps:
             pytest.skip("No iOS apps returned from search")
@@ -139,7 +149,9 @@ class TestGetReviewsAppStore:
         product_id = str(apps[0]["id"])
 
         result = await abr.execute_action(
-            "get_reviews_app_store", {"product_id": product_id, "max_pages": 1}, live_context
+            "get_reviews_app_store",
+            {"product_id": product_id, "max_pages": 1},
+            live_context,
         )
 
         data = result.result.data
@@ -149,7 +161,9 @@ class TestGetReviewsAppStore:
 
     async def test_auto_resolve_by_app_name(self, live_context):
         result = await abr.execute_action(
-            "get_reviews_app_store", {"app_name": "WhatsApp", "max_pages": 1}, live_context
+            "get_reviews_app_store",
+            {"app_name": "WhatsApp", "max_pages": 1},
+            live_context,
         )
 
         data = result.result.data
@@ -160,7 +174,9 @@ class TestGetReviewsAppStore:
 class TestGetReviewsGooglePlay:
     async def test_returns_reviews_for_whatsapp(self, live_context):
         result = await abr.execute_action(
-            "get_reviews_google_play", {"product_id": "com.whatsapp", "max_pages": 1}, live_context
+            "get_reviews_google_play",
+            {"product_id": "com.whatsapp", "max_pages": 1},
+            live_context,
         )
 
         data = result.result.data
@@ -170,7 +186,9 @@ class TestGetReviewsGooglePlay:
 
     async def test_auto_resolve_by_app_name(self, live_context):
         result = await abr.execute_action(
-            "get_reviews_google_play", {"app_name": "WhatsApp", "max_pages": 1}, live_context
+            "get_reviews_google_play",
+            {"app_name": "WhatsApp", "max_pages": 1},
+            live_context,
         )
 
         data = result.result.data
@@ -182,16 +200,24 @@ class TestGetReviewsGoogleMaps:
     async def test_returns_reviews_chained_from_search(self, live_context):
         # Get a real place_id from search
         search_result = await abr.execute_action(
-            "search_places_google_maps", {"query": "Starbucks Sydney", "num_results": 1}, live_context
+            "search_places_google_maps",
+            {"query": "Starbucks Sydney", "num_results": 1},
+            live_context,
         )
         places = search_result.result.data["places"]
         if not places:
             pytest.skip("No places returned from search")
 
         place = places[0]
-        identifier = {"place_id": place["place_id"]} if place.get("place_id") else {"data_id": place["data_id"]}
+        identifier = (
+            {"place_id": place["place_id"]}
+            if place.get("place_id")
+            else {"data_id": place["data_id"]}
+        )
 
-        result = await abr.execute_action("get_reviews_google_maps", {**identifier, "max_pages": 1}, live_context)
+        result = await abr.execute_action(
+            "get_reviews_google_maps", {**identifier, "max_pages": 1}, live_context
+        )
 
         data = result.result.data
         assert "reviews" in data
@@ -200,16 +226,24 @@ class TestGetReviewsGoogleMaps:
 
     async def test_response_structure(self, live_context):
         search_result = await abr.execute_action(
-            "search_places_google_maps", {"query": "McDonald's Melbourne", "num_results": 1}, live_context
+            "search_places_google_maps",
+            {"query": "McDonald's Melbourne", "num_results": 1},
+            live_context,
         )
         places = search_result.result.data["places"]
         if not places:
             pytest.skip("No places returned from search")
 
         place = places[0]
-        identifier = {"place_id": place["place_id"]} if place.get("place_id") else {"data_id": place["data_id"]}
+        identifier = (
+            {"place_id": place["place_id"]}
+            if place.get("place_id")
+            else {"data_id": place["data_id"]}
+        )
 
-        result = await abr.execute_action("get_reviews_google_maps", {**identifier, "max_pages": 1}, live_context)
+        result = await abr.execute_action(
+            "get_reviews_google_maps", {**identifier, "max_pages": 1}, live_context
+        )
 
         data = result.result.data
         assert "reviews" in data

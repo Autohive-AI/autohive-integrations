@@ -115,16 +115,22 @@ class TestSearchAppsIOS:
             data={"organic_results": [SAMPLE_IOS_APP]},
         )
 
-        result = await app_business_reviews.execute_action("search_apps_ios", {"term": "WhatsApp"}, mock_context)
+        result = await app_business_reviews.execute_action(
+            "search_apps_ios", {"term": "WhatsApp"}, mock_context
+        )
 
         assert result.result.data["total_results"] == 1
         assert result.result.data["apps"][0]["title"] == "WhatsApp Messenger"
 
     @pytest.mark.asyncio
     async def test_request_url_and_method(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"organic_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"organic_results": []}
+        )
 
-        await app_business_reviews.execute_action("search_apps_ios", {"term": "WhatsApp"}, mock_context)
+        await app_business_reviews.execute_action(
+            "search_apps_ios", {"term": "WhatsApp"}, mock_context
+        )
 
         call_args = mock_context.fetch.call_args
         assert call_args.args[0] == "https://serpapi.com/search"
@@ -132,7 +138,9 @@ class TestSearchAppsIOS:
 
     @pytest.mark.asyncio
     async def test_request_params_include_term(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"organic_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"organic_results": []}
+        )
 
         await app_business_reviews.execute_action(
             "search_apps_ios", {"term": "Instagram", "country": "uk"}, mock_context
@@ -145,9 +153,13 @@ class TestSearchAppsIOS:
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"organic_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"organic_results": []}
+        )
 
-        result = await app_business_reviews.execute_action("search_apps_ios", {"term": "NonExistent"}, mock_context)
+        result = await app_business_reviews.execute_action(
+            "search_apps_ios", {"term": "NonExistent"}, mock_context
+        )
 
         assert result.result.data["apps"] == []
         assert result.result.data["total_results"] == 0
@@ -155,18 +167,26 @@ class TestSearchAppsIOS:
     @pytest.mark.asyncio
     async def test_num_limit_applied(self, mock_context):
         apps = [dict(SAMPLE_IOS_APP, id=i, title=f"App {i}") for i in range(5)]
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"organic_results": apps})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"organic_results": apps}
+        )
 
-        result = await app_business_reviews.execute_action("search_apps_ios", {"term": "App", "num": 3}, mock_context)
+        result = await app_business_reviews.execute_action(
+            "search_apps_ios", {"term": "App", "num": 3}, mock_context
+        )
 
         assert result.result.data["total_results"] == 3
 
     @pytest.mark.asyncio
     async def test_developer_property_search(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"organic_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"organic_results": []}
+        )
 
         await app_business_reviews.execute_action(
-            "search_apps_ios", {"term": "WhatsApp", "property": "developer"}, mock_context
+            "search_apps_ios",
+            {"term": "WhatsApp", "property": "developer"},
+            mock_context,
         )
 
         params = mock_context.fetch.call_args.kwargs["params"]
@@ -199,7 +219,9 @@ class TestGetReviewsAppStore:
             status=200, headers={}, data={"reviews": [], "serpapi_pagination": {}}
         )
 
-        await app_business_reviews.execute_action("get_reviews_app_store", {"product_id": "310633997"}, mock_context)
+        await app_business_reviews.execute_action(
+            "get_reviews_app_store", {"product_id": "310633997"}, mock_context
+        )
 
         call_args = mock_context.fetch.call_args
         assert call_args.args[0] == "https://serpapi.com/search"
@@ -212,7 +234,9 @@ class TestGetReviewsAppStore:
         )
 
         await app_business_reviews.execute_action(
-            "get_reviews_app_store", {"product_id": "310633997", "sort": "mostrecent"}, mock_context
+            "get_reviews_app_store",
+            {"product_id": "310633997", "sort": "mostrecent"},
+            mock_context,
         )
 
         params = mock_context.fetch.call_args.kwargs["params"]
@@ -246,14 +270,20 @@ class TestGetReviewsAppStore:
 
     @pytest.mark.asyncio
     async def test_error_no_product_id_or_app_name(self, mock_context):
-        result = await app_business_reviews.execute_action("get_reviews_app_store", {}, mock_context)
+        result = await app_business_reviews.execute_action(
+            "get_reviews_app_store", {}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "product_id" in result.result.message or "app_name" in result.result.message
+        assert (
+            "product_id" in result.result.message or "app_name" in result.result.message
+        )
 
     @pytest.mark.asyncio
     async def test_error_app_name_not_found(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"organic_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"organic_results": []}
+        )
 
         result = await app_business_reviews.execute_action(
             "get_reviews_app_store", {"app_name": "NonExistentApp"}, mock_context
@@ -267,11 +297,16 @@ class TestGetReviewsAppStore:
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={"reviews": [SAMPLE_IOS_REVIEW], "serpapi_pagination": {}},  # no "next" key
+            data={
+                "reviews": [SAMPLE_IOS_REVIEW],
+                "serpapi_pagination": {},
+            },  # no "next" key
         )
 
         result = await app_business_reviews.execute_action(
-            "get_reviews_app_store", {"product_id": "310633997", "max_pages": 5}, mock_context
+            "get_reviews_app_store",
+            {"product_id": "310633997", "max_pages": 5},
+            mock_context,
         )
 
         # Should only make 1 call since there's no next page
@@ -281,7 +316,9 @@ class TestGetReviewsAppStore:
     @pytest.mark.asyncio
     async def test_response_shape(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"reviews": [SAMPLE_IOS_REVIEW], "serpapi_pagination": {}}
+            status=200,
+            headers={},
+            data={"reviews": [SAMPLE_IOS_REVIEW], "serpapi_pagination": {}},
         )
 
         result = await app_business_reviews.execute_action(
@@ -307,16 +344,22 @@ class TestSearchAppsAndroid:
             data={"organic_results": [SAMPLE_ANDROID_APP_SECTION]},
         )
 
-        result = await app_business_reviews.execute_action("search_apps_android", {"query": "WhatsApp"}, mock_context)
+        result = await app_business_reviews.execute_action(
+            "search_apps_android", {"query": "WhatsApp"}, mock_context
+        )
 
         assert result.result.data["total_results"] == 1
         assert result.result.data["apps"][0]["product_id"] == "com.whatsapp"
 
     @pytest.mark.asyncio
     async def test_request_url_and_params(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"organic_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"organic_results": []}
+        )
 
-        await app_business_reviews.execute_action("search_apps_android", {"query": "Spotify"}, mock_context)
+        await app_business_reviews.execute_action(
+            "search_apps_android", {"query": "Spotify"}, mock_context
+        )
 
         call_args = mock_context.fetch.call_args
         assert call_args.args[0] == "https://serpapi.com/search"
@@ -342,7 +385,9 @@ class TestSearchAppsAndroid:
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"organic_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"organic_results": []}
+        )
 
         result = await app_business_reviews.execute_action(
             "search_apps_android", {"query": "NonExistent"}, mock_context
@@ -420,13 +465,17 @@ class TestGetReviewsGooglePlay:
 
     @pytest.mark.asyncio
     async def test_error_no_product_id_or_app_name(self, mock_context):
-        result = await app_business_reviews.execute_action("get_reviews_google_play", {}, mock_context)
+        result = await app_business_reviews.execute_action(
+            "get_reviews_google_play", {}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
 
     @pytest.mark.asyncio
     async def test_error_app_name_not_found(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"organic_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"organic_results": []}
+        )
 
         result = await app_business_reviews.execute_action(
             "get_reviews_google_play", {"app_name": "NonExistentApp"}, mock_context
@@ -445,7 +494,12 @@ class TestGetReviewsGooglePlay:
 
         await app_business_reviews.execute_action(
             "get_reviews_google_play",
-            {"product_id": "com.instagram.android", "rating": 5, "platform": "phone", "sort_by": 2},
+            {
+                "product_id": "com.instagram.android",
+                "rating": 5,
+                "platform": "phone",
+                "sort_by": 2,
+            },
             mock_context,
         )
 
@@ -499,9 +553,13 @@ class TestSearchPlacesGoogleMaps:
 
     @pytest.mark.asyncio
     async def test_request_url_and_engine(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"local_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"local_results": []}
+        )
 
-        await app_business_reviews.execute_action("search_places_google_maps", {"query": "Pizza"}, mock_context)
+        await app_business_reviews.execute_action(
+            "search_places_google_maps", {"query": "Pizza"}, mock_context
+        )
 
         call_args = mock_context.fetch.call_args
         assert call_args.args[0] == "https://serpapi.com/search"
@@ -511,10 +569,14 @@ class TestSearchPlacesGoogleMaps:
 
     @pytest.mark.asyncio
     async def test_location_appended_to_query(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"local_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"local_results": []}
+        )
 
         await app_business_reviews.execute_action(
-            "search_places_google_maps", {"query": "Pizza", "location": "New York, NY"}, mock_context
+            "search_places_google_maps",
+            {"query": "Pizza", "location": "New York, NY"},
+            mock_context,
         )
 
         params = mock_context.fetch.call_args.kwargs["params"]
@@ -522,18 +584,27 @@ class TestSearchPlacesGoogleMaps:
 
     @pytest.mark.asyncio
     async def test_num_results_limit(self, mock_context):
-        places = [dict(SAMPLE_MAPS_PLACE, place_id=f"place_{i}", title=f"Place {i}") for i in range(10)]
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"local_results": places})
+        places = [
+            dict(SAMPLE_MAPS_PLACE, place_id=f"place_{i}", title=f"Place {i}")
+            for i in range(10)
+        ]
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"local_results": places}
+        )
 
         result = await app_business_reviews.execute_action(
-            "search_places_google_maps", {"query": "Coffee", "num_results": 3}, mock_context
+            "search_places_google_maps",
+            {"query": "Coffee", "num_results": 3},
+            mock_context,
         )
 
         assert result.result.data["total_results"] == 3
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"local_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"local_results": []}
+        )
 
         result = await app_business_reviews.execute_action(
             "search_places_google_maps", {"query": "NonExistent"}, mock_context
@@ -570,7 +641,11 @@ class TestGetReviewsGoogleMaps:
             headers={},
             data={
                 "reviews": [SAMPLE_MAPS_REVIEW],
-                "place_info": {"title": "Starbucks", "rating": 4.5, "place_id": "ChIJN1t_tDeuEmsRUsoyG83frY4"},
+                "place_info": {
+                    "title": "Starbucks",
+                    "rating": 4.5,
+                    "place_id": "ChIJN1t_tDeuEmsRUsoyG83frY4",
+                },
                 "serpapi_pagination": {},
             },
         )
@@ -610,7 +685,9 @@ class TestGetReviewsGoogleMaps:
             data={"reviews": [], "place_info": {}, "serpapi_pagination": {}},
         )
 
-        await app_business_reviews.execute_action("get_reviews_google_maps", {"data_id": "0xdata123"}, mock_context)
+        await app_business_reviews.execute_action(
+            "get_reviews_google_maps", {"data_id": "0xdata123"}, mock_context
+        )
 
         params = mock_context.fetch.call_args.kwargs["params"]
         assert params["data_id"] == "0xdata123"
@@ -629,14 +706,19 @@ class TestGetReviewsGoogleMaps:
                 headers={},
                 data={
                     "reviews": [SAMPLE_MAPS_REVIEW],
-                    "place_info": {"title": "Starbucks Reserve Roastery", "rating": 4.5},
+                    "place_info": {
+                        "title": "Starbucks Reserve Roastery",
+                        "rating": 4.5,
+                    },
                     "serpapi_pagination": {},
                 },
             ),
         ]
 
         result = await app_business_reviews.execute_action(
-            "get_reviews_google_maps", {"query": "Starbucks Reserve Roastery", "location": "Seattle, WA"}, mock_context
+            "get_reviews_google_maps",
+            {"query": "Starbucks Reserve Roastery", "location": "Seattle, WA"},
+            mock_context,
         )
 
         assert result.result.data["total_reviews"] == 1
@@ -644,14 +726,18 @@ class TestGetReviewsGoogleMaps:
 
     @pytest.mark.asyncio
     async def test_error_no_identifiers(self, mock_context):
-        result = await app_business_reviews.execute_action("get_reviews_google_maps", {}, mock_context)
+        result = await app_business_reviews.execute_action(
+            "get_reviews_google_maps", {}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "place_id" in result.result.message or "query" in result.result.message
 
     @pytest.mark.asyncio
     async def test_error_query_no_results(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"local_results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"local_results": []}
+        )
 
         result = await app_business_reviews.execute_action(
             "get_reviews_google_maps", {"query": "NonExistentBusiness"}, mock_context
@@ -711,7 +797,9 @@ class TestGetReviewsGoogleMaps:
         )
 
         result = await app_business_reviews.execute_action(
-            "get_reviews_google_maps", {"place_id": "ChIJN1t_tDeuEmsRUsoyG83frY4"}, mock_context
+            "get_reviews_google_maps",
+            {"place_id": "ChIJN1t_tDeuEmsRUsoyG83frY4"},
+            mock_context,
         )
 
         data = result.result.data
