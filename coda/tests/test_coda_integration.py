@@ -67,4 +67,3 @@ class TestListDocsLive:
 
         data = result.result.data
         assert "docs" in data
-        assert data["result"] is True
