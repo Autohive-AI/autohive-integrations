@@ -131,9 +131,7 @@ class TestSearchPlacesGoogleMaps:
 class TestGetReviewsAppStore:
     async def test_returns_reviews_for_whatsapp(self, live_context):
         # First get a real product ID from search
-        search_result = await abr.execute_action(
-            "search_apps_ios", {"term": "WhatsApp", "num": 1}, live_context
-        )
+        search_result = await abr.execute_action("search_apps_ios", {"term": "WhatsApp", "num": 1}, live_context)
         apps = search_result.result.data["apps"]
         if not apps:
             pytest.skip("No iOS apps returned from search")
@@ -193,9 +191,7 @@ class TestGetReviewsGoogleMaps:
         place = places[0]
         identifier = {"place_id": place["place_id"]} if place.get("place_id") else {"data_id": place["data_id"]}
 
-        result = await abr.execute_action(
-            "get_reviews_google_maps", {**identifier, "max_pages": 1}, live_context
-        )
+        result = await abr.execute_action("get_reviews_google_maps", {**identifier, "max_pages": 1}, live_context)
 
         data = result.result.data
         assert "reviews" in data
@@ -213,9 +209,7 @@ class TestGetReviewsGoogleMaps:
         place = places[0]
         identifier = {"place_id": place["place_id"]} if place.get("place_id") else {"data_id": place["data_id"]}
 
-        result = await abr.execute_action(
-            "get_reviews_google_maps", {**identifier, "max_pages": 1}, live_context
-        )
+        result = await abr.execute_action("get_reviews_google_maps", {**identifier, "max_pages": 1}, live_context)
 
         data = result.result.data
         assert "reviews" in data
