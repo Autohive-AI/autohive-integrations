@@ -70,7 +70,7 @@ class ListDocsAction(ActionHandler):
             # Extract docs from response
             docs = response.data.get("items", [])
 
-            return ActionResult(data={"docs": docs, "result": True})
+            return ActionResult(data={"docs": docs})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -91,7 +91,7 @@ class GetDocAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}"
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -123,7 +123,7 @@ class CreateDocAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs"
             response = await context.fetch(url, method="POST", headers=headers, json=body)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -153,7 +153,7 @@ class UpdateDocAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}"
             response = await context.fetch(url, method="PATCH", headers=headers, json=body)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -176,7 +176,7 @@ class DeleteDocAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}"
             response = await context.fetch(url, method="DELETE", headers=headers)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -209,7 +209,7 @@ class ListPagesAction(ActionHandler):
             pages = response.data.get("items", [])
             next_page_token = response.data.get("nextPageToken")
 
-            result_data = {"pages": pages, "result": True}
+            result_data = {"pages": pages}
 
             if next_page_token:
                 result_data["next_page_token"] = next_page_token
@@ -236,7 +236,7 @@ class GetPageAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages/{page_id_or_name}"
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -281,7 +281,7 @@ class CreatePageAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages"
             response = await context.fetch(url, method="POST", headers=headers, json=body)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -320,7 +320,7 @@ class UpdatePageAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages/{page_id_or_name}"
             response = await context.fetch(url, method="PUT", headers=headers, json=body)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -344,7 +344,7 @@ class DeletePageAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/pages/{page_id_or_name}"
             response = await context.fetch(url, method="DELETE", headers=headers)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -383,7 +383,7 @@ class ListTablesAction(ActionHandler):
             tables = response.data.get("items", [])
             next_page_token = response.data.get("nextPageToken")
 
-            result_data = {"tables": tables, "result": True}
+            result_data = {"tables": tables}
 
             if next_page_token:
                 result_data["next_page_token"] = next_page_token
@@ -410,7 +410,7 @@ class GetTableAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}"
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -447,7 +447,7 @@ class ListColumnsAction(ActionHandler):
             columns = response.data.get("items", [])
             next_page_token = response.data.get("nextPageToken")
 
-            result_data = {"columns": columns, "result": True}
+            result_data = {"columns": columns}
 
             if next_page_token:
                 result_data["next_page_token"] = next_page_token
@@ -475,7 +475,7 @@ class GetColumnAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/columns/{column_id_or_name}"
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -524,7 +524,7 @@ class ListRowsAction(ActionHandler):
             rows = response.data.get("items", [])
             next_page_token = response.data.get("nextPageToken")
 
-            result_data = {"rows": rows, "result": True}
+            result_data = {"rows": rows}
 
             if next_page_token:
                 result_data["next_page_token"] = next_page_token
@@ -560,7 +560,7 @@ class GetRowAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows/{row_id_or_name}"
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -594,7 +594,7 @@ class UpsertRowsAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows"
             response = await context.fetch(url, method="POST", headers=headers, params=params, json=body)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -626,7 +626,7 @@ class UpdateRowAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows/{row_id_or_name}"
             response = await context.fetch(url, method="PUT", headers=headers, params=params, json=body)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -650,7 +650,7 @@ class DeleteRowAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows/{row_id_or_name}"
             response = await context.fetch(url, method="DELETE", headers=headers)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -676,7 +676,7 @@ class DeleteRowsAction(ActionHandler):
             url = f"{CODA_API_BASE_URL}/docs/{doc_id}/tables/{table_id_or_name}/rows"
             response = await context.fetch(url, method="DELETE", headers=headers, json=body)
 
-            return ActionResult(data={"data": response.data, "result": True})
+            return ActionResult(data={"data": response.data})
 
         except Exception as e:
             return ActionError(message=str(e))

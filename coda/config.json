@@ -65,15 +65,10 @@
             "items": {
               "type": "object"
             }
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "docs",
-          "result"
+          "docs"
         ]
       }
     },
@@ -98,15 +93,10 @@
           "data": {
             "type": "object",
             "description": "Doc metadata including id, name, owner, createdAt, updatedAt, etc."
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -143,15 +133,10 @@
           "data": {
             "type": "object",
             "description": "Created doc details including id, name, href, etc."
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -184,15 +169,10 @@
           "data": {
             "type": "object",
             "description": "Updated doc details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -217,15 +197,10 @@
           "data": {
             "type": "object",
             "description": "Deletion confirmation"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -268,15 +243,10 @@
           "next_page_token": {
             "type": "string",
             "description": "Token for fetching next page of results"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "pages",
-          "result"
+          "pages"
         ]
       }
     },
@@ -306,15 +276,10 @@
           "data": {
             "type": "object",
             "description": "Page metadata including id, name, subtitle, icon, image, parent, children, authors, etc."
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -373,15 +338,10 @@
           "data": {
             "type": "object",
             "description": "Created page details including id, requestId"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -427,15 +387,10 @@
           "data": {
             "type": "object",
             "description": "Updated page details including id, requestId"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -465,15 +420,10 @@
           "data": {
             "type": "object",
             "description": "Deletion confirmation including id and requestId"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -525,15 +475,10 @@
           "next_page_token": {
             "type": "string",
             "description": "Token for fetching next page of results"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "tables",
-          "result"
+          "tables"
         ]
       }
     },
@@ -563,15 +508,10 @@
           "data": {
             "type": "object",
             "description": "Table metadata including id, name, rowCount, displayColumn, sorts, etc."
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -624,15 +564,10 @@
           "next_page_token": {
             "type": "string",
             "description": "Token for fetching next page of results"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "columns",
-          "result"
+          "columns"
         ]
       }
     },
@@ -667,15 +602,10 @@
           "data": {
             "type": "object",
             "description": "Column metadata including id, name, valueType, calculated, formula, display, etc."
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -751,15 +681,10 @@
           "next_page_token": {
             "type": "string",
             "description": "Token for fetching next page of results"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "rows",
-          "result"
+          "rows"
         ]
       }
     },
@@ -809,15 +734,10 @@
           "data": {
             "type": "object",
             "description": "Row data including id, values, createdAt, updatedAt, etc."
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -892,15 +812,10 @@
           "data": {
             "type": "object",
             "description": "Response including addedRowIds and requestId"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -961,15 +876,10 @@
           "data": {
             "type": "object",
             "description": "Update response including requestId and id"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -1004,15 +914,10 @@
           "data": {
             "type": "object",
             "description": "Deletion confirmation including requestId and id"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     },
@@ -1050,15 +955,10 @@
           "data": {
             "type": "object",
             "description": "Deletion confirmation including requestId and rowIds"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         },
         "required": [
-          "data",
-          "result"
+          "data"
         ]
       }
     }
