@@ -1,7 +1,7 @@
 {
     "name": "ElevenLabs",
     "display_name": "ElevenLabs",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "ElevenLabs integration for AI voice generation, text-to-speech, voice cloning, and audio management",
     "entry_point": "elevenlabs.py",
     "auth": {
@@ -57,17 +57,9 @@
                     "voices": {
                         "type": "array",
                         "description": "List of voices"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["voices", "result"]
+                "required": ["voices"]
             }
         },
         "get_voice": {
@@ -93,17 +85,9 @@
                     "voice": {
                         "type": "object",
                         "description": "Voice details and metadata"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["voice", "result"]
+                "required": ["voice"]
             }
         },
         "get_voice_settings": {
@@ -125,17 +109,9 @@
                     "settings": {
                         "type": "object",
                         "description": "Voice settings (stability, similarity_boost, style, use_speaker_boost)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["settings", "result"]
+                "required": ["settings"]
             }
         },
         "list_history": {
@@ -162,17 +138,9 @@
                     "history": {
                         "type": "array",
                         "description": "List of generation history items"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["history", "result"]
+                "required": ["history"]
             }
         },
         "download_history_audio": {
@@ -209,17 +177,9 @@
                             }
                         },
                         "required": ["content", "name", "contentType"]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["file", "result"]
+                "required": ["file"]
             }
         },
         "get_user_subscription": {
@@ -236,17 +196,129 @@
                     "subscription": {
                         "type": "object",
                         "description": "Subscription details (tier, character_count, character_limit, etc.)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["subscription", "result"]
+                "required": ["subscription"]
+            }
+        },
+        "speech_to_text_convert": {
+            "display_name": "Speech to Text (Convert)",
+            "description": "Transcribes an audio or video file using ElevenLabs Scribe. Returns the transcript text, language, and optional word-level timestamps. Cost: based on audio duration.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_url": {
+                        "type": "string",
+                        "description": "URL of the audio/video file to transcribe (must be publicly accessible)"
+                    },
+                    "model_id": {
+                        "type": "string",
+                        "description": "Scribe model to use",
+                        "enum": ["scribe_v1", "scribe_v2"],
+                        "default": "scribe_v1"
+                    },
+                    "language_code": {
+                        "type": "string",
+                        "description": "ISO 639-1 language code (e.g. 'en', 'fr'). Leave blank for auto-detection."
+                    },
+                    "timestamps_granularity": {
+                        "type": "string",
+                        "description": "Level of timestamp detail to include",
+                        "enum": ["none", "word", "character"]
+                    },
+                    "diarize": {
+                        "type": "boolean",
+                        "description": "Enable speaker diarization (identify different speakers)"
+                    }
+                },
+                "required": ["file_url"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "transcription_id": {
+                        "type": "string",
+                        "description": "Unique ID of the transcript (use with get/delete actions)"
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "The full transcript text"
+                    },
+                    "language_code": {
+                        "type": "string",
+                        "description": "Detected or specified language code"
+                    },
+                    "language_probability": {
+                        "type": "number",
+                        "description": "Confidence score for detected language"
+                    },
+                    "words": {
+                        "type": "array",
+                        "description": "Word-level detail including timing and confidence (if timestamps requested)"
+                    }
+                }
+            }
+        },
+        "speech_to_text_get": {
+            "display_name": "Get Speech to Text Transcript",
+            "description": "Retrieves a previously created transcript by its ID. Free action (no credits used).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "transcription_id": {
+                        "type": "string",
+                        "description": "The ID of the transcript to retrieve"
+                    }
+                },
+                "required": ["transcription_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "transcription_id": {
+                        "type": "string",
+                        "description": "Unique ID of the transcript"
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "The full transcript text"
+                    },
+                    "language_code": {
+                        "type": "string",
+                        "description": "Language code of the transcript"
+                    },
+                    "language_probability": {
+                        "type": "number",
+                        "description": "Confidence score for detected language"
+                    },
+                    "words": {
+                        "type": "array",
+                        "description": "Word-level detail"
+                    }
+                }
+            }
+        },
+        "speech_to_text_delete": {
+            "display_name": "Delete Speech to Text Transcript",
+            "description": "Deletes a transcript by its ID. Free action (no credits used).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "transcription_id": {
+                        "type": "string",
+                        "description": "The ID of the transcript to delete"
+                    }
+                },
+                "required": ["transcription_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "True if the transcript was deleted successfully"
+                    }
+                }
             }
         },
         "text_to_speech": {
@@ -322,17 +394,9 @@
                             }
                         },
                         "required": ["content", "name", "contentType"]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": ["file"]
             }
         }
     }

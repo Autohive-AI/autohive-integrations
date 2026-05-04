@@ -1,4 +1,10 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ActionError,
+)
 from typing import Dict, Any
 from supadata import Supadata, SupadataError
 
@@ -11,7 +17,7 @@ supadata_transcribe = Integration.load()
 class GetTranscriptAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         video_url = inputs["video_url"]
-        api_key = context.auth.get("credentials", {}).get("api_key", {})
+        api_key = context.auth.get("credentials", {}).get("api_key", "")
         try:
             supadata = Supadata(api_key=api_key)
 
@@ -25,16 +31,19 @@ class GetTranscriptAction(ActionHandler):
             # Format as SRT-style text
             formatted_transcript = self._format_as_srt(transcript_response.content)
 
-            return {
-                "transcript": formatted_transcript,
-                "language": getattr(transcript_response, "lang", ""),
-                "available_languages": getattr(transcript_response, "available_langs", []),
-            }
+            return ActionResult(
+                data={
+                    "transcript": formatted_transcript,
+                    "language": getattr(transcript_response, "lang", ""),
+                    "available_languages": getattr(transcript_response, "available_langs", []),
+                },
+                cost_usd=0.0,
+            )
 
         except SupadataError as e:
-            raise ValueError(f"Supadata API error: {str(e)}")
+            return ActionError(message=f"Supadata API error: {str(e)}")
         except Exception as e:
-            raise ValueError(f"Error getting transcript: {str(e)}")
+            return ActionError(message=f"Error getting transcript: {str(e)}")
 
     def _format_as_srt(self, chunks):
         """Format transcript chunks as SRT-style text."""

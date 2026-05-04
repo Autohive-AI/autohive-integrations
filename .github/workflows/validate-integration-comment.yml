@@ -1,0 +1,109 @@
+name: Validate Integration Comment
+
+# Posts the validation-results comment to the PR.
+#
+# Why a separate workflow?
+# ------------------------
+# When a pull request is opened from a fork, GitHub deliberately downgrades
+# the GITHUB_TOKEN provided to `pull_request`-triggered workflows to
+# read-only — even if the workflow declares `permissions: pull-requests:
+# write`. That means the validation workflow can't post a sticky comment
+# directly on fork PRs.
+#
+# This companion workflow runs on `workflow_run` (which executes in the
+# base repository's context with normal token permissions) and posts the
+# comment using the artifact uploaded by validate-integration.yml.
+#
+# See: https://docs.github.com/actions/security-guides/automatic-token-authentication
+
+on:
+  workflow_run:
+    workflows: ['Validate Integration (Tooling)']
+    types: [completed]
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.event == 'pull_request'
+    permissions:
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Resolve PR number
+        id: pr
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          # workflow_run.pull_requests is populated for same-repo PRs but
+          # is empty for fork PRs (the head SHA is in a different repo).
+          INLINE_PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+          # head_repository / head_branch are populated for both same-repo
+          # and fork PRs and come from the workflow_run event payload, so
+          # they're trustworthy (not influenceable by runner code).
+          HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          # All inputs below come from the workflow_run event payload —
+          # they cannot be influenced by code that ran on the original
+          # runner. Never read the PR number from the artifact: the
+          # validation job executes fork-controlled code (pytest,
+          # imported integration modules), so any file it produces must
+          # be treated as untrusted.
+          PR="$INLINE_PR"
+          if [ -z "$PR" ] || [ "$PR" = "null" ]; then
+            # Fork PR: pull_requests array is empty (the head SHA lives
+            # in a different repo, and /commits/{sha}/pulls doesn't
+            # index fork commits). Look up the open PR by its head
+            # (user:branch) — this pair uniquely identifies an open PR
+            # in this repo.
+            HEAD_USER="${HEAD_REPO%%/*}"
+            PR=$(gh api "repos/$REPO/pulls?state=open&head=$HEAD_USER:$HEAD_BRANCH&per_page=10" \
+                  --jq ".[] | select(.head.repo.full_name == \"$HEAD_REPO\" and .head.ref == \"$HEAD_BRANCH\") | .number" \
+                  | head -1)
+          fi
+          if [ -z "$PR" ]; then
+            echo "::error::Could not resolve PR for $HEAD_REPO:$HEAD_BRANCH (head SHA $HEAD_SHA)"
+            exit 1
+          fi
+          echo "number=$PR" >> "$GITHUB_OUTPUT"
+
+      - name: Download comment artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: validation-comment
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: validation-artifact
+
+      - name: Determine action
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f validation-artifact/delete.marker ]; then
+            echo "action=delete" >> "$GITHUB_OUTPUT"
+          elif [ -f validation-artifact/comment.md ]; then
+            echo "action=post" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Artifact missing both comment.md and delete.marker"
+            exit 1
+          fi
+
+      - name: Delete stale comment
+        if: steps.meta.outputs.action == 'delete'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          number: ${{ steps.pr.outputs.number }}
+          header: validation-results
+          delete: true
+
+      - name: Post sticky comment
+        if: steps.meta.outputs.action == 'post'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          number: ${{ steps.pr.outputs.number }}
+          header: validation-results
+          path: validation-artifact/comment.md
