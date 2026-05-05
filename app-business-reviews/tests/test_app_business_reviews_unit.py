@@ -1,25 +1,9 @@
-import os
-import sys
-import importlib
-import importlib.util
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location(
-    "app_business_reviews_mod", os.path.join(_parent, "app_business_reviews.py")
-)
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-
-app_business_reviews = _mod.app_business_reviews
+from app_business_reviews import app_business_reviews
 
 pytestmark = pytest.mark.unit
 

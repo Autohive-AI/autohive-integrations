@@ -12,24 +12,12 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
 import os
-import sys
-import importlib
-import importlib.util
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
+import pytest
+from unittest.mock import MagicMock, AsyncMock
+from autohive_integrations_sdk import FetchResponse
 
-import pytest  # noqa: E402
-from unittest.mock import MagicMock, AsyncMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("abr_mod", os.path.join(_parent, "app_business_reviews.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-
-abr = _mod.app_business_reviews
+from app_business_reviews import app_business_reviews as abr
 
 pytestmark = pytest.mark.integration
 
