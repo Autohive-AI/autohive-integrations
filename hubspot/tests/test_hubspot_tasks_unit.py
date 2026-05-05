@@ -140,7 +140,7 @@ class TestCreateTask:
         result = await hubspot.execute_action("create_task", {"hs_task_body": "No timestamp"}, mock_context)
 
         assert result.type == ResultType.VALIDATION_ERROR
-        assert "timestamp" in result.result["message"]
+        assert "hs_timestamp" in result.result["message"]
         mock_context.fetch.assert_not_called()
 
 
@@ -155,7 +155,7 @@ class TestUpdateTask:
 
         result = await hubspot.execute_action(
             "update_task",
-            {"task_id": "23456", "hs_task_body": "Updated content"},
+            {"hs_object_id": "23456", "hs_task_body": "Updated content"},
             mock_context,
         )
 
@@ -171,7 +171,7 @@ class TestUpdateTask:
         result = await hubspot.execute_action(
             "update_task",
             {
-                "task_id": "23456",
+                "hs_object_id": "23456",
                 "hs_task_body": "Body",
                 "additional_properties": {"hs_task_priority": "HIGH"},
             },
@@ -185,7 +185,7 @@ class TestUpdateTask:
 
     @pytest.mark.asyncio
     async def test_update_task_no_properties_returns_action_error(self, mock_context):
-        result = await hubspot.execute_action("update_task", {"task_id": "23456"}, mock_context)
+        result = await hubspot.execute_action("update_task", {"hs_object_id": "23456"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert result.result.message == "No properties provided to update"
@@ -197,7 +197,7 @@ class TestUpdateTask:
 
         result = await hubspot.execute_action(
             "update_task",
-            {"task_id": "23456", "hs_task_body": "Will fail"},
+            {"hs_object_id": "23456", "hs_task_body": "Will fail"},
             mock_context,
         )
 
@@ -210,10 +210,10 @@ class TestDeleteTask:
     async def test_delete_task_success(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
 
-        result = await hubspot.execute_action("delete_task", {"task_id": "23456"}, mock_context)
+        result = await hubspot.execute_action("delete_task", {"hs_object_id": "23456"}, mock_context)
 
         assert result.result.data["success"] is True
-        assert result.result.data["task_id"] == "23456"
+        assert result.result.data["hs_object_id"] == "23456"
         assert mock_context.fetch.call_args.args[0] == f"{TASKS_API_URL}/23456"
         assert mock_context.fetch.call_args.kwargs["method"] == "DELETE"
 
@@ -221,7 +221,7 @@ class TestDeleteTask:
     async def test_delete_task_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Not found")
 
-        result = await hubspot.execute_action("delete_task", {"task_id": "99999"}, mock_context)
+        result = await hubspot.execute_action("delete_task", {"hs_object_id": "99999"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Failed to delete task" in result.result.message
@@ -241,18 +241,23 @@ class TestGetTask:
         }
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response_data)
 
-        result = await hubspot.execute_action("get_task", {"task_id": "23456"}, mock_context)
+        result = await hubspot.execute_action("get_task", {"hs_object_id": "23456"}, mock_context)
 
         assert result.result.data["success"] is True
         assert result.result.data["task"]["id"] == "23456"
         assert mock_context.fetch.call_args.args[0] == f"{TASKS_API_URL}/23456"
-        assert "properties" in mock_context.fetch.call_args.kwargs["params"]
+        params = mock_context.fetch.call_args.kwargs["params"]
+        assert "properties" in params
+        # Default property set matches create_task / update_task fields
+        assert "hs_task_type" in params["properties"]
+        assert "hubspot_owner_id" in params["properties"]
+        assert "hs_task_reminders" in params["properties"]
 
     @pytest.mark.asyncio
     async def test_get_task_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Not found")
 
-        result = await hubspot.execute_action("get_task", {"task_id": "bad-id"}, mock_context)
+        result = await hubspot.execute_action("get_task", {"hs_object_id": "bad-id"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Failed to retrieve task" in result.result.message
@@ -289,7 +294,11 @@ class TestListTasks:
         assert len(result.result.data["tasks"]) == 2
         assert result.result.data["paging"]["next"]["after"] == "abc123"
         assert mock_context.fetch.call_args.args[0] == TASKS_API_URL
-        assert mock_context.fetch.call_args.kwargs["params"]["limit"] == 2
+        list_params = mock_context.fetch.call_args.kwargs["params"]
+        assert list_params["limit"] == 2
+        assert "hs_task_type" in list_params["properties"]
+        assert "hubspot_owner_id" in list_params["properties"]
+        assert "hs_task_reminders" in list_params["properties"]
 
     @pytest.mark.asyncio
     async def test_list_tasks_default_limit(self, mock_context):
