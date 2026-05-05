@@ -300,10 +300,6 @@ class SheetsBatchUpdate(ActionHandler):
             requests = inputs["requests"]
             dry_run = bool(inputs.get("dry_run", False))
 
-            # Basic validation: ensure it's a list of dicts
-            if not isinstance(requests, list) or not all(isinstance(r, dict) for r in requests):
-                return ActionError(message="requests must be an array of objects")
-
             if dry_run:
                 # Validate by fetching spreadsheet metadata
                 service = build_sheets_service(context)
