@@ -76,6 +76,30 @@ class TestFormatRange:
 
     @pytest.mark.asyncio
     @patch("google_sheets.build")
+    async def test_rich_style_passed_through_unchanged(self, mock_build, mock_context):
+        service = make_sheets_service(mock_build)
+        service.spreadsheets().batchUpdate().execute.return_value = {"replies": []}
+
+        style = {
+            "backgroundColor": {"red": 1.0, "green": 0.9, "blue": 0.9},
+            "textFormat": {"bold": True, "fontSize": 12, "foregroundColor": {"red": 0.2}},
+            "horizontalAlignment": "CENTER",
+        }
+        grid_range = {"startRowIndex": 0, "endRowIndex": 5, "startColumnIndex": 0, "endColumnIndex": 3}
+
+        await google_sheets.execute_action(
+            "sheets_format_range",
+            {"spreadsheet_id": "sid", "sheetId": 7, "gridRange": grid_range, "style": style},
+            mock_context,
+        )
+
+        request = service.spreadsheets().batchUpdate.call_args.kwargs["body"]["requests"][0]["repeatCell"]
+        assert request["cell"]["userEnteredFormat"] == style
+        assert request["range"] == {"sheetId": 7, **grid_range}
+        assert request["fields"] == "userEnteredFormat"
+
+    @pytest.mark.asyncio
+    @patch("google_sheets.build")
     async def test_http_error_returns_action_error(self, mock_build, mock_context):
         from googleapiclient.errors import HttpError
 

@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from autohive_integrations_sdk.integration import ResultType
 
-from google_sheets import google_sheets
+from google_sheets import google_sheets, build_credentials
 
 pytestmark = pytest.mark.unit
 
@@ -116,6 +116,20 @@ class TestListSpreadsheets:
 
         call_kwargs = drive.files().list.call_args.kwargs
         assert "'o\\'connor@example.com' in owners" in call_kwargs["q"]
+
+    @pytest.mark.asyncio
+    @patch("google_sheets.build")
+    async def test_page_size_and_page_token_passed_to_drive(self, mock_build, mock_context):
+        drive = make_drive_service(mock_build)
+        drive.files().list().execute.return_value = {"files": []}
+
+        await google_sheets.execute_action(
+            "sheets_list_spreadsheets", {"pageSize": 25, "pageToken": "tok123"}, mock_context
+        )
+
+        call_kwargs = drive.files().list.call_args.kwargs
+        assert call_kwargs["pageSize"] == 25
+        assert call_kwargs["pageToken"] == "tok123"
 
     @pytest.mark.asyncio
     @patch("google_sheets.build")
@@ -341,3 +355,32 @@ class TestDuplicateSpreadsheet:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Quota exceeded" in result.result.message
+
+
+# ---- Build Credentials ----
+
+
+class TestBuildCredentials:
+    def test_reads_access_token(self):
+        ctx = MagicMock(name="ExecutionContext")
+        ctx.auth = {"credentials": {"access_token": "abc123"}}  # nosec B105
+
+        creds = build_credentials(ctx)
+
+        assert creds.token == "abc123"  # nosec B105
+
+    def test_missing_credentials_falls_back_to_empty(self):
+        ctx = MagicMock(name="ExecutionContext")
+        ctx.auth = {}
+
+        creds = build_credentials(ctx)
+
+        assert creds.token == ""  # nosec B105
+
+    def test_missing_access_token_falls_back_to_empty(self):
+        ctx = MagicMock(name="ExecutionContext")
+        ctx.auth = {"credentials": {}}
+
+        creds = build_credentials(ctx)
+
+        assert creds.token == ""  # nosec B105
