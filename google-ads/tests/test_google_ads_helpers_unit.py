@@ -14,9 +14,7 @@ sys.path.insert(0, _deps)
 import pytest  # noqa: E402
 from datetime import datetime, timedelta  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "google_ads_mod", os.path.join(_parent, "google_ads.py")
-)
+_spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 

@@ -15,9 +15,7 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "google_ads_mod", os.path.join(_parent, "google_ads.py")
-)
+_spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -50,12 +48,8 @@ def mock_gads_client():
 
 
 @pytest.mark.asyncio
-async def test_generate_keyword_ideas_missing_seed_and_url(
-    mock_context, mock_gads_client
-):
-    result = await google_ads.execute_action(
-        "generate_keyword_ideas", {**BASE_INPUTS}, mock_context
-    )
+async def test_generate_keyword_ideas_missing_seed_and_url(mock_context, mock_gads_client):
+    result = await google_ads.execute_action("generate_keyword_ideas", {**BASE_INPUTS}, mock_context)
     assert result.type == ResultType.ACTION_ERROR
 
 
@@ -72,9 +66,7 @@ async def test_generate_keyword_ideas_auth_error(mock_context):
 
 @pytest.mark.asyncio
 async def test_generate_keyword_ideas_api_error(mock_context, mock_gads_client):
-    mock_gads_client.get_service.return_value.generate_keyword_ideas.side_effect = (
-        Exception("Service unavailable")
-    )
+    mock_gads_client.get_service.return_value.generate_keyword_ideas.side_effect = Exception("Service unavailable")
     mock_gads_client.get_type.return_value = MagicMock()
 
     result = await google_ads.execute_action(
@@ -87,9 +79,7 @@ async def test_generate_keyword_ideas_api_error(mock_context, mock_gads_client):
 
 
 @pytest.mark.asyncio
-async def test_generate_keyword_ideas_returns_keyword_ideas(
-    mock_context, mock_gads_client
-):
+async def test_generate_keyword_ideas_returns_keyword_ideas(mock_context, mock_gads_client):
     mock_idea = MagicMock()
     mock_idea.text = "digital marketing"
     mock_idea.keyword_idea_metrics.avg_monthly_searches = 1000
@@ -98,9 +88,7 @@ async def test_generate_keyword_ideas_returns_keyword_ideas(
     mock_idea.keyword_idea_metrics.low_top_of_page_bid_micros = 500000
     mock_idea.keyword_idea_metrics.high_top_of_page_bid_micros = 2000000
 
-    mock_gads_client.get_service.return_value.generate_keyword_ideas.return_value = [
-        mock_idea
-    ]
+    mock_gads_client.get_service.return_value.generate_keyword_ideas.return_value = [mock_idea]
     mock_gads_client.get_type.return_value = MagicMock()
 
     result = await google_ads.execute_action(
@@ -120,9 +108,7 @@ async def test_generate_keyword_ideas_returns_keyword_ideas(
 
 
 @pytest.mark.asyncio
-async def test_generate_keyword_ideas_seed_keywords_only(
-    mock_context, mock_gads_client
-):
+async def test_generate_keyword_ideas_seed_keywords_only(mock_context, mock_gads_client):
     """When only seed_keywords provided, keyword_seed branch is used."""
     mock_gads_client.get_service.return_value.generate_keyword_ideas.return_value = []
     request_mock = MagicMock()
@@ -180,12 +166,8 @@ async def test_generate_keyword_ideas_both_seed_and_url(mock_context, mock_gads_
 
 
 @pytest.mark.asyncio
-async def test_generate_keyword_historical_metrics_missing_keywords(
-    mock_context, mock_gads_client
-):
-    result = await google_ads.execute_action(
-        "generate_keyword_historical_metrics", {**BASE_INPUTS}, mock_context
-    )
+async def test_generate_keyword_historical_metrics_missing_keywords(mock_context, mock_gads_client):
+    result = await google_ads.execute_action("generate_keyword_historical_metrics", {**BASE_INPUTS}, mock_context)
     assert result.type != ResultType.ACTION
     assert "keywords" in str(result.result)
 
@@ -202,9 +184,7 @@ async def test_generate_keyword_historical_metrics_auth_error(mock_context):
 
 
 @pytest.mark.asyncio
-async def test_generate_keyword_historical_metrics_api_error(
-    mock_context, mock_gads_client
-):
+async def test_generate_keyword_historical_metrics_api_error(mock_context, mock_gads_client):
     mock_gads_client.get_service.return_value.generate_keyword_historical_metrics.side_effect = Exception(
         "Quota exceeded"
     )
@@ -220,9 +200,7 @@ async def test_generate_keyword_historical_metrics_api_error(
 
 
 @pytest.mark.asyncio
-async def test_generate_keyword_historical_metrics_returns_data(
-    mock_context, mock_gads_client
-):
+async def test_generate_keyword_historical_metrics_returns_data(mock_context, mock_gads_client):
     mock_kw_result = MagicMock()
     mock_kw_result.text = "running shoes"
     metrics = mock_kw_result.keyword_metrics
@@ -259,12 +237,8 @@ async def test_generate_keyword_historical_metrics_returns_data(
 
 
 @pytest.mark.asyncio
-async def test_generate_keyword_forecast_missing_keywords(
-    mock_context, mock_gads_client
-):
-    result = await google_ads.execute_action(
-        "generate_keyword_forecast", {**BASE_INPUTS}, mock_context
-    )
+async def test_generate_keyword_forecast_missing_keywords(mock_context, mock_gads_client):
+    result = await google_ads.execute_action("generate_keyword_forecast", {**BASE_INPUTS}, mock_context)
     assert result.type != ResultType.ACTION
     assert "keywords" in str(result.result)
 
@@ -297,9 +271,7 @@ async def test_generate_keyword_forecast_api_error(mock_context, mock_gads_clien
 
 
 @pytest.mark.asyncio
-async def test_generate_keyword_forecast_returns_forecast(
-    mock_context, mock_gads_client
-):
+async def test_generate_keyword_forecast_returns_forecast(mock_context, mock_gads_client):
     forecast_metrics = MagicMock()
     forecast_metrics.impressions = 10000
     forecast_metrics.clicks = 500

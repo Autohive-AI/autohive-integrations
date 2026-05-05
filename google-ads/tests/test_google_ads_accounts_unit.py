@@ -15,9 +15,7 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "google_ads_mod", os.path.join(_parent, "google_ads.py")
-)
+_spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -58,29 +56,20 @@ async def test_missing_refresh_token(mock_context):
     """Missing refresh token returns ActionError with descriptive message."""
     mock_context.auth = {}
 
-    result = await google_ads.execute_action(
-        "get_accessible_accounts", {}, mock_context
-    )
+    result = await google_ads.execute_action("get_accessible_accounts", {}, mock_context)
 
     assert result.type == ResultType.ACTION_ERROR
-    assert (
-        "refresh_token" in result.result.message.lower()
-        or "Refresh token" in result.result.message
-    )
+    assert "refresh_token" in result.result.message.lower() or "Refresh token" in result.result.message
 
 
 @pytest.mark.asyncio
 async def test_returns_accounts_list(mock_context, mock_gads_client):
     """Valid credentials with 2 resource names returns ActionResult with accounts key."""
     mock_response = _make_list_response(["customers/111", "customers/222"])
-    mock_gads_client.get_service.return_value.list_accessible_customers.return_value = (
-        mock_response
-    )
+    mock_gads_client.get_service.return_value.list_accessible_customers.return_value = mock_response
     mock_gads_client.get_service.return_value.search.return_value = []
 
-    result = await google_ads.execute_action(
-        "get_accessible_accounts", {}, mock_context
-    )
+    result = await google_ads.execute_action("get_accessible_accounts", {}, mock_context)
 
     assert result.type == ResultType.ACTION
     assert "accounts" in result.result.data
@@ -91,14 +80,10 @@ async def test_returns_accounts_list(mock_context, mock_gads_client):
 async def test_accounts_have_expected_fields(mock_context, mock_gads_client):
     """Each account entry exposes the four required fields."""
     mock_response = _make_list_response(["customers/111", "customers/222"])
-    mock_gads_client.get_service.return_value.list_accessible_customers.return_value = (
-        mock_response
-    )
+    mock_gads_client.get_service.return_value.list_accessible_customers.return_value = mock_response
     mock_gads_client.get_service.return_value.search.return_value = []
 
-    result = await google_ads.execute_action(
-        "get_accessible_accounts", {}, mock_context
-    )
+    result = await google_ads.execute_action("get_accessible_accounts", {}, mock_context)
 
     for account in result.result.data["accounts"]:
         assert "resource_name" in account
@@ -111,14 +96,10 @@ async def test_accounts_have_expected_fields(mock_context, mock_gads_client):
 async def test_accounts_customer_id_parsed_correctly(mock_context, mock_gads_client):
     """customer_id is the numeric portion of the resource name."""
     mock_response = _make_list_response(["customers/987654321"])
-    mock_gads_client.get_service.return_value.list_accessible_customers.return_value = (
-        mock_response
-    )
+    mock_gads_client.get_service.return_value.list_accessible_customers.return_value = mock_response
     mock_gads_client.get_service.return_value.search.return_value = []
 
-    result = await google_ads.execute_action(
-        "get_accessible_accounts", {}, mock_context
-    )
+    result = await google_ads.execute_action("get_accessible_accounts", {}, mock_context)
 
     account = result.result.data["accounts"][0]
     assert account["customer_id"] == "987654321"
@@ -128,13 +109,9 @@ async def test_accounts_customer_id_parsed_correctly(mock_context, mock_gads_cli
 @pytest.mark.asyncio
 async def test_api_error_returns_action_error(mock_context, mock_gads_client):
     """If list_accessible_customers raises, the action returns ActionError."""
-    mock_gads_client.get_service.return_value.list_accessible_customers.side_effect = (
-        Exception("API unavailable")
-    )
+    mock_gads_client.get_service.return_value.list_accessible_customers.side_effect = Exception("API unavailable")
 
-    result = await google_ads.execute_action(
-        "get_accessible_accounts", {}, mock_context
-    )
+    result = await google_ads.execute_action("get_accessible_accounts", {}, mock_context)
 
     assert result.type == ResultType.ACTION_ERROR
     assert "API unavailable" in result.result.message
@@ -144,23 +121,17 @@ async def test_api_error_returns_action_error(mock_context, mock_gads_client):
 async def test_empty_accounts(mock_context, mock_gads_client):
     """No accessible customers returns ActionResult with empty accounts list."""
     mock_response = _make_list_response([])
-    mock_gads_client.get_service.return_value.list_accessible_customers.return_value = (
-        mock_response
-    )
+    mock_gads_client.get_service.return_value.list_accessible_customers.return_value = mock_response
     mock_gads_client.get_service.return_value.search.return_value = []
 
-    result = await google_ads.execute_action(
-        "get_accessible_accounts", {}, mock_context
-    )
+    result = await google_ads.execute_action("get_accessible_accounts", {}, mock_context)
 
     assert result.type == ResultType.ACTION
     assert result.result.data["accounts"] == []
 
 
 @pytest.mark.asyncio
-async def test_detail_fetch_failure_still_returns_account(
-    mock_context, mock_gads_client
-):
+async def test_detail_fetch_failure_still_returns_account(mock_context, mock_gads_client):
     """If the per-account detail query fails, the account is still included with default values."""
     mock_response = _make_list_response(["customers/555"])
     service_mock = MagicMock()
@@ -168,9 +139,7 @@ async def test_detail_fetch_failure_still_returns_account(
     service_mock.search.side_effect = Exception("Permission denied")
     mock_gads_client.get_service.return_value = service_mock
 
-    result = await google_ads.execute_action(
-        "get_accessible_accounts", {}, mock_context
-    )
+    result = await google_ads.execute_action("get_accessible_accounts", {}, mock_context)
 
     assert result.type == ResultType.ACTION
     assert len(result.result.data["accounts"]) == 1
@@ -184,14 +153,10 @@ async def test_detail_fetch_failure_still_returns_account(
 async def test_cost_usd_is_zero(mock_context, mock_gads_client):
     """Successful response carries cost_usd of 0.00."""
     mock_response = _make_list_response(["customers/111"])
-    mock_gads_client.get_service.return_value.list_accessible_customers.return_value = (
-        mock_response
-    )
+    mock_gads_client.get_service.return_value.list_accessible_customers.return_value = mock_response
     mock_gads_client.get_service.return_value.search.return_value = []
 
-    result = await google_ads.execute_action(
-        "get_accessible_accounts", {}, mock_context
-    )
+    result = await google_ads.execute_action("get_accessible_accounts", {}, mock_context)
 
     assert result.type == ResultType.ACTION
     assert result.result.cost_usd == 0.00

@@ -15,9 +15,7 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "google_ads_mod", os.path.join(_parent, "google_ads.py")
-)
+_spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -89,9 +87,7 @@ _AD_PROTO_ROW = {
 class TestRetrieveAdMetrics:
     @pytest.mark.asyncio
     async def test_missing_date_ranges(self, mock_context, mock_gads_client):
-        result = await google_ads.execute_action(
-            "retrieve_ad_metrics", {**BASE_INPUTS}, mock_context
-        )
+        result = await google_ads.execute_action("retrieve_ad_metrics", {**BASE_INPUTS}, mock_context)
         assert result.type != ResultType.ACTION
         assert "date_ranges" in str(result.result)
 
@@ -120,9 +116,7 @@ class TestRetrieveAdMetrics:
 
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context, mock_gads_client):
-        mock_gads_client.get_service.return_value.search.side_effect = Exception(
-            "API failure"
-        )
+        mock_gads_client.get_service.return_value.search.side_effect = Exception("API failure")
 
         result = await google_ads.execute_action(
             "retrieve_ad_metrics",
@@ -133,9 +127,7 @@ class TestRetrieveAdMetrics:
         assert "API failure" in str(result.result)
 
     @pytest.mark.asyncio
-    async def test_returns_ad_data_from_proto_rows(
-        self, mock_context, mock_gads_client
-    ):
+    async def test_returns_ad_data_from_proto_rows(self, mock_context, mock_gads_client):
         mock_row = MagicMock()
         mock_gads_client.get_service.return_value.search.return_value = [mock_row]
 
@@ -213,9 +205,7 @@ class TestCreateResponsiveSearchAd:
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
-        assert (
-            "3" in result.result.message or "headlines" in result.result.message.lower()
-        )
+        assert "3" in result.result.message or "headlines" in result.result.message.lower()
 
     @pytest.mark.asyncio
     async def test_too_few_descriptions(self, mock_context, mock_gads_client):
@@ -231,10 +221,7 @@ class TestCreateResponsiveSearchAd:
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
-        assert (
-            "2" in result.result.message
-            or "descriptions" in result.result.message.lower()
-        )
+        assert "2" in result.result.message or "descriptions" in result.result.message.lower()
 
     @pytest.mark.asyncio
     async def test_creates_ad_successfully(self, mock_context, mock_gads_client):
@@ -261,9 +248,7 @@ class TestCreateResponsiveSearchAd:
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context, mock_gads_client):
         _setup_create_rsa_mocks(mock_gads_client)
-        mock_gads_client.get_service.return_value.mutate_ad_group_ads.side_effect = (
-            Exception("mutate failed")
-        )
+        mock_gads_client.get_service.return_value.mutate_ad_group_ads.side_effect = Exception("mutate failed")
 
         result = await google_ads.execute_action(
             "create_responsive_search_ad",
@@ -284,9 +269,7 @@ def _setup_update_ad_mocks(mock_gads_client):
     update_result = MagicMock()
     update_result.resource_name = "customers/9876543210/adGroupAds/456~789"
     mock_service.mutate_ad_group_ads.return_value.results = [update_result]
-    mock_service.ad_group_ad_path.return_value = (
-        "customers/9876543210/adGroupAds/456~789"
-    )
+    mock_service.ad_group_ad_path.return_value = "customers/9876543210/adGroupAds/456~789"
 
     mock_gads_client.get_type.return_value = MagicMock()
     mock_gads_client.enums.AdGroupAdStatusEnum.ENABLED = "ENABLED"
@@ -331,9 +314,7 @@ class TestUpdateAd:
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context, mock_gads_client):
         _setup_update_ad_mocks(mock_gads_client)
-        mock_gads_client.get_service.return_value.mutate_ad_group_ads.side_effect = (
-            Exception("update failed")
-        )
+        mock_gads_client.get_service.return_value.mutate_ad_group_ads.side_effect = Exception("update failed")
 
         result = await google_ads.execute_action(
             "update_ad",
@@ -363,9 +344,7 @@ def _setup_remove_ad_mocks(mock_gads_client):
     remove_result = MagicMock()
     remove_result.resource_name = "customers/9876543210/adGroupAds/456~789"
     mock_service.mutate_ad_group_ads.return_value.results = [remove_result]
-    mock_service.ad_group_ad_path.return_value = (
-        "customers/9876543210/adGroupAds/456~789"
-    )
+    mock_service.ad_group_ad_path.return_value = "customers/9876543210/adGroupAds/456~789"
 
     mock_gads_client.get_type.return_value = MagicMock()
 
@@ -375,9 +354,7 @@ def _setup_remove_ad_mocks(mock_gads_client):
 class TestRemoveAd:
     @pytest.mark.asyncio
     async def test_missing_ids(self, mock_context, mock_gads_client):
-        result = await google_ads.execute_action(
-            "remove_ad", {**BASE_INPUTS}, mock_context
-        )
+        result = await google_ads.execute_action("remove_ad", {**BASE_INPUTS}, mock_context)
         assert result.type != ResultType.ACTION
 
     @pytest.mark.asyncio
@@ -397,9 +374,7 @@ class TestRemoveAd:
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context, mock_gads_client):
         _setup_remove_ad_mocks(mock_gads_client)
-        mock_gads_client.get_service.return_value.mutate_ad_group_ads.side_effect = (
-            Exception("remove failed")
-        )
+        mock_gads_client.get_service.return_value.mutate_ad_group_ads.side_effect = Exception("remove failed")
 
         result = await google_ads.execute_action(
             "remove_ad",

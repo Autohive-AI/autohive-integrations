@@ -1,6 +1,6 @@
 {
   "name": "Google Ads",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "Full CRUD operations for Google Ads API including campaigns, ad groups, ads, keywords, and Keyword Planner functionality.",
   "entry_point": "google_ads.py",
   "supports_billing": true,

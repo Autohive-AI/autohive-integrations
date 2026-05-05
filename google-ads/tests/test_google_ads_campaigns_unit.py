@@ -15,9 +15,7 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "google_ads_mod", os.path.join(_parent, "google_ads.py")
-)
+_spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -96,9 +94,7 @@ class TestRetrieveCampaignMetrics:
         assert "date_ranges" in result.result.message
 
     @pytest.mark.asyncio
-    async def test_returns_empty_results_for_no_campaigns(
-        self, mock_context, mock_gads_client
-    ):
+    async def test_returns_empty_results_for_no_campaigns(self, mock_context, mock_gads_client):
         """When the API returns no rows the results list should contain an entry with empty data."""
         mock_gads_client.get_service.return_value.search.return_value = []
 
@@ -135,9 +131,7 @@ class TestRetrieveCampaignMetrics:
         assert campaign_entry["Campaign"] == "Test"
 
     @pytest.mark.asyncio
-    async def test_campaign_metrics_cost_conversion(
-        self, mock_context, mock_gads_client
-    ):
+    async def test_campaign_metrics_cost_conversion(self, mock_context, mock_gads_client):
         """cost_micros of 5_000_000 should convert to Cost == 5.0."""
         mock_row = MagicMock()
         mock_gads_client.get_service.return_value.search.return_value = [mock_row]
@@ -169,9 +163,7 @@ class TestRetrieveCampaignMetrics:
     async def test_api_error(self, mock_context, mock_gads_client):
         """An exception raised by the API search is caught per-date-range; the action
         still returns ActionResult, but the date-range entry includes an 'error' key."""
-        mock_gads_client.get_service.return_value.search.side_effect = Exception(
-            "API failure"
-        )
+        mock_gads_client.get_service.return_value.search.side_effect = Exception("API failure")
 
         result = await google_ads.execute_action(
             "retrieve_campaign_metrics",
@@ -261,9 +253,7 @@ class TestCreateCampaign:
         assert result.result.data["status"] == "PAUSED"
 
     @pytest.mark.asyncio
-    async def test_campaign_id_extracted_from_resource_name(
-        self, mock_context, mock_gads_client
-    ):
+    async def test_campaign_id_extracted_from_resource_name(self, mock_context, mock_gads_client):
         """campaign_id must be the last path segment of the campaign resource name."""
         _setup_create_campaign_mocks(mock_gads_client)
 
@@ -283,9 +273,7 @@ class TestCreateCampaign:
     async def test_api_error_returns_action_error(self, mock_context, mock_gads_client):
         """An exception from mutate_campaigns must propagate as an ActionError."""
         _setup_create_campaign_mocks(mock_gads_client)
-        mock_gads_client.get_service.return_value.mutate_campaigns.side_effect = (
-            Exception("mutate failed")
-        )
+        mock_gads_client.get_service.return_value.mutate_campaigns.side_effect = Exception("mutate failed")
 
         result = await google_ads.execute_action(
             "create_campaign",
@@ -314,14 +302,10 @@ class TestCreateCampaign:
         assert result.type == ResultType.ACTION_ERROR
 
     @pytest.mark.asyncio
-    async def test_budget_api_error_returns_action_error(
-        self, mock_context, mock_gads_client
-    ):
+    async def test_budget_api_error_returns_action_error(self, mock_context, mock_gads_client):
         """An exception from mutate_campaign_budgets must also surface as ActionError."""
         _setup_create_campaign_mocks(mock_gads_client)
-        mock_gads_client.get_service.return_value.mutate_campaign_budgets.side_effect = Exception(
-            "budget failed"
-        )
+        mock_gads_client.get_service.return_value.mutate_campaign_budgets.side_effect = Exception("budget failed")
 
         result = await google_ads.execute_action(
             "create_campaign",
@@ -399,9 +383,7 @@ class TestUpdateCampaign:
     async def test_api_error(self, mock_context, mock_gads_client):
         """An exception from mutate_campaigns must return an ActionError."""
         _setup_update_campaign_mocks(mock_gads_client)
-        mock_gads_client.get_service.return_value.mutate_campaigns.side_effect = (
-            Exception("update failed")
-        )
+        mock_gads_client.get_service.return_value.mutate_campaigns.side_effect = Exception("update failed")
 
         result = await google_ads.execute_action(
             "update_campaign",
@@ -467,9 +449,7 @@ class TestRemoveCampaign:
         assert "removed_campaign_resource_name" in result.result.data
 
     @pytest.mark.asyncio
-    async def test_removed_resource_name_matches_api_response(
-        self, mock_context, mock_gads_client
-    ):
+    async def test_removed_resource_name_matches_api_response(self, mock_context, mock_gads_client):
         """The removed resource name in data should match what the API returned."""
         _setup_remove_campaign_mocks(mock_gads_client)
 
@@ -479,18 +459,13 @@ class TestRemoveCampaign:
             mock_context,
         )
         assert result.type == ResultType.ACTION
-        assert (
-            result.result.data["removed_campaign_resource_name"]
-            == "customers/123/campaigns/789"
-        )
+        assert result.result.data["removed_campaign_resource_name"] == "customers/123/campaigns/789"
 
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context, mock_gads_client):
         """An exception from mutate_campaigns must return an ActionError."""
         _setup_remove_campaign_mocks(mock_gads_client)
-        mock_gads_client.get_service.return_value.mutate_campaigns.side_effect = (
-            Exception("remove failed")
-        )
+        mock_gads_client.get_service.return_value.mutate_campaigns.side_effect = Exception("remove failed")
 
         result = await google_ads.execute_action(
             "remove_campaign",

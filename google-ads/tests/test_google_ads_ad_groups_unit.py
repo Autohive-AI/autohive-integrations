@@ -15,9 +15,7 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "google_ads_mod", os.path.join(_parent, "google_ads.py")
-)
+_spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -50,12 +48,8 @@ def mock_gads_client():
 
 
 @pytest.mark.asyncio
-async def test_retrieve_ad_group_metrics_missing_date_ranges(
-    mock_context, mock_gads_client
-):
-    result = await google_ads.execute_action(
-        "retrieve_ad_group_metrics", {**BASE_INPUTS}, mock_context
-    )
+async def test_retrieve_ad_group_metrics_missing_date_ranges(mock_context, mock_gads_client):
+    result = await google_ads.execute_action("retrieve_ad_group_metrics", {**BASE_INPUTS}, mock_context)
     assert result.type != ResultType.ACTION
     assert "date_ranges" in str(result.result)
 
@@ -126,9 +120,7 @@ async def test_retrieve_ad_group_metrics_returns_data(mock_context, mock_gads_cl
 
 @pytest.mark.asyncio
 async def test_retrieve_ad_group_metrics_api_error(mock_context, mock_gads_client):
-    mock_gads_client.get_service.return_value.search.side_effect = Exception(
-        "API failure"
-    )
+    mock_gads_client.get_service.return_value.search.side_effect = Exception("API failure")
     result = await google_ads.execute_action(
         "retrieve_ad_group_metrics",
         {**BASE_INPUTS, "date_ranges": ["2025-05-14_2025-05-20"]},
@@ -197,9 +189,7 @@ async def test_create_ad_group_auth_error(mock_context):
 
 @pytest.mark.asyncio
 async def test_create_ad_group_api_error(mock_context, mock_gads_client):
-    mock_gads_client.get_service.return_value.mutate_ad_groups.side_effect = Exception(
-        "Quota exceeded"
-    )
+    mock_gads_client.get_service.return_value.mutate_ad_groups.side_effect = Exception("Quota exceeded")
     mock_gads_client.get_type.return_value = MagicMock()
 
     result = await google_ads.execute_action(
@@ -237,9 +227,7 @@ async def test_update_ad_group_success(mock_context, mock_gads_client):
 
 @pytest.mark.asyncio
 async def test_update_ad_group_missing_ad_group_id(mock_context, mock_gads_client):
-    result = await google_ads.execute_action(
-        "update_ad_group", {**BASE_INPUTS}, mock_context
-    )
+    result = await google_ads.execute_action("update_ad_group", {**BASE_INPUTS}, mock_context)
     assert result.type != ResultType.ACTION
     assert "ad_group_id" in str(result.result)
 
@@ -257,9 +245,7 @@ async def test_update_ad_group_auth_error(mock_context):
 
 @pytest.mark.asyncio
 async def test_update_ad_group_api_error(mock_context, mock_gads_client):
-    mock_gads_client.get_service.return_value.mutate_ad_groups.side_effect = Exception(
-        "Permission denied"
-    )
+    mock_gads_client.get_service.return_value.mutate_ad_groups.side_effect = Exception("Permission denied")
     mock_gads_client.get_type.return_value = MagicMock()
 
     result = await google_ads.execute_action(
@@ -324,9 +310,7 @@ async def test_remove_ad_group_success(mock_context, mock_gads_client):
 
 @pytest.mark.asyncio
 async def test_remove_ad_group_missing_ad_group_id(mock_context, mock_gads_client):
-    result = await google_ads.execute_action(
-        "remove_ad_group", {**BASE_INPUTS}, mock_context
-    )
+    result = await google_ads.execute_action("remove_ad_group", {**BASE_INPUTS}, mock_context)
     assert result.type != ResultType.ACTION
     assert "ad_group_id" in str(result.result)
 
@@ -344,9 +328,7 @@ async def test_remove_ad_group_auth_error(mock_context):
 
 @pytest.mark.asyncio
 async def test_remove_ad_group_api_error(mock_context, mock_gads_client):
-    mock_gads_client.get_service.return_value.mutate_ad_groups.side_effect = Exception(
-        "Not found"
-    )
+    mock_gads_client.get_service.return_value.mutate_ad_groups.side_effect = Exception("Not found")
     mock_gads_client.get_type.return_value = MagicMock()
 
     result = await google_ads.execute_action(

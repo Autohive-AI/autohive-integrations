@@ -41,9 +41,7 @@ _deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "dependencies"))
 sys.path.insert(0, _parent)
 sys.path.insert(0, _deps)
 
-_spec = importlib.util.spec_from_file_location(
-    "google_ads_mod", os.path.join(_parent, "google_ads.py")
-)
+_spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
 _mod = importlib.util.module_from_spec(_spec)
 
 
@@ -121,9 +119,7 @@ async def run():
         entries = r.result.data.get("results", [{}])[0].get("data", [])
         print(f"     → {len(entries)} campaign(s)")
         for c in entries[:3]:
-            print(
-                f"       • {c.get('Campaign')} — clicks: {c.get('Clicks')}, cost: {c.get('Cost')}"
-            )
+            print(f"       • {c.get('Campaign')} — clicks: {c.get('Clicks')}, cost: {c.get('Cost')}")
 
     print("\n── retrieve_ad_group_metrics ────────────────────────────")
     r = await check(
@@ -183,9 +179,7 @@ async def run():
         print(f"     → {len(ideas)} idea(s)")
         for i in ideas[:3]:
             comp = i.get("competition")
-            print(
-                f"       • {i.get('keyword')} — {i.get('avg_monthly_searches')} searches/mo, comp: {comp}"
-            )
+            print(f"       • {i.get('keyword')} — {i.get('avg_monthly_searches')} searches/mo, comp: {comp}")
 
     print("\n── generate_keyword_historical_metrics ──────────────────")
     r = await check(
@@ -200,9 +194,7 @@ async def run():
         metrics = r.result.data.get("keyword_metrics", [])
         print(f"     → {len(metrics)} keyword(s)")
         for m in metrics[:3]:
-            print(
-                f"       • {m.get('keyword')} — avg: {m.get('avg_monthly_searches')}, comp: {m.get('competition')}"
-            )
+            print(f"       • {m.get('keyword')} — avg: {m.get('avg_monthly_searches')}, comp: {m.get('competition')}")
 
     # Summary
     total = len(results)
