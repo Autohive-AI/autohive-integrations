@@ -586,7 +586,7 @@ class UpsertRowsAction(ActionHandler):
                 body["keyColumns"] = inputs.get("key_columns")
 
             params = {}
-            if inputs.get("disable_parsing"):
+            if inputs.get("disable_parsing") is not None:
                 params["disableParsing"] = str(inputs.get("disable_parsing")).lower()
 
             headers = get_auth_headers(context)
@@ -618,7 +618,7 @@ class UpdateRowAction(ActionHandler):
             body = {"row": {"cells": cells}}
 
             params = {}
-            if inputs.get("disable_parsing"):
+            if inputs.get("disable_parsing") is not None:
                 params["disableParsing"] = str(inputs.get("disable_parsing")).lower()
 
             headers = get_auth_headers(context)
