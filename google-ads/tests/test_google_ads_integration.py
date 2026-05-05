@@ -26,10 +26,12 @@ sys.path.insert(0, _parent)
 sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
-from unittest.mock import MagicMock, AsyncMock, patch  # noqa: E402
+from unittest.mock import MagicMock, AsyncMock  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
+_spec = importlib.util.spec_from_file_location(
+    "google_ads_mod", os.path.join(_parent, "google_ads.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -60,8 +62,10 @@ def live_context():
     if not ACCESS_TOKEN:
         pytest.skip("GOOGLE_ADS_ACCESS_TOKEN not set — skipping integration tests")
     if not LOGIN_CUSTOMER_ID or not CUSTOMER_ID:
-        pytest.skip("GOOGLE_ADS_LOGIN_CUSTOMER_ID and GOOGLE_ADS_CUSTOMER_ID must be set")
-    if not DEVELOPER_TOKEN or DEVELOPER_TOKEN == "placeholder":
+        pytest.skip(
+            "GOOGLE_ADS_LOGIN_CUSTOMER_ID and GOOGLE_ADS_CUSTOMER_ID must be set"
+        )
+    if not DEVELOPER_TOKEN or DEVELOPER_TOKEN == "placeholder":  # nosec B105
         pytest.skip("ADWORDS_DEVELOPER_TOKEN not set")
 
     from google.ads.googleads.client import GoogleAdsClient
@@ -99,14 +103,18 @@ def base_inputs():
 class TestGetAccessibleAccounts:
     @pytest.mark.asyncio
     async def test_returns_accounts_list(self, live_context):
-        result = await google_ads.execute_action("get_accessible_accounts", {}, live_context)
+        result = await google_ads.execute_action(
+            "get_accessible_accounts", {}, live_context
+        )
         assert result.type == ResultType.ACTION
         assert "accounts" in result.result.data
         assert isinstance(result.result.data["accounts"], list)
 
     @pytest.mark.asyncio
     async def test_accounts_have_expected_fields(self, live_context):
-        result = await google_ads.execute_action("get_accessible_accounts", {}, live_context)
+        result = await google_ads.execute_action(
+            "get_accessible_accounts", {}, live_context
+        )
         assert result.type == ResultType.ACTION
         if not result.result.data.get("accounts"):
             pytest.skip("No accounts returned")
@@ -129,7 +137,9 @@ class TestRetrieveCampaignMetrics:
         assert "results" in result.result.data
 
     @pytest.mark.asyncio
-    async def test_results_have_date_range_and_data_keys(self, live_context, base_inputs):
+    async def test_results_have_date_range_and_data_keys(
+        self, live_context, base_inputs
+    ):
         result = await google_ads.execute_action(
             "retrieve_campaign_metrics",
             {**base_inputs, "date_ranges": ["last 7 days"]},
@@ -190,7 +200,9 @@ class TestRetrieveAdGroupMetrics:
         assert "results" in result.result.data
 
     @pytest.mark.asyncio
-    async def test_result_entries_have_correct_structure(self, live_context, base_inputs):
+    async def test_result_entries_have_correct_structure(
+        self, live_context, base_inputs
+    ):
         result = await google_ads.execute_action(
             "retrieve_ad_group_metrics",
             {**base_inputs, "date_ranges": ["last 7 days"]},
@@ -215,7 +227,9 @@ class TestRetrieveAdMetrics:
         assert "results" in result.result.data
 
     @pytest.mark.asyncio
-    async def test_result_entries_have_correct_structure(self, live_context, base_inputs):
+    async def test_result_entries_have_correct_structure(
+        self, live_context, base_inputs
+    ):
         result = await google_ads.execute_action(
             "retrieve_ad_metrics",
             {**base_inputs, "date_ranges": ["last 7 days"]},
@@ -240,7 +254,9 @@ class TestRetrieveSearchTerms:
         assert "results" in result.result.data
 
     @pytest.mark.asyncio
-    async def test_result_entries_have_correct_structure(self, live_context, base_inputs):
+    async def test_result_entries_have_correct_structure(
+        self, live_context, base_inputs
+    ):
         result = await google_ads.execute_action(
             "retrieve_search_terms",
             {**base_inputs, "date_ranges": ["last 7 days"]},
@@ -255,18 +271,24 @@ class TestRetrieveSearchTerms:
 class TestGetActiveAdUrls:
     @pytest.mark.asyncio
     async def test_returns_active_ads_and_total_count(self, live_context, base_inputs):
-        result = await google_ads.execute_action("get_active_ad_urls", base_inputs, live_context)
+        result = await google_ads.execute_action(
+            "get_active_ad_urls", base_inputs, live_context
+        )
         assert result.type == ResultType.ACTION
         assert "active_ads" in result.result.data
         assert "total_count" in result.result.data
         assert isinstance(result.result.data["active_ads"], list)
         assert isinstance(result.result.data["total_count"], int)
-        assert result.result.data["total_count"] == len(result.result.data["active_ads"])
+        assert result.result.data["total_count"] == len(
+            result.result.data["active_ads"]
+        )
 
 
 class TestGenerateKeywordIdeas:
     @pytest.mark.asyncio
-    async def test_with_seed_keywords_returns_keyword_ideas(self, live_context, base_inputs):
+    async def test_with_seed_keywords_returns_keyword_ideas(
+        self, live_context, base_inputs
+    ):
         result = await google_ads.execute_action(
             "generate_keyword_ideas",
             {**base_inputs, "seed_keywords": ["digital marketing", "seo tools"]},
@@ -277,7 +299,9 @@ class TestGenerateKeywordIdeas:
         assert isinstance(result.result.data["keyword_ideas"], list)
 
     @pytest.mark.asyncio
-    async def test_keyword_idea_entries_have_correct_fields(self, live_context, base_inputs):
+    async def test_keyword_idea_entries_have_correct_fields(
+        self, live_context, base_inputs
+    ):
         result = await google_ads.execute_action(
             "generate_keyword_ideas",
             {**base_inputs, "seed_keywords": ["digital marketing"]},
@@ -294,7 +318,9 @@ class TestGenerateKeywordIdeas:
 
 class TestGenerateKeywordHistoricalMetrics:
     @pytest.mark.asyncio
-    async def test_with_keywords_list_returns_keyword_metrics(self, live_context, base_inputs):
+    async def test_with_keywords_list_returns_keyword_metrics(
+        self, live_context, base_inputs
+    ):
         result = await google_ads.execute_action(
             "generate_keyword_historical_metrics",
             {**base_inputs, "keywords": ["digital marketing", "online advertising"]},
@@ -305,7 +331,9 @@ class TestGenerateKeywordHistoricalMetrics:
         assert isinstance(result.result.data["keyword_metrics"], list)
 
     @pytest.mark.asyncio
-    async def test_keyword_metric_entries_have_correct_fields(self, live_context, base_inputs):
+    async def test_keyword_metric_entries_have_correct_fields(
+        self, live_context, base_inputs
+    ):
         result = await google_ads.execute_action(
             "generate_keyword_historical_metrics",
             {**base_inputs, "keywords": ["digital marketing"]},
@@ -346,7 +374,11 @@ class TestCampaignLifecycle:
 
         update_result = await google_ads.execute_action(
             "update_campaign",
-            {**base_inputs, "campaign_id": campaign_id, "name": "Integration Test Campaign — Renamed"},
+            {
+                **base_inputs,
+                "campaign_id": campaign_id,
+                "name": "Integration Test Campaign — Renamed",
+            },
             live_context,
         )
         assert update_result.type == ResultType.ACTION
@@ -384,7 +416,11 @@ class TestAdGroupLifecycle:
 
         update_result = await google_ads.execute_action(
             "update_ad_group",
-            {**base_inputs, "ad_group_id": ad_group_id, "name": "Integration Test Ad Group — Renamed"},
+            {
+                **base_inputs,
+                "ad_group_id": ad_group_id,
+                "name": "Integration Test Ad Group — Renamed",
+            },
             live_context,
         )
         assert update_result.type == ResultType.ACTION
@@ -410,7 +446,12 @@ class TestKeywordLifecycle:
             {
                 **base_inputs,
                 "ad_group_id": TEST_AD_GROUP_ID,
-                "keywords": [{"text": "integration test keyword delete me", "match_type": "BROAD"}],
+                "keywords": [
+                    {
+                        "text": "integration test keyword delete me",
+                        "match_type": "BROAD",
+                    }
+                ],
             },
             live_context,
         )
@@ -426,7 +467,11 @@ class TestKeywordLifecycle:
 
         remove_result = await google_ads.execute_action(
             "remove_keyword",
-            {**base_inputs, "ad_group_id": TEST_AD_GROUP_ID, "criterion_id": criterion_id},
+            {
+                **base_inputs,
+                "ad_group_id": TEST_AD_GROUP_ID,
+                "criterion_id": criterion_id,
+            },
             live_context,
         )
         assert remove_result.type == ResultType.ACTION
@@ -444,7 +489,9 @@ class TestNegativeKeywords:
             {
                 **base_inputs,
                 "campaign_id": TEST_CAMPAIGN_ID,
-                "keywords": [{"text": "integration test negative kw", "match_type": "BROAD"}],
+                "keywords": [
+                    {"text": "integration test negative kw", "match_type": "BROAD"}
+                ],
             },
             live_context,
         )
@@ -463,7 +510,9 @@ class TestNegativeKeywords:
             {
                 **base_inputs,
                 "ad_group_id": TEST_AD_GROUP_ID,
-                "keywords": [{"text": "integration test neg kw ad group", "match_type": "PHRASE"}],
+                "keywords": [
+                    {"text": "integration test neg kw ad group", "match_type": "PHRASE"}
+                ],
             },
             live_context,
         )

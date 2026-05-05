@@ -11,6 +11,8 @@ import sys
 import asyncio
 import importlib
 from unittest.mock import MagicMock, AsyncMock
+from google.ads.googleads.client import GoogleAdsClient  # noqa: E402
+from google.oauth2.credentials import Credentials  # noqa: E402
 
 # ============================================================================
 # CONFIG — fill these in before running
@@ -18,7 +20,7 @@ from unittest.mock import MagicMock, AsyncMock
 ACCESS_TOKEN = os.environ.get("GOOGLE_ADS_ACCESS_TOKEN", "")
 DEVELOPER_TOKEN = os.environ.get("ADWORDS_DEVELOPER_TOKEN", "")
 LOGIN_CUSTOMER_ID = os.environ.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "")  # MCC account ID
-CUSTOMER_ID = os.environ.get("GOOGLE_ADS_CUSTOMER_ID", "")              # client account ID
+CUSTOMER_ID = os.environ.get("GOOGLE_ADS_CUSTOMER_ID", "")  # client account ID
 # ============================================================================
 
 if not all([ACCESS_TOKEN, DEVELOPER_TOKEN, LOGIN_CUSTOMER_ID, CUSTOMER_ID]):
@@ -39,12 +41,11 @@ _deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "dependencies"))
 sys.path.insert(0, _parent)
 sys.path.insert(0, _deps)
 
-_spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
+_spec = importlib.util.spec_from_file_location(
+    "google_ads_mod", os.path.join(_parent, "google_ads.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 
-# Patch _get_google_ads_client to use access_token directly before exec
-from google.ads.googleads.client import GoogleAdsClient
-from google.oauth2.credentials import Credentials
 
 def _client_from_access_token(refresh_token: str, login_customer_id=None):
     credentials = Credentials(token=ACCESS_TOKEN)
@@ -56,6 +57,7 @@ def _client_from_access_token(refresh_token: str, login_customer_id=None):
     if login_customer_id:
         kwargs["login_customer_id"] = login_customer_id
     return GoogleAdsClient(**kwargs)
+
 
 _spec.loader.exec_module(_mod)
 _mod._get_google_ads_client = _client_from_access_token
@@ -70,7 +72,7 @@ ctx.auth = {"credentials": {"refresh_token": "unused-access-token-flow"}}  # nos
 
 base = {"login_customer_id": LOGIN_CUSTOMER_ID, "customer_id": CUSTOMER_ID}
 
-PASS = "✓"
+PASS = "✓"  # nosec B105
 FAIL = "✗"
 SKIP = "—"
 
@@ -119,7 +121,9 @@ async def run():
         entries = r.result.data.get("results", [{}])[0].get("data", [])
         print(f"     → {len(entries)} campaign(s)")
         for c in entries[:3]:
-            print(f"       • {c.get('Campaign')} — clicks: {c.get('Clicks')}, cost: {c.get('Cost')}")
+            print(
+                f"       • {c.get('Campaign')} — clicks: {c.get('Clicks')}, cost: {c.get('Cost')}"
+            )
 
     print("\n── retrieve_ad_group_metrics ────────────────────────────")
     r = await check(
@@ -178,7 +182,10 @@ async def run():
         ideas = r.result.data.get("keyword_ideas", [])
         print(f"     → {len(ideas)} idea(s)")
         for i in ideas[:3]:
-            print(f"       • {i.get('keyword')} — {i.get('avg_monthly_searches')} searches/mo, comp: {i.get('competition')}")
+            comp = i.get("competition")
+            print(
+                f"       • {i.get('keyword')} — {i.get('avg_monthly_searches')} searches/mo, comp: {comp}"
+            )
 
     print("\n── generate_keyword_historical_metrics ──────────────────")
     r = await check(
@@ -193,12 +200,14 @@ async def run():
         metrics = r.result.data.get("keyword_metrics", [])
         print(f"     → {len(metrics)} keyword(s)")
         for m in metrics[:3]:
-            print(f"       • {m.get('keyword')} — avg: {m.get('avg_monthly_searches')}, comp: {m.get('competition')}")
+            print(
+                f"       • {m.get('keyword')} — avg: {m.get('avg_monthly_searches')}, comp: {m.get('competition')}"
+            )
 
     # Summary
     total = len(results)
     passed = sum(1 for _, ok, _ in results if ok)
-    print(f"\n{'─'*56}")
+    print(f"\n{'─' * 56}")
     print(f"  {passed}/{total} passed")
     if passed < total:
         print("\n  Failures:")

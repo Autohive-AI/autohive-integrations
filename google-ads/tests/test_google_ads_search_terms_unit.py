@@ -15,7 +15,9 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
+_spec = importlib.util.spec_from_file_location(
+    "google_ads_mod", os.path.join(_parent, "google_ads.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -48,8 +50,12 @@ def mock_gads_client():
 
 
 @pytest.mark.asyncio
-async def test_retrieve_search_terms_missing_date_ranges(mock_context, mock_gads_client):
-    result = await google_ads.execute_action("retrieve_search_terms", {**BASE_INPUTS}, mock_context)
+async def test_retrieve_search_terms_missing_date_ranges(
+    mock_context, mock_gads_client
+):
+    result = await google_ads.execute_action(
+        "retrieve_search_terms", {**BASE_INPUTS}, mock_context
+    )
     assert result.type != ResultType.ACTION
     assert "date_ranges" in str(result.result)
 
@@ -66,7 +72,9 @@ async def test_retrieve_search_terms_auth_error(mock_context):
 
 
 @pytest.mark.asyncio
-async def test_retrieve_search_terms_returns_empty_results(mock_context, mock_gads_client):
+async def test_retrieve_search_terms_returns_empty_results(
+    mock_context, mock_gads_client
+):
     mock_gads_client.get_service.return_value.search.return_value = []
     result = await google_ads.execute_action(
         "retrieve_search_terms",
@@ -80,14 +88,18 @@ async def test_retrieve_search_terms_returns_empty_results(mock_context, mock_ga
 
 
 @pytest.mark.asyncio
-async def test_retrieve_search_terms_returns_search_term_data(mock_context, mock_gads_client):
+async def test_retrieve_search_terms_returns_search_term_data(
+    mock_context, mock_gads_client
+):
     row = MagicMock()
     mock_gads_client.get_service.return_value.search.return_value = [row]
 
     with patch("proto.Message.to_dict") as mock_to_dict:
         mock_to_dict.return_value = {
             "search_term_view": {"search_term": "test query", "status": "ADDED"},
-            "segments": {"keyword": {"info": {"text": "test keyword", "match_type": "BROAD"}}},
+            "segments": {
+                "keyword": {"info": {"text": "test keyword", "match_type": "BROAD"}}
+            },
             "ad_group": {"id": "1", "name": "Test Ad Group"},
             "campaign": {"id": "2", "name": "Test Campaign"},
             "metrics": {
@@ -123,7 +135,9 @@ async def test_retrieve_search_terms_returns_search_term_data(mock_context, mock
 
 @pytest.mark.asyncio
 async def test_retrieve_search_terms_api_error(mock_context, mock_gads_client):
-    mock_gads_client.get_service.return_value.search.side_effect = Exception("Internal server error")
+    mock_gads_client.get_service.return_value.search.side_effect = Exception(
+        "Internal server error"
+    )
     result = await google_ads.execute_action(
         "retrieve_search_terms",
         {**BASE_INPUTS, "date_ranges": ["2025-05-14_2025-05-20"]},
@@ -139,7 +153,11 @@ async def test_retrieve_search_terms_campaign_filter(mock_context, mock_gads_cli
     mock_gads_client.get_service.return_value.search.return_value = []
     result = await google_ads.execute_action(
         "retrieve_search_terms",
-        {**BASE_INPUTS, "date_ranges": ["2025-05-14_2025-05-20"], "campaign_ids": ["111", "222"]},
+        {
+            **BASE_INPUTS,
+            "date_ranges": ["2025-05-14_2025-05-20"],
+            "campaign_ids": ["111", "222"],
+        },
         mock_context,
     )
     assert result.type == ResultType.ACTION
@@ -156,7 +174,9 @@ async def test_retrieve_search_terms_campaign_filter(mock_context, mock_gads_cli
 @pytest.mark.asyncio
 async def test_get_active_ad_urls_returns_active_ads(mock_context, mock_gads_client):
     mock_gads_client.get_service.return_value.search.return_value = []
-    result = await google_ads.execute_action("get_active_ad_urls", {**BASE_INPUTS}, mock_context)
+    result = await google_ads.execute_action(
+        "get_active_ad_urls", {**BASE_INPUTS}, mock_context
+    )
     assert result.type == ResultType.ACTION
     assert "active_ads" in result.result.data
     assert "total_count" in result.result.data
@@ -167,14 +187,20 @@ async def test_get_active_ad_urls_returns_active_ads(mock_context, mock_gads_cli
 @pytest.mark.asyncio
 async def test_get_active_ad_urls_auth_error(mock_context):
     mock_context.auth = {"credentials": {}}
-    result = await google_ads.execute_action("get_active_ad_urls", {**BASE_INPUTS}, mock_context)
+    result = await google_ads.execute_action(
+        "get_active_ad_urls", {**BASE_INPUTS}, mock_context
+    )
     assert result.type == ResultType.ACTION_ERROR
 
 
 @pytest.mark.asyncio
 async def test_get_active_ad_urls_api_error(mock_context, mock_gads_client):
-    mock_gads_client.get_service.return_value.search.side_effect = Exception("Network error")
-    result = await google_ads.execute_action("get_active_ad_urls", {**BASE_INPUTS}, mock_context)
+    mock_gads_client.get_service.return_value.search.side_effect = Exception(
+        "Network error"
+    )
+    result = await google_ads.execute_action(
+        "get_active_ad_urls", {**BASE_INPUTS}, mock_context
+    )
     assert result.type == ResultType.ACTION_ERROR
     assert "Network error" in result.result.message
 
@@ -184,7 +210,10 @@ async def test_get_active_ad_urls_url_filter_applied(mock_context, mock_gads_cli
     """Only ads whose final_urls contain the filter string should be returned."""
     row_matching = MagicMock()
     row_non_matching = MagicMock()
-    mock_gads_client.get_service.return_value.search.return_value = [row_matching, row_non_matching]
+    mock_gads_client.get_service.return_value.search.return_value = [
+        row_matching,
+        row_non_matching,
+    ]
 
     matching_data = {
         "campaign": {"id": "1", "name": "Camp A", "status": "ENABLED"},
@@ -221,13 +250,18 @@ async def test_get_active_ad_urls_url_filter_applied(mock_context, mock_gads_cli
         mock_to_dict.side_effect = [matching_data, non_matching_data]
 
         result = await google_ads.execute_action(
-            "get_active_ad_urls", {**BASE_INPUTS, "url_filter": "example.com"}, mock_context
+            "get_active_ad_urls",
+            {**BASE_INPUTS, "url_filter": "example.com"},
+            mock_context,
         )
 
     assert result.type == ResultType.ACTION
     assert result.result.data["total_count"] == 1
     assert result.result.data["active_ads"][0]["ad_id"] == "100"
-    assert "https://example.com/landing" in result.result.data["active_ads"][0]["final_urls"]
+    assert (
+        "https://example.com/landing"
+        in result.result.data["active_ads"][0]["final_urls"]
+    )
 
 
 @pytest.mark.asyncio
@@ -254,7 +288,9 @@ async def test_get_active_ad_urls_no_filter_returns_all(mock_context, mock_gads_
     }
 
     with patch("proto.Message.to_dict", return_value=ad_data_template):
-        result = await google_ads.execute_action("get_active_ad_urls", {**BASE_INPUTS}, mock_context)
+        result = await google_ads.execute_action(
+            "get_active_ad_urls", {**BASE_INPUTS}, mock_context
+        )
 
     assert result.type == ResultType.ACTION
     assert result.result.data["total_count"] == 2
