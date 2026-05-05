@@ -45,7 +45,6 @@ class TestGetEvents:
 
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert len(data["events"]) == 1
         assert data["events"][0]["_id"] == "evt_001"
         assert data["total"] == 1
@@ -66,7 +65,6 @@ class TestGetEvents:
 
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert data["event"]["_id"] == "evt_001"
         call_url = mock_context.fetch.call_args.args[0]
         assert "events/evt_001" in call_url
@@ -124,7 +122,6 @@ class TestGetOrders:
 
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert data["orders"][0]["_id"] == "ord_001"
 
     async def test_list_orders_url_includes_event_id(self, mock_context):
@@ -179,7 +176,6 @@ class TestGetTickets:
 
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert data["tickets"][0]["firstName"] == "Alice"
 
     async def test_list_tickets_url_includes_event_id(self, mock_context):
@@ -229,7 +225,6 @@ class TestGetTags:
 
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert data["tags"][0]["name"] == "Music"
 
     async def test_list_tags_url(self, mock_context):
@@ -279,7 +274,6 @@ class TestCheckIn:
 
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert data["scanningMessages"][0]["header"] == "Welcome"
 
     async def test_check_in_url_and_method(self, mock_context):

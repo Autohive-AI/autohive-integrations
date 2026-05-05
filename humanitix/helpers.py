@@ -37,7 +37,7 @@ async def fetch_single_resource(
             data.get("message", f"HTTP {response.status}") if isinstance(data, dict) else f"HTTP {response.status}"
         )
         return ActionError(message=message)
-    return ActionResult(data={"result": True, result_key: response.data}, cost_usd=0.0)
+    return ActionResult(data={result_key: response.data}, cost_usd=0.0)
 
 
 def build_paginated_result(response, key: str, page: int, page_size: int | None = None) -> ActionResult:
@@ -45,7 +45,6 @@ def build_paginated_result(response, key: str, page: int, page_size: int | None 
     items = data.get(key, []) if isinstance(data, dict) else []
     return ActionResult(
         data={
-            "result": True,
             key: items,
             "total": data.get("total", len(items)) if isinstance(data, dict) else len(items),
             "page": data.get("page", page) if isinstance(data, dict) else page,
