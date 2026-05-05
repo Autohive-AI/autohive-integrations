@@ -693,3 +693,214 @@ class TestDeleteRows:
 
         assert result.type == ResultType.ACTION_ERROR
 
+
+# ---- Optional parameter wiring ----
+# These verify every optional input is forwarded with the correct API key/casing.
+
+
+class TestOptionalParams:
+    async def test_list_docs_all_filters(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"items": []})
+
+        await coda.execute_action(
+            "list_docs",
+            {
+                "is_owner": True,
+                "source_doc": "src1",
+                "is_published": False,
+                "is_starred": True,
+                "limit": 50,
+            },
+            mock_context,
+        )
+
+        params = mock_context.fetch.call_args.kwargs["params"]
+        assert params["isOwner"] == "true"
+        assert params["sourceDoc"] == "src1"
+        assert params["isPublished"] == "false"
+        assert params["isStarred"] == "true"
+        assert params["limit"] == 50
+
+    async def test_list_pages_pagination_params(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"items": []})
+
+        await coda.execute_action(
+            "list_pages",
+            {"doc_id": "doc1", "limit": 25, "page_token": "tok123"},  # nosec B105
+            mock_context,
+        )
+
+        params = mock_context.fetch.call_args.kwargs["params"]
+        assert params["limit"] == 25
+        assert params["pageToken"] == "tok123"
+
+    async def test_update_page_icon_and_image(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=202, headers={}, data={})
+
+        await coda.execute_action(
+            "update_page",
+            {
+                "doc_id": "doc1",
+                "page_id_or_name": "canvas-abc",
+                "icon_name": "rocket",
+                "image_url": "https://example.com/cover.png",
+            },
+            mock_context,
+        )
+
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["iconName"] == "rocket"
+        assert body["imageUrl"] == "https://example.com/cover.png"
+
+    async def test_list_tables_all_params_and_next_page(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"items": [], "nextPageToken": "tok2"},
+        )
+
+        result = await coda.execute_action(
+            "list_tables",
+            {
+                "doc_id": "doc1",
+                "limit": 10,
+                "page_token": "tok123",  # nosec B105
+                "sort_by": "name",
+                "table_types": "table,view",
+            },
+            mock_context,
+        )
+
+        params = mock_context.fetch.call_args.kwargs["params"]
+        assert params["limit"] == 10
+        assert params["pageToken"] == "tok123"
+        assert params["sortBy"] == "name"
+        assert params["tableTypes"] == "table,view"
+        assert result.result.data["next_page_token"] == "tok2"
+
+    async def test_list_columns_all_params_and_next_page(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"items": [], "nextPageToken": "tok2"},
+        )
+
+        result = await coda.execute_action(
+            "list_columns",
+            {
+                "doc_id": "doc1",
+                "table_id_or_name": "grid-xyz",
+                "limit": 10,
+                "page_token": "tok123",  # nosec B105
+                "visible_only": True,
+            },
+            mock_context,
+        )
+
+        params = mock_context.fetch.call_args.kwargs["params"]
+        assert params["limit"] == 10
+        assert params["pageToken"] == "tok123"
+        assert params["visibleOnly"] == "true"
+        assert result.result.data["next_page_token"] == "tok2"
+
+    async def test_list_rows_all_params_and_next_page(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"items": [], "nextPageToken": "tok2"},
+        )
+
+        result = await coda.execute_action(
+            "list_rows",
+            {
+                "doc_id": "doc1",
+                "table_id_or_name": "grid-xyz",
+                "page_token": "tok123",  # nosec B105
+                "sort_by": "natural",
+                "use_column_names": True,
+                "value_format": "rich",
+                "visible_only": False,
+            },
+            mock_context,
+        )
+
+        params = mock_context.fetch.call_args.kwargs["params"]
+        assert params["pageToken"] == "tok123"
+        assert params["sortBy"] == "natural"
+        assert params["useColumnNames"] == "true"
+        assert params["valueFormat"] == "rich"
+        assert params["visibleOnly"] == "false"
+        assert result.result.data["next_page_token"] == "tok2"
+
+    async def test_get_row_render_params(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={})
+
+        await coda.execute_action(
+            "get_row",
+            {
+                "doc_id": "doc1",
+                "table_id_or_name": "grid-xyz",
+                "row_id_or_name": "i-row1",
+                "use_column_names": True,
+                "value_format": "simple",
+            },
+            mock_context,
+        )
+
+        params = mock_context.fetch.call_args.kwargs["params"]
+        assert params["useColumnNames"] == "true"
+        assert params["valueFormat"] == "simple"
+
+    async def test_upsert_rows_key_columns_and_disable_parsing_true(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=202, headers={}, data={})
+
+        await coda.execute_action(
+            "upsert_rows",
+            {
+                "doc_id": "doc1",
+                "table_id_or_name": "grid-xyz",
+                "rows": [],
+                "key_columns": ["c-col1"],
+                "disable_parsing": True,
+            },
+            mock_context,
+        )
+
+        call = mock_context.fetch.call_args
+        assert call.kwargs["json"]["keyColumns"] == ["c-col1"]
+        assert call.kwargs["params"]["disableParsing"] == "true"
+
+    async def test_upsert_rows_disable_parsing_false_is_forwarded(self, mock_context):
+        """Regression: disable_parsing=False must reach the API, not be silently dropped."""
+        mock_context.fetch.return_value = FetchResponse(status=202, headers={}, data={})
+
+        await coda.execute_action(
+            "upsert_rows",
+            {
+                "doc_id": "doc1",
+                "table_id_or_name": "grid-xyz",
+                "rows": [],
+                "disable_parsing": False,
+            },
+            mock_context,
+        )
+
+        assert mock_context.fetch.call_args.kwargs["params"]["disableParsing"] == "false"
+
+    async def test_update_row_disable_parsing_false_is_forwarded(self, mock_context):
+        """Regression: disable_parsing=False must reach the API, not be silently dropped."""
+        mock_context.fetch.return_value = FetchResponse(status=202, headers={}, data={})
+
+        await coda.execute_action(
+            "update_row",
+            {
+                "doc_id": "doc1",
+                "table_id_or_name": "grid-xyz",
+                "row_id_or_name": "i-row1",
+                "cells": [],
+                "disable_parsing": False,
+            },
+            mock_context,
+        )
+
+        assert mock_context.fetch.call_args.kwargs["params"]["disableParsing"] == "false"
