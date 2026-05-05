@@ -24,6 +24,7 @@ sys.path.insert(0, _deps)
 import pytest  # noqa: E402
 from unittest.mock import MagicMock, AsyncMock  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
+from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("google_sheets_mod", os.path.join(_parent, "google_sheets.py"))
 _mod = importlib.util.module_from_spec(_spec)
@@ -255,7 +256,7 @@ class TestFormatRange:
             live_context,
         )
 
-        assert result.result is not None
+        assert result.type == ResultType.ACTION
 
 
 @pytest.mark.destructive
@@ -278,7 +279,7 @@ class TestFreeze:
             live_context,
         )
 
-        assert result.result is not None
+        assert result.type == ResultType.ACTION
 
 
 @pytest.mark.destructive
@@ -304,7 +305,7 @@ class TestBatchUpdate:
             live_context,
         )
 
-        assert result.result is not None
+        assert result.type == ResultType.ACTION
 
 
 @pytest.mark.destructive
