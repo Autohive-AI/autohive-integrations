@@ -283,7 +283,9 @@ class GetReviewsGooglePlay(ActionHandler):
         all_reviews = []
         next_page_token = None
         pages_fetched = 0
-        app_info: Dict[str, Any] = {}
+        # Sentinel: stays None when max_pages == 0 so the post-loop
+        # extraction below can fall back to an empty dict safely.
+        response = None
 
         # Fetch reviews with pagination
         while pages_fetched < max_pages:
@@ -296,9 +298,6 @@ class GetReviewsGooglePlay(ActionHandler):
 
             # Make API request to SerpApi
             response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
-
-            # Capture app info from the latest response
-            app_info = response.data.get("product_info", {}) or {}
 
             # Extract reviews data from current page
             page_reviews = response.data.get("reviews", [])
@@ -325,6 +324,9 @@ class GetReviewsGooglePlay(ActionHandler):
             next_page_token = pagination_info.get("next_page_token")
             if not next_page_token:
                 break
+
+        # Extract app information from the last response
+        app_info = response.data.get("product_info", {}) if response is not None else {}
 
         return ActionResult(
             data={
@@ -459,7 +461,9 @@ class GetReviewsGoogleMaps(ActionHandler):
         all_reviews = []
         next_page_token = None
         pages_fetched = 0
-        place_info: Dict[str, Any] = {}
+        # Sentinel: stays None when max_pages == 0 so the post-loop
+        # extraction below can fall back to an empty dict safely.
+        response = None
 
         # Fetch reviews with pagination
         while pages_fetched < max_pages:
@@ -473,9 +477,6 @@ class GetReviewsGoogleMaps(ActionHandler):
 
             # Make API request to SerpApi
             response = await context.fetch("https://serpapi.com/search", method="GET", params=params)
-
-            # Capture business info from the latest response
-            place_info = response.data.get("place_info", {}) or {}
 
             # Extract reviews data from current page
             page_reviews = response.data.get("reviews", [])
@@ -499,6 +500,9 @@ class GetReviewsGoogleMaps(ActionHandler):
             next_page_token = response.data.get("serpapi_pagination", {}).get("next_page_token")
             if not next_page_token:
                 break
+
+        # Extract business information from the last response
+        place_info = response.data.get("place_info", {}) if response is not None else {}
 
         # Use business name from search result if we searched, otherwise from place_info
         business_name = place_info.get("title", "")
