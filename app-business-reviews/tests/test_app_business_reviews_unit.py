@@ -96,9 +96,9 @@ SAMPLE_MAPS_REVIEW = {
 def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    # custom auth — flat object matching config.json auth.fields
+    # Source reads context.auth.get("credentials", {}).get("api_key", "")
     ctx.auth = {
-        "api_key": "test_serpapi_key",  # nosec B105
+        "credentials": {"api_key": "test_serpapi_key"},  # nosec B105
     }
     return ctx
 
@@ -142,6 +142,8 @@ class TestSearchAppsIOS:
         assert params["term"] == "Instagram"
         assert params["engine"] == "apple_app_store"
         assert params["country"] == "uk"
+        # Regression: api_key must be forwarded from context.auth.credentials.api_key
+        assert params["api_key"] == "test_serpapi_key"  # nosec B105
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
