@@ -12,24 +12,12 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
 import os
-import sys
-import importlib
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, _parent)
+import pytest
+from unittest.mock import MagicMock, AsyncMock
+from autohive_integrations_sdk import FetchResponse
 
-import pytest  # noqa: E402
-from unittest.mock import MagicMock, AsyncMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
-
-os.chdir(_parent)
-_spec = importlib.util.spec_from_file_location("humanitix_mod_integration", os.path.join(_parent, "humanitix.py"))
-_mod = importlib.util.module_from_spec(_spec)
-# Register as "humanitix" so that actions/*.py can `from humanitix import humanitix`
-sys.modules.setdefault("humanitix", _mod)
-_spec.loader.exec_module(_mod)
-
-humanitix = _mod.humanitix
+from humanitix import humanitix
 
 pytestmark = pytest.mark.integration
 
