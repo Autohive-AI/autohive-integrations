@@ -47,7 +47,8 @@ class ListSpreadsheets(ActionHandler):
                 if owner == "me":
                     q_parts.append("'me' in owners")
                 else:
-                    q_parts.append(f"'{owner}' in owners")
+                    safe_owner = owner.replace("'", "\\'")
+                    q_parts.append(f"'{safe_owner}' in owners")
             params: Dict[str, Any] = {
                 "q": " and ".join(q_parts),
                 "supportsAllDrives": True,

@@ -108,6 +108,17 @@ class TestListSpreadsheets:
 
     @pytest.mark.asyncio
     @patch("google_sheets.build")
+    async def test_quote_escaping_in_owner_email(self, mock_build, mock_context):
+        drive = make_drive_service(mock_build)
+        drive.files().list().execute.return_value = {"files": []}
+
+        await google_sheets.execute_action("sheets_list_spreadsheets", {"owner": "o'connor@example.com"}, mock_context)
+
+        call_kwargs = drive.files().list.call_args.kwargs
+        assert "'o\\'connor@example.com' in owners" in call_kwargs["q"]
+
+    @pytest.mark.asyncio
+    @patch("google_sheets.build")
     async def test_http_error_returns_action_error(self, mock_build, mock_context):
         from googleapiclient.errors import HttpError
 
