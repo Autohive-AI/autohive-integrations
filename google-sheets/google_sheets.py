@@ -54,9 +54,9 @@ class ListSpreadsheets(ActionHandler):
                 "includeItemsFromAllDrives": True,
                 "fields": "files(id,name,owners,modifiedTime),nextPageToken",
             }
-            if inputs.get("pageSize"):
+            if inputs.get("pageSize") is not None:
                 params["pageSize"] = inputs.get("pageSize")
-            if inputs.get("pageToken"):
+            if inputs.get("pageToken") is not None:
                 params["pageToken"] = inputs.get("pageToken")
 
             result = drive.files().list(**params).execute()
