@@ -56,20 +56,6 @@ def live_context():
     return ctx
 
 
-def get_first_spreadsheet_id(live_context):
-    """Helper to get a real spreadsheet ID by running list action inline."""
-    import asyncio
-
-    async def _get():
-        result = await google_sheets.execute_action("sheets_list_spreadsheets", {}, live_context)
-        files = result.result.data.get("files", [])
-        if not files:
-            pytest.skip("No spreadsheets found in account")
-        return files[0]["id"]
-
-    return asyncio.get_event_loop().run_until_complete(_get())
-
-
 # ---- Read-Only Tests ----
 
 
