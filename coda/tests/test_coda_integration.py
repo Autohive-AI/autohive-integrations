@@ -12,23 +12,12 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
 import os
-import sys
-import importlib.util
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+from autohive_integrations_sdk import FetchResponse
 
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("coda_mod_integration", os.path.join(_parent, "coda.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-
-coda = _mod.coda
+from coda.coda import coda
 
 pytestmark = pytest.mark.integration
 

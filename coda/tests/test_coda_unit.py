@@ -1,20 +1,8 @@
-import os
-import sys
-import importlib.util
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+from autohive_integrations_sdk import FetchResponse, ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, _parent)
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse, ResultType  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("coda_mod", os.path.join(_parent, "coda.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-sys.modules["coda_mod"] = _mod
-
-coda = _mod.coda
+from coda.coda import coda
 
 pytestmark = pytest.mark.unit
 
@@ -704,3 +692,4 @@ class TestDeleteRows:
         )
 
         assert result.type == ResultType.ACTION_ERROR
+
