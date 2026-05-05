@@ -14,7 +14,9 @@ sys.path.insert(0, _deps)
 import pytest  # noqa: E402
 from datetime import datetime, timedelta  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
+_spec = importlib.util.spec_from_file_location(
+    "google_ads_mod", os.path.join(_parent, "google_ads.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -142,8 +144,15 @@ class TestGetAdTextAssets:
         ad_data = {
             "type": "RESPONSIVE_SEARCH_AD",
             "responsive_search_ad": {
-                "headlines": [{"text": "Headline One"}, {"text": "Headline Two"}, {"text": "Headline Three"}],
-                "descriptions": [{"text": "Description One"}, {"text": "Description Two"}],
+                "headlines": [
+                    {"text": "Headline One"},
+                    {"text": "Headline Two"},
+                    {"text": "Headline Three"},
+                ],
+                "descriptions": [
+                    {"text": "Description One"},
+                    {"text": "Description Two"},
+                ],
             },
         }
         result = _get_ad_text_assets(ad_data)

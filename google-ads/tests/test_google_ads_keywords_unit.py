@@ -15,7 +15,9 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
+_spec = importlib.util.spec_from_file_location(
+    "google_ads_mod", os.path.join(_parent, "google_ads.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -82,7 +84,9 @@ _KW_METRICS_INPUTS = {**BASE_INPUTS, "ad_group_ids": ["456"], "campaign_ids": ["
 class TestRetrieveKeywordMetrics:
     @pytest.mark.asyncio
     async def test_missing_date_ranges(self, mock_context, mock_gads_client):
-        result = await google_ads.execute_action("retrieve_keyword_metrics", {**_KW_METRICS_INPUTS}, mock_context)
+        result = await google_ads.execute_action(
+            "retrieve_keyword_metrics", {**_KW_METRICS_INPUTS}, mock_context
+        )
         assert result.type != ResultType.ACTION
         assert "date_ranges" in str(result.result)
 
@@ -110,7 +114,9 @@ class TestRetrieveKeywordMetrics:
         assert result.type != ResultType.ACTION
 
     @pytest.mark.asyncio
-    async def test_returns_keyword_data_from_proto_rows(self, mock_context, mock_gads_client):
+    async def test_returns_keyword_data_from_proto_rows(
+        self, mock_context, mock_gads_client
+    ):
         mock_row = MagicMock()
         mock_gads_client.get_service.return_value.search.return_value = [mock_row]
 
@@ -154,8 +160,12 @@ def _setup_add_keywords_mocks(mock_gads_client):
 
 class TestAddKeywords:
     @pytest.mark.asyncio
-    async def test_missing_ad_group_id_and_keywords(self, mock_context, mock_gads_client):
-        result = await google_ads.execute_action("add_keywords", {**BASE_INPUTS}, mock_context)
+    async def test_missing_ad_group_id_and_keywords(
+        self, mock_context, mock_gads_client
+    ):
+        result = await google_ads.execute_action(
+            "add_keywords", {**BASE_INPUTS}, mock_context
+        )
         assert result.type != ResultType.ACTION
 
     @pytest.mark.asyncio
@@ -164,7 +174,11 @@ class TestAddKeywords:
 
         result = await google_ads.execute_action(
             "add_keywords",
-            {**BASE_INPUTS, "ad_group_id": "456", "keywords": [{"text": "test keyword", "match_type": "BROAD"}]},
+            {
+                **BASE_INPUTS,
+                "ad_group_id": "456",
+                "keywords": [{"text": "test keyword", "match_type": "BROAD"}],
+            },
             mock_context,
         )
         assert result.type == ResultType.ACTION
@@ -177,11 +191,17 @@ class TestAddKeywords:
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context, mock_gads_client):
         _setup_add_keywords_mocks(mock_gads_client)
-        mock_gads_client.get_service.return_value.mutate_ad_group_criteria.side_effect = Exception("mutate failed")
+        mock_gads_client.get_service.return_value.mutate_ad_group_criteria.side_effect = Exception(
+            "mutate failed"
+        )
 
         result = await google_ads.execute_action(
             "add_keywords",
-            {**BASE_INPUTS, "ad_group_id": "456", "keywords": [{"text": "test", "match_type": "BROAD"}]},
+            {
+                **BASE_INPUTS,
+                "ad_group_id": "456",
+                "keywords": [{"text": "test", "match_type": "BROAD"}],
+            },
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -190,7 +210,11 @@ class TestAddKeywords:
     async def test_auth_error(self, mock_context_no_token):
         result = await google_ads.execute_action(
             "add_keywords",
-            {**BASE_INPUTS, "ad_group_id": "456", "keywords": [{"text": "test", "match_type": "BROAD"}]},
+            {
+                **BASE_INPUTS,
+                "ad_group_id": "456",
+                "keywords": [{"text": "test", "match_type": "BROAD"}],
+            },
             mock_context_no_token,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -226,12 +250,18 @@ class TestAddNegativeKeywordsToCampaign:
         assert result.type != ResultType.ACTION
 
     @pytest.mark.asyncio
-    async def test_adds_negative_keywords_successfully(self, mock_context, mock_gads_client):
+    async def test_adds_negative_keywords_successfully(
+        self, mock_context, mock_gads_client
+    ):
         _setup_add_neg_campaign_mocks(mock_gads_client)
 
         result = await google_ads.execute_action(
             "add_negative_keywords_to_campaign",
-            {**BASE_INPUTS, "campaign_id": "456", "keywords": [{"text": "free", "match_type": "BROAD"}]},
+            {
+                **BASE_INPUTS,
+                "campaign_id": "456",
+                "keywords": [{"text": "free", "match_type": "BROAD"}],
+            },
             mock_context,
         )
         assert result.type == ResultType.ACTION
@@ -242,11 +272,17 @@ class TestAddNegativeKeywordsToCampaign:
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context, mock_gads_client):
         _setup_add_neg_campaign_mocks(mock_gads_client)
-        mock_gads_client.get_service.return_value.mutate_campaign_criteria.side_effect = Exception("mutate failed")
+        mock_gads_client.get_service.return_value.mutate_campaign_criteria.side_effect = Exception(
+            "mutate failed"
+        )
 
         result = await google_ads.execute_action(
             "add_negative_keywords_to_campaign",
-            {**BASE_INPUTS, "campaign_id": "456", "keywords": [{"text": "free", "match_type": "BROAD"}]},
+            {
+                **BASE_INPUTS,
+                "campaign_id": "456",
+                "keywords": [{"text": "free", "match_type": "BROAD"}],
+            },
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -291,12 +327,18 @@ class TestAddNegativeKeywordsToAdGroup:
         assert result.type != ResultType.ACTION
 
     @pytest.mark.asyncio
-    async def test_adds_negative_keywords_successfully(self, mock_context, mock_gads_client):
+    async def test_adds_negative_keywords_successfully(
+        self, mock_context, mock_gads_client
+    ):
         _setup_add_neg_ad_group_mocks(mock_gads_client)
 
         result = await google_ads.execute_action(
             "add_negative_keywords_to_ad_group",
-            {**BASE_INPUTS, "ad_group_id": "456", "keywords": [{"text": "cheap", "match_type": "EXACT"}]},
+            {
+                **BASE_INPUTS,
+                "ad_group_id": "456",
+                "keywords": [{"text": "cheap", "match_type": "EXACT"}],
+            },
             mock_context,
         )
         assert result.type == ResultType.ACTION
@@ -307,7 +349,9 @@ class TestAddNegativeKeywordsToAdGroup:
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context, mock_gads_client):
         _setup_add_neg_ad_group_mocks(mock_gads_client)
-        mock_gads_client.get_service.return_value.mutate_ad_group_criteria.side_effect = Exception("mutate failed")
+        mock_gads_client.get_service.return_value.mutate_ad_group_criteria.side_effect = Exception(
+            "mutate failed"
+        )
 
         result = await google_ads.execute_action(
             "add_negative_keywords_to_ad_group",
@@ -337,7 +381,9 @@ def _setup_update_keyword_mocks(mock_gads_client):
     update_result = MagicMock()
     update_result.resource_name = "customers/9876543210/adGroupCriteria/456~789"
     mock_service.mutate_ad_group_criteria.return_value.results = [update_result]
-    mock_service.ad_group_criterion_path.return_value = "customers/9876543210/adGroupCriteria/456~789"
+    mock_service.ad_group_criterion_path.return_value = (
+        "customers/9876543210/adGroupCriteria/456~789"
+    )
 
     mock_gads_client.get_type.return_value = MagicMock()
     mock_gads_client.enums.AdGroupCriterionStatusEnum.ENABLED = "ENABLED"
@@ -360,7 +406,12 @@ class TestUpdateKeyword:
 
         result = await google_ads.execute_action(
             "update_keyword",
-            {**BASE_INPUTS, "ad_group_id": "456", "criterion_id": "789", "status": "PAUSED"},
+            {
+                **BASE_INPUTS,
+                "ad_group_id": "456",
+                "criterion_id": "789",
+                "status": "PAUSED",
+            },
             mock_context,
         )
         assert result.type == ResultType.ACTION
@@ -371,11 +422,18 @@ class TestUpdateKeyword:
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context, mock_gads_client):
         _setup_update_keyword_mocks(mock_gads_client)
-        mock_gads_client.get_service.return_value.mutate_ad_group_criteria.side_effect = Exception("update failed")
+        mock_gads_client.get_service.return_value.mutate_ad_group_criteria.side_effect = Exception(
+            "update failed"
+        )
 
         result = await google_ads.execute_action(
             "update_keyword",
-            {**BASE_INPUTS, "ad_group_id": "456", "criterion_id": "789", "status": "ENABLED"},
+            {
+                **BASE_INPUTS,
+                "ad_group_id": "456",
+                "criterion_id": "789",
+                "status": "ENABLED",
+            },
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -384,7 +442,12 @@ class TestUpdateKeyword:
     async def test_auth_error(self, mock_context_no_token):
         result = await google_ads.execute_action(
             "update_keyword",
-            {**BASE_INPUTS, "ad_group_id": "456", "criterion_id": "789", "status": "PAUSED"},
+            {
+                **BASE_INPUTS,
+                "ad_group_id": "456",
+                "criterion_id": "789",
+                "status": "PAUSED",
+            },
             mock_context_no_token,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -401,7 +464,9 @@ def _setup_remove_keyword_mocks(mock_gads_client):
     remove_result = MagicMock()
     remove_result.resource_name = "customers/9876543210/adGroupCriteria/456~789"
     mock_service.mutate_ad_group_criteria.return_value.results = [remove_result]
-    mock_service.ad_group_criterion_path.return_value = "customers/9876543210/adGroupCriteria/456~789"
+    mock_service.ad_group_criterion_path.return_value = (
+        "customers/9876543210/adGroupCriteria/456~789"
+    )
 
     mock_gads_client.get_type.return_value = MagicMock()
 
@@ -411,7 +476,9 @@ def _setup_remove_keyword_mocks(mock_gads_client):
 class TestRemoveKeyword:
     @pytest.mark.asyncio
     async def test_missing_ids(self, mock_context, mock_gads_client):
-        result = await google_ads.execute_action("remove_keyword", {**BASE_INPUTS}, mock_context)
+        result = await google_ads.execute_action(
+            "remove_keyword", {**BASE_INPUTS}, mock_context
+        )
         assert result.type != ResultType.ACTION
 
     @pytest.mark.asyncio
@@ -431,7 +498,9 @@ class TestRemoveKeyword:
     @pytest.mark.asyncio
     async def test_api_error(self, mock_context, mock_gads_client):
         _setup_remove_keyword_mocks(mock_gads_client)
-        mock_gads_client.get_service.return_value.mutate_ad_group_criteria.side_effect = Exception("remove failed")
+        mock_gads_client.get_service.return_value.mutate_ad_group_criteria.side_effect = Exception(
+            "remove failed"
+        )
 
         result = await google_ads.execute_action(
             "remove_keyword",
