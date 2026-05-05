@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "2.1.1",
+  "version": "2.1.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -539,9 +539,9 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "task_id": {
+          "hs_object_id": {
             "type": "string",
-            "description": "The ID of the task to update"
+            "description": "HubSpot internal ID of the task record (CRM object id)"
           },
           "hs_task_body": {
             "type": "string",
@@ -584,7 +584,7 @@
           }
         },
         "required": [
-          "task_id"
+          "hs_object_id"
         ]
       },
       "output_schema": {
@@ -625,13 +625,13 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "task_id": {
+          "hs_object_id": {
             "type": "string",
-            "description": "The ID of the task to delete"
+            "description": "HubSpot internal ID of the task record to delete"
           }
         },
         "required": [
-          "task_id"
+          "hs_object_id"
         ]
       },
       "output_schema": {
@@ -645,9 +645,9 @@
             "type": "string",
             "description": "Success or error message"
           },
-          "task_id": {
+          "hs_object_id": {
             "type": "string",
-            "description": "The ID of the task that was deleted"
+            "description": "The HubSpot task record ID that was deleted"
           },
           "error": {
             "type": "string",
@@ -656,7 +656,7 @@
         },
         "required": [
           "success",
-          "task_id"
+          "hs_object_id"
         ]
       }
     },
@@ -666,20 +666,20 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "task_id": {
+          "hs_object_id": {
             "type": "string",
-            "description": "The ID of the task to retrieve"
+            "description": "HubSpot internal ID of the task record to retrieve"
           },
-          "properties": {
+          "hs_task_properties": {
             "type": "array",
-            "description": "Optional list of task properties to retrieve",
+            "description": "Optional list of HubSpot task CRM property internal names to retrieve (e.g. hs_task_body, hs_task_subject, hs_task_status, hs_task_priority, hs_task_type, hubspot_owner_id, hs_task_reminders, hs_timestamp, hs_createdate, hs_lastmodifieddate). When omitted, a default set aligned with create_task/update_task is used.",
             "items": {
               "type": "string"
             }
           }
         },
         "required": [
-          "task_id"
+          "hs_object_id"
         ]
       },
       "output_schema": {
@@ -726,9 +726,9 @@
             "type": "string",
             "description": "Pagination cursor for next page (optional)"
           },
-          "properties": {
+          "hs_task_properties": {
             "type": "array",
-            "description": "Optional list of task properties to retrieve",
+            "description": "Optional list of HubSpot task CRM property internal names to retrieve (e.g. hs_task_body, hs_task_subject, hs_task_status, hs_task_priority, hs_task_type, hubspot_owner_id, hs_task_reminders, hs_timestamp, hs_createdate, hs_lastmodifieddate). When omitted, a default set aligned with create_task/update_task is used.",
             "items": {
               "type": "string"
             }

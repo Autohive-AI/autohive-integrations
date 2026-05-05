@@ -72,6 +72,34 @@ def convert_hubspot_timestamp_to_utc_string(timestamp_data):
         return None
 
 
+# HubSpot CRM property internal names; default set matches create_task / update_task (hs_* and hubspot_owner_id).
+_DEFAULT_HS_TASK_PROPERTY_NAMES = (
+    "hs_task_body",
+    "hs_task_subject",
+    "hs_task_status",
+    "hs_task_priority",
+    "hs_task_type",
+    "hubspot_owner_id",
+    "hs_task_reminders",
+    "hs_timestamp",
+    "hs_createdate",
+    "hs_lastmodifieddate",
+)
+
+_TASK_TIMESTAMP_FIELDS_READABLE_UTC = (
+    "hs_timestamp",
+    "hs_createdate",
+    "hs_lastmodifieddate",
+)
+
+
+def _apply_readable_utc_to_task_properties(properties: Dict[str, Any]) -> None:
+    """Mutate a task properties dict: HubSpot ms / ISO timestamps to readable UTC strings."""
+    for field in _TASK_TIMESTAMP_FIELDS_READABLE_UTC:
+        if field in properties and properties[field]:
+            properties[field] = convert_hubspot_timestamp_to_utc_string(properties[field])
+
+
 def convert_deal_dates_to_utc(deal):
     """Convert deal date properties from UTC timestamps to readable UTC strings."""
     if not deal or not isinstance(deal, dict):
@@ -463,26 +491,25 @@ class CreateTaskActionHandler(ActionHandler):
         :param context: Execution context containing authentication and fetch method.
         :return: Dictionary with the created task information.
         """
-        task_body = inputs.get("hs_task_body") or inputs.get("task_body")
-        timestamp = inputs.get("hs_timestamp") or inputs.get("timestamp")
-        if not timestamp:
-            return ActionError(message="timestamp is required for create_task")
+        # Required by input_schema; missing keys are rejected by the runner before execute.
+        task_body = inputs["hs_task_body"]
+        timestamp = inputs["hs_timestamp"]
 
         # Build the task properties
         properties = {"hs_task_body": task_body, "hs_timestamp": str(timestamp)}
 
-        if inputs.get("hs_task_subject") or inputs.get("task_subject"):
-            properties["hs_task_subject"] = inputs.get("hs_task_subject") or inputs.get("task_subject")
-        if inputs.get("hs_task_status") or inputs.get("task_status"):
-            properties["hs_task_status"] = inputs.get("hs_task_status") or inputs.get("task_status")
-        if inputs.get("hs_task_priority") or inputs.get("task_priority"):
-            properties["hs_task_priority"] = inputs.get("hs_task_priority") or inputs.get("task_priority")
-        if inputs.get("hs_task_type") or inputs.get("task_type"):
-            properties["hs_task_type"] = inputs.get("hs_task_type") or inputs.get("task_type")
-        if inputs.get("hubspot_owner_id") or inputs.get("owner_id"):
-            properties["hubspot_owner_id"] = str(inputs.get("hubspot_owner_id") or inputs.get("owner_id"))
-        if inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp"):
-            properties["hs_task_reminders"] = str(inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp"))
+        if inputs.get("hs_task_subject"):
+            properties["hs_task_subject"] = inputs.get("hs_task_subject")
+        if inputs.get("hs_task_status"):
+            properties["hs_task_status"] = inputs.get("hs_task_status")
+        if inputs.get("hs_task_priority"):
+            properties["hs_task_priority"] = inputs.get("hs_task_priority")
+        if inputs.get("hs_task_type"):
+            properties["hs_task_type"] = inputs.get("hs_task_type")
+        if inputs.get("hubspot_owner_id"):
+            properties["hubspot_owner_id"] = str(inputs.get("hubspot_owner_id"))
+        if inputs.get("hs_task_reminders"):
+            properties["hs_task_reminders"] = str(inputs.get("hs_task_reminders"))
 
         # Build associations array
         associations = []
@@ -570,33 +597,33 @@ class UpdateTaskActionHandler(ActionHandler):
         """
         Execute the update_task action.
 
-        :param inputs: Dictionary with "task_id" and HubSpot task properties to update.
+        :param inputs: Dictionary with "hs_object_id" and HubSpot task properties to update.
         :param context: Execution context containing authentication and fetch method.
         :return: Dictionary with the updated task information.
         """
-        task_id = inputs["task_id"]
+        hs_object_id = inputs["hs_object_id"]
 
         # Build properties to update
         properties = {}
 
-        if inputs.get("hs_task_body") or inputs.get("task_body"):
-            properties["hs_task_body"] = inputs.get("hs_task_body") or inputs.get("task_body")
+        if inputs.get("hs_task_body"):
+            properties["hs_task_body"] = inputs.get("hs_task_body")
 
-        if inputs.get("hs_timestamp") or inputs.get("timestamp"):
-            properties["hs_timestamp"] = str(inputs.get("hs_timestamp") or inputs.get("timestamp"))
+        if inputs.get("hs_timestamp"):
+            properties["hs_timestamp"] = str(inputs.get("hs_timestamp"))
 
-        if inputs.get("hs_task_subject") or inputs.get("task_subject"):
-            properties["hs_task_subject"] = inputs.get("hs_task_subject") or inputs.get("task_subject")
-        if inputs.get("hs_task_status") or inputs.get("task_status"):
-            properties["hs_task_status"] = inputs.get("hs_task_status") or inputs.get("task_status")
-        if inputs.get("hs_task_priority") or inputs.get("task_priority"):
-            properties["hs_task_priority"] = inputs.get("hs_task_priority") or inputs.get("task_priority")
-        if inputs.get("hs_task_type") or inputs.get("task_type"):
-            properties["hs_task_type"] = inputs.get("hs_task_type") or inputs.get("task_type")
-        if inputs.get("hubspot_owner_id") or inputs.get("owner_id"):
-            properties["hubspot_owner_id"] = str(inputs.get("hubspot_owner_id") or inputs.get("owner_id"))
-        if inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp"):
-            properties["hs_task_reminders"] = str(inputs.get("hs_task_reminders") or inputs.get("reminder_timestamp"))
+        if inputs.get("hs_task_subject"):
+            properties["hs_task_subject"] = inputs.get("hs_task_subject")
+        if inputs.get("hs_task_status"):
+            properties["hs_task_status"] = inputs.get("hs_task_status")
+        if inputs.get("hs_task_priority"):
+            properties["hs_task_priority"] = inputs.get("hs_task_priority")
+        if inputs.get("hs_task_type"):
+            properties["hs_task_type"] = inputs.get("hs_task_type")
+        if inputs.get("hubspot_owner_id"):
+            properties["hubspot_owner_id"] = str(inputs.get("hubspot_owner_id"))
+        if inputs.get("hs_task_reminders"):
+            properties["hs_task_reminders"] = str(inputs.get("hs_task_reminders"))
 
         # Allow additional properties to be updated
         if inputs.get("additional_properties"):
@@ -606,7 +633,7 @@ class UpdateTaskActionHandler(ActionHandler):
             return ActionError(message="No properties provided to update")
 
         try:
-            url = f"https://api.hubapi.com/crm/v3/objects/tasks/{task_id}"
+            url = f"https://api.hubapi.com/crm/v3/objects/tasks/{hs_object_id}"
             payload = {"properties": properties}
 
             response = await context.fetch(
@@ -643,14 +670,14 @@ class DeleteTaskActionHandler(ActionHandler):
         """
         Execute the delete_task action.
 
-        :param inputs: Dictionary with "task_id".
+        :param inputs: Dictionary with "hs_object_id" (HubSpot task record ID).
         :param context: Execution context containing authentication and fetch method.
         :return: Dictionary indicating success or failure.
         """
-        task_id = inputs["task_id"]
+        hs_object_id = inputs["hs_object_id"]
 
         try:
-            url = f"https://api.hubapi.com/crm/v3/objects/tasks/{task_id}"
+            url = f"https://api.hubapi.com/crm/v3/objects/tasks/{hs_object_id}"
 
             await context.fetch(
                 url,
@@ -662,8 +689,8 @@ class DeleteTaskActionHandler(ActionHandler):
             return ActionResult(
                 data={
                     "success": True,
-                    "message": f"Task {task_id} deleted successfully",
-                    "task_id": task_id,
+                    "message": f"Task {hs_object_id} deleted successfully",
+                    "hs_object_id": hs_object_id,
                 },
                 cost_usd=None,
             )
@@ -684,28 +711,17 @@ class GetTaskActionHandler(ActionHandler):
         """
         Execute the get_task action.
 
-        :param inputs: Dictionary with "task_id" and optional "properties".
+        :param inputs: Dictionary with "hs_object_id" and optional "hs_task_properties".
         :param context: Execution context containing authentication and fetch method.
         :return: Dictionary with the retrieved task information.
         """
-        task_id = inputs["task_id"]
-        properties = inputs.get(
-            "properties",
-            [
-                "hs_task_body",
-                "hs_task_subject",
-                "hs_task_status",
-                "hs_task_priority",
-                "hs_timestamp",
-                "hs_createdate",
-                "hs_lastmodifieddate",
-            ],
-        )
+        hs_object_id = inputs["hs_object_id"]
+        hs_task_properties = inputs.get("hs_task_properties", _DEFAULT_HS_TASK_PROPERTY_NAMES)
 
         try:
-            url = f"https://api.hubapi.com/crm/v3/objects/tasks/{task_id}"
+            url = f"https://api.hubapi.com/crm/v3/objects/tasks/{hs_object_id}"
             params = {
-                "properties": ",".join(properties),
+                "properties": ",".join(hs_task_properties),
                 "associations": "contacts,companies,deals",
             }
 
@@ -717,13 +733,7 @@ class GetTaskActionHandler(ActionHandler):
             result = await parse_response(response)
 
             task_props = result.get("properties", {})
-            for timestamp_field in [
-                "hs_timestamp",
-                "hs_createdate",
-                "hs_lastmodifieddate",
-            ]:
-                if timestamp_field in task_props and task_props[timestamp_field]:
-                    task_props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(task_props[timestamp_field])
+            _apply_readable_utc_to_task_properties(task_props)
 
             return ActionResult(
                 data={
@@ -750,30 +760,19 @@ class ListTasksActionHandler(ActionHandler):
         """
         Execute the list_tasks action.
 
-        :param inputs: Dictionary with optional "limit", "after", and "properties".
+        :param inputs: Dictionary with optional "limit", "after", and "hs_task_properties".
         :param context: Execution context containing authentication and fetch method.
         :return: Dictionary with the retrieved tasks and paging metadata.
         """
         limit = min(inputs.get("limit", 100), 100)
         after = inputs.get("after")
-        properties = inputs.get(
-            "properties",
-            [
-                "hs_task_body",
-                "hs_task_subject",
-                "hs_task_status",
-                "hs_task_priority",
-                "hs_timestamp",
-                "hs_createdate",
-                "hs_lastmodifieddate",
-            ],
-        )
+        hs_task_properties = inputs.get("hs_task_properties", _DEFAULT_HS_TASK_PROPERTY_NAMES)
 
         try:
             url = "https://api.hubapi.com/crm/v3/objects/tasks"
             params = {
                 "limit": limit,
-                "properties": ",".join(properties),
+                "properties": ",".join(hs_task_properties),
                 "associations": "contacts,companies,deals",
             }
             if after:
@@ -788,16 +787,7 @@ class ListTasksActionHandler(ActionHandler):
             tasks = result.get("results", [])
 
             for task in tasks:
-                task_props = task.get("properties", {})
-                for timestamp_field in [
-                    "hs_timestamp",
-                    "hs_createdate",
-                    "hs_lastmodifieddate",
-                ]:
-                    if timestamp_field in task_props and task_props[timestamp_field]:
-                        task_props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(
-                            task_props[timestamp_field]
-                        )
+                _apply_readable_utc_to_task_properties(task.get("properties", {}))
 
             return ActionResult(
                 data={
