@@ -150,6 +150,29 @@ class TestGetOrders:
 
         assert "eventDateId=date_001" in mock_context.fetch.call_args.args[0]
 
+    async def test_override_location(self, mock_context):
+        mock_context.fetch.return_value = ok({"orders": [], "total": 0, "page": 1, "pageSize": 100})
+
+        await humanitix.execute_action("get_orders", {"event_id": "evt_001", "override_location": "AU"}, mock_context)
+
+        assert "overrideLocation=AU" in mock_context.fetch.call_args.args[0]
+
+    async def test_page_size_filter(self, mock_context):
+        mock_context.fetch.return_value = ok({"orders": [], "total": 0, "page": 1, "pageSize": 25})
+
+        await humanitix.execute_action("get_orders", {"event_id": "evt_001", "page_size": 25}, mock_context)
+
+        assert "pageSize=25" in mock_context.fetch.call_args.args[0]
+
+    async def test_since_filter(self, mock_context):
+        mock_context.fetch.return_value = ok({"orders": [], "total": 0, "page": 1, "pageSize": 100})
+
+        await humanitix.execute_action(
+            "get_orders", {"event_id": "evt_001", "since": "2024-01-01T00:00:00.000Z"}, mock_context
+        )
+
+        assert "since=" in mock_context.fetch.call_args.args[0]
+
     async def test_api_error(self, mock_context):
         mock_context.fetch.return_value = err(401, "Invalid API key")
 
@@ -202,7 +225,39 @@ class TestGetTickets:
 
         assert "status=complete" in mock_context.fetch.call_args.args[0]
 
-    async def test_api_error(self, mock_context):
+    async def test_override_location(self, mock_context):
+        mock_context.fetch.return_value = ok({"tickets": [], "total": 0, "page": 1, "pageSize": 100})
+
+        await humanitix.execute_action("get_tickets", {"event_id": "evt_001", "override_location": "NZ"}, mock_context)
+
+        assert "overrideLocation=NZ" in mock_context.fetch.call_args.args[0]
+
+    async def test_event_date_id_filter(self, mock_context):
+        mock_context.fetch.return_value = ok({"tickets": [], "total": 0, "page": 1, "pageSize": 100})
+
+        await humanitix.execute_action(
+            "get_tickets", {"event_id": "evt_001", "event_date_id": "date_001"}, mock_context
+        )
+
+        assert "eventDateId=date_001" in mock_context.fetch.call_args.args[0]
+
+    async def test_page_size_filter(self, mock_context):
+        mock_context.fetch.return_value = ok({"tickets": [], "total": 0, "page": 1, "pageSize": 25})
+
+        await humanitix.execute_action("get_tickets", {"event_id": "evt_001", "page_size": 25}, mock_context)
+
+        assert "pageSize=25" in mock_context.fetch.call_args.args[0]
+
+    async def test_since_filter(self, mock_context):
+        mock_context.fetch.return_value = ok({"tickets": [], "total": 0, "page": 1, "pageSize": 100})
+
+        await humanitix.execute_action(
+            "get_tickets", {"event_id": "evt_001", "since": "2024-01-01T00:00:00.000Z"}, mock_context
+        )
+
+        assert "since=" in mock_context.fetch.call_args.args[0]
+
+    async def test_api_error_single(self, mock_context):
         mock_context.fetch.return_value = err(404, "Ticket not found")
 
         result = await humanitix.execute_action(
@@ -210,6 +265,14 @@ class TestGetTickets:
         )
 
         assert result.type == ResultType.ACTION_ERROR
+
+    async def test_api_error_list(self, mock_context):
+        mock_context.fetch.return_value = err(401, "Invalid API key")
+
+        result = await humanitix.execute_action("get_tickets", {"event_id": "evt_001"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Invalid API key" in result.result.message
 
 
 # ---- get_tags ----

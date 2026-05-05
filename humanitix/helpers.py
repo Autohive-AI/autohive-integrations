@@ -55,8 +55,6 @@ def build_paginated_result(response, key: str, page: int, page_size: int | None 
 
 
 def build_action_error(response) -> ActionError | None:
-    if not hasattr(response, "status"):
-        return None
     if response.status < 400:
         return None
     data = response.data or {}
