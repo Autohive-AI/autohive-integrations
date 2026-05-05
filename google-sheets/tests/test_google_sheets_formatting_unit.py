@@ -1,22 +1,8 @@
-import os
-import sys
-import importlib.util
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from autohive_integrations_sdk.integration import ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("google_sheets_fmt_mod", os.path.join(_parent, "google_sheets.py"))
-_mod = importlib.util.module_from_spec(_spec)
-sys.modules["google_sheets_fmt_mod"] = _mod
-_spec.loader.exec_module(_mod)
-
-google_sheets = _mod.google_sheets
+from google_sheets import google_sheets
 
 pytestmark = pytest.mark.unit
 
@@ -43,7 +29,7 @@ def make_sheets_service(mock_build):
 
 class TestFormatRange:
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_happy_path_returns_replies(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().batchUpdate().execute.return_value = {"replies": [{}]}
@@ -67,7 +53,7 @@ class TestFormatRange:
         assert "replies" in result.result.data
 
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_request_contains_repeat_cell(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().batchUpdate().execute.return_value = {"replies": []}
@@ -89,7 +75,7 @@ class TestFormatRange:
         assert body["requests"][0]["repeatCell"]["cell"]["userEnteredFormat"] == {"bold": True}
 
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_http_error_returns_action_error(self, mock_build, mock_context):
         from googleapiclient.errors import HttpError
 
@@ -114,7 +100,7 @@ class TestFormatRange:
         assert "Google Sheets API error" in result.result.message
 
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().batchUpdate().execute.side_effect = Exception("Format failed")
@@ -139,7 +125,7 @@ class TestFormatRange:
 
 class TestFreezePanes:
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_happy_path_freeze_rows(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().batchUpdate().execute.return_value = {"replies": [{}]}
@@ -153,7 +139,7 @@ class TestFreezePanes:
         assert "replies" in result.result.data
 
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_freeze_rows_field_set_correctly(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().batchUpdate().execute.return_value = {"replies": []}
@@ -170,7 +156,7 @@ class TestFreezePanes:
         assert "gridProperties.frozenRowCount" in req["fields"]
 
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_freeze_columns_field_set_correctly(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().batchUpdate().execute.return_value = {"replies": []}
@@ -187,7 +173,7 @@ class TestFreezePanes:
         assert "gridProperties.frozenColumnCount" in req["fields"]
 
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_http_error_returns_action_error(self, mock_build, mock_context):
         from googleapiclient.errors import HttpError
 
@@ -206,7 +192,7 @@ class TestFreezePanes:
         assert result.type == ResultType.ACTION_ERROR
 
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().batchUpdate().execute.side_effect = Exception("Freeze failed")
@@ -224,7 +210,7 @@ class TestFreezePanes:
 
 class TestBatchUpdate:
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_happy_path_returns_replies(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().batchUpdate().execute.return_value = {"replies": [{}, {}]}
@@ -264,7 +250,7 @@ class TestBatchUpdate:
         assert result.type == ResultType.VALIDATION_ERROR
 
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_dry_run_validates_without_updating(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().get().execute.return_value = {"spreadsheetId": "sid"}
@@ -280,7 +266,7 @@ class TestBatchUpdate:
         service.spreadsheets().batchUpdate.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_http_error_returns_action_error(self, mock_build, mock_context):
         from googleapiclient.errors import HttpError
 
@@ -300,7 +286,7 @@ class TestBatchUpdate:
         assert "Google Sheets API error" in result.result.message
 
     @pytest.mark.asyncio
-    @patch("google_sheets_fmt_mod.build")
+    @patch("google_sheets.build")
     async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().batchUpdate().execute.side_effect = Exception("Batch failed")

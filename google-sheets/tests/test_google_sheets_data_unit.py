@@ -1,22 +1,8 @@
-import os
-import sys
-import importlib.util
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from autohive_integrations_sdk.integration import ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("google_sheets_data_mod", os.path.join(_parent, "google_sheets.py"))
-_mod = importlib.util.module_from_spec(_spec)
-sys.modules["google_sheets_data_mod"] = _mod
-_spec.loader.exec_module(_mod)
-
-google_sheets = _mod.google_sheets
+from google_sheets import google_sheets
 
 pytestmark = pytest.mark.unit
 
@@ -43,7 +29,7 @@ def make_sheets_service(mock_build):
 
 class TestReadRange:
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_happy_path_returns_values(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().get().execute.return_value = {
@@ -61,7 +47,7 @@ class TestReadRange:
         assert result.result.data["values"] == [["Name", "Age"], ["Alice", "30"]]
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_empty_range_returns_empty_values(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().get().execute.return_value = {"range": "Sheet1!A1"}
@@ -75,7 +61,7 @@ class TestReadRange:
         assert result.result.data["values"] == []
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_value_render_option_passed(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().get().execute.return_value = {
@@ -93,7 +79,7 @@ class TestReadRange:
         assert call_kwargs["valueRenderOption"] == "FORMULA"
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_datetime_render_option_passed(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().get().execute.return_value = {
@@ -115,7 +101,7 @@ class TestReadRange:
         assert call_kwargs["dateTimeRenderOption"] == "FORMATTED_STRING"
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_http_error_returns_action_error(self, mock_build, mock_context):
         from googleapiclient.errors import HttpError
 
@@ -135,7 +121,7 @@ class TestReadRange:
         assert "Google Sheets API error" in result.result.message
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().get().execute.side_effect = Exception("Timeout")
@@ -153,7 +139,7 @@ class TestReadRange:
 
 class TestWriteRange:
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_happy_path_returns_update_info(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().update().execute.return_value = {
@@ -178,7 +164,7 @@ class TestWriteRange:
         assert result.result.data["dryRun"] is False
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_dry_run_returns_estimate_without_write(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().get().execute.return_value = {"spreadsheetId": "sid"}
@@ -202,7 +188,7 @@ class TestWriteRange:
         service.spreadsheets().values().update.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_input_option_raw_by_default(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().update().execute.return_value = {}
@@ -217,7 +203,7 @@ class TestWriteRange:
         assert call_kwargs["valueInputOption"] == "RAW"
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_http_error_returns_action_error(self, mock_build, mock_context):
         from googleapiclient.errors import HttpError
 
@@ -237,7 +223,7 @@ class TestWriteRange:
         assert "Google Sheets API error" in result.result.message
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().update().execute.side_effect = Exception("Write failed")
@@ -257,7 +243,7 @@ class TestWriteRange:
 
 class TestAppendRows:
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_happy_path_returns_updates(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().append().execute.return_value = {
@@ -277,7 +263,7 @@ class TestAppendRows:
         assert result.result.data["updates"]["updatedRows"] == 3
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_insert_rows_option_always_set(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().append().execute.return_value = {"updates": {}}
@@ -292,7 +278,7 @@ class TestAppendRows:
         assert call_kwargs["insertDataOption"] == "INSERT_ROWS"
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_input_option_raw_by_default(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().append().execute.return_value = {"updates": {}}
@@ -307,7 +293,7 @@ class TestAppendRows:
         assert call_kwargs["valueInputOption"] == "RAW"
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_http_error_returns_action_error(self, mock_build, mock_context):
         from googleapiclient.errors import HttpError
 
@@ -327,7 +313,7 @@ class TestAppendRows:
         assert "Google Sheets API error" in result.result.message
 
     @pytest.mark.asyncio
-    @patch("google_sheets_data_mod.build")
+    @patch("google_sheets.build")
     async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().values().append().execute.side_effect = Exception("Append failed")

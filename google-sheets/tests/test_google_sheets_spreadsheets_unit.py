@@ -1,22 +1,8 @@
-import os
-import sys
-import importlib.util
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from autohive_integrations_sdk.integration import ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("google_sheets_mod", os.path.join(_parent, "google_sheets.py"))
-_mod = importlib.util.module_from_spec(_spec)
-sys.modules["google_sheets_mod"] = _mod
-_spec.loader.exec_module(_mod)
-
-google_sheets = _mod.google_sheets
+from google_sheets import google_sheets
 
 pytestmark = pytest.mark.unit
 
@@ -51,7 +37,7 @@ def make_sheets_service(mock_build):
 
 class TestListSpreadsheets:
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_happy_path_returns_files(self, mock_build, mock_context):
         drive = make_drive_service(mock_build)
         drive.files().list().execute.return_value = {
@@ -64,7 +50,7 @@ class TestListSpreadsheets:
         assert "nextPageToken" not in result.result.data
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_next_page_token_included_when_present(self, mock_build, mock_context):
         drive = make_drive_service(mock_build)
         drive.files().list().execute.return_value = {
@@ -77,7 +63,7 @@ class TestListSpreadsheets:
         assert result.result.data["nextPageToken"] == "tok123"
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_name_contains_filter_applied(self, mock_build, mock_context):
         drive = make_drive_service(mock_build)
         drive.files().list().execute.return_value = {"files": []}
@@ -88,7 +74,7 @@ class TestListSpreadsheets:
         assert "name contains 'Budget'" in call_kwargs["q"]
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_owner_me_filter(self, mock_build, mock_context):
         drive = make_drive_service(mock_build)
         drive.files().list().execute.return_value = {"files": []}
@@ -99,7 +85,7 @@ class TestListSpreadsheets:
         assert "'me' in owners" in call_kwargs["q"]
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_owner_email_filter(self, mock_build, mock_context):
         drive = make_drive_service(mock_build)
         drive.files().list().execute.return_value = {"files": []}
@@ -110,7 +96,7 @@ class TestListSpreadsheets:
         assert "'user@example.com' in owners" in call_kwargs["q"]
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_quote_escaping_in_name_contains(self, mock_build, mock_context):
         drive = make_drive_service(mock_build)
         drive.files().list().execute.return_value = {"files": []}
@@ -121,7 +107,7 @@ class TestListSpreadsheets:
         assert "name contains 'Test\\'s Sheet'" in call_kwargs["q"]
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_http_error_returns_action_error(self, mock_build, mock_context):
         from googleapiclient.errors import HttpError
 
@@ -137,7 +123,7 @@ class TestListSpreadsheets:
         assert "Google Drive API error" in result.result.message
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         drive = make_drive_service(mock_build)
         drive.files().list().execute.side_effect = Exception("Network timeout")
@@ -153,7 +139,7 @@ class TestListSpreadsheets:
 
 class TestGetSpreadsheet:
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_happy_path_returns_spreadsheet(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().get().execute.return_value = {
@@ -166,7 +152,7 @@ class TestGetSpreadsheet:
         assert result.result.data["spreadsheet"]["spreadsheetId"] == "sid1"
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_include_grid_data_passed_correctly(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().get().execute.return_value = {"spreadsheetId": "sid1"}
@@ -180,7 +166,7 @@ class TestGetSpreadsheet:
         service.spreadsheets().get.assert_called_with(spreadsheetId="sid1", includeGridData=True)
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_http_error_returns_action_error(self, mock_build, mock_context):
         from googleapiclient.errors import HttpError
 
@@ -198,7 +184,7 @@ class TestGetSpreadsheet:
         assert "Google Sheets API error" in result.result.message
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().get().execute.side_effect = Exception("Connection refused")
@@ -214,7 +200,7 @@ class TestGetSpreadsheet:
 
 class TestListSheets:
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_happy_path_returns_sheet_list(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().get().execute.return_value = {
@@ -230,7 +216,7 @@ class TestListSheets:
         assert result.result.data["sheets"][0]["title"] == "Sheet1"
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_empty_spreadsheet_returns_empty_list(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().get().execute.return_value = {"sheets": []}
@@ -240,7 +226,7 @@ class TestListSheets:
         assert result.result.data["sheets"] == []
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_http_error_returns_action_error(self, mock_build, mock_context):
         from googleapiclient.errors import HttpError
 
@@ -255,7 +241,7 @@ class TestListSheets:
         assert result.type == ResultType.ACTION_ERROR
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         service = make_sheets_service(mock_build)
         service.spreadsheets().get().execute.side_effect = Exception("API down")
@@ -271,7 +257,7 @@ class TestListSheets:
 
 class TestDuplicateSpreadsheet:
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_happy_path_returns_file_metadata(self, mock_build, mock_context):
         drive = make_drive_service(mock_build)
         drive.files().copy().execute.return_value = {
@@ -292,7 +278,7 @@ class TestDuplicateSpreadsheet:
         assert result.result.data["file_metadata"]["name"] == "Copy of Sheet"
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_parent_folder_id_included_when_provided(self, mock_build, mock_context):
         drive = make_drive_service(mock_build)
         drive.files().copy().execute.return_value = {"id": "new_id", "name": "Copy"}
@@ -311,7 +297,7 @@ class TestDuplicateSpreadsheet:
         assert call_kwargs["body"]["parents"] == ["folder123"]
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_http_error_returns_action_error(self, mock_build, mock_context):
         from googleapiclient.errors import HttpError
 
@@ -331,7 +317,7 @@ class TestDuplicateSpreadsheet:
         assert "Google Drive API error" in result.result.message
 
     @pytest.mark.asyncio
-    @patch("google_sheets_mod.build")
+    @patch("google_sheets.build")
     async def test_generic_exception_returns_action_error(self, mock_build, mock_context):
         drive = make_drive_service(mock_build)
         drive.files().copy().execute.side_effect = Exception("Quota exceeded")
