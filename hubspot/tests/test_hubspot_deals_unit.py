@@ -1,22 +1,9 @@
-import os
-import sys
-import importlib
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("hubspot_mod", os.path.join(_parent, "hubspot.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-
-hubspot = _mod.hubspot
+from hubspot.hubspot import hubspot
 
 pytestmark = pytest.mark.unit
 
@@ -357,7 +344,10 @@ class TestCreateDeal:
         mock_context.fetch.return_value = FetchResponse(
             status=201,
             headers={},
-            data={"id": "new1", "properties": {"dealname": "New Deal", "amount": "1000"}},
+            data={
+                "id": "new1",
+                "properties": {"dealname": "New Deal", "amount": "1000"},
+            },
         )
 
         result = await hubspot.execute_action(
@@ -431,7 +421,11 @@ class TestUpdateDeal:
     async def test_request_url_contains_deal_id(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "77", "properties": {}})
 
-        await hubspot.execute_action("update_deal", {"deal_id": "77", "properties": {"amount": "1"}}, mock_context)
+        await hubspot.execute_action(
+            "update_deal",
+            {"deal_id": "77", "properties": {"amount": "1"}},
+            mock_context,
+        )
 
         call_url = mock_context.fetch.call_args.args[0]
         assert "/crm/v3/objects/deals/77" in call_url
@@ -510,7 +504,13 @@ class TestGetDealPipelines:
             status=200,
             headers={},
             data={
-                "results": [{"id": "p1", "label": "Sales Pipeline", "stages": [{"id": "s1", "label": "Qualification"}]}]
+                "results": [
+                    {
+                        "id": "p1",
+                        "label": "Sales Pipeline",
+                        "stages": [{"id": "s1", "label": "Qualification"}],
+                    }
+                ]
             },
         )
 

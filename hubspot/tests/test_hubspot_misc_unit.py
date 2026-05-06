@@ -1,22 +1,9 @@
-import os
-import sys
-import importlib
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("hubspot_mod", os.path.join(_parent, "hubspot.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-
-hubspot = _mod.hubspot
+from hubspot.hubspot import hubspot
 
 pytestmark = pytest.mark.unit
 
@@ -284,8 +271,14 @@ class TestGetListMembers:
         headers={},
         data={
             "results": [
-                {"id": "101", "properties": {"email": "a@example.com", "firstname": "Alice"}},
-                {"id": "102", "properties": {"email": "b@example.com", "firstname": "Bob"}},
+                {
+                    "id": "101",
+                    "properties": {"email": "a@example.com", "firstname": "Alice"},
+                },
+                {
+                    "id": "102",
+                    "properties": {"email": "b@example.com", "firstname": "Bob"},
+                },
             ]
         },
     )
@@ -453,7 +446,10 @@ class TestGetContactAssociations:
 
         result = await hubspot.execute_action(
             "get_contact_associations",
-            {"contact_id": "100", "association_types": ["companies", "deals", "meetings"]},
+            {
+                "contact_id": "100",
+                "association_types": ["companies", "deals", "meetings"],
+            },
             mock_context,
         )
 
@@ -537,7 +533,10 @@ class TestGetCompanyAssociations:
 
         result = await hubspot.execute_action(
             "get_company_associations",
-            {"company_id": "200", "association_types": ["contacts", "deals", "tickets"]},
+            {
+                "company_id": "200",
+                "association_types": ["contacts", "deals", "tickets"],
+            },
             mock_context,
         )
 
@@ -720,7 +719,12 @@ class TestGetOwner:
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={"id": "10", "email": "test@example.com", "firstName": "A", "lastName": "B"},
+            data={
+                "id": "10",
+                "email": "test@example.com",
+                "firstName": "A",
+                "lastName": "B",
+            },
         )
 
         result = await hubspot.execute_action("get_owner", {"owner_id": "10"}, mock_context)
@@ -873,7 +877,12 @@ class TestGetCampaigns:
             headers={},
             data={
                 "results": [
-                    {"id": "c1", "properties": {"hs_name": "A"}, "createdAt": "2025-01-01", "updatedAt": "2025-01-02"}
+                    {
+                        "id": "c1",
+                        "properties": {"hs_name": "A"},
+                        "createdAt": "2025-01-01",
+                        "updatedAt": "2025-01-02",
+                    }
                 ],
                 "total": 5,
                 "paging": {"next": {"after": "c2"}},
@@ -1087,7 +1096,11 @@ class TestGetCampaignPerformance:
 
         result = await hubspot.execute_action(
             "get_campaign_performance",
-            {"campaign_id": "camp42", "start_date": "2025-03-01", "end_date": "2025-03-31"},
+            {
+                "campaign_id": "camp42",
+                "start_date": "2025-03-01",
+                "end_date": "2025-03-31",
+            },
             mock_context,
         )
 
@@ -1117,7 +1130,11 @@ class TestGetCampaignPerformance:
 
         result = await hubspot.execute_action(
             "get_campaign_performance",
-            {"campaign_id": "camp1", "start_date": "2025-01-01", "end_date": "2025-01-31"},
+            {
+                "campaign_id": "camp1",
+                "start_date": "2025-01-01",
+                "end_date": "2025-01-31",
+            },
             mock_context,
         )
 
@@ -1136,8 +1153,16 @@ class TestGetCampaignPerformance:
             headers={},
             data={
                 "results": [
-                    {"id": "lp1", "name": "LP1", "metrics": {"VIEWS": 200, "SUBMISSIONS": 10}},
-                    {"id": "lp2", "name": "LP2", "metrics": {"VIEWS": 300, "SUBMISSIONS": 15}},
+                    {
+                        "id": "lp1",
+                        "name": "LP1",
+                        "metrics": {"VIEWS": 200, "SUBMISSIONS": 10},
+                    },
+                    {
+                        "id": "lp2",
+                        "name": "LP2",
+                        "metrics": {"VIEWS": 300, "SUBMISSIONS": 15},
+                    },
                 ],
                 "paging": {},
             },
@@ -1147,7 +1172,11 @@ class TestGetCampaignPerformance:
             headers={},
             data={
                 "results": [
-                    {"id": "em1", "name": "E1", "metrics": {"SENT": 500, "OPEN": 200, "CLICKS": 50}},
+                    {
+                        "id": "em1",
+                        "name": "E1",
+                        "metrics": {"SENT": 500, "OPEN": 200, "CLICKS": 50},
+                    },
                 ],
                 "paging": {},
             },
@@ -1157,7 +1186,11 @@ class TestGetCampaignPerformance:
 
         result = await hubspot.execute_action(
             "get_campaign_performance",
-            {"campaign_id": "camp1", "start_date": "2025-01-01", "end_date": "2025-01-31"},
+            {
+                "campaign_id": "camp1",
+                "start_date": "2025-01-01",
+                "end_date": "2025-01-31",
+            },
             mock_context,
         )
 
@@ -1175,7 +1208,11 @@ class TestGetCampaignPerformance:
             headers={},
             data={
                 "results": [
-                    {"id": "lp1", "name": "LP1", "metrics": {"VIEWS": 100, "SUBMISSIONS": 5}},
+                    {
+                        "id": "lp1",
+                        "name": "LP1",
+                        "metrics": {"VIEWS": 100, "SUBMISSIONS": 5},
+                    },
                 ],
                 "paging": {},
             },
@@ -1190,7 +1227,11 @@ class TestGetCampaignPerformance:
 
         result = await hubspot.execute_action(
             "get_campaign_performance",
-            {"campaign_id": "camp1", "start_date": "2025-01-01", "end_date": "2025-01-31"},
+            {
+                "campaign_id": "camp1",
+                "start_date": "2025-01-01",
+                "end_date": "2025-01-31",
+            },
             mock_context,
         )
 

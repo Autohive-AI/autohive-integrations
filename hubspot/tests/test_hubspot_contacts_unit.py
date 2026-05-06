@@ -1,22 +1,9 @@
-import os
-import sys
-import importlib
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("hubspot_mod", os.path.join(_parent, "hubspot.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-
-hubspot = _mod.hubspot
+from hubspot.hubspot import hubspot
 
 pytestmark = pytest.mark.unit
 
@@ -114,7 +101,14 @@ class TestGetContact:
         await hubspot.execute_action("get_contact", {"email": "a@b.com"}, mock_context)
 
         payload = mock_context.fetch.call_args.kwargs["json"]
-        assert payload["properties"] == ["email", "firstname", "lastname", "phone", "company", "jobtitle"]
+        assert payload["properties"] == [
+            "email",
+            "firstname",
+            "lastname",
+            "phone",
+            "company",
+            "jobtitle",
+        ]
 
 
 # ---- GetContactNotes ----
@@ -309,11 +303,17 @@ class TestGetContactEmails:
         }
         email_1 = {
             "id": "email-1",
-            "properties": {"hs_email_subject": "E1", "hs_timestamp": "2025-04-01T12:00:00.000Z"},
+            "properties": {
+                "hs_email_subject": "E1",
+                "hs_timestamp": "2025-04-01T12:00:00.000Z",
+            },
         }
         email_2 = {
             "id": "email-2",
-            "properties": {"hs_email_subject": "E2", "hs_timestamp": "2025-04-02T12:00:00.000Z"},
+            "properties": {
+                "hs_email_subject": "E2",
+                "hs_timestamp": "2025-04-02T12:00:00.000Z",
+            },
         }
         mock_context.fetch.side_effect = [
             FetchResponse(status=200, headers={}, data=associations_data),
@@ -335,7 +335,10 @@ class TestGetContactEmails:
         associations_data = {"results": [{"toObjectId": "email-1"}]}
         email_1 = {
             "id": "email-1",
-            "properties": {"hs_email_subject": "Hi", "hs_timestamp": "2025-04-01T12:00:00.000Z"},
+            "properties": {
+                "hs_email_subject": "Hi",
+                "hs_timestamp": "2025-04-01T12:00:00.000Z",
+            },
         }
         mock_context.fetch.side_effect = [
             FetchResponse(status=200, headers={}, data=associations_data),
@@ -352,11 +355,17 @@ class TestGetContactEmails:
         associations_data = {"results": [{"toObjectId": "email-old"}, {"toObjectId": "email-new"}]}
         email_old = {
             "id": "email-old",
-            "properties": {"hs_email_subject": "Old", "hs_timestamp": "2025-03-01T12:00:00.000Z"},
+            "properties": {
+                "hs_email_subject": "Old",
+                "hs_timestamp": "2025-03-01T12:00:00.000Z",
+            },
         }
         email_new = {
             "id": "email-new",
-            "properties": {"hs_email_subject": "New", "hs_timestamp": "2025-04-15T12:00:00.000Z"},
+            "properties": {
+                "hs_email_subject": "New",
+                "hs_timestamp": "2025-04-15T12:00:00.000Z",
+            },
         }
         mock_context.fetch.side_effect = [
             FetchResponse(status=200, headers={}, data=associations_data),
@@ -585,7 +594,9 @@ class TestAddContactToList:
     @pytest.mark.asyncio
     async def test_request_url_and_method(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"recordIdsAdded": ["99"], "recordIdsDisallowed": []}
+            status=200,
+            headers={},
+            data={"recordIdsAdded": ["99"], "recordIdsDisallowed": []},
         )
 
         await hubspot.execute_action("add_contact_to_list", {"list_id": "42", "contact_id": "99"}, mock_context)
@@ -597,7 +608,9 @@ class TestAddContactToList:
     @pytest.mark.asyncio
     async def test_payload_contains_record_ids(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"recordIdsAdded": ["77"], "recordIdsDisallowed": []}
+            status=200,
+            headers={},
+            data={"recordIdsAdded": ["77"], "recordIdsDisallowed": []},
         )
 
         await hubspot.execute_action("add_contact_to_list", {"list_id": "5", "contact_id": "77"}, mock_context)
