@@ -68,7 +68,6 @@ class TestGetTags:
         result = await humanitix.execute_action("get_tags", {"page_size": 5}, live_context)
 
         data = result.result.data
-        assert "result" in data
         assert "tags" in data
         assert isinstance(data["tags"], list)
 
@@ -76,7 +75,7 @@ class TestGetTags:
         result = await humanitix.execute_action("get_tags", {"page_size": 5}, live_context)
 
         data = result.result.data
-        if data.get("result") is True and data["tags"]:
+        if data["tags"]:
             tag = data["tags"][0]
             assert "_id" in tag
             assert "name" in tag
@@ -85,8 +84,7 @@ class TestGetTags:
         result = await humanitix.execute_action("get_tags", {"page_size": 2, "page": 1}, live_context)
 
         data = result.result.data
-        if data.get("result") is True:
-            assert len(data["tags"]) <= 2
+        assert len(data["tags"]) <= 2
 
 
 class TestGetOrders:
