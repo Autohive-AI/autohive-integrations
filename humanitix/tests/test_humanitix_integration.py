@@ -51,7 +51,6 @@ class TestGetEvents:
         result = await humanitix.execute_action("get_events", {"page_size": 5}, live_context)
 
         data = result.result.data
-        assert "result" in data
         assert "events" in data
         assert isinstance(data["events"], list)
 
@@ -59,10 +58,9 @@ class TestGetEvents:
         result = await humanitix.execute_action("get_events", {"page_size": 5}, live_context)
 
         data = result.result.data
-        if data.get("result") is True:
-            assert "total" in data
-            assert "page" in data
-            assert "pageSize" in data
+        assert "total" in data
+        assert "page" in data
+        assert "pageSize" in data
 
 
 class TestGetTags:
