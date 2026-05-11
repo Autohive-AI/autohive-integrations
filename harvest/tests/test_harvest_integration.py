@@ -1,24 +1,16 @@
 """
 Live integration tests for the Harvest integration.
 
-Requires HARVEST_ACCESS_TOKEN and HARVEST_ACCOUNT_ID set in the environment or
-project .env.
+Requires HARVEST_ACCESS_TOKEN and HARVEST_ACCOUNT_ID set in the environment.
 
-Token/account extraction recipe:
-1. Sign in to Harvest ID and open https://id.getharvest.com/developers.
-2. Create a Personal Access Token for the sandbox/test account.
-3. Copy the generated token to HARVEST_ACCESS_TOKEN.
-4. Copy the Harvest account ID shown with the token to HARVEST_ACCOUNT_ID. If
-   multiple accounts are available, choose the account whose product is
-   "harvest". You can also list accessible accounts with:
-       curl https://id.getharvest.com/api/v2/accounts \
-         -H "Authorization: Bearer $HARVEST_ACCESS_TOKEN" \
-         -H "User-Agent: Autohive Integrations (support@autohive.ai)"
-5. Add both values to the project .env file or export them in your shell before
-   running these tests.
+For a Harvest OAuth token the account ID is the numeric prefix before ".at." in
+the token string. E.g. for "4121875.at.xxx..." the account ID is "4121875".
 
 Safe read-only run:
     pytest harvest/tests/test_harvest_integration.py -m "integration and not destructive"
+
+Including destructive (create/update/delete time entries):
+    pytest harvest/tests/test_harvest_integration.py -m "integration"
 """
 
 from unittest.mock import AsyncMock
@@ -27,7 +19,7 @@ import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
 
-from harvest import harvest
+from harvest.harvest import harvest
 
 pytestmark = pytest.mark.integration
 
@@ -50,12 +42,7 @@ def live_context(env_credentials, make_context):
         merged_headers = {**auth_headers, **(headers or {})}
         async with aiohttp.ClientSession() as session:
             async with session.request(
-                method,
-                url,
-                json=json,
-                headers=merged_headers,
-                params=params,
-                **kwargs,
+                method, url, json=json, headers=merged_headers, params=params, **kwargs
             ) as resp:
                 data = await resp.json(content_type=None)
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
@@ -63,14 +50,16 @@ def live_context(env_credentials, make_context):
     ctx = make_context(
         auth={
             "auth_type": "PlatformOauth2",
-            "credentials": {
-                "access_token": access_token,
-                "account_id": account_id,
-            },
+            "credentials": {"access_token": access_token, "account_id": account_id},
         }
     )
     ctx.fetch = AsyncMock(side_effect=real_fetch)
     return ctx
+
+
+# ---------------------------------------------------------------------------
+# Read-only
+# ---------------------------------------------------------------------------
 
 
 async def test_list_time_entries(live_context):
@@ -87,6 +76,17 @@ async def test_list_projects(live_context):
     data = result.result.data
     assert "projects" in data
     assert "total_entries" in data
+
+
+async def test_get_project(live_context):
+    projects = (await harvest.execute_action("list_projects", {"per_page": 1}, live_context)).result.data.get("projects", [])
+    if not projects:
+        pytest.skip("No projects in account")
+    result = await harvest.execute_action("get_project", {"project_id": projects[0]["id"]}, live_context)
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert "id" in data
+    assert "name" in data
 
 
 async def test_list_clients(live_context):
@@ -111,3 +111,49 @@ async def test_list_users(live_context):
     data = result.result.data
     assert "users" in data
     assert "total_entries" in data
+
+
+# ---------------------------------------------------------------------------
+# Destructive — create/update/delete a time entry lifecycle
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.destructive
+async def test_create_update_stop_delete_time_entry(live_context):
+    # Need a project and task to create a time entry
+    projects = (await harvest.execute_action("list_projects", {"per_page": 1}, live_context)).result.data.get("projects", [])
+    if not projects:
+        pytest.skip("No projects in account")
+    tasks = (await harvest.execute_action("list_tasks", {"per_page": 1}, live_context)).result.data.get("tasks", [])
+    if not tasks:
+        pytest.skip("No tasks in account")
+
+    project_id = projects[0]["id"]
+    task_id = tasks[0]["id"]
+
+    # Create
+    create_result = await harvest.execute_action(
+        "create_time_entry",
+        {"project_id": project_id, "task_id": task_id, "spent_date": "2026-01-01", "hours": 1.0},
+        live_context,
+    )
+    assert create_result.type == ResultType.ACTION
+    entry_id = create_result.result.data["id"]
+    assert entry_id
+
+    # Update
+    update_result = await harvest.execute_action(
+        "update_time_entry",
+        {"time_entry_id": entry_id, "hours": 2.0},
+        live_context,
+    )
+    assert update_result.type == ResultType.ACTION
+
+    # Stop (only works on running timers, may return error — that's fine)
+    await harvest.execute_action("stop_time_entry", {"time_entry_id": entry_id}, live_context)
+
+    # Delete
+    delete_result = await harvest.execute_action(
+        "delete_time_entry", {"time_entry_id": entry_id}, live_context
+    )
+    assert delete_result.type == ResultType.ACTION

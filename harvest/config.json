@@ -147,13 +147,13 @@
                 "type": "object",
                 "properties": {
                     "time_entries": {"type": "array"},
-                    "per_page": {"type": "integer"},
-                    "total_pages": {"type": "integer"},
-                    "total_entries": {"type": "integer"},
+                    "per_page": {"type": ["integer", "null"]},
+                    "total_pages": {"type": ["integer", "null"]},
+                    "total_entries": {"type": ["integer", "null"]},
                     "next_page": {"type": ["integer", "null"]},
                     "previous_page": {"type": ["integer", "null"]},
-                    "page": {"type": "integer"},
-                    "links": {"type": "object"}
+                    "page": {"type": ["integer", "null"]},
+                    "links": {"type": ["object", "null"]}
                 }
             }
         },
@@ -264,13 +264,13 @@
                 "type": "object",
                 "properties": {
                     "projects": {"type": "array"},
-                    "per_page": {"type": "integer"},
-                    "total_pages": {"type": "integer"},
-                    "total_entries": {"type": "integer"},
+                    "per_page": {"type": ["integer", "null"]},
+                    "total_pages": {"type": ["integer", "null"]},
+                    "total_entries": {"type": ["integer", "null"]},
                     "next_page": {"type": ["integer", "null"]},
                     "previous_page": {"type": ["integer", "null"]},
-                    "page": {"type": "integer"},
-                    "links": {"type": "object"}
+                    "page": {"type": ["integer", "null"]},
+                    "links": {"type": ["object", "null"]}
                 }
             }
         },
@@ -324,13 +324,13 @@
                 "type": "object",
                 "properties": {
                     "clients": {"type": "array"},
-                    "per_page": {"type": "integer"},
-                    "total_pages": {"type": "integer"},
-                    "total_entries": {"type": "integer"},
+                    "per_page": {"type": ["integer", "null"]},
+                    "total_pages": {"type": ["integer", "null"]},
+                    "total_entries": {"type": ["integer", "null"]},
                     "next_page": {"type": ["integer", "null"]},
                     "previous_page": {"type": ["integer", "null"]},
-                    "page": {"type": "integer"},
-                    "links": {"type": "object"}
+                    "page": {"type": ["integer", "null"]},
+                    "links": {"type": ["object", "null"]}
                 }
             }
         },
@@ -364,13 +364,13 @@
                 "type": "object",
                 "properties": {
                     "tasks": {"type": "array"},
-                    "per_page": {"type": "integer"},
-                    "total_pages": {"type": "integer"},
-                    "total_entries": {"type": "integer"},
+                    "per_page": {"type": ["integer", "null"]},
+                    "total_pages": {"type": ["integer", "null"]},
+                    "total_entries": {"type": ["integer", "null"]},
                     "next_page": {"type": ["integer", "null"]},
                     "previous_page": {"type": ["integer", "null"]},
-                    "page": {"type": "integer"},
-                    "links": {"type": "object"}
+                    "page": {"type": ["integer", "null"]},
+                    "links": {"type": ["object", "null"]}
                 }
             }
         },
@@ -404,15 +404,16 @@
                 "type": "object",
                 "properties": {
                     "users": {"type": "array"},
-                    "per_page": {"type": "integer"},
-                    "total_pages": {"type": "integer"},
-                    "total_entries": {"type": "integer"},
+                    "per_page": {"type": ["integer", "null"]},
+                    "total_pages": {"type": ["integer", "null"]},
+                    "total_entries": {"type": ["integer", "null"]},
                     "next_page": {"type": ["integer", "null"]},
                     "previous_page": {"type": ["integer", "null"]},
-                    "page": {"type": "integer"},
-                    "links": {"type": "object"}
+                    "page": {"type": ["integer", "null"]},
+                    "links": {"type": ["object", "null"]}
                 }
             }
         }
     }
 }
+
