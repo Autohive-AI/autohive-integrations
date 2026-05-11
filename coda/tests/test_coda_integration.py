@@ -7,10 +7,11 @@ set in the CODA_API_KEY environment variable (via .env or export).
 Run with:
     pytest coda/tests/test_coda_integration.py -m integration
 
-Never runs in CI — the default pytest marker filter (-m unit) excludes these,
-and the file naming (test_*_integration.py) is not matched by python_files.
+A session-scoped fixture creates one test doc (with a page, table, and rows)
+at the start and tears it down at the end, so all tests have real data to work with.
 """
 
+import asyncio
 import os
 
 import pytest
@@ -24,7 +25,12 @@ pytestmark = pytest.mark.integration
 API_KEY = os.environ.get("CODA_API_KEY", "")
 
 
-@pytest.fixture
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
 def live_context():
     if not API_KEY:
         pytest.skip("CODA_API_KEY not set — skipping integration tests")
@@ -43,559 +49,437 @@ def live_context():
     return ctx
 
 
-# ---- Read-Only Tests ----
+@pytest.fixture(scope="session")
+async def test_doc(live_context):
+    """Creates a test doc at session start and deletes it at the end."""
+    result = await coda.execute_action("create_doc", {"title": "AH Integration Test Doc"}, live_context)
+    doc_id = result.result.data["data"]["id"]
+    await asyncio.sleep(5)  # Coda needs a moment before the doc is accessible via API
+    yield doc_id
+    await coda.execute_action("delete_doc", {"doc_id": doc_id}, live_context)
+
+
+@pytest.fixture(scope="session")
+async def test_page(live_context, test_doc):
+    """Creates a test page inside the test doc."""
+    result = await coda.execute_action(
+        "create_page", {"doc_id": test_doc, "name": "AH Test Page"}, live_context
+    )
+    page_id = result.result.data["data"]["id"]
+    await asyncio.sleep(3)  # Coda needs a moment before the page appears in list_pages
+    yield page_id
+    await coda.execute_action("delete_page", {"doc_id": test_doc, "page_id_or_name": page_id}, live_context)
+
+
+async def _find_doc_with_table(live_context):
+    """Search all docs for one that has a table with at least one column. Returns (doc_id, table_id, col_id) or None."""
+    all_docs = (await coda.execute_action("list_docs", {}, live_context)).result.data["docs"]
+    for doc in all_docs:
+        tables_result = await coda.execute_action("list_tables", {"doc_id": doc["id"]}, live_context)
+        tables = tables_result.result.data.get("tables", [])
+        for table in tables:
+            cols_result = await coda.execute_action(
+                "list_columns", {"doc_id": doc["id"], "table_id_or_name": table["id"]}, live_context
+            )
+            cols = cols_result.result.data.get("columns", [])
+            if cols:
+                return doc["id"], table["id"], cols[0]["id"]
+    return None
+
+
+@pytest.fixture(scope="session")
+async def test_table_doc(live_context):
+    """
+    Finds a doc with at least one table+column.
+
+    Strategy:
+    1. If CODA_TABLE_DOC_ID env var is set, use that doc directly.
+    2. Otherwise scan all existing docs.
+    3. If none found, create a doc from Coda's Getting Started template (sourceDoc copy).
+    4. If that still yields no tables, skip with an actionable message.
+
+    To enable table tests: create a doc with at least one table in the Coda account,
+    then set CODA_TABLE_DOC_ID=<doc_id> or just re-run (the scan will find it).
+    """
+    # 1. Explicit override
+    override_id = os.environ.get("CODA_TABLE_DOC_ID", "")
+    if override_id:
+        tables_result = await coda.execute_action("list_tables", {"doc_id": override_id}, live_context)
+        tables = tables_result.result.data.get("tables", [])
+        for table in tables:
+            cols_result = await coda.execute_action(
+                "list_columns", {"doc_id": override_id, "table_id_or_name": table["id"]}, live_context
+            )
+            cols = cols_result.result.data.get("columns", [])
+            if cols:
+                return override_id, table["id"], cols[0]["id"]
+
+    # 2. Scan existing docs
+    found = await _find_doc_with_table(live_context)
+    if found:
+        return found
+
+    pytest.skip(
+        "No doc with a table+column found. "
+        "Create a doc with at least one table in your Coda account and re-run, "
+        "or set CODA_TABLE_DOC_ID=<doc_id> to point directly at one."
+    )
+
+
+@pytest.fixture(scope="session")
+async def test_table_and_col(live_context, test_table_doc):
+    """Returns (table_id, col_id) from a doc that has real tables."""
+    _, table_id, col_id = test_table_doc
+    return table_id, col_id
+
+
+@pytest.fixture(scope="session")
+async def table_doc_id(test_table_doc):
+    """Returns the doc_id that contains usable tables."""
+    doc_id, _, _ = test_table_doc
+    return doc_id
+
+
+@pytest.fixture(scope="session")
+async def test_row(live_context, table_doc_id, test_table_and_col):
+    """Upserts a row and returns its id."""
+    table_id, col_id = test_table_and_col
+    await coda.execute_action(
+        "upsert_rows",
+        {"doc_id": table_doc_id, "table_id_or_name": table_id, "rows": [{"cells": [{"column": col_id, "value": "Test Row"}]}]},
+        live_context,
+    )
+    rows_result = await coda.execute_action(
+        "list_rows", {"doc_id": table_doc_id, "table_id_or_name": table_id, "limit": 1}, live_context
+    )
+    rows = rows_result.result.data["rows"]
+    if not rows:
+        pytest.skip("No rows found after upsert")
+    return rows[0]["id"]
+
+
+# ---------------------------------------------------------------------------
+# Docs
+# ---------------------------------------------------------------------------
 
 
 class TestListDocs:
-    async def test_returns_docs_list(self, live_context):
+    async def test_returns_docs_list(self, live_context, test_doc):
         result = await coda.execute_action("list_docs", {}, live_context)
-
         data = result.result.data
         assert "docs" in data
         assert isinstance(data["docs"], list)
+        assert len(data["docs"]) >= 1
 
-    async def test_filter_by_query(self, live_context):
-        result = await coda.execute_action("list_docs", {"query": "test"}, live_context)
-
+    async def test_filter_by_query(self, live_context, test_doc):
+        result = await coda.execute_action("list_docs", {"query": "AH Integration"}, live_context)
         data = result.result.data
         assert "docs" in data
+        assert any("AH Integration" in d.get("name", "") for d in data["docs"])
 
-    async def test_is_owner_filter(self, live_context):
+    async def test_is_owner_filter(self, live_context, test_doc):
         result = await coda.execute_action("list_docs", {"is_owner": True}, live_context)
+        assert "docs" in result.result.data
 
-        data = result.result.data
-        assert "docs" in data
-
-    async def test_limit_respected(self, live_context):
-        result = await coda.execute_action("list_docs", {"limit": 2}, live_context)
-
-        data = result.result.data
-        assert len(data["docs"]) <= 2
+    async def test_limit_respected(self, live_context, test_doc):
+        result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
+        assert len(result.result.data["docs"]) <= 1
 
 
 class TestGetDoc:
-    async def test_returns_doc_metadata(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        result = await coda.execute_action("get_doc", {"doc_id": doc_id}, live_context)
-
+    async def test_returns_doc_metadata(self, live_context, test_doc):
+        result = await coda.execute_action("get_doc", {"doc_id": test_doc}, live_context)
         data = result.result.data
         assert "data" in data
-        assert data["data"]["id"] == doc_id
+        assert data["data"]["id"] == test_doc
 
-    async def test_doc_has_expected_fields(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        result = await coda.execute_action("get_doc", {"doc_id": doc_id}, live_context)
-
+    async def test_doc_has_expected_fields(self, live_context, test_doc):
+        result = await coda.execute_action("get_doc", {"doc_id": test_doc}, live_context)
         doc = result.result.data["data"]
         assert "id" in doc
         assert "name" in doc
         assert "type" in doc
 
 
+class TestUpdateDoc:
+    async def test_update_doc_title(self, live_context, test_doc):
+        result = await coda.execute_action(
+            "update_doc", {"doc_id": test_doc, "title": "AH Integration Test Doc (updated)"}, live_context
+        )
+        assert "data" in result.result.data
+
+
+# ---------------------------------------------------------------------------
+# Pages
+# ---------------------------------------------------------------------------
+
+
 class TestListPages:
-    async def test_returns_pages_list(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        result = await coda.execute_action("list_pages", {"doc_id": doc_id}, live_context)
-
+    async def test_returns_pages_list(self, live_context, test_doc, test_page):
+        result = await coda.execute_action("list_pages", {"doc_id": test_doc}, live_context)
         data = result.result.data
         assert "pages" in data
         assert isinstance(data["pages"], list)
+        assert len(data["pages"]) >= 1
 
-    async def test_limit_respected(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        result = await coda.execute_action("list_pages", {"doc_id": doc_id, "limit": 2}, live_context)
-
-        data = result.result.data
-        assert len(data["pages"]) <= 2
+    async def test_limit_respected(self, live_context, test_doc, test_page):
+        result = await coda.execute_action("list_pages", {"doc_id": test_doc, "limit": 1}, live_context)
+        assert len(result.result.data["pages"]) <= 1
 
 
 class TestGetPage:
-    async def test_returns_page_metadata(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        pages_result = await coda.execute_action("list_pages", {"doc_id": doc_id}, live_context)
-        pages = pages_result.result.data["pages"]
-
+    async def test_returns_page_metadata(self, live_context, test_doc, test_page):
+        pages = (await coda.execute_action("list_pages", {"doc_id": test_doc}, live_context)).result.data["pages"]
         if not pages:
-            pytest.skip("No pages in doc to test with")
-
+            pytest.skip("No pages in test doc")
         page_id = pages[0]["id"]
-        result = await coda.execute_action("get_page", {"doc_id": doc_id, "page_id_or_name": page_id}, live_context)
-
+        result = await coda.execute_action(
+            "get_page", {"doc_id": test_doc, "page_id_or_name": page_id}, live_context
+        )
         data = result.result.data
         assert "data" in data
         assert data["data"]["id"] == page_id
 
-    async def test_page_has_expected_fields(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        pages_result = await coda.execute_action("list_pages", {"doc_id": doc_id}, live_context)
-        pages = pages_result.result.data["pages"]
-
+    async def test_page_has_expected_fields(self, live_context, test_doc, test_page):
+        pages = (await coda.execute_action("list_pages", {"doc_id": test_doc}, live_context)).result.data["pages"]
         if not pages:
-            pytest.skip("No pages in doc to test with")
-
+            pytest.skip("No pages in test doc")
         page_id = pages[0]["id"]
-        result = await coda.execute_action("get_page", {"doc_id": doc_id, "page_id_or_name": page_id}, live_context)
-
+        result = await coda.execute_action(
+            "get_page", {"doc_id": test_doc, "page_id_or_name": page_id}, live_context
+        )
         page = result.result.data["data"]
         assert "id" in page
         assert "name" in page
-        assert "type" in page
+
+
+class TestUpdatePage:
+    async def test_update_page_name(self, live_context, test_doc, test_page):
+        result = await coda.execute_action(
+            "update_page",
+            {"doc_id": test_doc, "page_id_or_name": test_page, "name": "AH Test Page (updated)"},
+            live_context,
+        )
+        assert "data" in result.result.data
+
+
+# ---------------------------------------------------------------------------
+# Tables
+# ---------------------------------------------------------------------------
 
 
 class TestListTables:
-    async def test_returns_tables_list(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        result = await coda.execute_action("list_tables", {"doc_id": doc_id}, live_context)
-
+    async def test_returns_tables_list(self, live_context, table_doc_id, test_table_and_col):
+        result = await coda.execute_action("list_tables", {"doc_id": table_doc_id}, live_context)
         data = result.result.data
         assert "tables" in data
         assert isinstance(data["tables"], list)
+        assert len(data["tables"]) >= 1
 
-    async def test_limit_respected(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        result = await coda.execute_action("list_tables", {"doc_id": doc_id, "limit": 2}, live_context)
-
-        data = result.result.data
-        assert len(data["tables"]) <= 2
+    async def test_limit_respected(self, live_context, table_doc_id, test_table_and_col):
+        result = await coda.execute_action("list_tables", {"doc_id": table_doc_id, "limit": 1}, live_context)
+        assert len(result.result.data["tables"]) <= 1
 
 
 class TestGetTable:
-    async def test_returns_table_metadata(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id}, live_context)
-        tables = tables_result.result.data["tables"]
-
-        if not tables:
-            pytest.skip("No tables in doc to test with")
-
-        table_id = tables[0]["id"]
-        result = await coda.execute_action("get_table", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context)
-
+    async def test_returns_table_metadata(self, live_context, table_doc_id, test_table_and_col):
+        table_id, _ = test_table_and_col
+        result = await coda.execute_action(
+            "get_table", {"doc_id": table_doc_id, "table_id_or_name": table_id}, live_context
+        )
         data = result.result.data
         assert "data" in data
         assert data["data"]["id"] == table_id
 
-    async def test_table_has_expected_fields(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id}, live_context)
-        tables = tables_result.result.data["tables"]
-
-        if not tables:
-            pytest.skip("No tables in doc to test with")
-
-        table_id = tables[0]["id"]
-        result = await coda.execute_action("get_table", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context)
-
+    async def test_table_has_expected_fields(self, live_context, table_doc_id, test_table_and_col):
+        table_id, _ = test_table_and_col
+        result = await coda.execute_action(
+            "get_table", {"doc_id": table_doc_id, "table_id_or_name": table_id}, live_context
+        )
         table = result.result.data["data"]
         assert "id" in table
         assert "name" in table
         assert "type" in table
 
 
+# ---------------------------------------------------------------------------
+# Columns
+# ---------------------------------------------------------------------------
+
+
 class TestListColumns:
-    async def test_returns_columns_list(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id}, live_context)
-        tables = tables_result.result.data["tables"]
-
-        if not tables:
-            pytest.skip("No tables in doc to test with")
-
-        table_id = tables[0]["id"]
+    async def test_returns_columns_list(self, live_context, table_doc_id, test_table_and_col):
+        table_id, _ = test_table_and_col
         result = await coda.execute_action(
-            "list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context
+            "list_columns", {"doc_id": table_doc_id, "table_id_or_name": table_id}, live_context
         )
-
         data = result.result.data
         assert "columns" in data
         assert isinstance(data["columns"], list)
+        assert len(data["columns"]) >= 1
 
-    async def test_columns_have_expected_fields(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id}, live_context)
-        tables = tables_result.result.data["tables"]
-
-        if not tables:
-            pytest.skip("No tables in doc to test with")
-
-        table_id = tables[0]["id"]
+    async def test_columns_have_expected_fields(self, live_context, table_doc_id, test_table_and_col):
+        table_id, _ = test_table_and_col
         result = await coda.execute_action(
-            "list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context
+            "list_columns", {"doc_id": table_doc_id, "table_id_or_name": table_id}, live_context
         )
-
-        columns = result.result.data["columns"]
-        if columns:
-            assert "id" in columns[0]
-            assert "name" in columns[0]
+        col = result.result.data["columns"][0]
+        assert "id" in col
+        assert "name" in col
 
 
 class TestGetColumn:
-    async def test_returns_column_metadata(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id}, live_context)
-        tables = tables_result.result.data["tables"]
-
-        if not tables:
-            pytest.skip("No tables in doc to test with")
-
-        table_id = tables[0]["id"]
-        cols_result = await coda.execute_action(
-            "list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context
-        )
-        columns = cols_result.result.data["columns"]
-
-        if not columns:
-            pytest.skip("No columns in table to test with")
-
-        col_id = columns[0]["id"]
+    async def test_returns_column_metadata(self, live_context, table_doc_id, test_table_and_col):
+        table_id, col_id = test_table_and_col
         result = await coda.execute_action(
-            "get_column", {"doc_id": doc_id, "table_id_or_name": table_id, "column_id_or_name": col_id}, live_context
+            "get_column",
+            {"doc_id": table_doc_id, "table_id_or_name": table_id, "column_id_or_name": col_id},
+            live_context,
         )
-
         data = result.result.data
         assert "data" in data
         assert data["data"]["id"] == col_id
 
 
+# ---------------------------------------------------------------------------
+# Rows
+# ---------------------------------------------------------------------------
+
+
 class TestListRows:
-    async def test_returns_rows_list(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id}, live_context)
-        tables = tables_result.result.data["tables"]
-
-        if not tables:
-            pytest.skip("No tables in doc to test with")
-
-        table_id = tables[0]["id"]
-        result = await coda.execute_action("list_rows", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context)
-
+    async def test_returns_rows_list(self, live_context, table_doc_id, test_table_and_col, test_row):
+        table_id, _ = test_table_and_col
+        result = await coda.execute_action(
+            "list_rows", {"doc_id": table_doc_id, "table_id_or_name": table_id}, live_context
+        )
         data = result.result.data
         assert "rows" in data
         assert isinstance(data["rows"], list)
+        assert len(data["rows"]) >= 1
 
-    async def test_limit_respected(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id}, live_context)
-        tables = tables_result.result.data["tables"]
-
-        if not tables:
-            pytest.skip("No tables in doc to test with")
-
-        table_id = tables[0]["id"]
+    async def test_limit_respected(self, live_context, table_doc_id, test_table_and_col, test_row):
+        table_id, _ = test_table_and_col
         result = await coda.execute_action(
-            "list_rows", {"doc_id": doc_id, "table_id_or_name": table_id, "limit": 2}, live_context
+            "list_rows", {"doc_id": table_doc_id, "table_id_or_name": table_id, "limit": 1}, live_context
         )
-
-        data = result.result.data
-        assert len(data["rows"]) <= 2
+        assert len(result.result.data["rows"]) <= 1
 
 
 class TestGetRow:
-    async def test_returns_row_data(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id}, live_context)
-        tables = tables_result.result.data["tables"]
-
-        if not tables:
-            pytest.skip("No tables in doc to test with")
-
-        table_id = tables[0]["id"]
-        rows_result = await coda.execute_action(
-            "list_rows", {"doc_id": doc_id, "table_id_or_name": table_id, "limit": 1}, live_context
-        )
-        rows = rows_result.result.data["rows"]
-
-        if not rows:
-            pytest.skip("No rows in table to test with")
-
-        row_id = rows[0]["id"]
+    async def test_returns_row_data(self, live_context, table_doc_id, test_table_and_col, test_row):
+        table_id, _ = test_table_and_col
         result = await coda.execute_action(
-            "get_row", {"doc_id": doc_id, "table_id_or_name": table_id, "row_id_or_name": row_id}, live_context
+            "get_row",
+            {"doc_id": table_doc_id, "table_id_or_name": table_id, "row_id_or_name": test_row},
+            live_context,
         )
-
         data = result.result.data
         assert "data" in data
-        assert data["data"]["id"] == row_id
+        assert data["data"]["id"] == test_row
 
 
-# ---- Destructive Tests (Write Operations) ----
-# These create, update, or delete real data.
-# Only run with: pytest -m "integration and destructive"
-
-
-@pytest.mark.destructive
-class TestDocLifecycle:
-    """End-to-end workflow: create doc → update → delete."""
-
-    async def test_full_lifecycle(self, live_context):
-        doc_name = f"Integration Test Doc {os.getpid()}"
-
-        create_result = await coda.execute_action("create_doc", {"title": doc_name}, live_context)
-        assert "data" in create_result.result.data
-        doc_id = create_result.result.data["data"].get("id")
-        assert doc_id is not None
-
-        update_result = await coda.execute_action(
-            "update_doc", {"doc_id": doc_id, "title": f"{doc_name} Updated"}, live_context
+class TestUpsertRows:
+    async def test_upsert_new_row(self, live_context, table_doc_id, test_table_and_col):
+        table_id, col_id = test_table_and_col
+        result = await coda.execute_action(
+            "upsert_rows",
+            {
+                "doc_id": table_doc_id,
+                "table_id_or_name": table_id,
+                "rows": [{"cells": [{"column": col_id, "value": "Upsert Test Row"}]}],
+            },
+            live_context,
         )
-        assert "data" in update_result.result.data
+        assert "data" in result.result.data
+
+
+class TestUpdateRow:
+    async def test_update_row_value(self, live_context, table_doc_id, test_table_and_col, test_row):
+        table_id, col_id = test_table_and_col
+        result = await coda.execute_action(
+            "update_row",
+            {
+                "doc_id": table_doc_id,
+                "table_id_or_name": table_id,
+                "row_id_or_name": test_row,
+                "cells": [{"column": col_id, "value": "Updated Value"}],
+            },
+            live_context,
+        )
+        assert "data" in result.result.data
+
+
+class TestDeleteRow:
+    async def test_delete_row(self, live_context, table_doc_id, test_table_and_col):
+        table_id, col_id = test_table_and_col
+        await coda.execute_action(
+            "upsert_rows",
+            {"doc_id": table_doc_id, "table_id_or_name": table_id, "rows": [{"cells": [{"column": col_id, "value": "To Delete"}]}]},
+            live_context,
+        )
+        rows_result = await coda.execute_action(
+            "list_rows", {"doc_id": table_doc_id, "table_id_or_name": table_id}, live_context
+        )
+        row_id = rows_result.result.data["rows"][-1]["id"]
+        result = await coda.execute_action(
+            "delete_row",
+            {"doc_id": table_doc_id, "table_id_or_name": table_id, "row_id_or_name": row_id},
+            live_context,
+        )
+        assert "data" in result.result.data
+
+
+class TestDeleteRows:
+    async def test_delete_multiple_rows(self, live_context, table_doc_id, test_table_and_col):
+        table_id, col_id = test_table_and_col
+        await coda.execute_action(
+            "upsert_rows",
+            {
+                "doc_id": table_doc_id,
+                "table_id_or_name": table_id,
+                "rows": [
+                    {"cells": [{"column": col_id, "value": "Bulk Delete A"}]},
+                    {"cells": [{"column": col_id, "value": "Bulk Delete B"}]},
+                ],
+            },
+            live_context,
+        )
+        rows_result = await coda.execute_action(
+            "list_rows", {"doc_id": table_doc_id, "table_id_or_name": table_id}, live_context
+        )
+        row_ids = [r["id"] for r in rows_result.result.data["rows"]][-2:]
+        result = await coda.execute_action(
+            "delete_rows",
+            {"doc_id": table_doc_id, "table_id_or_name": table_id, "row_ids": row_ids},
+            live_context,
+        )
+        assert "data" in result.result.data
+
+
+# ---------------------------------------------------------------------------
+# Doc / Page cleanup (create + delete tested as part of lifecycle)
+# ---------------------------------------------------------------------------
+
+
+class TestCreateDeleteDoc:
+    async def test_create_and_delete_doc(self, live_context):
+        create_result = await coda.execute_action("create_doc", {"title": "AH Temp Doc"}, live_context)
+        doc_id = create_result.result.data["data"]["id"]
+        assert doc_id
 
         delete_result = await coda.execute_action("delete_doc", {"doc_id": doc_id}, live_context)
         assert "data" in delete_result.result.data
 
 
-@pytest.mark.destructive
-class TestPageLifecycle:
-    """End-to-end workflow: create page → update → delete."""
-
-    async def test_full_lifecycle(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        page_name = f"Integration Test Page {os.getpid()}"
-
-        create_result = await coda.execute_action("create_page", {"doc_id": doc_id, "name": page_name}, live_context)
-        assert "data" in create_result.result.data
-        page_id = create_result.result.data["data"].get("id")
-        assert page_id is not None
-
-        update_result = await coda.execute_action(
-            "update_page",
-            {"doc_id": doc_id, "page_id_or_name": page_id, "name": f"{page_name} Updated"},
-            live_context,
+class TestCreateDeletePage:
+    async def test_create_and_delete_page(self, live_context, test_doc):
+        create_result = await coda.execute_action(
+            "create_page", {"doc_id": test_doc, "name": "AH Temp Page"}, live_context
         )
-        assert "data" in update_result.result.data
+        page_id = create_result.result.data["data"]["id"]
+        assert page_id
 
         delete_result = await coda.execute_action(
-            "delete_page", {"doc_id": doc_id, "page_id_or_name": page_id}, live_context
-        )
-        assert "data" in delete_result.result.data
-
-
-@pytest.mark.destructive
-class TestRowLifecycle:
-    """End-to-end workflow: upsert rows → get row → update row → delete row."""
-
-    async def test_full_lifecycle(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id}, live_context)
-        tables = [t for t in tables_result.result.data["tables"] if t.get("tableType") == "table"]
-
-        if not tables:
-            pytest.skip("No base tables in doc to test with")
-
-        table_id = tables[0]["id"]
-
-        cols_result = await coda.execute_action(
-            "list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context
-        )
-        columns = cols_result.result.data["columns"]
-
-        if not columns:
-            pytest.skip("No columns in table to test with")
-
-        col_id = columns[0]["id"]
-        test_value = f"Integration Test {os.getpid()}"
-
-        upsert_result = await coda.execute_action(
-            "upsert_rows",
-            {
-                "doc_id": doc_id,
-                "table_id_or_name": table_id,
-                "rows": [{"cells": [{"column": col_id, "value": test_value}]}],
-            },
-            live_context,
-        )
-        assert "data" in upsert_result.result.data
-
-        rows_result = await coda.execute_action(
-            "list_rows", {"doc_id": doc_id, "table_id_or_name": table_id, "limit": 1}, live_context
-        )
-        rows = rows_result.result.data["rows"]
-
-        if not rows:
-            pytest.skip("No rows found after upsert")
-
-        row_id = rows[0]["id"]
-
-        update_result = await coda.execute_action(
-            "update_row",
-            {
-                "doc_id": doc_id,
-                "table_id_or_name": table_id,
-                "row_id_or_name": row_id,
-                "cells": [{"column": col_id, "value": f"{test_value} Updated"}],
-            },
-            live_context,
-        )
-        assert "data" in update_result.result.data
-
-        delete_result = await coda.execute_action(
-            "delete_row",
-            {"doc_id": doc_id, "table_id_or_name": table_id, "row_id_or_name": row_id},
-            live_context,
-        )
-        assert "data" in delete_result.result.data
-
-
-@pytest.mark.destructive
-class TestDeleteRows:
-    async def test_delete_multiple_rows(self, live_context):
-        list_result = await coda.execute_action("list_docs", {"limit": 1}, live_context)
-        docs = list_result.result.data["docs"]
-
-        if not docs:
-            pytest.skip("No docs in account to test with")
-
-        doc_id = docs[0]["id"]
-        tables_result = await coda.execute_action("list_tables", {"doc_id": doc_id}, live_context)
-        tables = [t for t in tables_result.result.data["tables"] if t.get("tableType") == "table"]
-
-        if not tables:
-            pytest.skip("No base tables in doc to test with")
-
-        table_id = tables[0]["id"]
-        cols_result = await coda.execute_action(
-            "list_columns", {"doc_id": doc_id, "table_id_or_name": table_id}, live_context
-        )
-        columns = cols_result.result.data["columns"]
-
-        if not columns:
-            pytest.skip("No columns in table to test with")
-
-        col_id = columns[0]["id"]
-
-        upsert_result = await coda.execute_action(
-            "upsert_rows",
-            {
-                "doc_id": doc_id,
-                "table_id_or_name": table_id,
-                "rows": [
-                    {"cells": [{"column": col_id, "value": f"Delete Test A {os.getpid()}"}]},
-                    {"cells": [{"column": col_id, "value": f"Delete Test B {os.getpid()}"}]},
-                ],
-            },
-            live_context,
-        )
-        assert "data" in upsert_result.result.data
-
-        rows_result = await coda.execute_action(
-            "list_rows", {"doc_id": doc_id, "table_id_or_name": table_id, "limit": 2}, live_context
-        )
-        row_ids = [r["id"] for r in rows_result.result.data["rows"]]
-
-        if len(row_ids) < 2:
-            pytest.skip("Not enough rows to test delete_rows")
-
-        delete_result = await coda.execute_action(
-            "delete_rows",
-            {"doc_id": doc_id, "table_id_or_name": table_id, "row_ids": row_ids[:2]},
-            live_context,
+            "delete_page", {"doc_id": test_doc, "page_id_or_name": page_id}, live_context
         )
         assert "data" in delete_result.result.data
