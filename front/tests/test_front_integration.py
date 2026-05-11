@@ -1,7 +1,7 @@
 """
 Live integration tests for the Front integration.
 
-Requires FRONT_API_TOKEN set in the environment or project .env.
+Requires FRONT_ACCESS_TOKEN set in the environment or project .env.
 
 Safe read-only run:
     pytest front/tests/test_front_integration.py -m "integration and not destructive"
@@ -21,9 +21,9 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture
 def live_context(env_credentials, make_context):
-    access_token = env_credentials("FRONT_API_TOKEN")
+    access_token = env_credentials("FRONT_ACCESS_TOKEN")
     if not access_token:
-        pytest.skip("FRONT_API_TOKEN not set — skipping integration tests")
+        pytest.skip("FRONT_ACCESS_TOKEN not set — skipping integration tests")
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
         merged_headers = dict(headers or {})
