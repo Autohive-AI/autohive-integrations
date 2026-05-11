@@ -29,6 +29,8 @@ def live_context():
     if not API_KEY:
         pytest.skip("HUMANITIX_API_KEY not set — skipping integration tests")
 
+    # Humanitix sits behind Cloudflare, which blocks standard TLS fingerprints.
+    # curl_cffi matches a real browser's TLS profile so the API responds normally.
     from curl_cffi.requests import AsyncSession
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
