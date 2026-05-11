@@ -591,15 +591,8 @@ def parse_markdown_to_docx(doc: Document, markdown_text: str) -> None:
             _add_formatted_text_to_paragraph(paragraph, element)
 
         elif element.name in ["ul", "ol"]:
-            # Handle lists
-            is_numbered = element.name == "ol"
-            for li in element.find_all("li", recursive=False):
-                text = li.get_text().strip()
-                if text:
-                    if is_numbered:
-                        doc.add_paragraph(text, style="List Number")
-                    else:
-                        doc.add_paragraph(text, style="List Bullet")
+            # Handle lists (including nested)
+            _add_list_items(doc, element, level=0)
 
         elif element.name == "blockquote":
             # Handle blockquotes
@@ -619,6 +612,39 @@ def parse_markdown_to_docx(doc: Document, markdown_text: str) -> None:
                 # Apply monospace font to code
                 for run in paragraph.runs:
                     run.font.name = "Courier New"
+
+
+def _add_list_items(doc: Document, list_element, level: int) -> None:
+    """Recursively add list items to Word document with proper nesting.
+
+    Uses Word's built-in 'List Bullet', 'List Bullet 2', 'List Bullet 3' and
+    'List Number', 'List Number 2', 'List Number 3' styles to produce nested
+    indentation and sub-numbering.
+    """
+    is_numbered = list_element.name == "ol"
+
+    # Word provides styles up to level 3; clamp deeper nesting
+    clamped_level = min(level, 2)
+    if is_numbered:
+        style = "List Number" if clamped_level == 0 else f"List Number {clamped_level + 1}"
+    else:
+        style = "List Bullet" if clamped_level == 0 else f"List Bullet {clamped_level + 1}"
+
+    for li in list_element.find_all("li", recursive=False):
+        # Collect only the direct text of this <li>, ignoring nested <ul>/<ol>
+        text_parts = []
+        for child in li.children:
+            if hasattr(child, "name") and child.name in ("ul", "ol"):
+                continue  # skip nested lists – handled below
+            text_parts.append(child.get_text() if hasattr(child, "get_text") else str(child))
+        text = "".join(text_parts).strip()
+
+        if text:
+            doc.add_paragraph(text, style=style)
+
+        # Recurse into any nested <ul> or <ol> inside this <li>
+        for nested_list in li.find_all(["ul", "ol"], recursive=False):
+            _add_list_items(doc, nested_list, level + 1)
 
 
 def _add_formatted_text_to_paragraph(paragraph, html_element):
