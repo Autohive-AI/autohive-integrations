@@ -35,7 +35,9 @@ def live_context(env_credentials, make_context):
     if not account_id:
         pytest.skip("HARVEST_ACCOUNT_ID not set — skipping integration tests")
 
-    async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
+    async def real_fetch(
+        url, *, method="GET", json=None, headers=None, params=None, **kwargs
+    ):
         auth_headers = {
             "Authorization": f"Bearer {access_token}",
             "Harvest-Account-Id": account_id,
@@ -48,7 +50,9 @@ def live_context(env_credentials, make_context):
             ) as resp:
                 text = await resp.text()
                 data = _json.loads(text) if text.strip() else {}
-                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
+                return FetchResponse(
+                    status=resp.status, headers=dict(resp.headers), data=data
+                )
 
     ctx = make_context(
         auth={
@@ -66,7 +70,9 @@ def live_context(env_credentials, make_context):
 
 
 async def test_list_time_entries(live_context):
-    result = await harvest.execute_action("list_time_entries", {"per_page": 5}, live_context)
+    result = await harvest.execute_action(
+        "list_time_entries", {"per_page": 5}, live_context
+    )
     assert result.type == ResultType.ACTION
     data = result.result.data
     assert "time_entries" in data
@@ -74,7 +80,9 @@ async def test_list_time_entries(live_context):
 
 
 async def test_list_projects(live_context):
-    result = await harvest.execute_action("list_projects", {"per_page": 5}, live_context)
+    result = await harvest.execute_action(
+        "list_projects", {"per_page": 5}, live_context
+    )
     assert result.type == ResultType.ACTION
     data = result.result.data
     assert "projects" in data
@@ -82,10 +90,15 @@ async def test_list_projects(live_context):
 
 
 async def test_get_project(live_context):
-    projects = (await harvest.execute_action("list_projects", {"per_page": 1}, live_context)).result.data.get("projects", [])
+    list_result = await harvest.execute_action(
+        "list_projects", {"per_page": 1}, live_context
+    )
+    projects = list_result.result.data.get("projects", [])
     if not projects:
         pytest.skip("No projects in account")
-    result = await harvest.execute_action("get_project", {"project_id": projects[0]["id"]}, live_context)
+    result = await harvest.execute_action(
+        "get_project", {"project_id": projects[0]["id"]}, live_context
+    )
     assert result.type == ResultType.ACTION
     data = result.result.data
     project = data.get("project", data)
@@ -126,27 +139,43 @@ async def test_list_users(live_context):
 async def temp_project_and_task(live_context):
     """Creates a temporary client, project, and task via live_context.fetch for destructive tests. Cleans up after."""
     import time
+
     base = "https://api.harvestapp.com/v2"
     fetch = live_context.fetch
     uid = int(time.time())
 
     # Create client
-    client_resp = await fetch(f"{base}/clients", method="POST", json={"name": f"AH Test Client {uid}"})
+    client_resp = await fetch(
+        f"{base}/clients", method="POST", json={"name": f"AH Test Client {uid}"}
+    )
     client_id = client_resp.data["id"]
 
     # Create project
     project_resp = await fetch(
-        f"{base}/projects", method="POST",
-        json={"name": f"AH Test Project {uid}", "client_id": client_id, "is_billable": False, "bill_by": "none", "budget_by": "none"},
+        f"{base}/projects",
+        method="POST",
+        json={
+            "name": f"AH Test Project {uid}",
+            "client_id": client_id,
+            "is_billable": False,
+            "bill_by": "none",
+            "budget_by": "none",
+        },
     )
     project_id = project_resp.data["id"]
 
     # Create task
-    task_resp = await fetch(f"{base}/tasks", method="POST", json={"name": f"AH Test Task {uid}"})
+    task_resp = await fetch(
+        f"{base}/tasks", method="POST", json={"name": f"AH Test Task {uid}"}
+    )
     task_id = task_resp.data["id"]
 
     # Assign task to project
-    await fetch(f"{base}/projects/{project_id}/task_assignments", method="POST", json={"task_id": task_id})
+    await fetch(
+        f"{base}/projects/{project_id}/task_assignments",
+        method="POST",
+        json={"task_id": task_id},
+    )
 
     yield project_id, task_id
 
@@ -157,27 +186,40 @@ async def temp_project_and_task(live_context):
 
 
 @pytest.mark.destructive
-async def test_create_update_stop_delete_time_entry(live_context, temp_project_and_task):
+async def test_create_update_stop_delete_time_entry(
+    live_context, temp_project_and_task
+):
     project_id, task_id = temp_project_and_task
 
     # Create
     create_result = await harvest.execute_action(
         "create_time_entry",
-        {"project_id": project_id, "task_id": task_id, "spent_date": "2026-01-01", "hours": 1.0},
+        {
+            "project_id": project_id,
+            "task_id": task_id,
+            "spent_date": "2026-01-01",
+            "hours": 1.0,
+        },
         live_context,
     )
     assert create_result.type == ResultType.ACTION
-    entry_id = create_result.result.data.get("time_entry", create_result.result.data)["id"]
+    entry_id = create_result.result.data.get("time_entry", create_result.result.data)[
+        "id"
+    ]
     assert entry_id
 
     # Update
     update_result = await harvest.execute_action(
-        "update_time_entry", {"time_entry_id": entry_id, "hours": 2.0}, live_context,
+        "update_time_entry",
+        {"time_entry_id": entry_id, "hours": 2.0},
+        live_context,
     )
     assert update_result.type == ResultType.ACTION
 
     # Stop (only valid on running timers — result may be ACTION_ERROR, that's fine)
-    await harvest.execute_action("stop_time_entry", {"time_entry_id": entry_id}, live_context)
+    await harvest.execute_action(
+        "stop_time_entry", {"time_entry_id": entry_id}, live_context
+    )
 
     # Delete
     delete_result = await harvest.execute_action(
@@ -189,7 +231,9 @@ async def test_create_update_stop_delete_time_entry(live_context, temp_project_a
 @pytest.mark.destructive
 async def test_get_project_with_temp_project(live_context, temp_project_and_task):
     project_id, _ = temp_project_and_task
-    result = await harvest.execute_action("get_project", {"project_id": project_id}, live_context)
+    result = await harvest.execute_action(
+        "get_project", {"project_id": project_id}, live_context
+    )
     assert result.type == ResultType.ACTION
     data = result.result.data
     project = data.get("project", data)
