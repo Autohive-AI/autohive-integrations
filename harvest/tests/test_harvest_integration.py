@@ -3,8 +3,9 @@ Live integration tests for the Harvest integration.
 
 Requires HARVEST_ACCESS_TOKEN and HARVEST_ACCOUNT_ID set in the environment.
 
-For a Harvest OAuth token the account ID is the numeric prefix before ".at." in
-the token string. E.g. for "4121875.at.xxx..." the account ID is "4121875".
+For a Harvest Personal Access Token the account ID is found at:
+    https://id.getharvest.com/api/v2/accounts  (Bearer token, no account header)
+It is NOT the numeric prefix in the token string (that is the user ID).
 
 Safe read-only run:
     pytest harvest/tests/test_harvest_integration.py -m "integration and not destructive"
@@ -13,6 +14,7 @@ Including destructive (create/update/delete time entries):
     pytest harvest/tests/test_harvest_integration.py -m "integration"
 """
 
+import json as _json
 from unittest.mock import AsyncMock
 
 import aiohttp
@@ -44,7 +46,8 @@ def live_context(env_credentials, make_context):
             async with session.request(
                 method, url, json=json, headers=merged_headers, params=params, **kwargs
             ) as resp:
-                data = await resp.json(content_type=None)
+                text = await resp.text()
+                data = _json.loads(text) if text.strip() else {}
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     ctx = make_context(
@@ -85,8 +88,9 @@ async def test_get_project(live_context):
     result = await harvest.execute_action("get_project", {"project_id": projects[0]["id"]}, live_context)
     assert result.type == ResultType.ACTION
     data = result.result.data
-    assert "id" in data
-    assert "name" in data
+    project = data.get("project", data)
+    assert "id" in project
+    assert "name" in project
 
 
 async def test_list_clients(live_context):
@@ -121,22 +125,24 @@ async def test_list_users(live_context):
 @pytest.fixture
 async def temp_project_and_task(live_context):
     """Creates a temporary client, project, and task via live_context.fetch for destructive tests. Cleans up after."""
+    import time
     base = "https://api.harvestapp.com/v2"
     fetch = live_context.fetch
+    uid = int(time.time())
 
     # Create client
-    client_resp = await fetch(f"{base}/clients", method="POST", json={"name": "AH Test Client"})
+    client_resp = await fetch(f"{base}/clients", method="POST", json={"name": f"AH Test Client {uid}"})
     client_id = client_resp.data["id"]
 
     # Create project
     project_resp = await fetch(
         f"{base}/projects", method="POST",
-        json={"name": "AH Test Project", "client_id": client_id, "is_billable": False, "bill_by": "none", "budget_by": "none"},
+        json={"name": f"AH Test Project {uid}", "client_id": client_id, "is_billable": False, "bill_by": "none", "budget_by": "none"},
     )
     project_id = project_resp.data["id"]
 
     # Create task
-    task_resp = await fetch(f"{base}/tasks", method="POST", json={"name": "AH Test Task"})
+    task_resp = await fetch(f"{base}/tasks", method="POST", json={"name": f"AH Test Task {uid}"})
     task_id = task_resp.data["id"]
 
     # Assign task to project
@@ -161,7 +167,7 @@ async def test_create_update_stop_delete_time_entry(live_context, temp_project_a
         live_context,
     )
     assert create_result.type == ResultType.ACTION
-    entry_id = create_result.result.data["id"]
+    entry_id = create_result.result.data.get("time_entry", create_result.result.data)["id"]
     assert entry_id
 
     # Update
@@ -186,5 +192,6 @@ async def test_get_project_with_temp_project(live_context, temp_project_and_task
     result = await harvest.execute_action("get_project", {"project_id": project_id}, live_context)
     assert result.type == ResultType.ACTION
     data = result.result.data
-    assert "id" in data
-    assert "name" in data
+    project = data.get("project", data)
+    assert "id" in project
+    assert "name" in project
