@@ -4,6 +4,19 @@ Live integration tests for the Harvest integration.
 Requires HARVEST_ACCESS_TOKEN and HARVEST_ACCOUNT_ID set in the environment or
 project .env.
 
+Token/account extraction recipe:
+1. Sign in to Harvest ID and open https://id.getharvest.com/developers.
+2. Create a Personal Access Token for the sandbox/test account.
+3. Copy the generated token to HARVEST_ACCESS_TOKEN.
+4. Copy the Harvest account ID shown with the token to HARVEST_ACCOUNT_ID. If
+   multiple accounts are available, choose the account whose product is
+   "harvest". You can also list accessible accounts with:
+       curl https://id.getharvest.com/api/v2/accounts \
+         -H "Authorization: Bearer $HARVEST_ACCESS_TOKEN" \
+         -H "User-Agent: Autohive Integrations (support@autohive.ai)"
+5. Add both values to the project .env file or export them in your shell before
+   running these tests.
+
 Safe read-only run:
     pytest harvest/tests/test_harvest_integration.py -m "integration and not destructive"
 """
