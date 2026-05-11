@@ -575,7 +575,8 @@ def parse_markdown_to_docx(doc: Document, markdown_text: str) -> None:
             "blockquote",
             "table",
             "pre",
-        ]
+        ],
+        recursive=False,
     ):
         if element.name.startswith("h"):
             # Handle headings
