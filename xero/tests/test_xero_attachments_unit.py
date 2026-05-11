@@ -12,9 +12,7 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "xero_mod", os.path.join(_parent, "xero.py")
-)
+_spec = importlib.util.spec_from_file_location("xero_mod", os.path.join(_parent, "xero.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -56,9 +54,7 @@ class TestAttachFileToInvoice:
     @pytest.mark.asyncio
     async def test_attaches_file_successfully(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                return_value=SAMPLE_ATTACHMENTS_RESPONSE
-            )
+            mock_limiter.make_request = AsyncMock(return_value=SAMPLE_ATTACHMENTS_RESPONSE)
 
             result = await xero.execute_action(
                 "attach_file_to_invoice",
@@ -79,9 +75,7 @@ class TestAttachFileToInvoice:
     @pytest.mark.asyncio
     async def test_posts_with_decoded_bytes(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                return_value=SAMPLE_ATTACHMENTS_RESPONSE
-            )
+            mock_limiter.make_request = AsyncMock(return_value=SAMPLE_ATTACHMENTS_RESPONSE)
 
             await xero.execute_action(
                 "attach_file_to_invoice",
@@ -105,9 +99,7 @@ class TestAttachFileToInvoice:
     @pytest.mark.asyncio
     async def test_uses_files_array_when_file_absent(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                return_value=SAMPLE_ATTACHMENTS_RESPONSE
-            )
+            mock_limiter.make_request = AsyncMock(return_value=SAMPLE_ATTACHMENTS_RESPONSE)
 
             result = await xero.execute_action(
                 "attach_file_to_invoice",
@@ -130,9 +122,7 @@ class TestAttachFileToInvoice:
     @pytest.mark.asyncio
     async def test_rate_limit_returns_action_error(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                side_effect=XeroRateLimitExceededException(90, 60, "t-001")
-            )
+            mock_limiter.make_request = AsyncMock(side_effect=XeroRateLimitExceededException(90, 60, "t-001"))
 
             result = await xero.execute_action(
                 "attach_file_to_invoice",
@@ -153,9 +143,7 @@ class TestAttachFileToInvoice:
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                side_effect=Exception("Upload failed")
-            )
+            mock_limiter.make_request = AsyncMock(side_effect=Exception("Upload failed"))
 
             result = await xero.execute_action(
                 "attach_file_to_invoice",
@@ -181,9 +169,7 @@ class TestAttachFileToBill:
     @pytest.mark.asyncio
     async def test_attaches_file_to_bill(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                return_value=SAMPLE_ATTACHMENTS_RESPONSE
-            )
+            mock_limiter.make_request = AsyncMock(return_value=SAMPLE_ATTACHMENTS_RESPONSE)
 
             result = await xero.execute_action(
                 "attach_file_to_bill",
@@ -204,9 +190,7 @@ class TestAttachFileToBill:
     @pytest.mark.asyncio
     async def test_uses_bill_id_in_url(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                return_value=SAMPLE_ATTACHMENTS_RESPONSE
-            )
+            mock_limiter.make_request = AsyncMock(return_value=SAMPLE_ATTACHMENTS_RESPONSE)
 
             await xero.execute_action(
                 "attach_file_to_bill",
@@ -254,9 +238,7 @@ class TestGetAttachments:
     @pytest.mark.asyncio
     async def test_returns_attachments(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                return_value=SAMPLE_ATTACHMENTS_RESPONSE
-            )
+            mock_limiter.make_request = AsyncMock(return_value=SAMPLE_ATTACHMENTS_RESPONSE)
 
             result = await xero.execute_action(
                 "get_attachments",
@@ -269,9 +251,7 @@ class TestGetAttachments:
     @pytest.mark.asyncio
     async def test_calls_correct_endpoint(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                return_value=SAMPLE_ATTACHMENTS_RESPONSE
-            )
+            mock_limiter.make_request = AsyncMock(return_value=SAMPLE_ATTACHMENTS_RESPONSE)
 
             await xero.execute_action(
                 "get_attachments",
@@ -286,9 +266,7 @@ class TestGetAttachments:
     @pytest.mark.asyncio
     async def test_rate_limit_returns_action_error(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                side_effect=XeroRateLimitExceededException(80, 60, "t-001")
-            )
+            mock_limiter.make_request = AsyncMock(side_effect=XeroRateLimitExceededException(80, 60, "t-001"))
 
             result = await xero.execute_action(
                 "get_attachments",
