@@ -1,45 +1,67 @@
-import os
-import sys
-import importlib.util
+"""
+Live integration tests for the Box integration.
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-os.chdir(_parent)
-sys.path.insert(0, _parent)
-_spec = importlib.util.spec_from_file_location("box_mod", os.path.join(_parent, "box.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-box = _mod.box
+Requires BOX_ACCESS_TOKEN set in the environment or project .env.
 
-import pytest  # noqa: E402
-from unittest.mock import MagicMock, AsyncMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse, ResultType  # noqa: E402
+Token extraction recipe:
+1. Authorize the Box platform OAuth app for a sandbox/test Box account.
+2. Copy the resulting short-lived OAuth access token to BOX_ACCESS_TOKEN.
+3. Add the value to the project .env file or export it in your shell before
+   running these tests.
+
+Safe read-only run:
+    pytest box/tests/test_box_integration.py -m "integration and not destructive"
+"""
+
+from unittest.mock import AsyncMock
+
+import aiohttp
+import pytest
+from autohive_integrations_sdk import FetchResponse, ResultType
+
+from box import box
 
 pytestmark = pytest.mark.integration
-ACCESS_TOKEN = os.environ.get("BOX_ACCESS_TOKEN", "")
 
 
 @pytest.fixture
-def live_context():
-    if not ACCESS_TOKEN:
-        pytest.skip("BOX_ACCESS_TOKEN not set")
-    import aiohttp
+def live_context(env_credentials, make_context):
+    access_token = env_credentials("BOX_ACCESS_TOKEN")
+    if not access_token:
+        pytest.skip("BOX_ACCESS_TOKEN not set — skipping integration tests")
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
+        merged_headers = dict(headers or {})
+        merged_headers["Authorization"] = f"Bearer {access_token}"
+
         async with aiohttp.ClientSession() as session:
-            async with session.request(method, url, json=json, headers=headers or {}, params=params) as resp:
+            async with session.request(
+                method,
+                url,
+                json=json,
+                headers=merged_headers,
+                params=params,
+                **kwargs,
+            ) as resp:
                 try:
                     data = await resp.json(content_type=None)
                 except Exception:
                     data = await resp.text()
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
-    ctx = MagicMock()
+    ctx = make_context(
+        auth={
+            "auth_type": "PlatformOauth2",
+            "credentials": {"access_token": access_token},
+        }
+    )
     ctx.fetch = AsyncMock(side_effect=real_fetch)
-    ctx.auth = {"credentials": {"access_token": ACCESS_TOKEN}}
+    ctx._session = None
+    ctx.__aenter__ = AsyncMock(return_value=ctx)
+    ctx.__aexit__ = AsyncMock(return_value=None)
     return ctx
 
 
-@pytest.mark.asyncio
 async def test_list_shared_folders(live_context):
     result = await box.execute_action("list_shared_folders", {}, live_context)
     assert result.type == ResultType.ACTION
@@ -48,7 +70,6 @@ async def test_list_shared_folders(live_context):
     assert isinstance(data["folders"], list)
 
 
-@pytest.mark.asyncio
 async def test_list_files(live_context):
     result = await box.execute_action("list_files", {}, live_context)
     assert result.type == ResultType.ACTION
@@ -57,7 +78,6 @@ async def test_list_files(live_context):
     assert isinstance(data["files"], list)
 
 
-@pytest.mark.asyncio
 async def test_list_folder_contents(live_context):
     result = await box.execute_action("list_folder_contents", {"folder_id": "0"}, live_context)
     assert result.type == ResultType.ACTION
@@ -66,7 +86,6 @@ async def test_list_folder_contents(live_context):
     assert isinstance(data["items"], list)
 
 
-@pytest.mark.asyncio
 async def test_get_file(live_context):
     # First find a file to test with
     list_result = await box.execute_action("list_files", {}, live_context)
