@@ -11,7 +11,9 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location("xero_mod", os.path.join(_parent, "xero.py"))
+_spec = importlib.util.spec_from_file_location(
+    "xero_mod", os.path.join(_parent, "xero.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -61,7 +63,9 @@ class TestGetInvoices:
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(return_value=SAMPLE_INVOICES_RESPONSE)
 
-            result = await xero.execute_action("get_invoices", {"tenant_id": "t-001"}, mock_context)
+            result = await xero.execute_action(
+                "get_invoices", {"tenant_id": "t-001"}, mock_context
+            )
 
         assert "Invoices" in result.result.data
         assert len(result.result.data["Invoices"]) == 1
@@ -71,7 +75,9 @@ class TestGetInvoices:
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(return_value=SAMPLE_INVOICES_RESPONSE)
 
-            await xero.execute_action("get_invoices", {"tenant_id": "t-001"}, mock_context)
+            await xero.execute_action(
+                "get_invoices", {"tenant_id": "t-001"}, mock_context
+            )
 
             call_args = mock_limiter.make_request.call_args
             assert "api.xero.com/api.xro/2.0/Invoices" in call_args.args[1]
@@ -113,9 +119,13 @@ class TestGetInvoices:
     @pytest.mark.asyncio
     async def test_rate_limit_returns_action_error(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(side_effect=XeroRateLimitExceededException(120, 60, "t-001"))
+            mock_limiter.make_request = AsyncMock(
+                side_effect=XeroRateLimitExceededException(120, 60, "t-001")
+            )
 
-            result = await xero.execute_action("get_invoices", {"tenant_id": "t-001"}, mock_context)
+            result = await xero.execute_action(
+                "get_invoices", {"tenant_id": "t-001"}, mock_context
+            )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "rate limit" in result.result.message.lower()
@@ -125,7 +135,9 @@ class TestGetInvoices:
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(side_effect=Exception("API error"))
 
-            result = await xero.execute_action("get_invoices", {"tenant_id": "t-001"}, mock_context)
+            result = await xero.execute_action(
+                "get_invoices", {"tenant_id": "t-001"}, mock_context
+            )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "API error" in result.result.message
@@ -139,10 +151,16 @@ class TestGetBankTransactions:
     async def test_happy_path(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(
-                return_value={"BankTransactions": [{"BankTransactionID": "bt-001", "Total": 250.0}]}
+                return_value={
+                    "BankTransactions": [
+                        {"BankTransactionID": "bt-001", "Total": 250.0}
+                    ]
+                }
             )
 
-            result = await xero.execute_action("get_bank_transactions", {"tenant_id": "t-001"}, mock_context)
+            result = await xero.execute_action(
+                "get_bank_transactions", {"tenant_id": "t-001"}, mock_context
+            )
 
         assert "BankTransactions" in result.result.data
 
@@ -166,7 +184,9 @@ class TestGetBankTransactions:
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(side_effect=Exception("Error"))
 
-            result = await xero.execute_action("get_bank_transactions", {"tenant_id": "t-001"}, mock_context)
+            result = await xero.execute_action(
+                "get_bank_transactions", {"tenant_id": "t-001"}, mock_context
+            )
 
         assert result.type == ResultType.ACTION_ERROR
 
@@ -303,7 +323,9 @@ class TestCreateSalesInvoice:
     @pytest.mark.asyncio
     async def test_rate_limit_returns_action_error(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(side_effect=XeroRateLimitExceededException(90, 60, "t-001"))
+            mock_limiter.make_request = AsyncMock(
+                side_effect=XeroRateLimitExceededException(90, 60, "t-001")
+            )
 
             result = await xero.execute_action(
                 "create_sales_invoice",
@@ -332,7 +354,11 @@ class TestCreatePurchaseBill:
     async def test_creates_bill(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(
-                return_value={"Invoices": [{"InvoiceID": "bill-001", "Type": "ACCPAY", "Status": "DRAFT"}]}
+                return_value={
+                    "Invoices": [
+                        {"InvoiceID": "bill-001", "Type": "ACCPAY", "Status": "DRAFT"}
+                    ]
+                }
             )
 
             result = await xero.execute_action(
@@ -356,7 +382,9 @@ class TestCreatePurchaseBill:
     @pytest.mark.asyncio
     async def test_payload_has_accpay_type(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(return_value={"Invoices": [{"InvoiceID": "bill-001"}]})
+            mock_limiter.make_request = AsyncMock(
+                return_value={"Invoices": [{"InvoiceID": "bill-001"}]}
+            )
 
             await xero.execute_action(
                 "create_purchase_bill",
@@ -387,7 +415,9 @@ class TestCreatePurchaseBill:
                 {
                     "tenant_id": "t-001",
                     "contact": {"ContactID": "c-001"},
-                    "line_items": [{"Description": "S", "UnitAmount": 1.0, "AccountCode": "300"}],
+                    "line_items": [
+                        {"Description": "S", "UnitAmount": 1.0, "AccountCode": "300"}
+                    ],
                 },
                 mock_context,
             )
@@ -449,7 +479,9 @@ class TestUpdatePurchaseBill:
     async def test_updates_bill(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(
-                return_value={"Invoices": [{"InvoiceID": "bill-001", "Status": "AUTHORISED"}]}
+                return_value={
+                    "Invoices": [{"InvoiceID": "bill-001", "Status": "AUTHORISED"}]
+                }
             )
 
             result = await xero.execute_action(
@@ -508,7 +540,9 @@ class TestGetInvoicePdf:
 
         assert "file" in result.result.data
         assert result.result.data["file"]["name"] == "invoice_inv-001.pdf"
-        assert result.result.data["file"]["content"] == base64.b64encode(pdf_bytes).decode("utf-8")
+        assert result.result.data["file"]["content"] == base64.b64encode(
+            pdf_bytes
+        ).decode("utf-8")
 
     @pytest.mark.asyncio
     async def test_http_error_returns_action_error(self, mock_context):
@@ -535,7 +569,9 @@ class TestGetInvoicePdf:
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
-        with patch("aiohttp.ClientSession", side_effect=Exception("Connection refused")):
+        with patch(
+            "aiohttp.ClientSession", side_effect=Exception("Connection refused")
+        ):
             result = await xero.execute_action(
                 "get_invoice_pdf",
                 {"tenant_id": "t-001", "invoice_id": "inv-001"},

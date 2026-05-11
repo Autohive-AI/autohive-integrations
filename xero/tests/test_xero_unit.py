@@ -11,7 +11,9 @@ from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk import ResultType, FetchResponse  # noqa: E402
 
 os.chdir(_parent)
-_spec = importlib.util.spec_from_file_location("xero_mod", os.path.join(_parent, "xero.py"))
+_spec = importlib.util.spec_from_file_location(
+    "xero_mod", os.path.join(_parent, "xero.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 sys.modules["xero_mod"] = _mod
@@ -72,7 +74,9 @@ class TestGetAvailableConnections:
             ],
         )
 
-        result = await xero.execute_action("get_available_connections", {}, mock_context)
+        result = await xero.execute_action(
+            "get_available_connections", {}, mock_context
+        )
 
         assert result.type == ResultType.ACTION
         data = result.result.data
@@ -83,7 +87,9 @@ class TestGetAvailableConnections:
     async def test_fetch_error_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Network error")
 
-        result = await xero.execute_action("get_available_connections", {}, mock_context)
+        result = await xero.execute_action(
+            "get_available_connections", {}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Network error" in result.result.message
@@ -109,7 +115,9 @@ class TestFindContactByName:
             )
             inputs = {"tenant_id": "test_tenant", "contact_name": "John"}
 
-            result = await xero.execute_action("find_contact_by_name", inputs, mock_context)
+            result = await xero.execute_action(
+                "find_contact_by_name", inputs, mock_context
+            )
 
         assert result.type == ResultType.ACTION
         data = result.result.data
@@ -122,7 +130,9 @@ class TestFindContactByName:
             mock_limiter.make_request = AsyncMock(return_value={"Contacts": []})
             inputs = {"tenant_id": "test_tenant", "contact_name": "Nobody"}
 
-            result = await xero.execute_action("find_contact_by_name", inputs, mock_context)
+            result = await xero.execute_action(
+                "find_contact_by_name", inputs, mock_context
+            )
 
         assert result.type == ResultType.ACTION
         assert result.result.data["contacts"] == []
@@ -136,7 +146,9 @@ class TestFindContactByName:
             )
             inputs = {"tenant_id": "test_tenant", "contact_name": "Test"}
 
-            result = await xero.execute_action("find_contact_by_name", inputs, mock_context)
+            result = await xero.execute_action(
+                "find_contact_by_name", inputs, mock_context
+            )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "120" in result.result.message
@@ -184,7 +196,9 @@ class TestGetAccounts:
                 )
             )
 
-            result = await xero.execute_action("get_accounts", {"tenant_id": "test_tenant"}, mock_context)
+            result = await xero.execute_action(
+                "get_accounts", {"tenant_id": "test_tenant"}, mock_context
+            )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "90" in result.result.message
@@ -224,7 +238,9 @@ class TestGetInvoices:
                 )
             )
 
-            result = await xero.execute_action("get_invoices", {"tenant_id": "test_tenant"}, mock_context)
+            result = await xero.execute_action(
+                "get_invoices", {"tenant_id": "test_tenant"}, mock_context
+            )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "180" in result.result.message
@@ -249,7 +265,9 @@ class TestGetInvoicePdf:
         assert data["file"]["content"] == base64.b64encode(pdf_bytes).decode("utf-8")
 
     async def test_http_error_returns_action_error(self, mock_context):
-        session_cls, _session, resp = _aiohttp_session_mock(status=404, text="Not found")
+        session_cls, _session, resp = _aiohttp_session_mock(
+            status=404, text="Not found"
+        )
         resp.text = AsyncMock(return_value="Not found")
 
         inputs = {"tenant_id": "test_tenant", "invoice_id": "missing"}
@@ -295,7 +313,9 @@ class TestGetPayments:
                 )
             )
 
-            result = await xero.execute_action("get_payments", {"tenant_id": "test_tenant"}, mock_context)
+            result = await xero.execute_action(
+                "get_payments", {"tenant_id": "test_tenant"}, mock_context
+            )
 
         assert result.type == ResultType.ACTION_ERROR
 
@@ -320,7 +340,9 @@ class TestGetBankTransactions:
             )
             inputs = {"tenant_id": "test_tenant"}
 
-            result = await xero.execute_action("get_bank_transactions", inputs, mock_context)
+            result = await xero.execute_action(
+                "get_bank_transactions", inputs, mock_context
+            )
 
         assert result.type == ResultType.ACTION
         data = result.result.data
@@ -335,11 +357,17 @@ class TestGetBalanceSheet:
     async def test_returns_report(self, mock_context):
         with patch("xero_mod.rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(
-                return_value={"Reports": [{"ReportID": "BalanceSheet", "ReportName": "Balance Sheet"}]}
+                return_value={
+                    "Reports": [
+                        {"ReportID": "BalanceSheet", "ReportName": "Balance Sheet"}
+                    ]
+                }
             )
             inputs = {"tenant_id": "test_tenant"}
 
-            result = await xero.execute_action("get_balance_sheet", inputs, mock_context)
+            result = await xero.execute_action(
+                "get_balance_sheet", inputs, mock_context
+            )
 
         assert result.type == ResultType.ACTION
         data = result.result.data
@@ -353,7 +381,9 @@ class TestGetBalanceSheet:
                 )
             )
 
-            result = await xero.execute_action("get_balance_sheet", {"tenant_id": "test_tenant"}, mock_context)
+            result = await xero.execute_action(
+                "get_balance_sheet", {"tenant_id": "test_tenant"}, mock_context
+            )
 
         assert result.type == ResultType.ACTION_ERROR
 
@@ -376,7 +406,9 @@ class TestGetAgedPayables:
             )
             inputs = {"tenant_id": "test_tenant", "contact_id": "c1"}
 
-            result = await xero.execute_action("get_aged_payables", inputs, mock_context)
+            result = await xero.execute_action(
+                "get_aged_payables", inputs, mock_context
+            )
 
         assert result.type == ResultType.ACTION
         data = result.result.data
@@ -414,7 +446,9 @@ class TestCreateSalesInvoice:
                 ],
             }
 
-            result = await xero.execute_action("create_sales_invoice", inputs, mock_context)
+            result = await xero.execute_action(
+                "create_sales_invoice", inputs, mock_context
+            )
 
         assert result.type == ResultType.ACTION
         data = result.result.data
@@ -442,7 +476,9 @@ class TestGetPurchaseOrders:
             )
             inputs = {"tenant_id": "test_tenant"}
 
-            result = await xero.execute_action("get_purchase_orders", inputs, mock_context)
+            result = await xero.execute_action(
+                "get_purchase_orders", inputs, mock_context
+            )
 
         assert result.type == ResultType.ACTION
         data = result.result.data
@@ -457,7 +493,9 @@ class TestGetPurchaseOrders:
                 )
             )
 
-            result = await xero.execute_action("get_purchase_orders", {"tenant_id": "test_tenant"}, mock_context)
+            result = await xero.execute_action(
+                "get_purchase_orders", {"tenant_id": "test_tenant"}, mock_context
+            )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "150" in result.result.message
@@ -493,7 +531,9 @@ class TestCreatePurchaseOrder:
                 ],
             }
 
-            result = await xero.execute_action("create_purchase_order", inputs, mock_context)
+            result = await xero.execute_action(
+                "create_purchase_order", inputs, mock_context
+            )
 
         assert result.type == ResultType.ACTION
         data = result.result.data
@@ -532,7 +572,9 @@ class TestAttachFileToInvoice:
                 },
             }
 
-            result = await xero.execute_action("attach_file_to_invoice", inputs, mock_context)
+            result = await xero.execute_action(
+                "attach_file_to_invoice", inputs, mock_context
+            )
 
         assert result.type == ResultType.ACTION
         data = result.result.data
