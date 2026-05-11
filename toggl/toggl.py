@@ -28,7 +28,7 @@ class CreateTimeEntry(ActionHandler):
                 "created_with": "autohive-integrations",
                 # Mirror incoming fields if present
                 "description": inputs.get("description"),
-                "start": inputs.get("start"),
+                "start": inputs["start"],
                 "stop": inputs.get("stop"),
                 "duration": inputs.get("duration"),
                 "project_id": inputs.get("project_id"),
