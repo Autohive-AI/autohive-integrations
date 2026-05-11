@@ -1,252 +1,167 @@
-import asyncio
-from typing import Any, Dict, Optional
+"""
+Live integration tests for the Gong integration.
 
-from context import gong  # integration instance
+Requires GONG_ACCESS_TOKEN set in the environment or project .env. Set
+GONG_API_BASE_URL when the OAuth token response includes a customer-specific
+api_base_url_for_customer value; otherwise the tests default to
+https://api.gong.io.
 
+Token/base-url extraction recipe:
+1. Create a Gong OAuth app from Admin center > Settings > Ecosystem > API.
+2. Select the scopes configured in gong/config.json:
+   api:calls:read:basic, api:calls:read:extensive,
+   api:calls:read:transcript, and api:users:read.
+3. Complete Gong's authorization-code flow as a tech admin and exchange the
+   authorization code with /oauth2/generate-customer-token.
+4. Copy the returned access_token to GONG_ACCESS_TOKEN.
+5. If the response includes api_base_url_for_customer, copy it to
+   GONG_API_BASE_URL. Gong OAuth responses can return a customer-specific API
+   base URL, and requests should use that value when present.
 
-class MockExecutionContext:
-    def __init__(self, responses: Dict[str, Any]):
-        # mimic SDK context shape expected by gong.py
-        self.auth = {}  # OAuth handled by SDK
-        self.metadata = {"api_base_url": "https://api.gong.io"}
-        self._responses = responses
+Safe read-only run:
+    pytest gong/tests/test_gong_integration.py -m "integration and not destructive"
+"""
 
-    async def fetch(
-        self,
-        url: str,
-        method: str = "GET",
-        params: Optional[Dict[str, Any]] = None,
-        json: Any = None,
-        headers: Optional[Dict[str, str]] = None,
-        **kwargs,
-    ):
-        # Route by endpoint suffix for simplicity
-        if url.endswith("/calls") and method == "GET":
-            return self._responses.get("GET /calls", {"calls": [], "hasMore": False})
+from unittest.mock import AsyncMock
 
-        # Match GET /calls/{id}
-        if "/calls/" in url and method == "GET" and not url.endswith("/calls"):
-            # Simple ID extraction or just return a default "GET /calls/{id}" mock
-            return self._responses.get("GET /calls/{id}", {})
+import aiohttp
+import pytest
+from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
-        if url.endswith("/calls/extensive") and method == "POST":
-            return self._responses.get("POST /calls/extensive", {"calls": []})
-        if url.endswith("/calls/transcript") and method == "POST":
-            return self._responses.get("POST /calls/transcript", {"callTranscripts": []})
-        if url.endswith("/users") and method == "GET":
-            return self._responses.get("GET /users", {"users": [], "hasMore": False})
-        return {}
+from gong.gong import gong
+
+pytestmark = pytest.mark.integration
+
+BASE_URL = "https://api.gong.io"
 
 
-async def test_list_calls_basic():
-    responses = {
-        "GET /calls": {
-            "calls": [
-                {
-                    "id": "2",
-                    "title": "B",
-                    "started": "2025-01-02T00:00:00Z",
-                    "duration": 5,
-                    "participants": [],
-                    "outcome": "",
-                },
-                {
-                    "id": "1",
-                    "title": "A",
-                    "started": "2025-01-01T00:00:00Z",
-                    "duration": 10,
-                    "participants": [],
-                    "outcome": "",
-                },
-            ],
-            "hasMore": False,
-            "nextCursor": None,
+@pytest.fixture
+def live_context(env_credentials, make_context):
+    access_token = env_credentials("GONG_ACCESS_TOKEN")
+    api_base_url = env_credentials("GONG_API_BASE_URL") or BASE_URL
+    if not access_token:
+        pytest.skip("GONG_ACCESS_TOKEN not set — skipping integration tests")
+
+    async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
+        merged_headers = {"Authorization": f"Bearer {access_token}"}
+        if headers:
+            merged_headers.update(headers)
+        async with aiohttp.ClientSession() as session:
+            async with session.request(
+                method,
+                url,
+                json=json,
+                headers=merged_headers,
+                params=params,
+                **kwargs,
+            ) as resp:
+                data = await resp.json(content_type=None)
+                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
+
+    ctx = make_context(
+        auth={
+            "auth_type": "PlatformOauth2",
+            "credentials": {"access_token": access_token},
         }
-    }
-    context = MockExecutionContext(responses)
-    result = await gong.execute_action("list_calls", {"limit": 2}, context)
-    data = result.result.data
-    assert "calls" in data and len(data["calls"]) == 2
-    assert data["calls"][0]["id"] == "2"  # sorted newest first
+    )
+    ctx.fetch = AsyncMock(side_effect=real_fetch)
+    ctx.metadata = {"api_base_url": api_base_url}
+    return ctx
 
 
-async def test_get_call_details_shim():
-    responses = {
-        "GET /calls/{id}": {
-            "call": {
-                "id": "abc",
-                "title": "Demo",
-                "started": "2025-01-01T00:00:00Z",
-                "duration": 60,
-                # Basic GET doesn't return parties in this scenario
-            }
-        },
-        "POST /calls/extensive": {
-            "calls": [
-                {
-                    "id": "abc",
-                    "parties": [{"userId": "u1", "name": "Jane"}],
-                    "crmData": {"opp": 123},
-                    "outcome": "Won",
-                }
-            ]
-        },
-    }
-    context = MockExecutionContext(responses)
-    result = await gong.execute_action("get_call_details", {"call_id": "abc"}, context)
-    data = result.result.data
-    assert data["id"] == "abc"
-    assert data["title"] == "Demo"
-    assert len(data["participants"]) == 1
-    assert data["participants"][0]["name"] == "Jane"
+async def _first_call_id(live_context):
+    result = await gong.execute_action("list_calls", {"limit": 5}, live_context)
+    if result.type != ResultType.ACTION:
+        pytest.skip(f"Unable to list Gong calls: {result.result.message}")
+
+    calls = result.result.data["calls"]
+    if not calls:
+        pytest.skip("No non-private Gong calls available to test call-specific actions")
+    return calls[0]["id"]
 
 
-async def test_get_call_transcript_mapping():
-    responses = {
-        "GET /calls/{id}": {"call": {"id": "xyz", "started": "2025-01-01T00:00:00Z"}},
-        "POST /calls/extensive": {
-            "calls": [
-                {
-                    "parties": [
-                        {"speakerId": 1, "name": "Alice"},
-                        {"speakerId": 2, "name": "Bob"},
-                    ]
-                }
-            ]
-        },
-        "POST /calls/transcript": {
-            "callTranscripts": [
-                {
-                    "transcript": [
-                        {
-                            "speakerId": 1,
-                            "sentences": [{"start": 0, "end": 1000, "text": "Hi"}],
-                        },
-                        {
-                            "speakerId": 2,
-                            "sentences": [{"start": 1000, "end": 2000, "text": "Hello"}],
-                        },
-                    ]
-                }
-            ]
-        },
-    }
-    context = MockExecutionContext(responses)
-    result = await gong.execute_action("get_call_transcript", {"call_id": "xyz"}, context)
-    data = result.result.data
-    assert len(data["transcript"]) == 2
-    assert data["transcript"][0]["speaker_name"] == "Alice"
+class TestListCallsIntegration:
+    async def test_list_calls_returns_calls(self, live_context):
+        result = await gong.execute_action("list_calls", {"limit": 5}, live_context)
+
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert "calls" in data
+        assert isinstance(data["calls"], list)
+        assert "has_more" in data
+        assert "next_cursor" in data
 
 
-async def test_list_users():
-    responses = {
-        "GET /users": {
-            "users": [
-                {
-                    "id": "u1",
-                    "name": "Alice",
-                    "email": "a@example.com",
-                    "role": "admin",
-                    "active": True,
-                }
-            ],
-            "hasMore": False,
-            "nextCursor": None,
-        }
-    }
-    context = MockExecutionContext(responses)
-    result = await gong.execute_action("list_users", {"limit": 1}, context)
-    data = result.result.data
-    assert data["users"][0]["id"] == "u1"
+FAKE_CALL_ID = "0000000000000001"  # non-existent call ID for error-path coverage
 
 
-async def test_list_calls_filters_private():
-    responses = {
-        "GET /calls": {
-            "calls": [
-                {
-                    "id": "p1",
-                    "title": "Private",
-                    "started": "2025-01-03T00:00:00Z",
-                    "duration": 1,
-                    "isPrivate": True,
-                },
-                {
-                    "id": "pub",
-                    "title": "Public",
-                    "started": "2025-01-02T00:00:00Z",
-                    "duration": 2,
-                    "isPrivate": False,
-                },
-            ],
-            "hasMore": False,
-            "nextCursor": None,
-        }
-    }
-    context = MockExecutionContext(responses)
-    result = await gong.execute_action("list_calls", {"limit": 10}, context)
-    data = result.result.data
-    ids = [c["id"] for c in data["calls"]]
-    assert "p1" not in ids and "pub" in ids
+class TestGetCallDetailsIntegration:
+    async def test_get_call_details_returns_call_shape(self, live_context):
+        """Use a real call if one exists, otherwise verify graceful error handling with a fake ID."""
+        calls = (await gong.execute_action("list_calls", {"limit": 1}, live_context)).result.data.get("calls", [])
+        if calls:
+            call_id = calls[0]["id"]
+            result = await gong.execute_action("get_call_details", {"call_id": call_id}, live_context)
+            assert result.type == ResultType.ACTION
+            data = result.result.data
+            assert data["id"] == call_id
+            assert "title" in data
+            assert "started" in data
+            assert "duration" in data
+            assert "participants" in data
+            assert "outcome" in data
+            assert "crm_data" in data
+        else:
+            # No calls in account — Gong returns 200 with empty/default data for unknown IDs
+            result = await gong.execute_action("get_call_details", {"call_id": FAKE_CALL_ID}, live_context)
+            assert result.type == ResultType.ACTION
+            data = result.result.data
+            assert "id" in data
+            assert "title" in data
+            assert "participants" in data
 
 
-async def test_get_call_details_private_filtered():
-    responses = {"GET /calls/{id}": {"id": "x", "isPrivate": True}}
-    context = MockExecutionContext(responses)
-    result = await gong.execute_action("get_call_details", {"call_id": "x"}, context)
-    data = result.result.data
-    assert data.get("error") == "private_call_filtered"
-    assert data.get("id") == "x"
-    assert data.get("duration") == 0
+class TestGetCallTranscriptIntegration:
+    async def test_get_call_transcript_returns_transcript_shape(self, live_context):
+        """Use a real call if one exists, otherwise verify response shape with a fake ID."""
+        calls = (await gong.execute_action("list_calls", {"limit": 1}, live_context)).result.data.get("calls", [])
+        if calls:
+            call_id = calls[0]["id"]
+            result = await gong.execute_action("get_call_transcript", {"call_id": call_id}, live_context)
+            assert result.type == ResultType.ACTION
+            data = result.result.data
+            assert data["call_id"] == call_id
+            assert "transcript" in data
+            assert isinstance(data["transcript"], list)
+        else:
+            # No calls in account — Gong returns 200 with empty transcript for unknown IDs
+            result = await gong.execute_action("get_call_transcript", {"call_id": FAKE_CALL_ID}, live_context)
+            assert result.type == ResultType.ACTION
+            data = result.result.data
+            assert "call_id" in data
+            assert "transcript" in data
+            assert isinstance(data["transcript"], list)
 
 
-async def test_get_call_transcript_private_filtered():
-    responses = {"GET /calls/{id}": {"id": "y", "isPrivate": True}}
-    context = MockExecutionContext(responses)
-    result = await gong.execute_action("get_call_transcript", {"call_id": "y"}, context)
-    data = result.result.data
-    assert data.get("error") == "private_call_filtered"
-    assert data.get("transcript") == []
+class TestSearchCallsIntegration:
+    async def test_search_calls_returns_results_shape(self, live_context):
+        result = await gong.execute_action("search_calls", {"query": "a", "limit": 5}, live_context)
+
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert "results" in data
+        assert isinstance(data["results"], list)
+        assert "total_count" in data
 
 
-async def test_search_calls_skips_private():
-    responses = {
-        "POST /calls/extensive": {
-            "calls": [
-                {
-                    "id": "priv",
-                    "isPrivate": True,
-                    "content": {"pointsOfInterest": [{"action": "demo pricing", "startTime": 0}]},
-                },
-                {
-                    "id": "pub",
-                    "isPrivate": False,
-                    "title": "Public",
-                    "started": "2025-01-01T00:00:00Z",
-                    "content": {"pointsOfInterest": [{"action": "product demo pricing", "startTime": 10}]},
-                },
-            ]
-        }
-    }
-    context = MockExecutionContext(responses)
-    result = await gong.execute_action("search_calls", {"query": "pricing"}, context)
-    data = result.result.data
-    ids = [r["call_id"] for r in data["results"]]
-    assert ids == ["pub"]
+class TestListUsersIntegration:
+    async def test_list_users_returns_users(self, live_context):
+        result = await gong.execute_action("list_users", {"limit": 5}, live_context)
 
-
-def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
-
-
-if __name__ == "__main__":
-    _run(test_list_calls_basic())
-    _run(test_get_call_details_shim())
-    _run(test_get_call_transcript_mapping())
-    _run(test_list_users())
-    # New tests for private call filtering
-    _run(test_list_calls_filters_private())
-    _run(test_get_call_details_private_filtered())
-    _run(test_get_call_transcript_private_filtered())
-    _run(test_search_calls_skips_private())
-    print("All tests passed")
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert "users" in data
+        assert isinstance(data["users"], list)
+        assert "has_more" in data
+        assert "next_cursor" in data
