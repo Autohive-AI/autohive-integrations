@@ -1,4 +1,4 @@
-autohive-integrations-sdk~=1.0.2
+autohive-integrations-sdk~=2.0.0
 python-pptx
 markdown>=3.4.0
 beautifulsoup4>=4.12.0

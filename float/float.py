@@ -1,10 +1,11 @@
 from autohive_integrations_sdk import (
-    Integration,
-    ExecutionContext,
-    ActionHandler,
+    ActionError,
     ActionResult,
     ConnectedAccountHandler,
     ConnectedAccountInfo,
+    ExecutionContext,
+    ActionHandler,
+    Integration,
 )
 from typing import Dict, Any
 
@@ -100,7 +101,7 @@ class FloatConnectedAccountHandler(ConnectedAccountHandler):
 
             # Extract account information
             # Float typically returns account details including company name
-            account_data = response if isinstance(response, dict) else {}
+            account_data = response.data if isinstance(response.data, dict) else {}
 
             # Try to get the current user's information from the account endpoint
             # Float API typically returns the account owner's information
@@ -155,38 +156,41 @@ class ListPeopleHandler(ActionHandler):
         params = {}
 
         # Add optional filters
-        if "active" in inputs and inputs["active"] is not None:
-            params["active"] = 1 if inputs["active"] else 0
+        if inputs.get("active") is not None:
+            params["active"] = 1 if inputs.get("active") else 0
 
-        if "department_id" in inputs and inputs["department_id"]:
-            params["department_id"] = inputs["department_id"]
+        if inputs.get("department_id"):
+            params["department_id"] = inputs.get("department_id")
 
-        if "modified_since" in inputs and inputs["modified_since"]:
-            params["modified_since"] = inputs["modified_since"]
+        if inputs.get("modified_since"):
+            params["modified_since"] = inputs.get("modified_since")
 
-        if "page" in inputs and inputs["page"]:
-            params["page"] = inputs["page"]
+        if inputs.get("page"):
+            params["page"] = inputs.get("page")
 
-        if "per_page" in inputs and inputs["per_page"]:
-            params["per-page"] = inputs["per_page"]
+        if inputs.get("per_page"):
+            params["per-page"] = inputs.get("per_page")
 
-        if "fields" in inputs and inputs["fields"]:
-            params["fields"] = inputs["fields"]
+        if inputs.get("fields"):
+            params["fields"] = inputs.get("fields")
 
-        if "sort" in inputs and inputs["sort"]:
-            params["sort"] = inputs["sort"]
+        if inputs.get("sort"):
+            params["sort"] = inputs.get("sort")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/people", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/people",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list people: {str(e)}")
+            return ActionError(message=f"Failed to list people: {str(e)}")
 
 
 @float.action("get_person")
@@ -207,20 +211,23 @@ class GetPersonHandler(ActionHandler):
         people_id = inputs["people_id"]
         params = {}
 
-        if "expand" in inputs and inputs["expand"]:
-            params["expand"] = inputs["expand"]
+        if inputs.get("expand"):
+            params["expand"] = inputs.get("expand")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/people/{people_id}", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/people/{people_id}",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get person {people_id}: {str(e)}")
+            return ActionError(message=f"Failed to get person {people_id}: {str(e)}")
 
 
 @float.action("create_person")
@@ -241,39 +248,81 @@ class CreatePersonHandler(ActionHandler):
         request_body = {"name": inputs["name"]}
 
         # Add optional fields
-        optional_fields = [
-            "email",
-            "job_title",
-            "department_id",
-            "role_id",
-            "people_type_id",
-            "active",
-            "employee_type",
-            "work_days_hours",
-            "start_date",
-            "end_date",
-            "notes",
-            "tags",
-            "avatar_file",
-            "cost_rate",
-            "default_hourly_rate",
-        ]
 
-        for field in optional_fields:
-            if field in inputs and inputs[field] is not None:
-                request_body[field] = inputs[field]
+        email_val = inputs.get("email")
+        if email_val is not None:
+            request_body["email"] = email_val
+
+        job_title_val = inputs.get("job_title")
+        if job_title_val is not None:
+            request_body["job_title"] = job_title_val
+
+        department_id_val = inputs.get("department_id")
+        if department_id_val is not None:
+            request_body["department_id"] = department_id_val
+
+        role_id_val = inputs.get("role_id")
+        if role_id_val is not None:
+            request_body["role_id"] = role_id_val
+
+        people_type_id_val = inputs.get("people_type_id")
+        if people_type_id_val is not None:
+            request_body["people_type_id"] = people_type_id_val
+
+        active_val = inputs.get("active")
+        if active_val is not None:
+            request_body["active"] = active_val
+
+        employee_type_val = inputs.get("employee_type")
+        if employee_type_val is not None:
+            request_body["employee_type"] = employee_type_val
+
+        work_days_hours_val = inputs.get("work_days_hours")
+        if work_days_hours_val is not None:
+            request_body["work_days_hours"] = work_days_hours_val
+
+        start_date_val = inputs.get("start_date")
+        if start_date_val is not None:
+            request_body["start_date"] = start_date_val
+
+        end_date_val = inputs.get("end_date")
+        if end_date_val is not None:
+            request_body["end_date"] = end_date_val
+
+        notes_val = inputs.get("notes")
+        if notes_val is not None:
+            request_body["notes"] = notes_val
+
+        tags_val = inputs.get("tags")
+        if tags_val is not None:
+            request_body["tags"] = tags_val
+
+        avatar_file_val = inputs.get("avatar_file")
+        if avatar_file_val is not None:
+            request_body["avatar_file"] = avatar_file_val
+
+        cost_rate_val = inputs.get("cost_rate")
+        if cost_rate_val is not None:
+            request_body["cost_rate"] = cost_rate_val
+
+        default_hourly_rate_val = inputs.get("default_hourly_rate")
+        if default_hourly_rate_val is not None:
+            request_body["default_hourly_rate"] = default_hourly_rate_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/people", method="POST", headers=headers, json=request_body
+                url=f"{FLOAT_API_BASE_URL}/people",
+                method="POST",
+                headers=headers,
+                json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to create person: {str(e)}")
+            return ActionError(message=f"Failed to create person: {str(e)}")
 
 
 @float.action("update_person")
@@ -295,33 +344,78 @@ class UpdatePersonHandler(ActionHandler):
         request_body = {}
 
         # Add updatable fields
-        updatable_fields = [
-            "name",
-            "email",
-            "job_title",
-            "department_id",
-            "role_id",
-            "people_type_id",
-            "active",
-            "employee_type",
-            "work_days_hours",
-            "start_date",
-            "end_date",
-            "notes",
-            "tags",
-            "avatar_file",
-            "cost_rate",
-            "default_hourly_rate",
-            "effective_date",
-        ]
 
-        for field in updatable_fields:
-            if field in inputs and inputs[field] is not None:
-                request_body[field] = inputs[field]
+        name_val = inputs.get("name")
+        if name_val is not None:
+            request_body["name"] = name_val
+
+        email_val = inputs.get("email")
+        if email_val is not None:
+            request_body["email"] = email_val
+
+        job_title_val = inputs.get("job_title")
+        if job_title_val is not None:
+            request_body["job_title"] = job_title_val
+
+        department_id_val = inputs.get("department_id")
+        if department_id_val is not None:
+            request_body["department_id"] = department_id_val
+
+        role_id_val = inputs.get("role_id")
+        if role_id_val is not None:
+            request_body["role_id"] = role_id_val
+
+        people_type_id_val = inputs.get("people_type_id")
+        if people_type_id_val is not None:
+            request_body["people_type_id"] = people_type_id_val
+
+        active_val = inputs.get("active")
+        if active_val is not None:
+            request_body["active"] = active_val
+
+        employee_type_val = inputs.get("employee_type")
+        if employee_type_val is not None:
+            request_body["employee_type"] = employee_type_val
+
+        work_days_hours_val = inputs.get("work_days_hours")
+        if work_days_hours_val is not None:
+            request_body["work_days_hours"] = work_days_hours_val
+
+        start_date_val = inputs.get("start_date")
+        if start_date_val is not None:
+            request_body["start_date"] = start_date_val
+
+        end_date_val = inputs.get("end_date")
+        if end_date_val is not None:
+            request_body["end_date"] = end_date_val
+
+        notes_val = inputs.get("notes")
+        if notes_val is not None:
+            request_body["notes"] = notes_val
+
+        tags_val = inputs.get("tags")
+        if tags_val is not None:
+            request_body["tags"] = tags_val
+
+        avatar_file_val = inputs.get("avatar_file")
+        if avatar_file_val is not None:
+            request_body["avatar_file"] = avatar_file_val
+
+        cost_rate_val = inputs.get("cost_rate")
+        if cost_rate_val is not None:
+            request_body["cost_rate"] = cost_rate_val
+
+        default_hourly_rate_val = inputs.get("default_hourly_rate")
+        if default_hourly_rate_val is not None:
+            request_body["default_hourly_rate"] = default_hourly_rate_val
+
+        effective_date_val = inputs.get("effective_date")
+        if effective_date_val is not None:
+            request_body["effective_date"] = effective_date_val
 
         params = {}
-        if "expand" in inputs and inputs["expand"]:
-            params["expand"] = inputs["expand"]
+        if inputs.get("expand"):
+            params["expand"] = inputs.get("expand")
 
         headers = get_auth_headers(context)
 
@@ -334,10 +428,10 @@ class UpdatePersonHandler(ActionHandler):
                 params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to update person {people_id}: {str(e)}")
+            return ActionError(message=f"Failed to update person {people_id}: {str(e)}")
 
 
 @float.action("delete_person")
@@ -359,14 +453,22 @@ class DeletePersonHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            await context.fetch(url=f"{FLOAT_API_BASE_URL}/people/{people_id}", method="DELETE", headers=headers)
+            await context.fetch(
+                url=f"{FLOAT_API_BASE_URL}/people/{people_id}",
+                method="DELETE",
+                headers=headers,
+            )
 
             return ActionResult(
-                data={"success": True, "message": f"Person {people_id} deleted successfully"}, cost_usd=0.0
+                data={
+                    "success": True,
+                    "message": f"Person {people_id} deleted successfully",
+                },
+                cost_usd=0.0,
             )
 
         except Exception as e:
-            raise Exception(f"Failed to delete person {people_id}: {str(e)}")
+            return ActionError(message=f"Failed to delete person {people_id}: {str(e)}")
 
 
 # ---- Projects Resource Actions ----
@@ -390,39 +492,61 @@ class ListProjectsHandler(ActionHandler):
         params = {}
 
         # Add optional filters
-        optional_params = [
-            "active",
-            "client_id",
-            "project_manager",
-            "modified_since",
-            "start_date",
-            "end_date",
-            "page",
-            "per_page",
-            "fields",
-            "sort",
-        ]
 
-        for param in optional_params:
-            if param in inputs and inputs[param] is not None:
-                if param == "active":
-                    params[param] = 1 if inputs[param] else 0
-                elif param == "per_page":
-                    params["per-page"] = inputs[param]
-                else:
-                    params[param] = inputs[param]
+        active_val = inputs.get("active")
+        if active_val is not None:
+            params["active"] = 1 if active_val else 0
+
+        client_id_val = inputs.get("client_id")
+        if client_id_val:
+            params["client_id"] = client_id_val
+
+        project_manager_val = inputs.get("project_manager")
+        if project_manager_val:
+            params["project_manager"] = project_manager_val
+
+        modified_since_val = inputs.get("modified_since")
+        if modified_since_val:
+            params["modified_since"] = modified_since_val
+
+        start_date_val = inputs.get("start_date")
+        if start_date_val:
+            params["start_date"] = start_date_val
+
+        end_date_val = inputs.get("end_date")
+        if end_date_val:
+            params["end_date"] = end_date_val
+
+        page_val = inputs.get("page")
+        if page_val:
+            params["page"] = page_val
+
+        per_page_val = inputs.get("per_page")
+        if per_page_val:
+            params["per-page"] = per_page_val
+
+        fields_val = inputs.get("fields")
+        if fields_val:
+            params["fields"] = fields_val
+
+        sort_val = inputs.get("sort")
+        if sort_val:
+            params["sort"] = sort_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/projects", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/projects",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list projects: {str(e)}")
+            return ActionError(message=f"Failed to list projects: {str(e)}")
 
 
 @float.action("get_project")
@@ -445,13 +569,15 @@ class GetProjectHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/projects/{project_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/projects/{project_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get project {project_id}: {str(e)}")
+            return ActionError(message=f"Failed to get project {project_id}: {str(e)}")
 
 
 @float.action("create_project")
@@ -472,40 +598,85 @@ class CreateProjectHandler(ActionHandler):
         request_body = {"name": inputs["name"]}
 
         # Add optional fields
-        optional_fields = [
-            "client_id",
-            "color",
-            "project_code",
-            "tags",
-            "project_team",
-            "project_manager",
-            "all_pms_schedule",
-            "status",
-            "budget_type",
-            "budget_total",
-            "budget_per_phase",
-            "non_billable",
-            "start_date",
-            "end_date",
-            "active",
-            "notes",
-        ]
 
-        for field in optional_fields:
-            if field in inputs and inputs[field] is not None:
-                request_body[field] = inputs[field]
+        client_id_val = inputs.get("client_id")
+        if client_id_val is not None:
+            request_body["client_id"] = client_id_val
+
+        color_val = inputs.get("color")
+        if color_val is not None:
+            request_body["color"] = color_val
+
+        project_code_val = inputs.get("project_code")
+        if project_code_val is not None:
+            request_body["project_code"] = project_code_val
+
+        tags_val = inputs.get("tags")
+        if tags_val is not None:
+            request_body["tags"] = tags_val
+
+        project_team_val = inputs.get("project_team")
+        if project_team_val is not None:
+            request_body["project_team"] = project_team_val
+
+        project_manager_val = inputs.get("project_manager")
+        if project_manager_val is not None:
+            request_body["project_manager"] = project_manager_val
+
+        all_pms_schedule_val = inputs.get("all_pms_schedule")
+        if all_pms_schedule_val is not None:
+            request_body["all_pms_schedule"] = all_pms_schedule_val
+
+        status_val = inputs.get("status")
+        if status_val is not None:
+            request_body["status"] = status_val
+
+        budget_type_val = inputs.get("budget_type")
+        if budget_type_val is not None:
+            request_body["budget_type"] = budget_type_val
+
+        budget_total_val = inputs.get("budget_total")
+        if budget_total_val is not None:
+            request_body["budget_total"] = budget_total_val
+
+        budget_per_phase_val = inputs.get("budget_per_phase")
+        if budget_per_phase_val is not None:
+            request_body["budget_per_phase"] = budget_per_phase_val
+
+        non_billable_val = inputs.get("non_billable")
+        if non_billable_val is not None:
+            request_body["non_billable"] = non_billable_val
+
+        start_date_val = inputs.get("start_date")
+        if start_date_val is not None:
+            request_body["start_date"] = start_date_val
+
+        end_date_val = inputs.get("end_date")
+        if end_date_val is not None:
+            request_body["end_date"] = end_date_val
+
+        active_val = inputs.get("active")
+        if active_val is not None:
+            request_body["active"] = active_val
+
+        notes_val = inputs.get("notes")
+        if notes_val is not None:
+            request_body["notes"] = notes_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/projects", method="POST", headers=headers, json=request_body
+                url=f"{FLOAT_API_BASE_URL}/projects",
+                method="POST",
+                headers=headers,
+                json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to create project: {str(e)}")
+            return ActionError(message=f"Failed to create project: {str(e)}")
 
 
 @float.action("update_project")
@@ -527,41 +698,89 @@ class UpdateProjectHandler(ActionHandler):
         request_body = {}
 
         # Add updatable fields
-        updatable_fields = [
-            "name",
-            "client_id",
-            "color",
-            "project_code",
-            "tags",
-            "project_team",
-            "project_manager",
-            "all_pms_schedule",
-            "status",
-            "budget_type",
-            "budget_total",
-            "budget_per_phase",
-            "non_billable",
-            "start_date",
-            "end_date",
-            "active",
-            "notes",
-        ]
 
-        for field in updatable_fields:
-            if field in inputs and inputs[field] is not None:
-                request_body[field] = inputs[field]
+        name_val = inputs.get("name")
+        if name_val is not None:
+            request_body["name"] = name_val
+
+        client_id_val = inputs.get("client_id")
+        if client_id_val is not None:
+            request_body["client_id"] = client_id_val
+
+        color_val = inputs.get("color")
+        if color_val is not None:
+            request_body["color"] = color_val
+
+        project_code_val = inputs.get("project_code")
+        if project_code_val is not None:
+            request_body["project_code"] = project_code_val
+
+        tags_val = inputs.get("tags")
+        if tags_val is not None:
+            request_body["tags"] = tags_val
+
+        project_team_val = inputs.get("project_team")
+        if project_team_val is not None:
+            request_body["project_team"] = project_team_val
+
+        project_manager_val = inputs.get("project_manager")
+        if project_manager_val is not None:
+            request_body["project_manager"] = project_manager_val
+
+        all_pms_schedule_val = inputs.get("all_pms_schedule")
+        if all_pms_schedule_val is not None:
+            request_body["all_pms_schedule"] = all_pms_schedule_val
+
+        status_val = inputs.get("status")
+        if status_val is not None:
+            request_body["status"] = status_val
+
+        budget_type_val = inputs.get("budget_type")
+        if budget_type_val is not None:
+            request_body["budget_type"] = budget_type_val
+
+        budget_total_val = inputs.get("budget_total")
+        if budget_total_val is not None:
+            request_body["budget_total"] = budget_total_val
+
+        budget_per_phase_val = inputs.get("budget_per_phase")
+        if budget_per_phase_val is not None:
+            request_body["budget_per_phase"] = budget_per_phase_val
+
+        non_billable_val = inputs.get("non_billable")
+        if non_billable_val is not None:
+            request_body["non_billable"] = non_billable_val
+
+        start_date_val = inputs.get("start_date")
+        if start_date_val is not None:
+            request_body["start_date"] = start_date_val
+
+        end_date_val = inputs.get("end_date")
+        if end_date_val is not None:
+            request_body["end_date"] = end_date_val
+
+        active_val = inputs.get("active")
+        if active_val is not None:
+            request_body["active"] = active_val
+
+        notes_val = inputs.get("notes")
+        if notes_val is not None:
+            request_body["notes"] = notes_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/projects/{project_id}", method="PATCH", headers=headers, json=request_body
+                url=f"{FLOAT_API_BASE_URL}/projects/{project_id}",
+                method="PATCH",
+                headers=headers,
+                json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to update project {project_id}: {str(e)}")
+            return ActionError(message=f"Failed to update project {project_id}: {str(e)}")
 
 
 @float.action("delete_project")
@@ -583,14 +802,22 @@ class DeleteProjectHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            await context.fetch(url=f"{FLOAT_API_BASE_URL}/projects/{project_id}", method="DELETE", headers=headers)
+            await context.fetch(
+                url=f"{FLOAT_API_BASE_URL}/projects/{project_id}",
+                method="DELETE",
+                headers=headers,
+            )
 
             return ActionResult(
-                data={"success": True, "message": f"Project {project_id} deleted successfully"}, cost_usd=0.0
+                data={
+                    "success": True,
+                    "message": f"Project {project_id} deleted successfully",
+                },
+                cost_usd=0.0,
             )
 
         except Exception as e:
-            raise Exception(f"Failed to delete project {project_id}: {str(e)}")
+            return ActionError(message=f"Failed to delete project {project_id}: {str(e)}")
 
 
 # ---- Tasks/Allocations Resource Actions ----
@@ -614,36 +841,57 @@ class ListTasksHandler(ActionHandler):
         params = {}
 
         # Add optional filters
-        optional_params = [
-            "people_id",
-            "project_id",
-            "start_date",
-            "end_date",
-            "modified_since",
-            "page",
-            "per_page",
-            "fields",
-            "sort",
-        ]
 
-        for param in optional_params:
-            if param in inputs and inputs[param] is not None:
-                if param == "per_page":
-                    params["per-page"] = inputs[param]
-                else:
-                    params[param] = inputs[param]
+        people_id_val = inputs.get("people_id")
+        if people_id_val:
+            params["people_id"] = people_id_val
+
+        project_id_val = inputs.get("project_id")
+        if project_id_val:
+            params["project_id"] = project_id_val
+
+        start_date_val = inputs.get("start_date")
+        if start_date_val:
+            params["start_date"] = start_date_val
+
+        end_date_val = inputs.get("end_date")
+        if end_date_val:
+            params["end_date"] = end_date_val
+
+        modified_since_val = inputs.get("modified_since")
+        if modified_since_val:
+            params["modified_since"] = modified_since_val
+
+        page_val = inputs.get("page")
+        if page_val:
+            params["page"] = page_val
+
+        per_page_val = inputs.get("per_page")
+        if per_page_val:
+            params["per-page"] = per_page_val
+
+        fields_val = inputs.get("fields")
+        if fields_val:
+            params["fields"] = fields_val
+
+        sort_val = inputs.get("sort")
+        if sort_val:
+            params["sort"] = sort_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/tasks", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/tasks",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list tasks: {str(e)}")
+            return ActionError(message=f"Failed to list tasks: {str(e)}")
 
 
 @float.action("get_task")
@@ -665,12 +913,16 @@ class GetTaskHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            response = await context.fetch(url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}", method="GET", headers=headers)
+            response = await context.fetch(
+                url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}",
+                method="GET",
+                headers=headers,
+            )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get task {task_id}: {str(e)}")
+            return ActionError(message=f"Failed to get task {task_id}: {str(e)}")
 
 
 @float.action("create_task")
@@ -697,32 +949,53 @@ class CreateTaskHandler(ActionHandler):
         }
 
         # Add optional fields
-        optional_fields = [
-            "name",
-            "notes",
-            "status",
-            "billable",
-            "repeat_state",
-            "repeat_end_date",
-            "root_task_id",
-            "parent_task_id",
-        ]
 
-        for field in optional_fields:
-            if field in inputs and inputs[field] is not None:
-                request_body[field] = inputs[field]
+        name_val = inputs.get("name")
+        if name_val is not None:
+            request_body["name"] = name_val
+
+        notes_val = inputs.get("notes")
+        if notes_val is not None:
+            request_body["notes"] = notes_val
+
+        status_val = inputs.get("status")
+        if status_val is not None:
+            request_body["status"] = status_val
+
+        billable_val = inputs.get("billable")
+        if billable_val is not None:
+            request_body["billable"] = billable_val
+
+        repeat_state_val = inputs.get("repeat_state")
+        if repeat_state_val is not None:
+            request_body["repeat_state"] = repeat_state_val
+
+        repeat_end_date_val = inputs.get("repeat_end_date")
+        if repeat_end_date_val is not None:
+            request_body["repeat_end_date"] = repeat_end_date_val
+
+        root_task_id_val = inputs.get("root_task_id")
+        if root_task_id_val is not None:
+            request_body["root_task_id"] = root_task_id_val
+
+        parent_task_id_val = inputs.get("parent_task_id")
+        if parent_task_id_val is not None:
+            request_body["parent_task_id"] = parent_task_id_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/tasks", method="POST", headers=headers, json=request_body
+                url=f"{FLOAT_API_BASE_URL}/tasks",
+                method="POST",
+                headers=headers,
+                json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to create task: {str(e)}")
+            return ActionError(message=f"Failed to create task: {str(e)}")
 
 
 @float.action("update_task")
@@ -744,37 +1017,73 @@ class UpdateTaskHandler(ActionHandler):
         request_body = {}
 
         # Add updatable fields
-        updatable_fields = [
-            "people_id",
-            "project_id",
-            "start_date",
-            "end_date",
-            "hours",
-            "name",
-            "notes",
-            "status",
-            "billable",
-            "repeat_state",
-            "repeat_end_date",
-            "root_task_id",
-            "parent_task_id",
-        ]
 
-        for field in updatable_fields:
-            if field in inputs and inputs[field] is not None:
-                request_body[field] = inputs[field]
+        people_id_val = inputs.get("people_id")
+        if people_id_val is not None:
+            request_body["people_id"] = people_id_val
+
+        project_id_val = inputs.get("project_id")
+        if project_id_val is not None:
+            request_body["project_id"] = project_id_val
+
+        start_date_val = inputs.get("start_date")
+        if start_date_val is not None:
+            request_body["start_date"] = start_date_val
+
+        end_date_val = inputs.get("end_date")
+        if end_date_val is not None:
+            request_body["end_date"] = end_date_val
+
+        hours_val = inputs.get("hours")
+        if hours_val is not None:
+            request_body["hours"] = hours_val
+
+        name_val = inputs.get("name")
+        if name_val is not None:
+            request_body["name"] = name_val
+
+        notes_val = inputs.get("notes")
+        if notes_val is not None:
+            request_body["notes"] = notes_val
+
+        status_val = inputs.get("status")
+        if status_val is not None:
+            request_body["status"] = status_val
+
+        billable_val = inputs.get("billable")
+        if billable_val is not None:
+            request_body["billable"] = billable_val
+
+        repeat_state_val = inputs.get("repeat_state")
+        if repeat_state_val is not None:
+            request_body["repeat_state"] = repeat_state_val
+
+        repeat_end_date_val = inputs.get("repeat_end_date")
+        if repeat_end_date_val is not None:
+            request_body["repeat_end_date"] = repeat_end_date_val
+
+        root_task_id_val = inputs.get("root_task_id")
+        if root_task_id_val is not None:
+            request_body["root_task_id"] = root_task_id_val
+
+        parent_task_id_val = inputs.get("parent_task_id")
+        if parent_task_id_val is not None:
+            request_body["parent_task_id"] = parent_task_id_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}", method="PATCH", headers=headers, json=request_body
+                url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}",
+                method="PATCH",
+                headers=headers,
+                json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to update task {task_id}: {str(e)}")
+            return ActionError(message=f"Failed to update task {task_id}: {str(e)}")
 
 
 @float.action("delete_task")
@@ -796,12 +1105,22 @@ class DeleteTaskHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            await context.fetch(url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}", method="DELETE", headers=headers)
+            await context.fetch(
+                url=f"{FLOAT_API_BASE_URL}/tasks/{task_id}",
+                method="DELETE",
+                headers=headers,
+            )
 
-            return ActionResult(data={"success": True, "message": f"Task {task_id} deleted successfully"}, cost_usd=0.0)
+            return ActionResult(
+                data={
+                    "success": True,
+                    "message": f"Task {task_id} deleted successfully",
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            raise Exception(f"Failed to delete task {task_id}: {str(e)}")
+            return ActionError(message=f"Failed to delete task {task_id}: {str(e)}")
 
 
 # ---- Time Off Resource Actions ----
@@ -825,36 +1144,57 @@ class ListTimeOffHandler(ActionHandler):
         params = {}
 
         # Add optional filters
-        optional_params = [
-            "people_id",
-            "timeoff_type_id",
-            "start_date",
-            "end_date",
-            "modified_since",
-            "page",
-            "per_page",
-            "fields",
-            "sort",
-        ]
 
-        for param in optional_params:
-            if param in inputs and inputs[param] is not None:
-                if param == "per_page":
-                    params["per-page"] = inputs[param]
-                else:
-                    params[param] = inputs[param]
+        people_id_val = inputs.get("people_id")
+        if people_id_val:
+            params["people_id"] = people_id_val
+
+        timeoff_type_id_val = inputs.get("timeoff_type_id")
+        if timeoff_type_id_val:
+            params["timeoff_type_id"] = timeoff_type_id_val
+
+        start_date_val = inputs.get("start_date")
+        if start_date_val:
+            params["start_date"] = start_date_val
+
+        end_date_val = inputs.get("end_date")
+        if end_date_val:
+            params["end_date"] = end_date_val
+
+        modified_since_val = inputs.get("modified_since")
+        if modified_since_val:
+            params["modified_since"] = modified_since_val
+
+        page_val = inputs.get("page")
+        if page_val:
+            params["page"] = page_val
+
+        per_page_val = inputs.get("per_page")
+        if per_page_val:
+            params["per-page"] = per_page_val
+
+        fields_val = inputs.get("fields")
+        if fields_val:
+            params["fields"] = fields_val
+
+        sort_val = inputs.get("sort")
+        if sort_val:
+            params["sort"] = sort_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoffs", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/timeoffs",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list time off: {str(e)}")
+            return ActionError(message=f"Failed to list time off: {str(e)}")
 
 
 @float.action("get_time_off")
@@ -877,13 +1217,15 @@ class GetTimeOffHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get time off {timeoff_id}: {str(e)}")
+            return ActionError(message=f"Failed to get time off {timeoff_id}: {str(e)}")
 
 
 @float.action("create_time_off")
@@ -910,23 +1252,26 @@ class CreateTimeOffHandler(ActionHandler):
         }
 
         # Add optional fields
-        if "full_day" in inputs and inputs["full_day"] is not None:
-            request_body["full_day"] = inputs["full_day"]
+        if inputs.get("full_day") is not None:
+            request_body["full_day"] = inputs.get("full_day")
 
-        if "notes" in inputs and inputs["notes"]:
-            request_body["notes"] = inputs["notes"]
+        if inputs.get("notes"):
+            request_body["notes"] = inputs.get("notes")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoffs", method="POST", headers=headers, json=request_body
+                url=f"{FLOAT_API_BASE_URL}/timeoffs",
+                method="POST",
+                headers=headers,
+                json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to create time off: {str(e)}")
+            return ActionError(message=f"Failed to create time off: {str(e)}")
 
 
 @float.action("update_time_off")
@@ -948,23 +1293,49 @@ class UpdateTimeOffHandler(ActionHandler):
         request_body = {}
 
         # Add updatable fields
-        updatable_fields = ["people_id", "timeoff_type_id", "start_date", "end_date", "hours", "full_day", "notes"]
 
-        for field in updatable_fields:
-            if field in inputs and inputs[field] is not None:
-                request_body[field] = inputs[field]
+        people_id_val = inputs.get("people_id")
+        if people_id_val is not None:
+            request_body["people_id"] = people_id_val
+
+        timeoff_type_id_val = inputs.get("timeoff_type_id")
+        if timeoff_type_id_val is not None:
+            request_body["timeoff_type_id"] = timeoff_type_id_val
+
+        start_date_val = inputs.get("start_date")
+        if start_date_val is not None:
+            request_body["start_date"] = start_date_val
+
+        end_date_val = inputs.get("end_date")
+        if end_date_val is not None:
+            request_body["end_date"] = end_date_val
+
+        hours_val = inputs.get("hours")
+        if hours_val is not None:
+            request_body["hours"] = hours_val
+
+        full_day_val = inputs.get("full_day")
+        if full_day_val is not None:
+            request_body["full_day"] = full_day_val
+
+        notes_val = inputs.get("notes")
+        if notes_val is not None:
+            request_body["notes"] = notes_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}", method="PATCH", headers=headers, json=request_body
+                url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}",
+                method="PATCH",
+                headers=headers,
+                json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to update time off {timeoff_id}: {str(e)}")
+            return ActionError(message=f"Failed to update time off {timeoff_id}: {str(e)}")
 
 
 @float.action("delete_time_off")
@@ -986,14 +1357,22 @@ class DeleteTimeOffHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            await context.fetch(url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}", method="DELETE", headers=headers)
+            await context.fetch(
+                url=f"{FLOAT_API_BASE_URL}/timeoffs/{timeoff_id}",
+                method="DELETE",
+                headers=headers,
+            )
 
             return ActionResult(
-                data={"success": True, "message": f"Time off {timeoff_id} deleted successfully"}, cost_usd=0.0
+                data={
+                    "success": True,
+                    "message": f"Time off {timeoff_id} deleted successfully",
+                },
+                cost_usd=0.0,
             )
 
         except Exception as e:
-            raise Exception(f"Failed to delete time off {timeoff_id}: {str(e)}")
+            return ActionError(message=f"Failed to delete time off {timeoff_id}: {str(e)}")
 
 
 # ---- Logged Time Resource Actions ----
@@ -1017,36 +1396,57 @@ class ListLoggedTimeHandler(ActionHandler):
         params = {}
 
         # Add optional filters
-        optional_params = [
-            "people_id",
-            "project_id",
-            "start_date",
-            "end_date",
-            "modified_since",
-            "page",
-            "per_page",
-            "fields",
-            "sort",
-        ]
 
-        for param in optional_params:
-            if param in inputs and inputs[param] is not None:
-                if param == "per_page":
-                    params["per-page"] = inputs[param]
-                else:
-                    params[param] = inputs[param]
+        people_id_val = inputs.get("people_id")
+        if people_id_val:
+            params["people_id"] = people_id_val
+
+        project_id_val = inputs.get("project_id")
+        if project_id_val:
+            params["project_id"] = project_id_val
+
+        start_date_val = inputs.get("start_date")
+        if start_date_val:
+            params["start_date"] = start_date_val
+
+        end_date_val = inputs.get("end_date")
+        if end_date_val:
+            params["end_date"] = end_date_val
+
+        modified_since_val = inputs.get("modified_since")
+        if modified_since_val:
+            params["modified_since"] = modified_since_val
+
+        page_val = inputs.get("page")
+        if page_val:
+            params["page"] = page_val
+
+        per_page_val = inputs.get("per_page")
+        if per_page_val:
+            params["per-page"] = per_page_val
+
+        fields_val = inputs.get("fields")
+        if fields_val:
+            params["fields"] = fields_val
+
+        sort_val = inputs.get("sort")
+        if sort_val:
+            params["sort"] = sort_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/logged-time", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/logged-time",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list logged time: {str(e)}")
+            return ActionError(message=f"Failed to list logged time: {str(e)}")
 
 
 @float.action("get_logged_time")
@@ -1069,13 +1469,15 @@ class GetLoggedTimeHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/logged-time/{logged_time_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/logged-time/{logged_time_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get logged time {logged_time_id}: {str(e)}")
+            return ActionError(message=f"Failed to get logged time {logged_time_id}: {str(e)}")
 
 
 @float.action("create_logged_time")
@@ -1101,26 +1503,29 @@ class CreateLoggedTimeHandler(ActionHandler):
         }
 
         # Add optional fields
-        if "task_id" in inputs and inputs["task_id"]:
-            request_body["task_id"] = inputs["task_id"]
+        if inputs.get("task_id"):
+            request_body["task_id"] = inputs.get("task_id")
 
-        if "notes" in inputs and inputs["notes"]:
-            request_body["notes"] = inputs["notes"]
+        if inputs.get("notes"):
+            request_body["notes"] = inputs.get("notes")
 
-        if "billable" in inputs and inputs["billable"] is not None:
-            request_body["billable"] = inputs["billable"]
+        if inputs.get("billable") is not None:
+            request_body["billable"] = inputs.get("billable")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/logged-time", method="POST", headers=headers, json=request_body
+                url=f"{FLOAT_API_BASE_URL}/logged-time",
+                method="POST",
+                headers=headers,
+                json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to create logged time: {str(e)}")
+            return ActionError(message=f"Failed to create logged time: {str(e)}")
 
 
 @float.action("update_logged_time")
@@ -1142,11 +1547,34 @@ class UpdateLoggedTimeHandler(ActionHandler):
         request_body = {}
 
         # Add updatable fields
-        updatable_fields = ["people_id", "project_id", "date", "hours", "task_id", "notes", "billable"]
 
-        for field in updatable_fields:
-            if field in inputs and inputs[field] is not None:
-                request_body[field] = inputs[field]
+        people_id_val = inputs.get("people_id")
+        if people_id_val is not None:
+            request_body["people_id"] = people_id_val
+
+        project_id_val = inputs.get("project_id")
+        if project_id_val is not None:
+            request_body["project_id"] = project_id_val
+
+        date_val = inputs.get("date")
+        if date_val is not None:
+            request_body["date"] = date_val
+
+        hours_val = inputs.get("hours")
+        if hours_val is not None:
+            request_body["hours"] = hours_val
+
+        task_id_val = inputs.get("task_id")
+        if task_id_val is not None:
+            request_body["task_id"] = task_id_val
+
+        notes_val = inputs.get("notes")
+        if notes_val is not None:
+            request_body["notes"] = notes_val
+
+        billable_val = inputs.get("billable")
+        if billable_val is not None:
+            request_body["billable"] = billable_val
 
         headers = get_auth_headers(context)
 
@@ -1158,10 +1586,10 @@ class UpdateLoggedTimeHandler(ActionHandler):
                 json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to update logged time {logged_time_id}: {str(e)}")
+            return ActionError(message=f"Failed to update logged time {logged_time_id}: {str(e)}")
 
 
 @float.action("delete_logged_time")
@@ -1184,15 +1612,21 @@ class DeleteLoggedTimeHandler(ActionHandler):
 
         try:
             await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/logged-time/{logged_time_id}", method="DELETE", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/logged-time/{logged_time_id}",
+                method="DELETE",
+                headers=headers,
             )
 
             return ActionResult(
-                data={"success": True, "message": f"Logged time {logged_time_id} deleted successfully"}, cost_usd=0.0
+                data={
+                    "success": True,
+                    "message": f"Logged time {logged_time_id} deleted successfully",
+                },
+                cost_usd=0.0,
             )
 
         except Exception as e:
-            raise Exception(f"Failed to delete logged time {logged_time_id}: {str(e)}")
+            return ActionError(message=f"Failed to delete logged time {logged_time_id}: {str(e)}")
 
 
 # ---- Clients Resource Actions ----
@@ -1216,28 +1650,45 @@ class ListClientsHandler(ActionHandler):
         params = {}
 
         # Add optional filters
-        optional_params = ["active", "modified_since", "page", "per_page", "fields", "sort"]
 
-        for param in optional_params:
-            if param in inputs and inputs[param] is not None:
-                if param == "active":
-                    params[param] = 1 if inputs[param] else 0
-                elif param == "per_page":
-                    params["per-page"] = inputs[param]
-                else:
-                    params[param] = inputs[param]
+        active_val = inputs.get("active")
+        if active_val is not None:
+            params["active"] = 1 if active_val else 0
+
+        modified_since_val = inputs.get("modified_since")
+        if modified_since_val:
+            params["modified_since"] = modified_since_val
+
+        page_val = inputs.get("page")
+        if page_val:
+            params["page"] = page_val
+
+        per_page_val = inputs.get("per_page")
+        if per_page_val:
+            params["per-page"] = per_page_val
+
+        fields_val = inputs.get("fields")
+        if fields_val:
+            params["fields"] = fields_val
+
+        sort_val = inputs.get("sort")
+        if sort_val:
+            params["sort"] = sort_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/clients", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/clients",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list clients: {str(e)}")
+            return ActionError(message=f"Failed to list clients: {str(e)}")
 
 
 @float.action("get_client")
@@ -1260,13 +1711,15 @@ class GetClientHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/clients/{client_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/clients/{client_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get client {client_id}: {str(e)}")
+            return ActionError(message=f"Failed to get client {client_id}: {str(e)}")
 
 
 @float.action("create_client")
@@ -1287,23 +1740,26 @@ class CreateClientHandler(ActionHandler):
         request_body = {"name": inputs["name"]}
 
         # Add optional fields
-        if "active" in inputs and inputs["active"] is not None:
-            request_body["active"] = inputs["active"]
+        if inputs.get("active") is not None:
+            request_body["active"] = inputs.get("active")
 
-        if "notes" in inputs and inputs["notes"]:
-            request_body["notes"] = inputs["notes"]
+        if inputs.get("notes"):
+            request_body["notes"] = inputs.get("notes")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/clients", method="POST", headers=headers, json=request_body
+                url=f"{FLOAT_API_BASE_URL}/clients",
+                method="POST",
+                headers=headers,
+                json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to create client: {str(e)}")
+            return ActionError(message=f"Failed to create client: {str(e)}")
 
 
 @float.action("update_client")
@@ -1325,26 +1781,29 @@ class UpdateClientHandler(ActionHandler):
         request_body = {}
 
         # Add updatable fields
-        if "name" in inputs and inputs["name"]:
-            request_body["name"] = inputs["name"]
+        if inputs.get("name"):
+            request_body["name"] = inputs.get("name")
 
-        if "active" in inputs and inputs["active"] is not None:
-            request_body["active"] = inputs["active"]
+        if inputs.get("active") is not None:
+            request_body["active"] = inputs.get("active")
 
-        if "notes" in inputs and inputs["notes"] is not None:
-            request_body["notes"] = inputs["notes"]
+        if inputs.get("notes") is not None:
+            request_body["notes"] = inputs.get("notes")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/clients/{client_id}", method="PATCH", headers=headers, json=request_body
+                url=f"{FLOAT_API_BASE_URL}/clients/{client_id}",
+                method="PATCH",
+                headers=headers,
+                json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to update client {client_id}: {str(e)}")
+            return ActionError(message=f"Failed to update client {client_id}: {str(e)}")
 
 
 @float.action("delete_client")
@@ -1366,14 +1825,22 @@ class DeleteClientHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            await context.fetch(url=f"{FLOAT_API_BASE_URL}/clients/{client_id}", method="DELETE", headers=headers)
+            await context.fetch(
+                url=f"{FLOAT_API_BASE_URL}/clients/{client_id}",
+                method="DELETE",
+                headers=headers,
+            )
 
             return ActionResult(
-                data={"success": True, "message": f"Client {client_id} deleted successfully"}, cost_usd=0.0
+                data={
+                    "success": True,
+                    "message": f"Client {client_id} deleted successfully",
+                },
+                cost_usd=0.0,
             )
 
         except Exception as e:
-            raise Exception(f"Failed to delete client {client_id}: {str(e)}")
+            return ActionError(message=f"Failed to delete client {client_id}: {str(e)}")
 
 
 # ---- Departments Resource Actions ----
@@ -1397,26 +1864,37 @@ class ListDepartmentsHandler(ActionHandler):
         params = {}
 
         # Add optional filters
-        optional_params = ["page", "per_page", "fields", "sort"]
 
-        for param in optional_params:
-            if param in inputs and inputs[param] is not None:
-                if param == "per_page":
-                    params["per-page"] = inputs[param]
-                else:
-                    params[param] = inputs[param]
+        page_val = inputs.get("page")
+        if page_val:
+            params["page"] = page_val
+
+        per_page_val = inputs.get("per_page")
+        if per_page_val:
+            params["per-page"] = per_page_val
+
+        fields_val = inputs.get("fields")
+        if fields_val:
+            params["fields"] = fields_val
+
+        sort_val = inputs.get("sort")
+        if sort_val:
+            params["sort"] = sort_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/departments", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/departments",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list departments: {str(e)}")
+            return ActionError(message=f"Failed to list departments: {str(e)}")
 
 
 @float.action("get_department")
@@ -1439,13 +1917,15 @@ class GetDepartmentHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/departments/{department_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/departments/{department_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get department {department_id}: {str(e)}")
+            return ActionError(message=f"Failed to get department {department_id}: {str(e)}")
 
 
 # ---- Roles Resource Actions ----
@@ -1469,26 +1949,37 @@ class ListRolesHandler(ActionHandler):
         params = {}
 
         # Add optional filters
-        optional_params = ["page", "per_page", "fields", "sort"]
 
-        for param in optional_params:
-            if param in inputs and inputs[param] is not None:
-                if param == "per_page":
-                    params["per-page"] = inputs[param]
-                else:
-                    params[param] = inputs[param]
+        page_val = inputs.get("page")
+        if page_val:
+            params["page"] = page_val
+
+        per_page_val = inputs.get("per_page")
+        if per_page_val:
+            params["per-page"] = per_page_val
+
+        fields_val = inputs.get("fields")
+        if fields_val:
+            params["fields"] = fields_val
+
+        sort_val = inputs.get("sort")
+        if sort_val:
+            params["sort"] = sort_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/roles", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/roles",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list roles: {str(e)}")
+            return ActionError(message=f"Failed to list roles: {str(e)}")
 
 
 @float.action("get_role")
@@ -1510,12 +2001,16 @@ class GetRoleHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            response = await context.fetch(url=f"{FLOAT_API_BASE_URL}/roles/{role_id}", method="GET", headers=headers)
+            response = await context.fetch(
+                url=f"{FLOAT_API_BASE_URL}/roles/{role_id}",
+                method="GET",
+                headers=headers,
+            )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get role {role_id}: {str(e)}")
+            return ActionError(message=f"Failed to get role {role_id}: {str(e)}")
 
 
 # ---- Time Off Types Resource Actions ----
@@ -1539,26 +2034,37 @@ class ListTimeOffTypesHandler(ActionHandler):
         params = {}
 
         # Add optional filters
-        optional_params = ["page", "per_page", "fields", "sort"]
 
-        for param in optional_params:
-            if param in inputs and inputs[param] is not None:
-                if param == "per_page":
-                    params["per-page"] = inputs[param]
-                else:
-                    params[param] = inputs[param]
+        page_val = inputs.get("page")
+        if page_val:
+            params["page"] = page_val
+
+        per_page_val = inputs.get("per_page")
+        if per_page_val:
+            params["per-page"] = per_page_val
+
+        fields_val = inputs.get("fields")
+        if fields_val:
+            params["fields"] = fields_val
+
+        sort_val = inputs.get("sort")
+        if sort_val:
+            params["sort"] = sort_val
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoff-types", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/timeoff-types",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list time off types: {str(e)}")
+            return ActionError(message=f"Failed to list time off types: {str(e)}")
 
 
 @float.action("get_time_off_type")
@@ -1581,13 +2087,15 @@ class GetTimeOffTypeHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/timeoff-types/{timeoff_type_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/timeoff-types/{timeoff_type_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get time off type {timeoff_type_id}: {str(e)}")
+            return ActionError(message=f"Failed to get time off type {timeoff_type_id}: {str(e)}")
 
 
 # ---- Accounts Resource Actions ----
@@ -1611,23 +2119,26 @@ class ListAccountsHandler(ActionHandler):
         params = {}
 
         # Add optional filters
-        if "page" in inputs and inputs["page"]:
-            params["page"] = inputs["page"]
+        if inputs.get("page"):
+            params["page"] = inputs.get("page")
 
-        if "per_page" in inputs and inputs["per_page"]:
-            params["per-page"] = inputs["per_page"]
+        if inputs.get("per_page"):
+            params["per-page"] = inputs.get("per_page")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/accounts", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/accounts",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list accounts: {str(e)}")
+            return ActionError(message=f"Failed to list accounts: {str(e)}")
 
 
 @float.action("get_account")
@@ -1650,13 +2161,15 @@ class GetAccountHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/accounts/{account_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/accounts/{account_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get account {account_id}: {str(e)}")
+            return ActionError(message=f"Failed to get account {account_id}: {str(e)}")
 
 
 # ---- Statuses Resource Actions ----
@@ -1679,23 +2192,26 @@ class ListStatusesHandler(ActionHandler):
         """
         params = {}
 
-        if "page" in inputs and inputs["page"]:
-            params["page"] = inputs["page"]
+        if inputs.get("page"):
+            params["page"] = inputs.get("page")
 
-        if "per_page" in inputs and inputs["per_page"]:
-            params["per-page"] = inputs["per_page"]
+        if inputs.get("per_page"):
+            params["per-page"] = inputs.get("per_page")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/status", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/status",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data if response.data is not None else [], cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list statuses: {str(e)}")
+            return ActionError(message=f"Failed to list statuses: {str(e)}")
 
 
 @float.action("get_status")
@@ -1718,13 +2234,15 @@ class GetStatusHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/status/{status_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/status/{status_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get status {status_id}: {str(e)}")
+            return ActionError(message=f"Failed to get status {status_id}: {str(e)}")
 
 
 # ---- Public Holidays Resource Actions ----
@@ -1747,23 +2265,26 @@ class ListPublicHolidaysHandler(ActionHandler):
         """
         params = {}
 
-        if "page" in inputs and inputs["page"]:
-            params["page"] = inputs["page"]
+        if inputs.get("page"):
+            params["page"] = inputs.get("page")
 
-        if "per_page" in inputs and inputs["per_page"]:
-            params["per-page"] = inputs["per_page"]
+        if inputs.get("per_page"):
+            params["per-page"] = inputs.get("per_page")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/public-holidays", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/public-holidays",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list public holidays: {str(e)}")
+            return ActionError(message=f"Failed to list public holidays: {str(e)}")
 
 
 @float.action("get_public_holiday")
@@ -1786,13 +2307,15 @@ class GetPublicHolidayHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/public-holidays/{public_holiday_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/public-holidays/{public_holiday_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get public holiday {public_holiday_id}: {str(e)}")
+            return ActionError(message=f"Failed to get public holiday {public_holiday_id}: {str(e)}")
 
 
 # ---- Team Holidays Resource Actions ----
@@ -1815,23 +2338,26 @@ class ListTeamHolidaysHandler(ActionHandler):
         """
         params = {}
 
-        if "page" in inputs and inputs["page"]:
-            params["page"] = inputs["page"]
+        if inputs.get("page"):
+            params["page"] = inputs.get("page")
 
-        if "per_page" in inputs and inputs["per_page"]:
-            params["per-page"] = inputs["per_page"]
+        if inputs.get("per_page"):
+            params["per-page"] = inputs.get("per_page")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/holidays", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/holidays",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list team holidays: {str(e)}")
+            return ActionError(message=f"Failed to list team holidays: {str(e)}")
 
 
 @float.action("get_team_holiday")
@@ -1854,13 +2380,15 @@ class GetTeamHolidayHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/holidays/{holiday_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/holidays/{holiday_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get team holiday {holiday_id}: {str(e)}")
+            return ActionError(message=f"Failed to get team holiday {holiday_id}: {str(e)}")
 
 
 # ---- Project Stages Resource Actions ----
@@ -1883,23 +2411,26 @@ class ListProjectStagesHandler(ActionHandler):
         """
         params = {}
 
-        if "page" in inputs and inputs["page"]:
-            params["page"] = inputs["page"]
+        if inputs.get("page"):
+            params["page"] = inputs.get("page")
 
-        if "per_page" in inputs and inputs["per_page"]:
-            params["per-page"] = inputs["per_page"]
+        if inputs.get("per_page"):
+            params["per-page"] = inputs.get("per_page")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-stages", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/project-stages",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list project stages: {str(e)}")
+            return ActionError(message=f"Failed to list project stages: {str(e)}")
 
 
 @float.action("get_project_stage")
@@ -1922,13 +2453,15 @@ class GetProjectStageHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-stages/{project_stage_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/project-stages/{project_stage_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get project stage {project_stage_id}: {str(e)}")
+            return ActionError(message=f"Failed to get project stage {project_stage_id}: {str(e)}")
 
 
 # ---- Project Expenses Resource Actions ----
@@ -1951,26 +2484,29 @@ class ListProjectExpensesHandler(ActionHandler):
         """
         params = {}
 
-        if "project_id" in inputs and inputs["project_id"]:
-            params["project_id"] = inputs["project_id"]
+        if inputs.get("project_id"):
+            params["project_id"] = inputs.get("project_id")
 
-        if "page" in inputs and inputs["page"]:
-            params["page"] = inputs["page"]
+        if inputs.get("page"):
+            params["page"] = inputs.get("page")
 
-        if "per_page" in inputs and inputs["per_page"]:
-            params["per-page"] = inputs["per_page"]
+        if inputs.get("per_page"):
+            params["per-page"] = inputs.get("per_page")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-expenses", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/project-expenses",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list project expenses: {str(e)}")
+            return ActionError(message=f"Failed to list project expenses: {str(e)}")
 
 
 @float.action("get_project_expense")
@@ -1993,13 +2529,15 @@ class GetProjectExpenseHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-expenses/{project_expense_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/project-expenses/{project_expense_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get project expense {project_expense_id}: {str(e)}")
+            return ActionError(message=f"Failed to get project expense {project_expense_id}: {str(e)}")
 
 
 # ---- Phases Resource Actions ----
@@ -2022,26 +2560,29 @@ class ListPhasesHandler(ActionHandler):
         """
         params = {}
 
-        if "project_id" in inputs and inputs["project_id"]:
-            params["project_id"] = inputs["project_id"]
+        if inputs.get("project_id"):
+            params["project_id"] = inputs.get("project_id")
 
-        if "page" in inputs and inputs["page"]:
-            params["page"] = inputs["page"]
+        if inputs.get("page"):
+            params["page"] = inputs.get("page")
 
-        if "per_page" in inputs and inputs["per_page"]:
-            params["per-page"] = inputs["per_page"]
+        if inputs.get("per_page"):
+            params["per-page"] = inputs.get("per_page")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/phases", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/phases",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list phases: {str(e)}")
+            return ActionError(message=f"Failed to list phases: {str(e)}")
 
 
 @float.action("get_phase")
@@ -2063,12 +2604,16 @@ class GetPhaseHandler(ActionHandler):
         headers = get_auth_headers(context)
 
         try:
-            response = await context.fetch(url=f"{FLOAT_API_BASE_URL}/phases/{phase_id}", method="GET", headers=headers)
+            response = await context.fetch(
+                url=f"{FLOAT_API_BASE_URL}/phases/{phase_id}",
+                method="GET",
+                headers=headers,
+            )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get phase {phase_id}: {str(e)}")
+            return ActionError(message=f"Failed to get phase {phase_id}: {str(e)}")
 
 
 # ---- Project Tasks Resource Actions ----
@@ -2091,26 +2636,29 @@ class ListProjectTasksHandler(ActionHandler):
         """
         params = {}
 
-        if "project_id" in inputs and inputs["project_id"]:
-            params["project_id"] = inputs["project_id"]
+        if inputs.get("project_id"):
+            params["project_id"] = inputs.get("project_id")
 
-        if "page" in inputs and inputs["page"]:
-            params["page"] = inputs["page"]
+        if inputs.get("page"):
+            params["page"] = inputs.get("page")
 
-        if "per_page" in inputs and inputs["per_page"]:
-            params["per-page"] = inputs["per_page"]
+        if inputs.get("per_page"):
+            params["per-page"] = inputs.get("per_page")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-tasks", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/project-tasks",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list project tasks: {str(e)}")
+            return ActionError(message=f"Failed to list project tasks: {str(e)}")
 
 
 @float.action("get_project_task")
@@ -2133,13 +2681,15 @@ class GetProjectTaskHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-tasks/{project_task_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/project-tasks/{project_task_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get project task {project_task_id}: {str(e)}")
+            return ActionError(message=f"Failed to get project task {project_task_id}: {str(e)}")
 
 
 @float.action("merge_project_tasks")
@@ -2157,19 +2707,25 @@ class MergeProjectTasksHandler(ActionHandler):
         Returns:
             ActionResult containing merged task details
         """
-        request_body = {"source_ids": inputs["source_ids"], "target_id": inputs["target_id"]}
+        request_body = {
+            "source_ids": inputs["source_ids"],
+            "target_id": inputs["target_id"],
+        }
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/project-tasks/merge", method="POST", headers=headers, json=request_body
+                url=f"{FLOAT_API_BASE_URL}/project-tasks/merge",
+                method="POST",
+                headers=headers,
+                json=request_body,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to merge project tasks: {str(e)}")
+            return ActionError(message=f"Failed to merge project tasks: {str(e)}")
 
 
 # ---- Milestones Resource Actions ----
@@ -2192,26 +2748,29 @@ class ListMilestonesHandler(ActionHandler):
         """
         params = {}
 
-        if "project_id" in inputs and inputs["project_id"]:
-            params["project_id"] = inputs["project_id"]
+        if inputs.get("project_id"):
+            params["project_id"] = inputs.get("project_id")
 
-        if "page" in inputs and inputs["page"]:
-            params["page"] = inputs["page"]
+        if inputs.get("page"):
+            params["page"] = inputs.get("page")
 
-        if "per_page" in inputs and inputs["per_page"]:
-            params["per-page"] = inputs["per_page"]
+        if inputs.get("per_page"):
+            params["per-page"] = inputs.get("per_page")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/milestones", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/milestones",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to list milestones: {str(e)}")
+            return ActionError(message=f"Failed to list milestones: {str(e)}")
 
 
 @float.action("get_milestone")
@@ -2234,13 +2793,15 @@ class GetMilestoneHandler(ActionHandler):
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/milestones/{milestone_id}", method="GET", headers=headers
+                url=f"{FLOAT_API_BASE_URL}/milestones/{milestone_id}",
+                method="GET",
+                headers=headers,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to get milestone {milestone_id}: {str(e)}")
+            return ActionError(message=f"Failed to get milestone {milestone_id}: {str(e)}")
 
 
 # ---- Reports Resource Actions ----
@@ -2263,26 +2824,29 @@ class GetPeopleReportHandler(ActionHandler):
         """
         params = {}
 
-        if "start_date" in inputs and inputs["start_date"]:
-            params["start_date"] = inputs["start_date"]
+        if inputs.get("start_date"):
+            params["start_date"] = inputs.get("start_date")
 
-        if "end_date" in inputs and inputs["end_date"]:
-            params["end_date"] = inputs["end_date"]
+        if inputs.get("end_date"):
+            params["end_date"] = inputs.get("end_date")
 
-        if "people_id" in inputs and inputs["people_id"]:
-            params["people_id"] = inputs["people_id"]
+        if inputs.get("people_id"):
+            params["people_id"] = inputs.get("people_id")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/reports/people", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/reports/people",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to generate people report: {str(e)}")
+            return ActionError(message=f"Failed to generate people report: {str(e)}")
 
 
 @float.action("get_projects_report")
@@ -2302,23 +2866,26 @@ class GetProjectsReportHandler(ActionHandler):
         """
         params = {}
 
-        if "start_date" in inputs and inputs["start_date"]:
-            params["start_date"] = inputs["start_date"]
+        if inputs.get("start_date"):
+            params["start_date"] = inputs.get("start_date")
 
-        if "end_date" in inputs and inputs["end_date"]:
-            params["end_date"] = inputs["end_date"]
+        if inputs.get("end_date"):
+            params["end_date"] = inputs.get("end_date")
 
-        if "project_id" in inputs and inputs["project_id"]:
-            params["project_id"] = inputs["project_id"]
+        if inputs.get("project_id"):
+            params["project_id"] = inputs.get("project_id")
 
         headers = get_auth_headers(context)
 
         try:
             response = await context.fetch(
-                url=f"{FLOAT_API_BASE_URL}/reports/projects", method="GET", headers=headers, params=params
+                url=f"{FLOAT_API_BASE_URL}/reports/projects",
+                method="GET",
+                headers=headers,
+                params=params,
             )
 
-            return ActionResult(data=response, cost_usd=0.0)
+            return ActionResult(data=response.data, cost_usd=0.0)
 
         except Exception as e:
-            raise Exception(f"Failed to generate projects report: {str(e)}")
+            return ActionError(message=f"Failed to generate projects report: {str(e)}")
