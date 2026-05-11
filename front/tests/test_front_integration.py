@@ -14,7 +14,7 @@ import pytest
 from autohive_integrations_sdk import FetchResponse
 from autohive_integrations_sdk.integration import ResultType
 
-from front import front
+from front.front import front
 
 pytestmark = pytest.mark.integration
 
