@@ -413,7 +413,7 @@ class CreateMessageReplyAction(ActionHandler):
             async with session.post(url, data=form, headers=headers) as resp:
                 if resp.status >= 400:
                     error_text = await resp.text()
-                    return {"error": f"HTTP {resp.status}: {error_text}"}
+                    raise Exception(f"HTTP {resp.status}: {error_text}")
 
                 return await resp.json()
 
@@ -703,7 +703,7 @@ class CreateMessageAction(ActionHandler):
             async with session.post(url, data=form, headers=headers) as resp:
                 if resp.status >= 400:
                     error_text = await resp.text()
-                    return {"error": f"HTTP {resp.status}: {error_text}"}
+                    raise Exception(f"HTTP {resp.status}: {error_text}")
 
                 return await resp.json()
 
