@@ -1,6 +1,6 @@
 {
     "name": "Supadata - Transcribe",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Get transcripts from YouTube, TikTok, Instagram, X (Twitter) videos using Supadata",
     "entry_point": "supadata_transcribe.py",
     "auth": {

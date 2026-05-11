@@ -77,7 +77,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### ElevenLabs
 
-[elevenlabs](elevenlabs): Text-to-speech integration with ElevenLabs API for voice generation and audio management. Supports converting text to realistic speech with customizable voice settings, browsing and filtering available voices by category and use case, accessing voice metadata and settings, tracking generation history, downloading previously generated audio files, and monitoring subscription usage and credits. Features 7 actions (1 paid, 6 free), API key authentication, multiple output formats (MP3, PCM), voice customization controls (stability, similarity, style), and base64-encoded audio file outputs. Includes 20 premade professional voices with various accents. Ideal for content creation, audiobook narration, voiceovers, and automated audio generation workflows.
+[elevenlabs](elevenlabs): Text-to-speech and speech-to-text integration with ElevenLabs API for voice generation, audio transcription, and audio management. Supports converting text to realistic speech with customizable voice settings, transcribing audio/video files using ElevenLabs Scribe with word-level timestamps and speaker diarization, browsing voices, managing transcripts, and monitoring subscription usage. Features 10 actions (1 paid, 9 free) covering text-to-speech, speech-to-text, voice management, history, and account. Uses API key authentication. Ideal for content creation, audiobook narration, voiceovers, meeting transcription, and automated audio/transcription workflows.
 
 ### Fergus
 
