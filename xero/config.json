@@ -1,6 +1,6 @@
 {
     "name": "Xero",
-    "version": "1.5.0",
+    "version": "2.0.0",
     "description": "Xero accounting integration for invoice and bill management, purchase orders, reporting, file attachments, and PDF invoice retrieval",
     "entry_point": "xero.py",
     "supports_connected_account": true,
@@ -29,10 +29,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {
-                        "type": "boolean",
-                        "description": "Whether the request was successful"
-                    },
                     "companies": {
                         "type": "array",
                         "items": {
@@ -52,14 +48,9 @@
                                 "company_name"
                             ]
                         }
-                    },
-                    "message": {
-                        "type": "string",
-                        "description": "Error message if success is false"
                     }
                 },
                 "required": [
-                    "success",
                     "companies"
                 ]
             }
@@ -752,19 +743,10 @@
                             "content",
                             "contentType"
                         ]
-                    },
-                    "success": {
-                        "type": "boolean",
-                        "description": "Whether the PDF download was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if download failed"
                     }
                 },
                 "required": [
-                    "file",
-                    "success"
+                    "file"
                 ]
             }
         },
@@ -1554,19 +1536,10 @@
                             "content",
                             "contentType"
                         ]
-                    },
-                    "success": {
-                        "type": "boolean",
-                        "description": "Whether the download was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if download failed"
                     }
                 },
                 "required": [
-                    "file",
-                    "success"
+                    "file"
                 ]
             }
         },
