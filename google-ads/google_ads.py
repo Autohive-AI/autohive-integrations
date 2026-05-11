@@ -7,19 +7,6 @@ from typing import Dict, Any, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Setup environment variables
-from dotenv import load_dotenv  # noqa: E402
-
-load_dotenv()
-
-try:
-    DEVELOPER_TOKEN = os.environ["ADWORDS_DEVELOPER_TOKEN"]
-    CLIENT_ID = os.environ["ADWORDS_CLIENT_ID"]
-    CLIENT_SECRET = os.environ["ADWORDS_CLIENT_SECRET"]
-except KeyError as e:
-    logger.error(f"Error loading environment variables: {str(e)}")
-    raise
-
 from enum import Enum  # noqa: E402
 import proto  # noqa: E402
 from autohive_integrations_sdk import (  # noqa: E402
@@ -31,6 +18,7 @@ from autohive_integrations_sdk import (  # noqa: E402
 )
 from google.ads.googleads.client import GoogleAdsClient  # noqa: E402
 from google.api_core import protobuf_helpers  # noqa: E402
+from google.oauth2.credentials import Credentials  # noqa: E402
 
 # Load integration configuration
 google_ads = Integration.load()
@@ -49,28 +37,35 @@ def micros_to_currency(micros):
     return float(micros) / 1000000 if micros is not None else "N/A"
 
 
-def _get_google_ads_client(refresh_token: str, login_customer_id: Optional[str] = None) -> GoogleAdsClient:
+def _get_developer_token() -> str:
+    """Return the server-side Google Ads developer token."""
+    developer_token = os.environ.get("ADWORDS_DEVELOPER_TOKEN", "").strip()
+    if not developer_token:
+        raise ValueError("ADWORDS_DEVELOPER_TOKEN is required for Google Ads API requests")
+    return developer_token
+
+
+def _get_google_ads_client(access_token: str, login_customer_id: Optional[str] = None) -> GoogleAdsClient:
     """Initialize and return a Google Ads API client."""
-    credentials = {
-        "developer_token": DEVELOPER_TOKEN,
-        "token_uri": "https://oauth2.googleapis.com/token",  # nosec B105
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "refresh_token": refresh_token,
+    credentials = Credentials(token=access_token)
+    client_kwargs = {
+        "credentials": credentials,
+        "developer_token": _get_developer_token(),
         "use_proto_plus": True,
     }
     if login_customer_id:
-        credentials["login_customer_id"] = login_customer_id
+        client_kwargs["login_customer_id"] = login_customer_id
 
-    return GoogleAdsClient.load_from_dict(credentials)
+    return GoogleAdsClient(**client_kwargs)
 
 
 def _validate_auth(context: ExecutionContext) -> str:
-    """Validate authentication and return refresh token."""
-    refresh_token = context.auth.get("credentials", {}).get("refresh_token")
-    if not refresh_token:
-        raise Exception("Refresh token is required for authentication with Google Ads API")
-    return refresh_token
+    """Validate platform OAuth authentication and return an access token."""
+    credentials = context.auth.get("credentials", {})
+    access_token = credentials.get("access_token") or credentials.get("refresh_token")
+    if not access_token:
+        raise Exception("Access token is required for authentication with Google Ads API")
+    return access_token
 
 
 def _get_ad_text_assets(ad_data_from_row: Dict[str, Any]) -> Dict[str, list]:
@@ -358,13 +353,11 @@ class GetAccessibleAccountsAction(ActionHandler):
     """Action handler for listing accessible Google Ads accounts."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        refresh_token = context.auth.get("credentials", {}).get("refresh_token")
-        if not refresh_token:
-            return ActionError(message="Refresh token is required for authentication with Google Ads API")
-
         try:
+            access_token = _validate_auth(context)
+
             # 1. List accessible customers (no login_customer_id needed)
-            client = _get_google_ads_client(refresh_token, None)
+            client = _get_google_ads_client(access_token, None)
             customer_service = client.get_service("CustomerService")
 
             try:
@@ -392,7 +385,7 @@ class GetAccessibleAccountsAction(ActionHandler):
             for account in accounts:
                 try:
                     # Re-initialize client specifically for this customer
-                    sub_client = _get_google_ads_client(refresh_token, account["customer_id"])
+                    sub_client = _get_google_ads_client(access_token, account["customer_id"])
                     google_ads_service = sub_client.get_service("GoogleAdsService")
 
                     query = """

@@ -11,8 +11,6 @@ import sys
 import asyncio
 import importlib
 from unittest.mock import MagicMock, AsyncMock
-from google.ads.googleads.client import GoogleAdsClient  # noqa: E402
-from google.oauth2.credentials import Credentials  # noqa: E402
 
 # ============================================================================
 # CONFIG — fill these in before running
@@ -31,10 +29,8 @@ if not all([ACCESS_TOKEN, DEVELOPER_TOKEN, LOGIN_CUSTOMER_ID, CUSTOMER_ID]):
     print("  GOOGLE_ADS_CUSTOMER_ID        (client account ID to query)")
     sys.exit(1)
 
-# Set placeholder env vars so google_ads.py module-level checks pass
+# Make the developer token available to google_ads.py when it builds the client.
 os.environ.setdefault("ADWORDS_DEVELOPER_TOKEN", DEVELOPER_TOKEN)
-os.environ.setdefault("ADWORDS_CLIENT_ID", "placeholder")  # nosec B105
-os.environ.setdefault("ADWORDS_CLIENT_SECRET", "placeholder")  # nosec B105
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 _deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "dependencies"))
@@ -43,22 +39,7 @@ sys.path.insert(0, _deps)
 
 _spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
 _mod = importlib.util.module_from_spec(_spec)
-
-
-def _client_from_access_token(refresh_token: str, login_customer_id=None):
-    credentials = Credentials(token=ACCESS_TOKEN)
-    kwargs = {
-        "credentials": credentials,
-        "developer_token": DEVELOPER_TOKEN,
-        "use_proto_plus": True,
-    }
-    if login_customer_id:
-        kwargs["login_customer_id"] = login_customer_id
-    return GoogleAdsClient(**kwargs)
-
-
 _spec.loader.exec_module(_mod)
-_mod._get_google_ads_client = _client_from_access_token
 
 google_ads = _mod.google_ads
 
@@ -66,7 +47,10 @@ from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
 ctx = MagicMock(name="ExecutionContext")
 ctx.fetch = AsyncMock()
-ctx.auth = {"credentials": {"refresh_token": "unused-access-token-flow"}}  # nosec B105
+ctx.auth = {
+    "auth_type": "PlatformOauth2",
+    "credentials": {"access_token": ACCESS_TOKEN},
+}
 
 base = {"login_customer_id": LOGIN_CUSTOMER_ID, "customer_id": CUSTOMER_ID}
 

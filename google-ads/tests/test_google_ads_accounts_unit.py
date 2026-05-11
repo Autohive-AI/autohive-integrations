@@ -28,7 +28,7 @@ pytestmark = pytest.mark.unit
 def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {"credentials": {"refresh_token": "test_refresh_token"}}  # nosec B105
+    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "test_access_token"}}  # nosec B105
     return ctx
 
 
@@ -52,14 +52,14 @@ def _make_list_response(resource_names):
 
 
 @pytest.mark.asyncio
-async def test_missing_refresh_token(mock_context):
-    """Missing refresh token returns ActionError with descriptive message."""
+async def test_missing_access_token(mock_context):
+    """Missing access token returns ActionError with descriptive message."""
     mock_context.auth = {}
 
     result = await google_ads.execute_action("get_accessible_accounts", {}, mock_context)
 
     assert result.type == ResultType.ACTION_ERROR
-    assert "refresh_token" in result.result.message.lower() or "Refresh token" in result.result.message
+    assert "access token" in result.result.message.lower()
 
 
 @pytest.mark.asyncio

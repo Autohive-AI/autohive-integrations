@@ -1,11 +1,22 @@
 """
 End-to-end integration tests for the Google Ads integration.
 
-These tests call the real Google Ads API and require a valid OAuth access token
-set in the GOOGLE_ADS_ACCESS_TOKEN environment variable (via .env or export).
+These tests call the real Google Ads API and require platform OAuth credentials
+and Google Ads account IDs in environment variables (via .env or export).
+
+Token extraction recipe:
+1. Connect Google Ads in Autohive using the platform OAuth flow.
+2. Copy the short-lived OAuth access token into GOOGLE_ADS_ACCESS_TOKEN.
+3. Set ADWORDS_DEVELOPER_TOKEN from the Google Ads API Center.
+4. Set GOOGLE_ADS_LOGIN_CUSTOMER_ID and GOOGLE_ADS_CUSTOMER_ID without dashes.
+5. Optional destructive tests also need GOOGLE_ADS_TEST_CAMPAIGN_ID and
+   GOOGLE_ADS_TEST_AD_GROUP_ID for ad group, keyword, and negative keyword flows.
 
 Run with:
-    pytest google-ads/tests/test_google_ads_integration.py -m integration
+    pytest google-ads/tests/test_google_ads_integration.py -m "integration and not destructive"
+
+Run destructive tests deliberately only when the connected account is safe to mutate:
+    pytest google-ads/tests/test_google_ads_integration.py -m "integration and destructive"
 
 Never runs in CI -- the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
@@ -13,12 +24,7 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 
 import os
 import sys
-import importlib
 import importlib.util
-
-os.environ.setdefault("ADWORDS_DEVELOPER_TOKEN", "placeholder")  # nosec B105
-os.environ.setdefault("ADWORDS_CLIENT_ID", "placeholder")  # nosec B105
-os.environ.setdefault("ADWORDS_CLIENT_SECRET", "placeholder")  # nosec B105
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
@@ -26,7 +32,6 @@ sys.path.insert(0, _parent)
 sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
-from unittest.mock import MagicMock, AsyncMock  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("google_ads_mod", os.path.join(_parent, "google_ads.py"))
@@ -37,10 +42,6 @@ google_ads = _mod.google_ads
 
 pytestmark = pytest.mark.integration
 
-ACCESS_TOKEN = os.environ.get("GOOGLE_ADS_ACCESS_TOKEN", "")
-LOGIN_CUSTOMER_ID = os.environ.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "")
-CUSTOMER_ID = os.environ.get("GOOGLE_ADS_CUSTOMER_ID", "")
-DEVELOPER_TOKEN = os.environ.get("ADWORDS_DEVELOPER_TOKEN", "")
 TEST_CAMPAIGN_ID = os.environ.get("GOOGLE_ADS_TEST_CAMPAIGN_ID", "")
 TEST_AD_GROUP_ID = os.environ.get("GOOGLE_ADS_TEST_AD_GROUP_ID", "")
 
@@ -56,39 +57,42 @@ def require_ad_group_id():
 
 
 @pytest.fixture
-def live_context():
-    if not ACCESS_TOKEN:
+def live_credentials(env_credentials):
+    access_token = env_credentials("GOOGLE_ADS_ACCESS_TOKEN")
+    login_customer_id = env_credentials("GOOGLE_ADS_LOGIN_CUSTOMER_ID")
+    customer_id = env_credentials("GOOGLE_ADS_CUSTOMER_ID")
+    developer_token = env_credentials("ADWORDS_DEVELOPER_TOKEN")
+
+    if not access_token:
         pytest.skip("GOOGLE_ADS_ACCESS_TOKEN not set — skipping integration tests")
-    if not LOGIN_CUSTOMER_ID or not CUSTOMER_ID:
+    if not login_customer_id or not customer_id:
         pytest.skip("GOOGLE_ADS_LOGIN_CUSTOMER_ID and GOOGLE_ADS_CUSTOMER_ID must be set")
-    if not DEVELOPER_TOKEN or DEVELOPER_TOKEN == "placeholder":  # nosec B105
+    if not developer_token:
         pytest.skip("ADWORDS_DEVELOPER_TOKEN not set")
 
-    from google.ads.googleads.client import GoogleAdsClient
-    from google.oauth2.credentials import Credentials
-
-    def _client_from_access_token(refresh_token: str, login_customer_id=None):
-        credentials = Credentials(token=ACCESS_TOKEN)
-        kwargs = {
-            "credentials": credentials,
-            "developer_token": DEVELOPER_TOKEN,
-            "use_proto_plus": True,
-        }
-        if login_customer_id:
-            kwargs["login_customer_id"] = login_customer_id
-        return GoogleAdsClient(**kwargs)
-
-    _mod._get_google_ads_client = _client_from_access_token
-
-    ctx = MagicMock(name="ExecutionContext")
-    ctx.fetch = AsyncMock()
-    ctx.auth = {"credentials": {"refresh_token": "access-token-flow"}}  # nosec B105
-    return ctx
+    return {
+        "access_token": access_token,
+        "login_customer_id": login_customer_id,
+        "customer_id": customer_id,
+    }
 
 
 @pytest.fixture
-def base_inputs():
-    return {"login_customer_id": LOGIN_CUSTOMER_ID, "customer_id": CUSTOMER_ID}
+def live_context(live_credentials, make_context):
+    return make_context(
+        auth={
+            "auth_type": "PlatformOauth2",
+            "credentials": {"access_token": live_credentials["access_token"]},
+        }
+    )
+
+
+@pytest.fixture
+def base_inputs(live_credentials):
+    return {
+        "login_customer_id": live_credentials["login_customer_id"],
+        "customer_id": live_credentials["customer_id"],
+    }
 
 
 # ===========================================================================

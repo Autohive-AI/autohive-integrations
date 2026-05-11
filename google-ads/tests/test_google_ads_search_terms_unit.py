@@ -30,7 +30,7 @@ BASE_INPUTS = {"login_customer_id": "1234567890", "customer_id": "9876543210"}
 def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {"credentials": {"refresh_token": "test_refresh_token"}}  # nosec B105
+    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "test_access_token"}}  # nosec B105
     return ctx
 
 
