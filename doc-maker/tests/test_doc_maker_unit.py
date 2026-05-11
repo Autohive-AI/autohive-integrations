@@ -28,6 +28,7 @@ has_markdown_formatting = _mod.has_markdown_formatting
 is_likely_placeholder_context = _mod.is_likely_placeholder_context
 analyze_replacement_safety = _mod.analyze_replacement_safety
 _save_document_to_dict = _mod._save_document_to_dict
+parse_markdown_to_docx = _mod.parse_markdown_to_docx
 documents = _mod.documents
 
 pytestmark = pytest.mark.unit
@@ -583,3 +584,141 @@ class TestSaveDocumentToDict:
         assert result["saved"] is False
         assert "nonexistent-id" in result["error"]
         assert result["file"]["content"] == ""
+
+
+class TestParenthesizedListNumbering:
+    """Verify that (1), (a), (i) style lists produce correct Word numbering."""
+
+    MARKDOWN = (
+        "1. Elephant\n"
+        "    (a) Elephants are the largest land animals on Earth, "
+        "with African elephants weighing up to 14,000 lbs.\n"
+        "    (b) They have an exceptional memory and can recognize "
+        "themselves in mirrors, indicating self-awareness.\n"
+        "2. Axolotl\n"
+        "    (a) Axolotls can regenerate entire limbs, including "
+        "parts of their heart and brain.\n"
+        "    (b) Unlike most amphibians, axolotls retain their larval "
+        "features throughout their entire lives, a trait called neoteny."
+    )
+
+    @staticmethod
+    def _get_numpr(paragraph):
+        """Return (numId, ilvl) from a paragraph's w:numPr, or None."""
+        from docx.oxml.ns import qn
+
+        pPr = paragraph._p.find(qn("w:pPr"))
+        if pPr is None:
+            return None
+        numPr = pPr.find(qn("w:numPr"))
+        if numPr is None:
+            return None
+        numId_el = numPr.find(qn("w:numId"))
+        ilvl_el = numPr.find(qn("w:ilvl"))
+        if numId_el is None or ilvl_el is None:
+            return None
+        return int(numId_el.get(qn("w:val"))), int(ilvl_el.get(qn("w:val")))
+
+    @staticmethod
+    def _get_abstract_num_for(doc, num_id):
+        """Return the abstractNum element referenced by a given numId."""
+        from docx.oxml.ns import qn
+
+        numbering = doc.part.numbering_part._element
+        for num_el in numbering.findall(qn("w:num")):
+            if int(num_el.get(qn("w:numId"))) == num_id:
+                abstract_ref = num_el.find(qn("w:abstractNumId"))
+                abstract_id = int(abstract_ref.get(qn("w:val")))
+                for an in numbering.findall(qn("w:abstractNum")):
+                    if int(an.get(qn("w:abstractNumId"))) == abstract_id:
+                        return an
+        return None
+
+    def test_produces_six_numbered_paragraphs(self):
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        assert len(numbered) == 6, f"Expected 6 numbered paragraphs, got {len(numbered)}: {numbered}"
+
+    def test_top_level_items_are_at_ilvl_zero(self):
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        top_items = [(text, numpr) for text, numpr in numbered if "Elephant" == text or "Axolotl" == text]
+        assert len(top_items) == 2, f"Expected 2 top-level items, got {top_items}"
+        for text, (num_id, ilvl) in top_items:
+            assert ilvl == 0, f"'{text}' should be at ilvl 0, got {ilvl}"
+
+    def test_sub_items_are_indented(self):
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        sub_items = [(text, numpr) for text, numpr in numbered if text not in ("Elephant", "Axolotl")]
+        assert len(sub_items) == 4, f"Expected 4 sub-items, got {len(sub_items)}"
+        for text, (num_id, ilvl) in sub_items:
+            assert ilvl >= 1, f"Sub-item should be indented (ilvl >= 1), got {ilvl}: {text}"
+
+    def test_top_level_uses_decimal_numbering(self):
+        from docx import Document
+        from docx.oxml.ns import qn
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        elephant = next((text, numpr) for text, numpr in numbered if text == "Elephant")
+        num_id = elephant[1][0]
+        abstract = self._get_abstract_num_for(doc, num_id)
+        assert abstract is not None
+        lvl0 = abstract.find(qn("w:lvl"))
+        fmt = lvl0.find(qn("w:numFmt")).get(qn("w:val"))
+        assert fmt == "decimal", f"Top-level should be decimal, got {fmt}"
+
+    def test_sub_items_use_lower_letter_parenthesized(self):
+        from docx import Document
+        from docx.oxml.ns import qn
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        first_sub = next((text, numpr) for text, numpr in numbered if "Elephants are" in text)
+        num_id, ilvl = first_sub[1]
+        abstract = self._get_abstract_num_for(doc, num_id)
+        assert abstract is not None
+
+        # Find the lvl element matching the ilvl used
+        target_lvl = None
+        for lvl in abstract.findall(qn("w:lvl")):
+            if int(lvl.get(qn("w:ilvl"))) == ilvl:
+                target_lvl = lvl
+                break
+        assert target_lvl is not None
+
+        fmt = target_lvl.find(qn("w:numFmt")).get(qn("w:val"))
+        assert fmt == "lowerLetter", f"Sub-items should be lowerLetter, got {fmt}"
+        lvl_text = target_lvl.find(qn("w:lvlText")).get(qn("w:val"))
+        assert "(" in lvl_text, f"Sub-items should have parenthesized format, got '{lvl_text}'"
+
+    def test_elephant_text_on_same_line_as_number(self):
+        """The parent item text must appear in the same paragraph as the numbering."""
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        elephant_paras = [(t, n) for t, n in numbered if "Elephant" in t and n[1] == 0]
+        assert len(elephant_paras) >= 1
+        assert elephant_paras[0][0] == "Elephant", (
+            f"Top-level text should be exactly 'Elephant', got '{elephant_paras[0][0]}'"
+        )
