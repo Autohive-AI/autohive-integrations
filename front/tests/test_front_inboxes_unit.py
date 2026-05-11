@@ -12,9 +12,7 @@ from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "front_mod", os.path.join(_parent, "front.py")
-)
+_spec = importlib.util.spec_from_file_location("front_mod", os.path.join(_parent, "front.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -76,9 +74,7 @@ class TestListInboxes:
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={
-                "_results": [{"id": "inb_1", "name": "Support", "address": "s@x.com"}]
-            },
+            data={"_results": [{"id": "inb_1", "name": "Support", "address": "s@x.com"}]},
         )
 
         result = await front.execute_action("list_inboxes", {}, mock_context)
@@ -88,21 +84,15 @@ class TestListInboxes:
 
     @pytest.mark.asyncio
     async def test_request_url(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"_results": []}
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": []})
 
         await front.execute_action("list_inboxes", {"limit": 10}, mock_context)
 
-        assert (
-            mock_context.fetch.call_args.args[0] == "https://api2.frontapp.com/inboxes"
-        )
+        assert mock_context.fetch.call_args.args[0] == "https://api2.frontapp.com/inboxes"
 
     @pytest.mark.asyncio
     async def test_limit_param_sent(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"_results": []}
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": []})
 
         await front.execute_action("list_inboxes", {"limit": 10}, mock_context)
 
@@ -111,9 +101,7 @@ class TestListInboxes:
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"_results": []}
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": []})
 
         result = await front.execute_action("list_inboxes", {}, mock_context)
 
@@ -132,22 +120,16 @@ class TestListInboxes:
 class TestGetInbox:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data=SAMPLE_INBOX
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_INBOX)
 
-        result = await front.execute_action(
-            "get_inbox", {"inbox_id": "inb_123"}, mock_context
-        )
+        result = await front.execute_action("get_inbox", {"inbox_id": "inb_123"}, mock_context)
 
         assert result.result.data["inbox"]["id"] == "inb_123"
         assert result.result.data["inbox"]["name"] == "Support"
 
     @pytest.mark.asyncio
     async def test_request_url(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data=SAMPLE_INBOX
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_INBOX)
 
         await front.execute_action("get_inbox", {"inbox_id": "inb_123"}, mock_context)
 
@@ -160,9 +142,7 @@ class TestGetInbox:
             status=200, headers={}, data={"error": "Inbox not found", "_error": {}}
         )
 
-        result = await front.execute_action(
-            "get_inbox", {"inbox_id": "inb_bad"}, mock_context
-        )
+        result = await front.execute_action("get_inbox", {"inbox_id": "inb_bad"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Inbox not found" in result.result.message
@@ -171,9 +151,7 @@ class TestGetInbox:
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Connection refused")
 
-        result = await front.execute_action(
-            "get_inbox", {"inbox_id": "inb_123"}, mock_context
-        )
+        result = await front.execute_action("get_inbox", {"inbox_id": "inb_123"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Connection refused" in result.result.message
@@ -192,9 +170,7 @@ class TestGetInbox:
             },
         )
 
-        result = await front.execute_action(
-            "get_inbox", {"inbox_id": "inb_1"}, mock_context
-        )
+        result = await front.execute_action("get_inbox", {"inbox_id": "inb_1"}, mock_context)
 
         inbox = result.result.data["inbox"]
         assert inbox["type"] == "smtp"
@@ -208,18 +184,14 @@ class TestListInboxConversations:
             status=200, headers={}, data={"_results": [SAMPLE_CONVERSATION]}
         )
 
-        result = await front.execute_action(
-            "list_inbox_conversations", {"inbox_id": "inb_123"}, mock_context
-        )
+        result = await front.execute_action("list_inbox_conversations", {"inbox_id": "inb_123"}, mock_context)
 
         assert len(result.result.data["conversations"]) == 1
         assert result.result.data["conversations"][0]["id"] == "cnv_123"
 
     @pytest.mark.asyncio
     async def test_request_url_and_params(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"_results": []}
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": []})
 
         await front.execute_action(
             "list_inbox_conversations",
@@ -235,9 +207,7 @@ class TestListInboxConversations:
 
     @pytest.mark.asyncio
     async def test_limit_clamped_to_100(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"_results": []}
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": []})
 
         await front.execute_action(
             "list_inbox_conversations",
@@ -250,13 +220,9 @@ class TestListInboxConversations:
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"_results": []}
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": []})
 
-        result = await front.execute_action(
-            "list_inbox_conversations", {"inbox_id": "inb_123"}, mock_context
-        )
+        result = await front.execute_action("list_inbox_conversations", {"inbox_id": "inb_123"}, mock_context)
 
         assert result.result.data["conversations"] == []
 
@@ -264,9 +230,7 @@ class TestListInboxConversations:
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Network error")
 
-        result = await front.execute_action(
-            "list_inbox_conversations", {"inbox_id": "inb_123"}, mock_context
-        )
+        result = await front.execute_action("list_inbox_conversations", {"inbox_id": "inb_123"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Network error" in result.result.message
@@ -275,25 +239,17 @@ class TestListInboxConversations:
 class TestListInboxChannels:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"_results": [SAMPLE_CHANNEL]}
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": [SAMPLE_CHANNEL]})
 
-        result = await front.execute_action(
-            "list_inbox_channels", {"inbox_id": "inb_123"}, mock_context
-        )
+        result = await front.execute_action("list_inbox_channels", {"inbox_id": "inb_123"}, mock_context)
 
         assert len(result.result.data["channels"]) == 1
 
     @pytest.mark.asyncio
     async def test_request_url(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"_results": []}
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": []})
 
-        await front.execute_action(
-            "list_inbox_channels", {"inbox_id": "inb_123", "limit": 10}, mock_context
-        )
+        await front.execute_action("list_inbox_channels", {"inbox_id": "inb_123", "limit": 10}, mock_context)
 
         call_args = mock_context.fetch.call_args
         assert "inboxes/inb_123/channels" in call_args.args[0]
@@ -301,13 +257,9 @@ class TestListInboxChannels:
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"_results": []}
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"_results": []})
 
-        result = await front.execute_action(
-            "list_inbox_channels", {"inbox_id": "inb_123"}, mock_context
-        )
+        result = await front.execute_action("list_inbox_channels", {"inbox_id": "inb_123"}, mock_context)
 
         assert result.result.data["channels"] == []
 
@@ -315,9 +267,7 @@ class TestListInboxChannels:
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Error")
 
-        result = await front.execute_action(
-            "list_inbox_channels", {"inbox_id": "inb_123"}, mock_context
-        )
+        result = await front.execute_action("list_inbox_channels", {"inbox_id": "inb_123"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
 
@@ -328,16 +278,10 @@ class TestFindInbox:
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={
-                "_results": [
-                    {"id": "inb_1", "name": "Support Inbox", "address": "s@x.com"}
-                ]
-            },
+            data={"_results": [{"id": "inb_1", "name": "Support Inbox", "address": "s@x.com"}]},
         )
 
-        result = await front.execute_action(
-            "find_inbox", {"inbox_name": "support"}, mock_context
-        )
+        result = await front.execute_action("find_inbox", {"inbox_name": "support"}, mock_context)
 
         assert len(result.result.data["inboxes"]) == 1
         assert result.result.data["count"] == 1
@@ -347,16 +291,10 @@ class TestFindInbox:
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={
-                "_results": [
-                    {"id": "inb_1", "name": "Support Inbox", "address": "s@x.com"}
-                ]
-            },
+            data={"_results": [{"id": "inb_1", "name": "Support Inbox", "address": "s@x.com"}]},
         )
 
-        result = await front.execute_action(
-            "find_inbox", {"inbox_name": "sales"}, mock_context
-        )
+        result = await front.execute_action("find_inbox", {"inbox_name": "sales"}, mock_context)
 
         assert result.result.data["inboxes"] == []
         assert result.result.data["count"] == 0
@@ -366,14 +304,10 @@ class TestFindInbox:
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={
-                "_results": [{"id": "inb_1", "name": "SUPPORT", "address": "s@x.com"}]
-            },
+            data={"_results": [{"id": "inb_1", "name": "SUPPORT", "address": "s@x.com"}]},
         )
 
-        result = await front.execute_action(
-            "find_inbox", {"inbox_name": "support"}, mock_context
-        )
+        result = await front.execute_action("find_inbox", {"inbox_name": "support"}, mock_context)
 
         assert len(result.result.data["inboxes"]) == 1
 
@@ -381,8 +315,6 @@ class TestFindInbox:
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Error")
 
-        result = await front.execute_action(
-            "find_inbox", {"inbox_name": "support"}, mock_context
-        )
+        result = await front.execute_action("find_inbox", {"inbox_name": "support"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR

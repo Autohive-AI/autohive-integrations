@@ -855,6 +855,11 @@
                             "type": "object",
                             "format": "file"
                         }
+                    },
+                    "file": {
+                        "type": "object",
+                        "format": "file",
+                        "description": "Single file attachment uploaded in the conversation. Prefer files for multiple attachments."
                     }
                 },
                 "required": [
@@ -950,6 +955,11 @@
                             "type": "object",
                             "format": "file"
                         }
+                    },
+                    "file": {
+                        "type": "object",
+                        "format": "file",
+                        "description": "Single file attachment uploaded in the conversation. Prefer files for multiple attachments."
                     }
                 },
                 "required": [
