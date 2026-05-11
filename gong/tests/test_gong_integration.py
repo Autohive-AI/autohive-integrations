@@ -29,7 +29,7 @@ import pytest
 from autohive_integrations_sdk import FetchResponse
 from autohive_integrations_sdk.integration import ResultType
 
-from gong import gong
+from gong.gong import gong
 
 pytestmark = pytest.mark.integration
 
