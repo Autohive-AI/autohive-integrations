@@ -9,7 +9,7 @@ service_endpoint = "https://api.heartbeat.chat/v0/"
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     """Get authentication headers with bearer token from custom auth."""
     headers = {}
-    api_key = context.auth.get("credentials", {}).get("api_key", "")
+    api_key = context.auth.get("api_key") or context.auth.get("credentials", {}).get("api_key", "")
 
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"

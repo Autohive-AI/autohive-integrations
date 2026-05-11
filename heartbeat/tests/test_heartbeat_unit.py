@@ -61,7 +61,7 @@ SAMPLE_COMMENT = {
 def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {"credentials": {"api_key": "test-api-key"}}  # nosec B105
+    ctx.auth = {"api_key": "test-api-key"}  # nosec B105
     return ctx
 
 

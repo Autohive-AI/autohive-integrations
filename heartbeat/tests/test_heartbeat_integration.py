@@ -1,45 +1,28 @@
 """
-End-to-end integration tests for the Heartbeat integration.
+Live integration tests for the Heartbeat integration.
 
-These tests call the real Heartbeat API and require a valid API key.
+Requires HEARTBEAT_API_KEY set in the environment or project .env.
 
-Run with:
-    HEARTBEAT_API_KEY=<key> pytest heartbeat/tests/test_heartbeat_integration.py -m integration
-
-Skipped automatically when HEARTBEAT_API_KEY is not set.
+Safe read-only run:
+    pytest heartbeat/tests/test_heartbeat_integration.py -m "integration and not destructive"
 """
 
-import os
-import sys
-import importlib
+from unittest.mock import AsyncMock
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
+import aiohttp
+import pytest
+from autohive_integrations_sdk import FetchResponse
 
-import pytest  # noqa: E402
-from unittest.mock import MagicMock, AsyncMock  # noqa: E402
-from autohive_integrations_sdk.integration import FetchResponse  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("heartbeat_mod", os.path.join(_parent, "heartbeat.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-
-heartbeat = _mod.heartbeat
+from heartbeat import heartbeat
 
 pytestmark = pytest.mark.integration
 
-HEARTBEAT_API_KEY = os.environ.get("HEARTBEAT_API_KEY", "")
-
-if not HEARTBEAT_API_KEY:
-    pytest.skip("HEARTBEAT_API_KEY environment variable not set", allow_module_level=True)
-
 
 @pytest.fixture
-def live_context():
-    """Execution context wired to a real HTTP client via aiohttp."""
-    import aiohttp
+def live_context(env_credentials, make_context):
+    api_key = env_credentials("HEARTBEAT_API_KEY")
+    if not api_key:
+        pytest.skip("HEARTBEAT_API_KEY not set — skipping integration tests")
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, **kwargs):
         async with aiohttp.ClientSession() as session:
@@ -51,9 +34,8 @@ def live_context():
                     data=data,
                 )
 
-    ctx = MagicMock(name="ExecutionContext")
+    ctx = make_context(auth={"api_key": api_key})
     ctx.fetch = AsyncMock(side_effect=real_fetch)
-    ctx.auth = {"credentials": {"api_key": HEARTBEAT_API_KEY}}  # nosec B105
     return ctx
 
 
