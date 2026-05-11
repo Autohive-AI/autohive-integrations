@@ -3,6 +3,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
 )
 from typing import Dict, Any, Optional
 
@@ -36,15 +37,17 @@ class GongAPIClient:
 
         # Use the context's fetch method for authenticated requests (OAuth handled by SDK)
         if method == "GET":
-            return await self.context.fetch(url, params=params, headers=headers)
+            response = await self.context.fetch(url, params=params, headers=headers)
         elif method == "POST":
-            return await self.context.fetch(url, method="POST", json=data, headers=headers)
+            response = await self.context.fetch(url, method="POST", json=data, headers=headers)
         elif method == "PUT":
-            return await self.context.fetch(url, method="PUT", json=data, headers=headers)
+            response = await self.context.fetch(url, method="PUT", json=data, headers=headers)
         elif method == "DELETE":
-            return await self.context.fetch(url, method="DELETE", headers=headers)
+            response = await self.context.fetch(url, method="DELETE", headers=headers)
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
+
+        return response.data if hasattr(response, "data") else response
 
 
 # ---- Action Handlers ----
@@ -116,14 +119,7 @@ class ListCallsAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "calls": [],
-                    "has_more": False,
-                    "next_cursor": None,
-                    "error": str(e),
-                }
-            )
+            return ActionError(message=str(e))
 
 
 @gong.action("get_call_transcript")
@@ -137,13 +133,7 @@ class GetCallTranscriptAction(ActionHandler):
             call_data = body.get("call", body)
 
             if bool(call_data.get("isPrivate", False)):
-                return ActionResult(
-                    data={
-                        "call_id": call_id,
-                        "transcript": [],
-                        "error": "private_call_filtered",
-                    }
-                )
+                return ActionError(message="private_call_filtered")
 
             speaker_map = {}
 
@@ -216,7 +206,7 @@ class GetCallTranscriptAction(ActionHandler):
 
             return ActionResult(data={"call_id": call_id, "transcript": transcript}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"call_id": call_id, "transcript": [], "error": str(e)})
+            return ActionError(message=str(e))
 
 
 @gong.action("get_call_details")
@@ -230,18 +220,7 @@ class GetCallDetailsAction(ActionHandler):
             call = body.get("call", body)
 
             if bool(call.get("isPrivate", False)):
-                return ActionResult(
-                    data={
-                        "id": call_id,
-                        "title": "",
-                        "started": "",
-                        "duration": 0,
-                        "participants": [],
-                        "outcome": "",
-                        "crm_data": {},
-                        "error": "private_call_filtered",
-                    }
-                )
+                return ActionError(message="private_call_filtered")
 
             participants = []
             crm_data = call.get("crmData", {})
@@ -290,18 +269,7 @@ class GetCallDetailsAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": call_id,
-                    "title": "",
-                    "started": "",
-                    "duration": 0,
-                    "participants": [],
-                    "outcome": "",
-                    "crm_data": {},
-                    "error": str(e),
-                }
-            )
+            return ActionError(message=str(e))
 
 
 @gong.action("search_calls")
@@ -400,7 +368,7 @@ class SearchCallsAction(ActionHandler):
             results = results[:limit]
             return ActionResult(data={"results": results, "total_count": len(results)}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"results": [], "total_count": 0, "error": str(e)})
+            return ActionError(message=str(e))
 
 
 @gong.action("list_users")
@@ -436,11 +404,4 @@ class ListUsersAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "users": [],
-                    "has_more": False,
-                    "next_cursor": None,
-                    "error": str(e),
-                }
-            )
+            return ActionError(message=str(e))

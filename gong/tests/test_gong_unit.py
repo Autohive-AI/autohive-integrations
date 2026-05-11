@@ -105,8 +105,8 @@ class TestListCalls:
 
         result = await gong.execute_action("list_calls", {}, mock_context)
 
-        assert result.type == ResultType.ACTION
-        assert "Connection refused" in result.result.data.get("error", "")
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Connection refused" in result.result.message
 
     async def test_calls_sorted_newest_first(self, mock_context):
         mock_context.fetch.return_value = {
@@ -175,8 +175,8 @@ class TestGetCallTranscript:
 
         result = await gong.execute_action("get_call_transcript", {"call_id": "c1"}, mock_context)
 
-        assert result.type == ResultType.ACTION
-        assert "private_call_filtered" in result.result.data.get("error", "")
+        assert result.type == ResultType.ACTION_ERROR
+        assert "private_call_filtered" in result.result.message
 
     async def test_request_urls_correct(self, mock_context):
         mock_context.fetch.side_effect = [
@@ -197,8 +197,8 @@ class TestGetCallTranscript:
 
         result = await gong.execute_action("get_call_transcript", {"call_id": "c1"}, mock_context)
 
-        assert result.type == ResultType.ACTION
-        assert "API error" in result.result.data.get("error", "")
+        assert result.type == ResultType.ACTION_ERROR
+        assert "API error" in result.result.message
 
     async def test_empty_transcript(self, mock_context):
         mock_context.fetch.side_effect = [
@@ -273,8 +273,8 @@ class TestGetCallDetails:
 
         result = await gong.execute_action("get_call_details", {"call_id": "c1"}, mock_context)
 
-        assert result.type == ResultType.ACTION
-        assert "private_call_filtered" in result.result.data.get("error", "")
+        assert result.type == ResultType.ACTION_ERROR
+        assert "private_call_filtered" in result.result.message
 
     async def test_request_url(self, mock_context):
         mock_context.fetch.return_value = {"call": {"id": "c1", "isPrivate": False, "started": "2025-01-15T10:00:00Z"}}
@@ -288,8 +288,8 @@ class TestGetCallDetails:
 
         result = await gong.execute_action("get_call_details", {"call_id": "c1"}, mock_context)
 
-        assert result.type == ResultType.ACTION
-        assert "timeout" in result.result.data.get("error", "")
+        assert result.type == ResultType.ACTION_ERROR
+        assert "timeout" in result.result.message
 
     async def test_response_shape(self, mock_context):
         mock_context.fetch.side_effect = [
@@ -378,8 +378,8 @@ class TestSearchCalls:
 
         result = await gong.execute_action("search_calls", {"query": "test"}, mock_context)
 
-        assert result.type == ResultType.ACTION
-        assert "Search failed" in result.result.data.get("error", "")
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Search failed" in result.result.message
 
     async def test_topic_match_included(self, mock_context):
         mock_context.fetch.return_value = {
@@ -469,8 +469,8 @@ class TestListUsers:
 
         result = await gong.execute_action("list_users", {}, mock_context)
 
-        assert result.type == ResultType.ACTION
-        assert "Unauthorized" in result.result.data.get("error", "")
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Unauthorized" in result.result.message
 
     async def test_response_shape(self, mock_context):
         mock_context.fetch.return_value = {
