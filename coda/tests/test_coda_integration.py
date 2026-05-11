@@ -62,9 +62,7 @@ async def test_doc(live_context):
 @pytest.fixture(scope="session")
 async def test_page(live_context, test_doc):
     """Creates a test page inside the test doc."""
-    result = await coda.execute_action(
-        "create_page", {"doc_id": test_doc, "name": "AH Test Page"}, live_context
-    )
+    result = await coda.execute_action("create_page", {"doc_id": test_doc, "name": "AH Test Page"}, live_context)
     page_id = result.result.data["data"]["id"]
     await asyncio.sleep(3)  # Coda needs a moment before the page appears in list_pages
     yield page_id
@@ -146,7 +144,11 @@ async def test_row(live_context, table_doc_id, test_table_and_col):
     table_id, col_id = test_table_and_col
     await coda.execute_action(
         "upsert_rows",
-        {"doc_id": table_doc_id, "table_id_or_name": table_id, "rows": [{"cells": [{"column": col_id, "value": "Test Row"}]}]},
+        {
+            "doc_id": table_doc_id,
+            "table_id_or_name": table_id,
+            "rows": [{"cells": [{"column": col_id, "value": "Test Row"}]}],
+        },
         live_context,
     )
     rows_result = await coda.execute_action(
@@ -233,9 +235,7 @@ class TestGetPage:
         if not pages:
             pytest.skip("No pages in test doc")
         page_id = pages[0]["id"]
-        result = await coda.execute_action(
-            "get_page", {"doc_id": test_doc, "page_id_or_name": page_id}, live_context
-        )
+        result = await coda.execute_action("get_page", {"doc_id": test_doc, "page_id_or_name": page_id}, live_context)
         data = result.result.data
         assert "data" in data
         assert data["data"]["id"] == page_id
@@ -245,9 +245,7 @@ class TestGetPage:
         if not pages:
             pytest.skip("No pages in test doc")
         page_id = pages[0]["id"]
-        result = await coda.execute_action(
-            "get_page", {"doc_id": test_doc, "page_id_or_name": page_id}, live_context
-        )
+        result = await coda.execute_action("get_page", {"doc_id": test_doc, "page_id_or_name": page_id}, live_context)
         page = result.result.data["data"]
         assert "id" in page
         assert "name" in page
@@ -414,7 +412,11 @@ class TestDeleteRow:
         table_id, col_id = test_table_and_col
         await coda.execute_action(
             "upsert_rows",
-            {"doc_id": table_doc_id, "table_id_or_name": table_id, "rows": [{"cells": [{"column": col_id, "value": "To Delete"}]}]},
+            {
+                "doc_id": table_doc_id,
+                "table_id_or_name": table_id,
+                "rows": [{"cells": [{"column": col_id, "value": "To Delete"}]}],
+            },
             live_context,
         )
         rows_result = await coda.execute_action(
