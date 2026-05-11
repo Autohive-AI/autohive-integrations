@@ -28,7 +28,9 @@ async def _resolve_file_bytes(file_obj: dict) -> bytes:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
-                    raise ValueError(f"Failed to download file from url: HTTP {resp.status}")
+                    raise ValueError(
+                        f"Failed to download file from url: HTTP {resp.status}"
+                    )
                 return await resp.read()
 
     file_id = file_obj.get("fileId")
@@ -37,7 +39,9 @@ async def _resolve_file_bytes(file_obj: dict) -> bytes:
             f"File content could not be resolved (fileId={file_id}, ownerType={file_obj.get('ownerType')}) — "
             "the platform failed to inject file content before tool execution"
         )
-    raise ValueError("file object missing 'content' (base64) or 'url' — ensure a file is attached to the message")
+    raise ValueError(
+        "file object missing 'content' (base64) or 'url' — ensure a file is attached to the message"
+    )
 
 
 # Create the integration using the config.json
@@ -64,16 +68,24 @@ class XeroConnectedAccountHandler(ConnectedAccountHandler):
             ConnectedAccountInfo with organization name as username.
         """
         response = await context.fetch(
-            "https://api.xero.com/connections", method="GET", headers={"Accept": "application/json"}
+            "https://api.xero.com/connections",
+            method="GET",
+            headers={"Accept": "application/json"},
         )
 
-        if not response or not isinstance(response.data, list) or len(response.data) == 0:
+        if (
+            not response
+            or not isinstance(response.data, list)
+            or len(response.data) == 0
+        ):
             return ConnectedAccountInfo(username="Unknown Organization")
 
         first_connection = response.data[0]
         tenant_name = first_connection.get("tenantName", "Unknown Organization")
 
-        return ConnectedAccountInfo(username=tenant_name, user_id=first_connection.get("tenantId"))
+        return ConnectedAccountInfo(
+            username=tenant_name, user_id=first_connection.get("tenantId")
+        )
 
 
 # ---- Rate Limiting ----
@@ -97,7 +109,12 @@ class XeroRateLimitExceededException(Exception):
 
 
 class XeroRateLimiter:
-    def __init__(self, default_retry_delay: int = 60, max_retries: int = 3, max_wait_time: int = 60):
+    def __init__(
+        self,
+        default_retry_delay: int = 60,
+        max_retries: int = 3,
+        max_wait_time: int = 60,
+    ):
         """
         Handles Xero API rate limiting by retrying requests on 429 errors.
         Prevents lambda from waiting too long by setting maximum wait time.
@@ -117,7 +134,9 @@ class XeroRateLimiter:
                     pass
         return self.default_retry_delay
 
-    async def make_request(self, context: ExecutionContext, url: str, tenant_id: str, **kwargs) -> Any:
+    async def make_request(
+        self, context: ExecutionContext, url: str, tenant_id: str, **kwargs
+    ) -> Any:
         """Make request to Xero API with automatic retry on rate limit errors"""
         # Add tenant header to the request
         headers = kwargs.get("headers", {})
@@ -136,7 +155,11 @@ class XeroRateLimiter:
                 error_str = str(e).lower()
 
                 # Check if it's a rate limit error (HTTP 429)
-                if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
+                if (
+                    "429" in error_str
+                    or "rate limit" in error_str
+                    or "too many requests" in error_str
+                ):
                     # Don't retry on the last attempt
                     if attempt >= self.max_retries:
                         break
@@ -147,7 +170,9 @@ class XeroRateLimiter:
                     # Check if delay exceeds maximum wait time
                     if delay > self.max_wait_time:
                         # Don't wait - inform LLM about rate limit immediately
-                        raise XeroRateLimitExceededException(delay, self.max_wait_time, tenant_id)
+                        raise XeroRateLimitExceededException(
+                            delay, self.max_wait_time, tenant_id
+                        )
 
                     # Short delay - proceed with waiting and retry
                     await asyncio.sleep(delay)
@@ -172,10 +197,16 @@ async def get_all_connections(context: ExecutionContext) -> list:
     """
     try:
         response = await context.fetch(
-            "https://api.xero.com/connections", method="GET", headers={"Accept": "application/json"}
+            "https://api.xero.com/connections",
+            method="GET",
+            headers={"Accept": "application/json"},
         )
 
-        if not response or not isinstance(response.data, list) or len(response.data) == 0:
+        if (
+            not response
+            or not isinstance(response.data, list)
+            or len(response.data) == 0
+        ):
             raise ValueError("No Xero connections found")
 
         return response.data
@@ -203,7 +234,9 @@ class GetAvailableConnectionsAction(ActionHandler):
                 tenant_name = connection.get("tenantName")
                 tenant_id = connection.get("tenantId")
                 if tenant_name and tenant_id:
-                    companies.append({"tenant_id": tenant_id, "company_name": tenant_name})
+                    companies.append(
+                        {"tenant_id": tenant_id, "company_name": tenant_name}
+                    )
 
             return ActionResult(data={"companies": companies})
 
@@ -233,7 +266,12 @@ class FindContactByNameAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             body = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", params=params, headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                params=params,
+                headers={"Accept": "application/json"},
             )
 
             if not body or not body.get("Contacts"):
@@ -255,8 +293,12 @@ class FindContactByNameAction(ActionHandler):
                         "skype_user_name": contact.get("SkypeUserName"),
                         "bank_account_details": contact.get("BankAccountDetails"),
                         "tax_number": contact.get("TaxNumber"),
-                        "accounts_receivable_tax_type": contact.get("AccountsReceivableTaxType"),
-                        "accounts_payable_tax_type": contact.get("AccountsPayableTaxType"),
+                        "accounts_receivable_tax_type": contact.get(
+                            "AccountsReceivableTaxType"
+                        ),
+                        "accounts_payable_tax_type": contact.get(
+                            "AccountsPayableTaxType"
+                        ),
                         "addresses": contact.get("Addresses"),
                         "phones": contact.get("Phones"),
                         "updated_date_utc": contact.get("UpdatedDateUTC"),
@@ -312,7 +354,12 @@ class GetAgedPayablesAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", params=params, headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                params=params,
+                headers={"Accept": "application/json"},
             )
 
             # Return raw API response
@@ -330,7 +377,9 @@ class GetAgedPayablesAction(ActionHandler):
                 )
             )
         except Exception as e:
-            return ActionError(message=f"Failed to fetch aged payables report: {str(e)}")
+            return ActionError(
+                message=f"Failed to fetch aged payables report: {str(e)}"
+            )
 
 
 @xero.action("get_aged_receivables")
@@ -359,7 +408,12 @@ class GetAgedReceivablesAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", params=params, headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                params=params,
+                headers={"Accept": "application/json"},
             )
 
             # Return raw API response
@@ -377,7 +431,9 @@ class GetAgedReceivablesAction(ActionHandler):
                 )
             )
         except Exception as e:
-            return ActionError(message=f"Failed to fetch aged receivables report: {str(e)}")
+            return ActionError(
+                message=f"Failed to fetch aged receivables report: {str(e)}"
+            )
 
 
 @xero.action("get_balance_sheet")
@@ -406,7 +462,12 @@ class GetBalanceSheetAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", params=params, headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                params=params,
+                headers={"Accept": "application/json"},
             )
 
             # Return raw API response
@@ -424,7 +485,9 @@ class GetBalanceSheetAction(ActionHandler):
                 )
             )
         except Exception as e:
-            return ActionError(message=f"Failed to fetch balance sheet report: {str(e)}")
+            return ActionError(
+                message=f"Failed to fetch balance sheet report: {str(e)}"
+            )
 
 
 @xero.action("get_profit_and_loss")
@@ -465,7 +528,12 @@ class GetProfitAndLossAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", params=params, headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                params=params,
+                headers={"Accept": "application/json"},
             )
 
             # Return raw API response
@@ -483,7 +551,9 @@ class GetProfitAndLossAction(ActionHandler):
                 )
             )
         except Exception as e:
-            return ActionError(message=f"Failed to fetch profit and loss report: {str(e)}")
+            return ActionError(
+                message=f"Failed to fetch profit and loss report: {str(e)}"
+            )
 
 
 @xero.action("get_trial_balance")
@@ -512,7 +582,12 @@ class GetTrialBalanceAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", params=params, headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                params=params,
+                headers={"Accept": "application/json"},
             )
 
             # Return raw API response
@@ -530,7 +605,9 @@ class GetTrialBalanceAction(ActionHandler):
                 )
             )
         except Exception as e:
-            return ActionError(message=f"Failed to fetch trial balance report: {str(e)}")
+            return ActionError(
+                message=f"Failed to fetch trial balance report: {str(e)}"
+            )
 
 
 @xero.action("get_accounts")
@@ -560,7 +637,12 @@ class GetAccountsAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", params=params, headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                params=params,
+                headers={"Accept": "application/json"},
             )
 
             # Return raw API response
@@ -615,7 +697,12 @@ class GetPaymentsAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", params=params, headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                params=params,
+                headers={"Accept": "application/json"},
             )
 
             # Return raw API response
@@ -702,7 +789,12 @@ class GetInvoicesAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", params=params, headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                params=params,
+                headers={"Accept": "application/json"},
             )
 
             # Return raw API response
@@ -771,14 +863,18 @@ class GetInvoicePdfAction(ActionHandler):
                 async with session.get(url, headers=headers) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        return ActionError(message=f"Xero API error: {response.status} - {error_text}")
+                        return ActionError(
+                            message=f"Xero API error: {response.status} - {error_text}"
+                        )
 
                     # Read binary content and encode as base64
                     pdf_content = await response.read()
                     content_base64 = base64.b64encode(pdf_content).decode("utf-8")
 
                     # Determine content type from response headers
-                    content_type = response.headers.get("content-type", "application/pdf")
+                    content_type = response.headers.get(
+                        "content-type", "application/pdf"
+                    )
 
                     return ActionResult(
                         data={
@@ -834,7 +930,12 @@ class GetBankTransactionsAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", params=params, headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                params=params,
+                headers={"Accept": "application/json"},
             )
 
             # Return raw API response
@@ -924,7 +1025,10 @@ class CreateSalesInvoiceAction(ActionHandler):
                 tenant_id,
                 method="POST",
                 json=payload,
-                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
             )
 
             # Return raw API response
@@ -1011,7 +1115,10 @@ class CreatePurchaseBillAction(ActionHandler):
                 tenant_id,
                 method="POST",
                 json=payload,
-                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
             )
 
             # Return raw API response
@@ -1103,7 +1210,10 @@ class UpdateSalesInvoiceAction(ActionHandler):
                 tenant_id,
                 method="POST",
                 json=payload,
-                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
             )
 
             # Return raw API response
@@ -1192,7 +1302,10 @@ class UpdatePurchaseBillAction(ActionHandler):
                 tenant_id,
                 method="POST",
                 json=payload,
-                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
             )
 
             # Return raw API response
@@ -1261,7 +1374,9 @@ class AttachFileToInvoiceAction(ActionHandler):
 
             content_type = (file_obj.get("contentType") or "").strip()
             if not content_type:
-                raise ValueError("file object missing 'contentType' (e.g. 'application/pdf', 'image/png')")
+                raise ValueError(
+                    "file object missing 'contentType' (e.g. 'application/pdf', 'image/png')"
+                )
 
             file_bytes = await _resolve_file_bytes(file_obj)
 
@@ -1349,7 +1464,9 @@ class AttachFileToBillAction(ActionHandler):
 
             content_type = (file_obj.get("contentType") or "").strip()
             if not content_type:
-                raise ValueError("file object missing 'contentType' (e.g. 'application/pdf', 'image/png')")
+                raise ValueError(
+                    "file object missing 'contentType' (e.g. 'application/pdf', 'image/png')"
+                )
 
             file_bytes = await _resolve_file_bytes(file_obj)
 
@@ -1432,7 +1549,11 @@ class GetAttachmentsAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                headers={"Accept": "application/json"},
             )
 
             # Return raw API response
@@ -1492,7 +1613,10 @@ class GetAttachmentContentAction(ActionHandler):
 
             # For attachment content download, we need to handle binary data manually
             # Similar to how Box integration handles file content
-            headers = {"Accept": "application/octet-stream", "xero-tenant-id": tenant_id}
+            headers = {
+                "Accept": "application/octet-stream",
+                "xero-tenant-id": tenant_id,
+            }
 
             # Add authorization header if available
             async with context:  # Use context as async context manager
@@ -1502,7 +1626,9 @@ class GetAttachmentContentAction(ActionHandler):
                 if context.auth and "credentials" in context.auth:
                     credentials = context.auth["credentials"]
                     if "access_token" in credentials:
-                        headers["Authorization"] = f"Bearer {credentials['access_token']}"
+                        headers["Authorization"] = (
+                            f"Bearer {credentials['access_token']}"
+                        )
 
                 async with session.get(url, headers=headers) as response:
                     if response.status != 200:
@@ -1512,7 +1638,9 @@ class GetAttachmentContentAction(ActionHandler):
                         )
 
                     file_content = await response.read()
-                    content_type = response.headers.get("content-type", "application/octet-stream")
+                    content_type = response.headers.get(
+                        "content-type", "application/octet-stream"
+                    )
 
                 if file_content is None:
                     return ActionError(message="No content returned from Xero API")
@@ -1521,7 +1649,11 @@ class GetAttachmentContentAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "file": {"name": file_name, "content": content_base64, "contentType": content_type},
+                    "file": {
+                        "name": file_name,
+                        "content": content_base64,
+                        "contentType": content_type,
+                    },
                 }
             )
 
@@ -1585,7 +1717,12 @@ class GetPurchaseOrdersAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", params=params, headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                params=params,
+                headers={"Accept": "application/json"},
             )
 
             # Return raw API response
@@ -1679,7 +1816,10 @@ class CreatePurchaseOrderAction(ActionHandler):
                 tenant_id,
                 method="POST",
                 json=payload,
-                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
             )
 
             # Return raw API response
@@ -1776,7 +1916,10 @@ class UpdatePurchaseOrderAction(ActionHandler):
                 tenant_id,
                 method="POST",
                 json=payload,
-                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
             )
 
             # Return raw API response
@@ -1830,7 +1973,10 @@ class DeletePurchaseOrderAction(ActionHandler):
                 tenant_id,
                 method="POST",
                 json=payload,
-                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
             )
 
             # Return raw API response
@@ -1876,7 +2022,11 @@ class GetPurchaseOrderHistoryAction(ActionHandler):
 
             # Make rate-limited authenticated request to Xero API
             response = await rate_limiter.make_request(
-                context, url, tenant_id, method="GET", headers={"Accept": "application/json"}
+                context,
+                url,
+                tenant_id,
+                method="GET",
+                headers={"Accept": "application/json"},
             )
 
             # Return raw API response
@@ -1894,7 +2044,9 @@ class GetPurchaseOrderHistoryAction(ActionHandler):
                 )
             )
         except Exception as e:
-            return ActionError(message=f"Failed to get purchase order history: {str(e)}")
+            return ActionError(
+                message=f"Failed to get purchase order history: {str(e)}"
+            )
 
 
 @xero.action("add_note_to_purchase_order")
@@ -1934,7 +2086,10 @@ class AddNoteToPurchaseOrderAction(ActionHandler):
                 tenant_id,
                 method="PUT",
                 json=payload,
-                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
             )
 
             # Return raw API response
@@ -1952,4 +2107,6 @@ class AddNoteToPurchaseOrderAction(ActionHandler):
                 )
             )
         except Exception as e:
-            return ActionError(message=f"Failed to add note to purchase order: {str(e)}")
+            return ActionError(
+                message=f"Failed to add note to purchase order: {str(e)}"
+            )
