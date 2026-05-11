@@ -1,7 +1,7 @@
 {
     "name": "Harvest",
     "display_name": "Harvest",
-    "version": "0.1.0",
+    "version": "2.0.0",
     "description": "Harvest time tracking integration for managing time entries, projects, clients, tasks, and invoices.",
     "entry_point": "harvest.py",
     "auth": {
@@ -63,9 +63,7 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean"},
-                    "time_entry": {"type": "object"},
-                    "error": {"type": "string"}
+                    "time_entry": {"type": "object"}
                 }
             }
         },
@@ -85,9 +83,7 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean"},
-                    "time_entry": {"type": "object"},
-                    "error": {"type": "string"}
+                    "time_entry": {"type": "object"}
                 }
             }
         },
@@ -150,16 +146,14 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean"},
                     "time_entries": {"type": "array"},
-                    "per_page": {"type": "integer"},
-                    "total_pages": {"type": "integer"},
-                    "total_entries": {"type": "integer"},
+                    "per_page": {"type": ["integer", "null"]},
+                    "total_pages": {"type": ["integer", "null"]},
+                    "total_entries": {"type": ["integer", "null"]},
                     "next_page": {"type": ["integer", "null"]},
                     "previous_page": {"type": ["integer", "null"]},
-                    "page": {"type": "integer"},
-                    "links": {"type": "object"},
-                    "error": {"type": "string"}
+                    "page": {"type": ["integer", "null"]},
+                    "links": {"type": ["object", "null"]}
                 }
             }
         },
@@ -212,9 +206,7 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean"},
-                    "time_entry": {"type": "object"},
-                    "error": {"type": "string"}
+                    "time_entry": {"type": "object"}
                 }
             }
         },
@@ -234,9 +226,7 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean"},
-                    "message": {"type": "string"},
-                    "error": {"type": "string"}
+                    "message": {"type": "string"}
                 }
             }
         },
@@ -273,16 +263,14 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean"},
                     "projects": {"type": "array"},
-                    "per_page": {"type": "integer"},
-                    "total_pages": {"type": "integer"},
-                    "total_entries": {"type": "integer"},
+                    "per_page": {"type": ["integer", "null"]},
+                    "total_pages": {"type": ["integer", "null"]},
+                    "total_entries": {"type": ["integer", "null"]},
                     "next_page": {"type": ["integer", "null"]},
                     "previous_page": {"type": ["integer", "null"]},
-                    "page": {"type": "integer"},
-                    "links": {"type": "object"},
-                    "error": {"type": "string"}
+                    "page": {"type": ["integer", "null"]},
+                    "links": {"type": ["object", "null"]}
                 }
             }
         },
@@ -302,9 +290,7 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean"},
-                    "project": {"type": "object"},
-                    "error": {"type": "string"}
+                    "project": {"type": "object"}
                 }
             }
         },
@@ -337,16 +323,14 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean"},
                     "clients": {"type": "array"},
-                    "per_page": {"type": "integer"},
-                    "total_pages": {"type": "integer"},
-                    "total_entries": {"type": "integer"},
+                    "per_page": {"type": ["integer", "null"]},
+                    "total_pages": {"type": ["integer", "null"]},
+                    "total_entries": {"type": ["integer", "null"]},
                     "next_page": {"type": ["integer", "null"]},
                     "previous_page": {"type": ["integer", "null"]},
-                    "page": {"type": "integer"},
-                    "links": {"type": "object"},
-                    "error": {"type": "string"}
+                    "page": {"type": ["integer", "null"]},
+                    "links": {"type": ["object", "null"]}
                 }
             }
         },
@@ -379,16 +363,14 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean"},
                     "tasks": {"type": "array"},
-                    "per_page": {"type": "integer"},
-                    "total_pages": {"type": "integer"},
-                    "total_entries": {"type": "integer"},
+                    "per_page": {"type": ["integer", "null"]},
+                    "total_pages": {"type": ["integer", "null"]},
+                    "total_entries": {"type": ["integer", "null"]},
                     "next_page": {"type": ["integer", "null"]},
                     "previous_page": {"type": ["integer", "null"]},
-                    "page": {"type": "integer"},
-                    "links": {"type": "object"},
-                    "error": {"type": "string"}
+                    "page": {"type": ["integer", "null"]},
+                    "links": {"type": ["object", "null"]}
                 }
             }
         },
@@ -421,18 +403,17 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "success": {"type": "boolean"},
                     "users": {"type": "array"},
-                    "per_page": {"type": "integer"},
-                    "total_pages": {"type": "integer"},
-                    "total_entries": {"type": "integer"},
+                    "per_page": {"type": ["integer", "null"]},
+                    "total_pages": {"type": ["integer", "null"]},
+                    "total_entries": {"type": ["integer", "null"]},
                     "next_page": {"type": ["integer", "null"]},
                     "previous_page": {"type": ["integer", "null"]},
-                    "page": {"type": "integer"},
-                    "links": {"type": "object"},
-                    "error": {"type": "string"}
+                    "page": {"type": ["integer", "null"]},
+                    "links": {"type": ["object", "null"]}
                 }
             }
         }
     }
 }
+

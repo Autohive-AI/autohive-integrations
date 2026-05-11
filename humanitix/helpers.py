@@ -4,7 +4,7 @@ Humanitix integration helper functions.
 This module contains shared utility functions used across multiple action files.
 """
 
-from autohive_integrations_sdk import ActionResult, ExecutionContext
+from autohive_integrations_sdk import ActionResult, ActionError, ExecutionContext
 from typing import Any, Dict
 from urllib.parse import quote, urlencode
 
@@ -13,20 +13,8 @@ HUMANITIX_API_BASE = "https://api.humanitix.com/v1"
 
 
 def get_api_headers(context: ExecutionContext) -> Dict[str, str]:
-    """
-    Get the authentication headers for Humanitix API requests.
-
-    The Humanitix API uses the x-api-key header for authentication.
-
-    Args:
-        context: The execution context with authentication credentials
-
-    Returns:
-        Dictionary of headers to include in API requests
-    """
     credentials = context.auth.get("credentials", {})
     api_key = credentials.get("api_key", "")
-
     return {"x-api-key": api_key, "Accept": "application/json"}
 
 
@@ -43,33 +31,32 @@ async def fetch_single_resource(
 ) -> ActionResult:
     url = build_url(path, params or None)
     response = await context.fetch(url, method="GET", headers=get_api_headers(context))
-    if error := build_error_result(response):
-        return error
-    return ActionResult(data={"result": True, result_key: response})
+    if response.status >= 400:
+        data = response.data
+        message = (
+            data.get("message", f"HTTP {response.status}") if isinstance(data, dict) else f"HTTP {response.status}"
+        )
+        return ActionError(message=message)
+    return ActionResult(data={result_key: response.data}, cost_usd=0.0)
 
 
 def build_paginated_result(response, key: str, page: int, page_size: int | None = None) -> ActionResult:
-    items = response.get(key, []) if isinstance(response, dict) else []
-    is_dict = isinstance(response, dict)
+    data = response.data if hasattr(response, "data") else response
+    items = data.get(key, []) if isinstance(data, dict) else []
     return ActionResult(
         data={
-            "result": True,
             key: items,
-            "total": response.get("total", len(items)) if is_dict else len(items),
-            "page": response.get("page", page) if is_dict else page,
-            "pageSize": response.get("pageSize", page_size or 100) if is_dict else (page_size or 100),
-        }
+            "total": data.get("total", len(items)) if isinstance(data, dict) else len(items),
+            "page": data.get("page", page) if isinstance(data, dict) else page,
+            "pageSize": data.get("pageSize", page_size or 100) if isinstance(data, dict) else (page_size or 100),
+        },
+        cost_usd=0.0,
     )
 
 
-def build_error_result(response) -> ActionResult | None:
-    if not isinstance(response, dict) or "statusCode" not in response:
+def build_action_error(response) -> ActionError | None:
+    if response.status < 400:
         return None
-    return ActionResult(
-        data={
-            "result": False,
-            "statusCode": response.get("statusCode"),
-            "error": response.get("error", ""),
-            "message": response.get("message", ""),
-        }
-    )
+    data = response.data or {}
+    message = data.get("message", f"HTTP {response.status}") if isinstance(data, dict) else f"HTTP {response.status}"
+    return ActionError(message=message)

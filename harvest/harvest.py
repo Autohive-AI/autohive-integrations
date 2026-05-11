@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -22,31 +22,31 @@ class CreateTimeEntry(ActionHandler):
             }
 
             # Add optional fields
-            if "notes" in inputs:
-                payload["notes"] = inputs["notes"]
+            if inputs.get("notes") is not None:
+                payload["notes"] = inputs.get("notes")
 
-            if "hours" in inputs:
-                payload["hours"] = inputs["hours"]
+            if inputs.get("hours") is not None:
+                payload["hours"] = inputs.get("hours")
 
-            if "started_time" in inputs and "ended_time" in inputs:
-                payload["started_time"] = inputs["started_time"]
-                payload["ended_time"] = inputs["ended_time"]
+            if inputs.get("started_time") is not None and inputs.get("ended_time") is not None:
+                payload["started_time"] = inputs.get("started_time")
+                payload["ended_time"] = inputs.get("ended_time")
 
-            if "is_running" in inputs:
-                payload["is_running"] = inputs["is_running"]
+            if inputs.get("is_running") is not None:
+                payload["is_running"] = inputs.get("is_running")
 
-            if "user_id" in inputs:
-                payload["user_id"] = inputs["user_id"]
+            if inputs.get("user_id") is not None:
+                payload["user_id"] = inputs.get("user_id")
 
-            if "external_reference" in inputs:
-                payload["external_reference"] = inputs["external_reference"]
+            if inputs.get("external_reference") is not None:
+                payload["external_reference"] = inputs.get("external_reference")
 
             response = await context.fetch(f"{HARVEST_API_BASE}/time_entries", method="POST", json=payload)
 
-            return {"success": True, "time_entry": response}
+            return ActionResult(data={"time_entry": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("stop_time_entry")
@@ -59,10 +59,10 @@ class StopTimeEntry(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/time_entries/{time_entry_id}/stop", method="PATCH")
 
-            return {"success": True, "time_entry": response}
+            return ActionResult(data={"time_entry": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("list_time_entries")
@@ -74,55 +74,58 @@ class ListTimeEntries(ActionHandler):
             # Build query parameters
             params = {}
 
-            if "user_id" in inputs:
-                params["user_id"] = inputs["user_id"]
+            if inputs.get("user_id") is not None:
+                params["user_id"] = inputs.get("user_id")
 
-            if "client_id" in inputs:
-                params["client_id"] = inputs["client_id"]
+            if inputs.get("client_id") is not None:
+                params["client_id"] = inputs.get("client_id")
 
-            if "project_id" in inputs:
-                params["project_id"] = inputs["project_id"]
+            if inputs.get("project_id") is not None:
+                params["project_id"] = inputs.get("project_id")
 
-            if "task_id" in inputs:
-                params["task_id"] = inputs["task_id"]
+            if inputs.get("task_id") is not None:
+                params["task_id"] = inputs.get("task_id")
 
-            if "is_billed" in inputs:
-                params["is_billed"] = inputs["is_billed"]
+            if inputs.get("is_billed") is not None:
+                params["is_billed"] = inputs.get("is_billed")
 
-            if "is_running" in inputs:
-                params["is_running"] = inputs["is_running"]
+            if inputs.get("is_running") is not None:
+                params["is_running"] = inputs.get("is_running")
 
-            if "updated_since" in inputs:
-                params["updated_since"] = inputs["updated_since"]
+            if inputs.get("updated_since") is not None:
+                params["updated_since"] = inputs.get("updated_since")
 
-            if "from" in inputs:
-                params["from"] = inputs["from"]
+            if inputs.get("from") is not None:
+                params["from"] = inputs.get("from")
 
-            if "to" in inputs:
-                params["to"] = inputs["to"]
+            if inputs.get("to") is not None:
+                params["to"] = inputs.get("to")
 
-            if "page" in inputs:
-                params["page"] = inputs["page"]
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
-            if "per_page" in inputs:
-                params["per_page"] = inputs["per_page"]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
 
             response = await context.fetch(f"{HARVEST_API_BASE}/time_entries", method="GET", params=params)
+            body = response.data
 
-            return {
-                "success": True,
-                "time_entries": response.get("time_entries", []),
-                "per_page": response.get("per_page"),
-                "total_pages": response.get("total_pages"),
-                "total_entries": response.get("total_entries"),
-                "next_page": response.get("next_page"),
-                "previous_page": response.get("previous_page"),
-                "page": response.get("page"),
-                "links": response.get("links"),
-            }
+            return ActionResult(
+                data={
+                    "time_entries": body.get("time_entries", []),
+                    "per_page": body.get("per_page"),
+                    "total_pages": body.get("total_pages"),
+                    "total_entries": body.get("total_entries"),
+                    "next_page": body.get("next_page"),
+                    "previous_page": body.get("previous_page"),
+                    "page": body.get("page"),
+                    "links": body.get("links"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("update_time_entry")
@@ -136,29 +139,29 @@ class UpdateTimeEntry(ActionHandler):
             # Build the update payload
             payload = {}
 
-            if "project_id" in inputs:
-                payload["project_id"] = inputs["project_id"]
+            if inputs.get("project_id") is not None:
+                payload["project_id"] = inputs.get("project_id")
 
-            if "task_id" in inputs:
-                payload["task_id"] = inputs["task_id"]
+            if inputs.get("task_id") is not None:
+                payload["task_id"] = inputs.get("task_id")
 
-            if "spent_date" in inputs:
-                payload["spent_date"] = inputs["spent_date"]
+            if inputs.get("spent_date") is not None:
+                payload["spent_date"] = inputs.get("spent_date")
 
-            if "notes" in inputs:
-                payload["notes"] = inputs["notes"]
+            if inputs.get("notes") is not None:
+                payload["notes"] = inputs.get("notes")
 
-            if "hours" in inputs:
-                payload["hours"] = inputs["hours"]
+            if inputs.get("hours") is not None:
+                payload["hours"] = inputs.get("hours")
 
-            if "started_time" in inputs:
-                payload["started_time"] = inputs["started_time"]
+            if inputs.get("started_time") is not None:
+                payload["started_time"] = inputs.get("started_time")
 
-            if "ended_time" in inputs:
-                payload["ended_time"] = inputs["ended_time"]
+            if inputs.get("ended_time") is not None:
+                payload["ended_time"] = inputs.get("ended_time")
 
-            if "external_reference" in inputs:
-                payload["external_reference"] = inputs["external_reference"]
+            if inputs.get("external_reference") is not None:
+                payload["external_reference"] = inputs.get("external_reference")
 
             response = await context.fetch(
                 f"{HARVEST_API_BASE}/time_entries/{time_entry_id}",
@@ -166,10 +169,10 @@ class UpdateTimeEntry(ActionHandler):
                 json=payload,
             )
 
-            return {"success": True, "time_entry": response}
+            return ActionResult(data={"time_entry": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("delete_time_entry")
@@ -182,13 +185,15 @@ class DeleteTimeEntry(ActionHandler):
 
             await context.fetch(f"{HARVEST_API_BASE}/time_entries/{time_entry_id}", method="DELETE")
 
-            return {
-                "success": True,
-                "message": f"Time entry {time_entry_id} deleted successfully",
-            }
+            return ActionResult(
+                data={
+                    "message": f"Time entry {time_entry_id} deleted successfully",
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("list_projects")
@@ -200,37 +205,40 @@ class ListProjects(ActionHandler):
             # Build query parameters
             params = {}
 
-            if "is_active" in inputs:
-                params["is_active"] = inputs["is_active"]
+            if inputs.get("is_active") is not None:
+                params["is_active"] = inputs.get("is_active")
 
-            if "client_id" in inputs:
-                params["client_id"] = inputs["client_id"]
+            if inputs.get("client_id") is not None:
+                params["client_id"] = inputs.get("client_id")
 
-            if "updated_since" in inputs:
-                params["updated_since"] = inputs["updated_since"]
+            if inputs.get("updated_since") is not None:
+                params["updated_since"] = inputs.get("updated_since")
 
-            if "page" in inputs:
-                params["page"] = inputs["page"]
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
-            if "per_page" in inputs:
-                params["per_page"] = inputs["per_page"]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
 
             response = await context.fetch(f"{HARVEST_API_BASE}/projects", method="GET", params=params)
+            body = response.data
 
-            return {
-                "success": True,
-                "projects": response.get("projects", []),
-                "per_page": response.get("per_page"),
-                "total_pages": response.get("total_pages"),
-                "total_entries": response.get("total_entries"),
-                "next_page": response.get("next_page"),
-                "previous_page": response.get("previous_page"),
-                "page": response.get("page"),
-                "links": response.get("links"),
-            }
+            return ActionResult(
+                data={
+                    "projects": body.get("projects", []),
+                    "per_page": body.get("per_page"),
+                    "total_pages": body.get("total_pages"),
+                    "total_entries": body.get("total_entries"),
+                    "next_page": body.get("next_page"),
+                    "previous_page": body.get("previous_page"),
+                    "page": body.get("page"),
+                    "links": body.get("links"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("get_project")
@@ -243,10 +251,10 @@ class GetProject(ActionHandler):
 
             response = await context.fetch(f"{HARVEST_API_BASE}/projects/{project_id}", method="GET")
 
-            return {"success": True, "project": response}
+            return ActionResult(data={"project": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("list_clients")
@@ -258,34 +266,37 @@ class ListClients(ActionHandler):
             # Build query parameters
             params = {}
 
-            if "is_active" in inputs:
-                params["is_active"] = inputs["is_active"]
+            if inputs.get("is_active") is not None:
+                params["is_active"] = inputs.get("is_active")
 
-            if "updated_since" in inputs:
-                params["updated_since"] = inputs["updated_since"]
+            if inputs.get("updated_since") is not None:
+                params["updated_since"] = inputs.get("updated_since")
 
-            if "page" in inputs:
-                params["page"] = inputs["page"]
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
-            if "per_page" in inputs:
-                params["per_page"] = inputs["per_page"]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
 
             response = await context.fetch(f"{HARVEST_API_BASE}/clients", method="GET", params=params)
+            body = response.data
 
-            return {
-                "success": True,
-                "clients": response.get("clients", []),
-                "per_page": response.get("per_page"),
-                "total_pages": response.get("total_pages"),
-                "total_entries": response.get("total_entries"),
-                "next_page": response.get("next_page"),
-                "previous_page": response.get("previous_page"),
-                "page": response.get("page"),
-                "links": response.get("links"),
-            }
+            return ActionResult(
+                data={
+                    "clients": body.get("clients", []),
+                    "per_page": body.get("per_page"),
+                    "total_pages": body.get("total_pages"),
+                    "total_entries": body.get("total_entries"),
+                    "next_page": body.get("next_page"),
+                    "previous_page": body.get("previous_page"),
+                    "page": body.get("page"),
+                    "links": body.get("links"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("list_tasks")
@@ -297,34 +308,37 @@ class ListTasks(ActionHandler):
             # Build query parameters
             params = {}
 
-            if "is_active" in inputs:
-                params["is_active"] = inputs["is_active"]
+            if inputs.get("is_active") is not None:
+                params["is_active"] = inputs.get("is_active")
 
-            if "updated_since" in inputs:
-                params["updated_since"] = inputs["updated_since"]
+            if inputs.get("updated_since") is not None:
+                params["updated_since"] = inputs.get("updated_since")
 
-            if "page" in inputs:
-                params["page"] = inputs["page"]
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
-            if "per_page" in inputs:
-                params["per_page"] = inputs["per_page"]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
 
             response = await context.fetch(f"{HARVEST_API_BASE}/tasks", method="GET", params=params)
+            body = response.data
 
-            return {
-                "success": True,
-                "tasks": response.get("tasks", []),
-                "per_page": response.get("per_page"),
-                "total_pages": response.get("total_pages"),
-                "total_entries": response.get("total_entries"),
-                "next_page": response.get("next_page"),
-                "previous_page": response.get("previous_page"),
-                "page": response.get("page"),
-                "links": response.get("links"),
-            }
+            return ActionResult(
+                data={
+                    "tasks": body.get("tasks", []),
+                    "per_page": body.get("per_page"),
+                    "total_pages": body.get("total_pages"),
+                    "total_entries": body.get("total_entries"),
+                    "next_page": body.get("next_page"),
+                    "previous_page": body.get("previous_page"),
+                    "page": body.get("page"),
+                    "links": body.get("links"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @harvest.action("list_users")
@@ -336,31 +350,34 @@ class ListUsers(ActionHandler):
             # Build query parameters
             params = {}
 
-            if "is_active" in inputs:
-                params["is_active"] = inputs["is_active"]
+            if inputs.get("is_active") is not None:
+                params["is_active"] = inputs.get("is_active")
 
-            if "updated_since" in inputs:
-                params["updated_since"] = inputs["updated_since"]
+            if inputs.get("updated_since") is not None:
+                params["updated_since"] = inputs.get("updated_since")
 
-            if "page" in inputs:
-                params["page"] = inputs["page"]
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
-            if "per_page" in inputs:
-                params["per_page"] = inputs["per_page"]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
 
             response = await context.fetch(f"{HARVEST_API_BASE}/users", method="GET", params=params)
+            body = response.data
 
-            return {
-                "success": True,
-                "users": response.get("users", []),
-                "per_page": response.get("per_page"),
-                "total_pages": response.get("total_pages"),
-                "total_entries": response.get("total_entries"),
-                "next_page": response.get("next_page"),
-                "previous_page": response.get("previous_page"),
-                "page": response.get("page"),
-                "links": response.get("links"),
-            }
+            return ActionResult(
+                data={
+                    "users": body.get("users", []),
+                    "per_page": body.get("per_page"),
+                    "total_pages": body.get("total_pages"),
+                    "total_entries": body.get("total_entries"),
+                    "next_page": body.get("next_page"),
+                    "previous_page": body.get("previous_page"),
+                    "page": body.get("page"),
+                    "links": body.get("links"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return ActionError(message=str(e))
