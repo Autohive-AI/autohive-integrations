@@ -12,9 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "xero_mod", os.path.join(_parent, "xero.py")
-)
+_spec = importlib.util.spec_from_file_location("xero_mod", os.path.join(_parent, "xero.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -47,34 +45,24 @@ SAMPLE_CONNECTIONS = [
 class TestGetAvailableConnections:
     @pytest.mark.asyncio
     async def test_returns_companies(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data=SAMPLE_CONNECTIONS
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_CONNECTIONS)
 
-        result = await xero.execute_action(
-            "get_available_connections", {}, mock_context
-        )
+        result = await xero.execute_action("get_available_connections", {}, mock_context)
 
         assert result.result.data["companies"][0]["tenant_id"] == "tenant-001"
         assert result.result.data["companies"][0]["company_name"] == "Acme Corp"
 
     @pytest.mark.asyncio
     async def test_returns_all_companies(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data=SAMPLE_CONNECTIONS
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_CONNECTIONS)
 
-        result = await xero.execute_action(
-            "get_available_connections", {}, mock_context
-        )
+        result = await xero.execute_action("get_available_connections", {}, mock_context)
 
         assert len(result.result.data["companies"]) == 2
 
     @pytest.mark.asyncio
     async def test_calls_connections_endpoint(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data=SAMPLE_CONNECTIONS
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_CONNECTIONS)
 
         await xero.execute_action("get_available_connections", {}, mock_context)
 
@@ -85,9 +73,7 @@ class TestGetAvailableConnections:
     async def test_empty_connections_returns_action_error(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
-        result = await xero.execute_action(
-            "get_available_connections", {}, mock_context
-        )
+        result = await xero.execute_action("get_available_connections", {}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
 
@@ -95,9 +81,7 @@ class TestGetAvailableConnections:
     async def test_fetch_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Connection failed")
 
-        result = await xero.execute_action(
-            "get_available_connections", {}, mock_context
-        )
+        result = await xero.execute_action("get_available_connections", {}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Connection failed" in result.result.message
@@ -109,13 +93,9 @@ class TestGetAvailableConnections:
             {"tenantId": None, "tenantName": "Missing ID"},
             {"tenantId": "tenant-003", "tenantName": None},
         ]
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data=connections
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=connections)
 
-        result = await xero.execute_action(
-            "get_available_connections", {}, mock_context
-        )
+        result = await xero.execute_action("get_available_connections", {}, mock_context)
 
         assert len(result.result.data["companies"]) == 1
         assert result.result.data["companies"][0]["tenant_id"] == "tenant-001"
@@ -182,9 +162,7 @@ class TestFindContactByName:
     async def test_rate_limit_exception_returns_action_error(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(
-                side_effect=XeroRateLimitExceededException(
-                    requested_delay=120, max_wait_time=60, tenant_id="t-001"
-                )
+                side_effect=XeroRateLimitExceededException(requested_delay=120, max_wait_time=60, tenant_id="t-001")
             )
 
             result = await xero.execute_action(
@@ -199,9 +177,7 @@ class TestFindContactByName:
     @pytest.mark.asyncio
     async def test_general_exception_returns_action_error(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                side_effect=Exception("Network error")
-            )
+            mock_limiter.make_request = AsyncMock(side_effect=Exception("Network error"))
 
             result = await xero.execute_action(
                 "find_contact_by_name",

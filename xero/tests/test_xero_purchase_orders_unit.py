@@ -11,9 +11,7 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
-_spec = importlib.util.spec_from_file_location(
-    "xero_mod", os.path.join(_parent, "xero.py")
-)
+_spec = importlib.util.spec_from_file_location("xero_mod", os.path.join(_parent, "xero.py"))
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
@@ -62,9 +60,7 @@ class TestGetPurchaseOrders:
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(return_value=SAMPLE_PO_RESPONSE)
 
-            result = await xero.execute_action(
-                "get_purchase_orders", {"tenant_id": "t-001"}, mock_context
-            )
+            result = await xero.execute_action("get_purchase_orders", {"tenant_id": "t-001"}, mock_context)
 
         assert "PurchaseOrders" in result.result.data
         assert len(result.result.data["PurchaseOrders"]) == 1
@@ -74,9 +70,7 @@ class TestGetPurchaseOrders:
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(return_value=SAMPLE_PO_RESPONSE)
 
-            await xero.execute_action(
-                "get_purchase_orders", {"tenant_id": "t-001"}, mock_context
-            )
+            await xero.execute_action("get_purchase_orders", {"tenant_id": "t-001"}, mock_context)
 
             call_args = mock_limiter.make_request.call_args
             assert "PurchaseOrders" in call_args.args[1]
@@ -114,13 +108,9 @@ class TestGetPurchaseOrders:
     @pytest.mark.asyncio
     async def test_rate_limit_returns_action_error(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                side_effect=XeroRateLimitExceededException(150, 60, "t-001")
-            )
+            mock_limiter.make_request = AsyncMock(side_effect=XeroRateLimitExceededException(150, 60, "t-001"))
 
-            result = await xero.execute_action(
-                "get_purchase_orders", {"tenant_id": "t-001"}, mock_context
-            )
+            result = await xero.execute_action("get_purchase_orders", {"tenant_id": "t-001"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "rate limit" in result.result.message.lower()
@@ -128,13 +118,9 @@ class TestGetPurchaseOrders:
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                side_effect=Exception("Network error")
-            )
+            mock_limiter.make_request = AsyncMock(side_effect=Exception("Network error"))
 
-            result = await xero.execute_action(
-                "get_purchase_orders", {"tenant_id": "t-001"}, mock_context
-            )
+            result = await xero.execute_action("get_purchase_orders", {"tenant_id": "t-001"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Network error" in result.result.message
@@ -227,18 +213,14 @@ class TestCreatePurchaseOrder:
     @pytest.mark.asyncio
     async def test_rate_limit_returns_action_error(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
-            mock_limiter.make_request = AsyncMock(
-                side_effect=XeroRateLimitExceededException(200, 60, "t-001")
-            )
+            mock_limiter.make_request = AsyncMock(side_effect=XeroRateLimitExceededException(200, 60, "t-001"))
 
             result = await xero.execute_action(
                 "create_purchase_order",
                 {
                     "tenant_id": "t-001",
                     "contact": {"ContactID": "c-001"},
-                    "line_items": [
-                        {"Description": "P", "UnitAmount": 1.0, "AccountCode": "400"}
-                    ],
+                    "line_items": [{"Description": "P", "UnitAmount": 1.0, "AccountCode": "400"}],
                 },
                 mock_context,
             )
@@ -255,9 +237,7 @@ class TestCreatePurchaseOrder:
                 {
                     "tenant_id": "t-001",
                     "contact": {"ContactID": "c-001"},
-                    "line_items": [
-                        {"Description": "P", "UnitAmount": 1.0, "AccountCode": "400"}
-                    ],
+                    "line_items": [{"Description": "P", "UnitAmount": 1.0, "AccountCode": "400"}],
                 },
                 mock_context,
             )
@@ -273,11 +253,7 @@ class TestUpdatePurchaseOrder:
     async def test_updates_purchase_order(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(
-                return_value={
-                    "PurchaseOrders": [
-                        {"PurchaseOrderID": "po-001", "Status": "AUTHORISED"}
-                    ]
-                }
+                return_value={"PurchaseOrders": [{"PurchaseOrderID": "po-001", "Status": "AUTHORISED"}]}
             )
 
             result = await xero.execute_action(
@@ -329,11 +305,7 @@ class TestDeletePurchaseOrder:
     async def test_deletes_purchase_order(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(
-                return_value={
-                    "PurchaseOrders": [
-                        {"PurchaseOrderID": "po-001", "Status": "DELETED"}
-                    ]
-                }
+                return_value={"PurchaseOrders": [{"PurchaseOrderID": "po-001", "Status": "DELETED"}]}
             )
 
             result = await xero.execute_action(
@@ -380,11 +352,7 @@ class TestGetPurchaseOrderHistory:
     async def test_returns_history(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(
-                return_value={
-                    "HistoryRecords": [
-                        {"Details": "PO created", "DateUTC": "2024-01-10"}
-                    ]
-                }
+                return_value={"HistoryRecords": [{"Details": "PO created", "DateUTC": "2024-01-10"}]}
             )
 
             result = await xero.execute_action(
@@ -432,11 +400,7 @@ class TestAddNoteToPurchaseOrder:
     async def test_adds_note(self, mock_context):
         with patch.object(_mod, "rate_limiter") as mock_limiter:
             mock_limiter.make_request = AsyncMock(
-                return_value={
-                    "HistoryRecords": [
-                        {"Details": "Test note", "DateUTC": "2024-01-15"}
-                    ]
-                }
+                return_value={"HistoryRecords": [{"Details": "Test note", "DateUTC": "2024-01-15"}]}
             )
 
             result = await xero.execute_action(
