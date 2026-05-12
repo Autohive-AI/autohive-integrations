@@ -123,12 +123,12 @@ class ListCustomersAction(ActionHandler):
                 params=params,
             )
 
-            customers = response.get("data", [])
+            customers = response.data.get("data", [])
 
             return ActionResult(
                 data={
                     "customers": customers,
-                    "has_more": response.get("has_more", False),
+                    "has_more": response.data.get("has_more", False),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -161,7 +161,7 @@ class GetCustomerAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"customer": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"customer": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -199,7 +199,7 @@ class CreateCustomerAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"customer": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"customer": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -238,7 +238,7 @@ class UpdateCustomerAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"customer": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"customer": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -261,8 +261,8 @@ class DeleteCustomerAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "id": response.get("id", customer_id),
-                    "deleted": response.get("deleted", True),
+                    "id": response.data.get("id", customer_id),
+                    "deleted": response.data.get("deleted", True),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -310,12 +310,12 @@ class ListInvoicesAction(ActionHandler):
                 params=params,
             )
 
-            invoices = response.get("data", [])
+            invoices = response.data.get("data", [])
 
             return ActionResult(
                 data={
                     "invoices": invoices,
-                    "has_more": response.get("has_more", False),
+                    "has_more": response.data.get("has_more", False),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -348,7 +348,7 @@ class GetInvoiceAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"invoice": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -386,7 +386,7 @@ class CreateInvoiceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"invoice": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -423,7 +423,7 @@ class UpdateInvoiceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"invoice": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -446,8 +446,8 @@ class DeleteInvoiceAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "id": response.get("id", invoice_id),
-                    "deleted": response.get("deleted", True),
+                    "id": response.data.get("id", invoice_id),
+                    "deleted": response.data.get("deleted", True),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -487,7 +487,7 @@ class FinalizeInvoiceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"invoice": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -508,7 +508,7 @@ class SendInvoiceAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"invoice": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -536,7 +536,7 @@ class PayInvoiceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"invoice": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -557,7 +557,7 @@ class VoidInvoiceAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"invoice": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"invoice": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"invoice": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -591,12 +591,12 @@ class ListInvoiceItemsAction(ActionHandler):
                 params=params,
             )
 
-            invoice_items = response.get("data", [])
+            invoice_items = response.data.get("data", [])
 
             return ActionResult(
                 data={
                     "invoice_items": invoice_items,
-                    "has_more": response.get("has_more", False),
+                    "has_more": response.data.get("has_more", False),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -629,7 +629,7 @@ class GetInvoiceItemAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"invoice_item": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"invoice_item": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -672,7 +672,7 @@ class CreateInvoiceItemAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"invoice_item": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"invoice_item": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -712,7 +712,7 @@ class UpdateInvoiceItemAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"invoice_item": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"invoice_item": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -738,8 +738,8 @@ class DeleteInvoiceItemAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "id": response.get("id", invoice_item_id),
-                    "deleted": response.get("deleted", True),
+                    "id": response.data.get("id", invoice_item_id),
+                    "deleted": response.data.get("deleted", True),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -787,12 +787,12 @@ class ListProductsAction(ActionHandler):
                 params=params,
             )
 
-            products = response.get("data", [])
+            products = response.data.get("data", [])
 
             return ActionResult(
                 data={
                     "products": products,
-                    "has_more": response.get("has_more", False),
+                    "has_more": response.data.get("has_more", False),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -825,7 +825,7 @@ class GetProductAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"product": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"product": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -867,7 +867,7 @@ class CreateProductAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"product": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"product": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -912,7 +912,7 @@ class UpdateProductAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"product": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"product": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -952,12 +952,12 @@ class ListPricesAction(ActionHandler):
                 params=params,
             )
 
-            prices = response.get("data", [])
+            prices = response.data.get("data", [])
 
             return ActionResult(
                 data={
                     "prices": prices,
-                    "has_more": response.get("has_more", False),
+                    "has_more": response.data.get("has_more", False),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -990,7 +990,7 @@ class GetPriceAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"price": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"price": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -1041,7 +1041,7 @@ class CreatePriceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"price": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"price": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -1076,7 +1076,7 @@ class UpdatePriceAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"price": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"price": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(data={"price": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -1118,12 +1118,12 @@ class ListSubscriptionsAction(ActionHandler):
                 params=params,
             )
 
-            subscriptions = response.get("data", [])
+            subscriptions = response.data.get("data", [])
 
             return ActionResult(
                 data={
                     "subscriptions": subscriptions,
-                    "has_more": response.get("has_more", False),
+                    "has_more": response.data.get("has_more", False),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -1156,7 +1156,7 @@ class GetSubscriptionAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"subscription": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"subscription": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1211,7 +1211,7 @@ class CreateSubscriptionAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"subscription": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"subscription": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1261,7 +1261,7 @@ class UpdateSubscriptionAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"subscription": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"subscription": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1312,7 +1312,7 @@ class CancelSubscriptionAction(ActionHandler):
                     data=form_data if form_data else None,
                 )
 
-            return ActionResult(data={"subscription": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"subscription": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1348,12 +1348,12 @@ class ListPaymentMethodsAction(ActionHandler):
                 params=params,
             )
 
-            payment_methods = response.get("data", [])
+            payment_methods = response.data.get("data", [])
 
             return ActionResult(
                 data={
                     "payment_methods": payment_methods,
-                    "has_more": response.get("has_more", False),
+                    "has_more": response.data.get("has_more", False),
                     "result": True,
                 },
                 cost_usd=0.0,
@@ -1386,7 +1386,7 @@ class GetPaymentMethodAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"payment_method": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"payment_method": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1414,7 +1414,7 @@ class AttachPaymentMethodAction(ActionHandler):
                 data=form_data,
             )
 
-            return ActionResult(data={"payment_method": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"payment_method": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
@@ -1438,7 +1438,7 @@ class DetachPaymentMethodAction(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data={"payment_method": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"payment_method": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
             return ActionResult(
