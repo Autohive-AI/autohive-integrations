@@ -658,7 +658,7 @@ class CreateInvoiceItemAction(ActionHandler):
             if "quantity" in inputs and inputs["quantity"] is not None:
                 body["quantity"] = inputs["quantity"]
             if "unit_amount" in inputs and inputs["unit_amount"] is not None:
-                body["unit_amount_decimal"] = inputs["unit_amount"]
+                body["unit_amount_decimal"] = str(inputs["unit_amount"])
             if "metadata" in inputs and inputs["metadata"]:
                 body["metadata"] = inputs["metadata"]
 
@@ -698,7 +698,7 @@ class UpdateInvoiceItemAction(ActionHandler):
             if "quantity" in inputs and inputs["quantity"] is not None:
                 body["quantity"] = inputs["quantity"]
             if "unit_amount" in inputs and inputs["unit_amount"] is not None:
-                body["unit_amount_decimal"] = inputs["unit_amount"]
+                body["unit_amount_decimal"] = str(inputs["unit_amount"])
             if "metadata" in inputs and inputs["metadata"]:
                 body["metadata"] = inputs["metadata"]
 
@@ -1009,7 +1009,7 @@ class CreatePriceAction(ActionHandler):
 
             # Add unit_amount or custom_unit_amount
             if "unit_amount" in inputs and inputs["unit_amount"] is not None:
-                body["unit_amount"] = inputs["unit_amount"]
+                body["unit_amount_decimal"] = str(inputs["unit_amount"])
             elif "unit_amount_decimal" in inputs and inputs["unit_amount_decimal"]:
                 body["unit_amount_decimal"] = inputs["unit_amount_decimal"]
 

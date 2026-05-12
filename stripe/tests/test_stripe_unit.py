@@ -200,6 +200,114 @@ class TestGetPrice:
         assert result.result.data["price"]["id"] == "price_test123"
 
 
+# ---- Invoice Items ----
+
+
+class TestListInvoiceItems:
+    async def test_success(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, {**SAMPLE_LIST, "data": []})
+        result = await stripe.execute_action("list_invoice_items", {}, ctx)
+        assert result.result.data["result"] is True
+        assert "invoice_items" in result.result.data
+
+    async def test_invoice_filter(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, SAMPLE_LIST)
+        await stripe.execute_action("list_invoice_items", {"invoice": "in_test123"}, ctx)
+        params = ctx.fetch.call_args.kwargs.get("params", {})
+        assert params.get("invoice") == "in_test123"
+
+
+class TestGetInvoiceItem:
+    async def test_success(self, ctx):
+        item = {"id": "ii_test123", "object": "invoiceitem", "amount": 500}
+        ctx.fetch.return_value = FetchResponse(200, {}, item)
+        result = await stripe.execute_action("get_invoice_item", {"invoice_item_id": "ii_test123"}, ctx)
+        assert result.result.data["result"] is True
+        assert result.result.data["invoice_item"]["id"] == "ii_test123"
+
+
+class TestCreateInvoiceItem:
+    async def test_success(self, ctx):
+        item = {"id": "ii_test123", "object": "invoiceitem", "amount": 500}
+        ctx.fetch.return_value = FetchResponse(200, {}, item)
+        result = await stripe.execute_action(
+            "create_invoice_item",
+            {"customer": "cus_test123", "unit_amount": 500, "currency": "usd"},
+            ctx,
+        )
+        assert result.result.data["result"] is True
+
+    async def test_uses_post(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, {})
+        await stripe.execute_action(
+            "create_invoice_item",
+            {"customer": "cus_test123", "unit_amount": 500, "currency": "usd"},
+            ctx,
+        )
+        assert ctx.fetch.call_args.kwargs["method"] == "POST"
+
+
+class TestDeleteInvoiceItem:
+    async def test_success(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, {"id": "ii_test123", "deleted": True})
+        result = await stripe.execute_action("delete_invoice_item", {"invoice_item_id": "ii_test123"}, ctx)
+        assert result.result.data["result"] is True
+        assert result.result.data["deleted"] is True
+
+
+# ---- Invoice Lifecycle ----
+
+
+class TestFinalizeInvoice:
+    async def test_success(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, {**SAMPLE_INVOICE, "status": "open"})
+        result = await stripe.execute_action("finalize_invoice", {"invoice_id": "in_test123"}, ctx)
+        assert result.result.data["result"] is True
+        assert result.result.data["invoice"]["status"] == "open"
+
+    async def test_url_contains_finalize(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, SAMPLE_INVOICE)
+        await stripe.execute_action("finalize_invoice", {"invoice_id": "in_abc"}, ctx)
+        assert "finalize" in ctx.fetch.call_args.args[0]
+        assert "in_abc" in ctx.fetch.call_args.args[0]
+
+
+class TestVoidInvoice:
+    async def test_success(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, {**SAMPLE_INVOICE, "status": "void"})
+        result = await stripe.execute_action("void_invoice", {"invoice_id": "in_test123"}, ctx)
+        assert result.result.data["result"] is True
+
+    async def test_url_contains_void(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, SAMPLE_INVOICE)
+        await stripe.execute_action("void_invoice", {"invoice_id": "in_abc"}, ctx)
+        assert "void" in ctx.fetch.call_args.args[0]
+
+
+class TestSendInvoice:
+    async def test_success(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, {**SAMPLE_INVOICE, "status": "open"})
+        result = await stripe.execute_action("send_invoice", {"invoice_id": "in_test123"}, ctx)
+        assert result.result.data["result"] is True
+
+    async def test_url_contains_send(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, SAMPLE_INVOICE)
+        await stripe.execute_action("send_invoice", {"invoice_id": "in_abc"}, ctx)
+        assert "send" in ctx.fetch.call_args.args[0]
+
+
+class TestPayInvoice:
+    async def test_success(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, {**SAMPLE_INVOICE, "status": "paid"})
+        result = await stripe.execute_action("pay_invoice", {"invoice_id": "in_test123"}, ctx)
+        assert result.result.data["result"] is True
+
+    async def test_url_contains_pay(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, SAMPLE_INVOICE)
+        await stripe.execute_action("pay_invoice", {"invoice_id": "in_abc"}, ctx)
+        assert "/pay" in ctx.fetch.call_args.args[0]
+
+
 # ---- Subscriptions ----
 
 
@@ -219,6 +327,59 @@ class TestGetSubscription:
         assert result.result.data["subscription"]["id"] == "sub_test123"
 
 
+class TestCreateSubscription:
+    async def test_success(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, SAMPLE_SUBSCRIPTION)
+        result = await stripe.execute_action(
+            "create_subscription",
+            {"customer": "cus_test123", "items": [{"price": "price_test123"}]},
+            ctx,
+        )
+        assert result.result.data["result"] is True
+        assert "subscription" in result.result.data
+
+    async def test_uses_post(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, SAMPLE_SUBSCRIPTION)
+        await stripe.execute_action(
+            "create_subscription",
+            {"customer": "cus_test123", "items": [{"price": "price_test123"}]},
+            ctx,
+        )
+        assert ctx.fetch.call_args.kwargs["method"] == "POST"
+
+
+class TestUpdateSubscription:
+    async def test_success(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, SAMPLE_SUBSCRIPTION)
+        result = await stripe.execute_action(
+            "update_subscription",
+            {"subscription_id": "sub_test123", "metadata": {"key": "val"}},
+            ctx,
+        )
+        assert result.result.data["result"] is True
+
+    async def test_url_contains_subscription_id(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, SAMPLE_SUBSCRIPTION)
+        await stripe.execute_action(
+            "update_subscription",
+            {"subscription_id": "sub_abc"},
+            ctx,
+        )
+        assert "sub_abc" in ctx.fetch.call_args.args[0]
+
+
+class TestCancelSubscription:
+    async def test_success(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, {**SAMPLE_SUBSCRIPTION, "status": "canceled"})
+        result = await stripe.execute_action(
+            "cancel_subscription",
+            {"subscription_id": "sub_test123"},
+            ctx,
+        )
+        assert result.result.data["result"] is True
+        assert result.result.data["subscription"]["status"] == "canceled"
+
+
 # ---- Payment Methods ----
 
 
@@ -232,3 +393,47 @@ class TestListPaymentMethods:
         )
         assert result.result.data["result"] is True
         assert "payment_methods" in result.result.data
+
+
+class TestGetPaymentMethod:
+    async def test_success(self, ctx):
+        pm = {"id": "pm_test123", "object": "payment_method", "type": "card"}
+        ctx.fetch.return_value = FetchResponse(200, {}, pm)
+        result = await stripe.execute_action("get_payment_method", {"payment_method_id": "pm_test123"}, ctx)
+        assert result.result.data["result"] is True
+        assert result.result.data["payment_method"]["id"] == "pm_test123"
+
+
+class TestAttachPaymentMethod:
+    async def test_success(self, ctx):
+        pm = {"id": "pm_test123", "object": "payment_method", "customer": "cus_test123"}
+        ctx.fetch.return_value = FetchResponse(200, {}, pm)
+        result = await stripe.execute_action(
+            "attach_payment_method",
+            {"payment_method_id": "pm_test123", "customer": "cus_test123"},
+            ctx,
+        )
+        assert result.result.data["result"] is True
+
+    async def test_url_contains_attach(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, {})
+        await stripe.execute_action(
+            "attach_payment_method",
+            {"payment_method_id": "pm_abc", "customer": "cus_test123"},
+            ctx,
+        )
+        assert "attach" in ctx.fetch.call_args.args[0]
+        assert "pm_abc" in ctx.fetch.call_args.args[0]
+
+
+class TestDetachPaymentMethod:
+    async def test_success(self, ctx):
+        pm = {"id": "pm_test123", "object": "payment_method", "customer": None}
+        ctx.fetch.return_value = FetchResponse(200, {}, pm)
+        result = await stripe.execute_action("detach_payment_method", {"payment_method_id": "pm_test123"}, ctx)
+        assert result.result.data["result"] is True
+
+    async def test_url_contains_detach(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, {})
+        await stripe.execute_action("detach_payment_method", {"payment_method_id": "pm_abc"}, ctx)
+        assert "detach" in ctx.fetch.call_args.args[0]
