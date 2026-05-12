@@ -36,15 +36,21 @@ def stripe_context():
     if not api_key:
         pytest.skip("STRIPE_TEST_API_KEY not set — skipping integration tests")
 
-    async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, data=None, **kwargs):
+    async def real_fetch(
+        url, *, method="GET", json=None, headers=None, params=None, data=None, **kwargs
+    ):
         merged = dict(headers or {})
         merged["Authorization"] = f"Bearer {api_key}"
 
         async with aiohttp.ClientSession() as session:
-            async with session.request(method, url, headers=merged, params=params, data=data, json=json) as resp:
+            async with session.request(
+                method, url, headers=merged, params=params, data=data, json=json
+            ) as resp:
                 text = await resp.text()
                 body = _json.loads(text) if text.strip() else {}
-                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=body)
+                return FetchResponse(
+                    status=resp.status, headers=dict(resp.headers), data=body
+                )
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
