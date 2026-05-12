@@ -869,3 +869,286 @@ class TestMultipleParenListsAfterHeadings:
                     assert fmt == "decimal", f"'{text}' should use decimal, got {fmt}"
                     lvl_text = lvl.find(qn("w:lvlText")).get(qn("w:val"))
                     assert "(" in lvl_text, f"'{text}' should have paren format, got '{lvl_text}'"
+
+
+class TestMixedNumberedListFormats:
+    """Verify that five different numbered-list styles all render correctly:
+    1. standard ``1. 2. 3.`` decimal
+    2. parenthesized decimal ``(1) (2) (3)``
+    3. parenthesized lower letter ``(a) (b) (c)``
+    4. parenthesized upper letter ``(A) (B) (C)``
+    5. parenthesized lower roman ``(i) (ii) (iii)``
+
+    Each list must:
+    - be a real numbered (not bullet) list in the OOXML
+    - use the correct numFmt
+    - use left-aligned justification
+    - display the correct item text ("one", "two", "three")
+    - have a consistent hanging indent so text is aligned across items
+      whose numbering labels differ in width (e.g. ``(i)`` vs ``(iii)``).
+    """
+
+    MARKDOWN = (
+        "# numbers\n"
+        "1. one\n"
+        "2. two\n"
+        "3. three\n"
+        "# numbers in brackets\n"
+        "(1) one\n"
+        "(2) two\n"
+        "(3) three\n"
+        "# letters in brackets\n"
+        "(a) one\n"
+        "(b) two\n"
+        "(c) three\n"
+        "# capital letters in brackets\n"
+        "(A) one\n"
+        "(B) two\n"
+        "(C) three\n"
+        "# roman numerals\n"
+        "(i) one\n"
+        "(ii) two\n"
+        "(iii) three"
+    )
+
+    @staticmethod
+    def _get_numpr(paragraph):
+        from docx.oxml.ns import qn
+
+        pPr = paragraph._p.find(qn("w:pPr"))
+        if pPr is None:
+            return None
+        numPr = pPr.find(qn("w:numPr"))
+        if numPr is None:
+            return None
+        numId_el = numPr.find(qn("w:numId"))
+        ilvl_el = numPr.find(qn("w:ilvl"))
+        if numId_el is None or ilvl_el is None:
+            return None
+        return int(numId_el.get(qn("w:val"))), int(ilvl_el.get(qn("w:val")))
+
+    @staticmethod
+    def _get_abstract_num_for(doc, num_id):
+        from docx.oxml.ns import qn
+
+        numbering = doc.part.numbering_part._element
+        for num_el in numbering.findall(qn("w:num")):
+            if int(num_el.get(qn("w:numId"))) == num_id:
+                abstract_ref = num_el.find(qn("w:abstractNumId"))
+                abstract_id = int(abstract_ref.get(qn("w:val")))
+                for an in numbering.findall(qn("w:abstractNum")):
+                    if int(an.get(qn("w:abstractNumId"))) == abstract_id:
+                        return an
+        return None
+
+    @staticmethod
+    def _get_lvl(abstract, ilvl):
+        from docx.oxml.ns import qn
+
+        for lvl in abstract.findall(qn("w:lvl")):
+            if int(lvl.get(qn("w:ilvl"))) == ilvl:
+                return lvl
+        return None
+
+    def _build_doc(self):
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+        return doc
+
+    def _numbered_paragraphs(self, doc):
+        return [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+
+    # ---- 1. All 15 items are numbered paragraphs ----
+
+    def test_produces_fifteen_numbered_paragraphs(self):
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        assert len(numbered) == 15, (
+            f"Expected 15 numbered paragraphs (5 lists × 3 items), got {len(numbered)}: "
+            f"{[t for t, _ in numbered]}"
+        )
+
+    # ---- 2. Item text is correct ----
+
+    def test_item_text_is_correct(self):
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        texts = [t for t, _ in numbered]
+        for i in range(5):
+            group = texts[i * 3 : i * 3 + 3]
+            assert group == ["one", "two", "three"], (
+                f"List group {i} text should be ['one', 'two', 'three'], got {group}"
+            )
+
+    # ---- 3. Each list uses the correct numFmt ----
+
+    def test_standard_decimal_uses_decimal_format(self):
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        num_id = numbered[0][1][0]
+        ilvl = numbered[0][1][1]
+        abstract = self._get_abstract_num_for(doc, num_id)
+        lvl = self._get_lvl(abstract, ilvl)
+        fmt = lvl.find(qn("w:numFmt")).get(qn("w:val"))
+        assert fmt == "decimal", f"Standard numbered list should be decimal, got {fmt}"
+
+    def test_paren_decimal_uses_decimal_format(self):
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        num_id = numbered[3][1][0]
+        ilvl = numbered[3][1][1]
+        abstract = self._get_abstract_num_for(doc, num_id)
+        lvl = self._get_lvl(abstract, ilvl)
+        fmt = lvl.find(qn("w:numFmt")).get(qn("w:val"))
+        assert fmt == "decimal", f"Paren decimal list should be decimal, got {fmt}"
+
+    def test_paren_lower_letter_uses_lower_letter_format(self):
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        num_id = numbered[6][1][0]
+        ilvl = numbered[6][1][1]
+        abstract = self._get_abstract_num_for(doc, num_id)
+        lvl = self._get_lvl(abstract, ilvl)
+        fmt = lvl.find(qn("w:numFmt")).get(qn("w:val"))
+        assert fmt == "lowerLetter", f"Lower letter list should be lowerLetter, got {fmt}"
+
+    def test_paren_upper_letter_uses_upper_letter_format(self):
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        num_id = numbered[9][1][0]
+        ilvl = numbered[9][1][1]
+        abstract = self._get_abstract_num_for(doc, num_id)
+        lvl = self._get_lvl(abstract, ilvl)
+        fmt = lvl.find(qn("w:numFmt")).get(qn("w:val"))
+        assert fmt == "upperLetter", f"Upper letter list should be upperLetter, got {fmt}"
+
+    def test_paren_roman_uses_lower_roman_format(self):
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        num_id = numbered[12][1][0]
+        ilvl = numbered[12][1][1]
+        abstract = self._get_abstract_num_for(doc, num_id)
+        lvl = self._get_lvl(abstract, ilvl)
+        fmt = lvl.find(qn("w:numFmt")).get(qn("w:val"))
+        assert fmt == "lowerRoman", f"Roman numeral list should be lowerRoman, got {fmt}"
+
+    # ---- 4. Parenthesized lvlText for bracket lists ----
+
+    def test_paren_lists_use_parenthesized_lvl_text(self):
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        # Lists at indices 3, 6, 9, 12 are the paren lists
+        for start_idx in (3, 6, 9, 12):
+            num_id = numbered[start_idx][1][0]
+            ilvl = numbered[start_idx][1][1]
+            abstract = self._get_abstract_num_for(doc, num_id)
+            lvl = self._get_lvl(abstract, ilvl)
+            lvl_text = lvl.find(qn("w:lvlText")).get(qn("w:val"))
+            assert "(" in lvl_text and ")" in lvl_text, (
+                f"Item '{numbered[start_idx][0]}' (idx {start_idx}) should have "
+                f"parenthesized lvlText, got '{lvl_text}'"
+            )
+
+    def test_standard_decimal_uses_dot_lvl_text(self):
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        num_id = numbered[0][1][0]
+        ilvl = numbered[0][1][1]
+        abstract = self._get_abstract_num_for(doc, num_id)
+        lvl = self._get_lvl(abstract, ilvl)
+        lvl_text = lvl.find(qn("w:lvlText")).get(qn("w:val"))
+        assert "." in lvl_text, (
+            f"Standard decimal should use dot format, got '{lvl_text}'"
+        )
+
+    # ---- 5. Left-aligned justification ----
+
+    def test_all_lists_are_left_aligned(self):
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        checked = set()
+        for text, (num_id, ilvl) in numbered:
+            key = (num_id, ilvl)
+            if key in checked:
+                continue
+            checked.add(key)
+            abstract = self._get_abstract_num_for(doc, num_id)
+            lvl = self._get_lvl(abstract, ilvl)
+            jc = lvl.find(qn("w:lvlJc"))
+            assert jc is not None, f"'{text}' level should have lvlJc element"
+            assert jc.get(qn("w:val")) == "left", (
+                f"'{text}' should be left-aligned, got '{jc.get(qn('w:val'))}'"
+            )
+
+    # ---- 6. Text alignment consistency (hanging indent) ----
+
+    def test_items_within_each_list_share_same_hanging_indent(self):
+        """All items in a single list must use the same hanging indent so that
+        the text column is aligned even when numbering labels vary in width
+        (e.g. ``(i)`` vs ``(iii)``)."""
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+
+        for start_idx in range(0, 15, 3):
+            group = numbered[start_idx : start_idx + 3]
+            # All items in a group share the same numId + ilvl, so they share
+            # the same abstractNum level definition → same indent.
+            num_id = group[0][1][0]
+            ilvl = group[0][1][1]
+            abstract = self._get_abstract_num_for(doc, num_id)
+            lvl = self._get_lvl(abstract, ilvl)
+            pPr = lvl.find(qn("w:pPr"))
+            assert pPr is not None, f"Level {ilvl} should have pPr"
+            ind = pPr.find(qn("w:ind"))
+            assert ind is not None, f"Level {ilvl} should have indent"
+            hanging = ind.get(qn("w:hanging"))
+            left = ind.get(qn("w:left"))
+            assert hanging is not None, f"Hanging indent should be set for list starting at idx {start_idx}"
+            assert left is not None, f"Left indent should be set for list starting at idx {start_idx}"
+
+    def test_roman_numeral_hanging_indent_is_wide_enough(self):
+        """Roman numeral labels like ``(iii)`` are wider than ``(1)`` so the
+        hanging indent must be larger to keep text aligned."""
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+
+        # Roman numerals start at index 12
+        roman_num_id = numbered[12][1][0]
+        roman_ilvl = numbered[12][1][1]
+        roman_abstract = self._get_abstract_num_for(doc, roman_num_id)
+        roman_lvl = self._get_lvl(roman_abstract, roman_ilvl)
+        roman_hanging = int(roman_lvl.find(qn("w:pPr")).find(qn("w:ind")).get(qn("w:hanging")))
+
+        # Decimal at index 3
+        decimal_num_id = numbered[3][1][0]
+        decimal_ilvl = numbered[3][1][1]
+        decimal_abstract = self._get_abstract_num_for(doc, decimal_num_id)
+        decimal_lvl = self._get_lvl(decimal_abstract, decimal_ilvl)
+        decimal_hanging = int(decimal_lvl.find(qn("w:pPr")).find(qn("w:ind")).get(qn("w:hanging")))
+
+        assert roman_hanging > decimal_hanging, (
+            f"Roman numeral hanging indent ({roman_hanging}) should be wider than "
+            f"decimal ({decimal_hanging}) to accommodate wider labels like (iii)"
+        )

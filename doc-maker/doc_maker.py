@@ -577,7 +577,8 @@ def _detect_paren_type(marker: str) -> tuple[str, int]:
     if low in _ROMAN_VALS:
         return "i", _ROMAN_VALS[low]
     if low.isalpha() and len(low) == 1:
-        return "a", ord(low) - ord("a") + 1
+        ol_type = "A" if marker.isupper() else "a"
+        return ol_type, ord(low) - ord("a") + 1
     if low.isdigit():
         return "1", int(low)
     return "1", 1
@@ -713,6 +714,19 @@ def _next_num_id(numbering) -> int:
     return max(ids, default=0) + 1
 
 
+def _hanging_indent_for_fmt(num_fmt: str) -> int:
+    """Return the hanging indent (twips) appropriate for a numbering format.
+
+    Wider formats like roman numerals need more space so that item text
+    stays consistently aligned even when labels vary in width (e.g. ``(iii)``).
+    """
+    _HANGING = {
+        "lowerRoman": 504,
+        "upperRoman": 504,
+    }
+    return _HANGING.get(num_fmt, 360)
+
+
 def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels: int = 3) -> int:
     """Create an abstract numbering definition for the given format.
 
@@ -732,6 +746,8 @@ def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels
     multi_level_type = OxmlElement("w:multiLevelType")
     multi_level_type.set(qn("w:val"), "multilevel")
     abstract_num.append(multi_level_type)
+
+    hanging = _hanging_indent_for_fmt(num_fmt)
 
     for ilvl in range(nesting_levels):
         lvl = OxmlElement("w:lvl")
@@ -757,9 +773,9 @@ def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels
 
         ppr = OxmlElement("w:pPr")
         ind = OxmlElement("w:ind")
-        left = 360 + (360 * ilvl)  # 360 twips = hanging indent; left-aligned at level 0
+        left = hanging + (hanging * ilvl)
         ind.set(qn("w:left"), str(left))
-        ind.set(qn("w:hanging"), "360")
+        ind.set(qn("w:hanging"), str(hanging))
         ppr.append(ind)
         lvl.append(ppr)
 
@@ -894,13 +910,14 @@ def _patch_abstract_num_level(doc, num_id: int, level: int, num_fmt: str, lvl_te
         target_lvl.append(jc)
 
     # Ensure indentation
+    hanging = _hanging_indent_for_fmt(num_fmt)
     ppr = target_lvl.find(qn("w:pPr"))
     if ppr is None:
         ppr = OxmlElement("w:pPr")
         ind = OxmlElement("w:ind")
-        left = 360 + (360 * level)
+        left = hanging + (hanging * level)
         ind.set(qn("w:left"), str(left))
-        ind.set(qn("w:hanging"), "360")
+        ind.set(qn("w:hanging"), str(hanging))
         ppr.append(ind)
         target_lvl.append(ppr)
 
@@ -911,14 +928,15 @@ def _ol_type_to_numfmt(type_attr: str | None, paren: bool = False) -> tuple[str,
     When *paren* is True the level text uses parenthesized form ``(%1)``
     for all types.  Otherwise decimal uses ``%1.`` (standard ``1. 2. 3.``).
     """
-    type_attr = (type_attr or "1").lower()
+    type_attr = type_attr or "1"
     fmt_map = {
         "1": "decimal",
         "a": "lowerLetter",
+        "A": "upperLetter",
         "i": "lowerRoman",
     }
     num_fmt = fmt_map.get(type_attr, "decimal")
-    if paren or type_attr in ("a", "i"):
+    if paren or type_attr.lower() in ("a", "i"):
         lvl_text = "(%1)"
     else:
         lvl_text = "%1."
@@ -1017,7 +1035,7 @@ def _add_list_items(
     num_id = None
     if is_numbered:
         start = int(list_element.get("start", 1))
-        type_attr = (list_element.get("type") or "1").lower()
+        type_attr = list_element.get("type") or "1"
 
         paren = list_element.get("data-paren") == "true"
         num_fmt, lvl_text = _ol_type_to_numfmt(type_attr, paren=paren)
