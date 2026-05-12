@@ -41,7 +41,7 @@ def live_context(env_credentials, make_context):
         auth={
             "credentials": {"access_token": access_token},
             "client_id": client_id or "",
-            "client_secret": "",
+            "client_secret": "",  # nosec B105
         }
     )
     ctx.fetch.side_effect = real_fetch
