@@ -722,3 +722,16 @@ class TestParenthesizedListNumbering:
         assert elephant_paras[0][0] == "Elephant", (
             f"Top-level text should be exactly 'Elephant', got '{elephant_paras[0][0]}'"
         )
+
+    def test_parent_and_children_share_same_numid(self):
+        """Word requires nested lists to share the same numId to render correctly."""
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        num_ids = set(numpr[0] for _, numpr in numbered)
+        assert len(num_ids) == 1, (
+            f"All items should share one numId for coherent multilevel numbering, got {num_ids}"
+        )

@@ -821,6 +821,84 @@ def _apply_numbering(paragraph, num_id: int, level: int = 0) -> None:
     num_id_el.set(qn("w:val"), str(num_id))
 
 
+def _patch_abstract_num_level(doc, num_id: int, level: int, num_fmt: str, lvl_text: str) -> None:
+    """Patch the abstractNum referenced by *num_id* so that *level* uses the given format.
+
+    When a child list (e.g. ``(a)``) is nested under a parent list (e.g. ``1.``),
+    both must share the same ``numId``.  This function updates the parent's
+    abstract numbering definition so that the child's ``ilvl`` has the correct
+    ``numFmt`` and ``lvlText``.
+    """
+    numbering = _numbering_root(doc)
+
+    # Find the <w:num> for this numId and get its abstractNumId
+    abstract_num_id = None
+    for num_el in numbering.findall(qn("w:num")):
+        if int(num_el.get(qn("w:numId"))) == num_id:
+            abstract_num_id = int(num_el.find(qn("w:abstractNumId")).get(qn("w:val")))
+            break
+    if abstract_num_id is None:
+        return
+
+    # Find the abstractNum
+    abstract_num = None
+    for an in numbering.findall(qn("w:abstractNum")):
+        if int(an.get(qn("w:abstractNumId"))) == abstract_num_id:
+            abstract_num = an
+            break
+    if abstract_num is None:
+        return
+
+    # Find or create the <w:lvl> for this ilvl
+    target_lvl = None
+    for lvl in abstract_num.findall(qn("w:lvl")):
+        if int(lvl.get(qn("w:ilvl"))) == level:
+            target_lvl = lvl
+            break
+
+    if target_lvl is None:
+        # Create a new level
+        target_lvl = OxmlElement("w:lvl")
+        target_lvl.set(qn("w:ilvl"), str(level))
+        start_el = OxmlElement("w:start")
+        start_el.set(qn("w:val"), "1")
+        target_lvl.append(start_el)
+        abstract_num.append(target_lvl)
+
+    # Update numFmt
+    fmt_el = target_lvl.find(qn("w:numFmt"))
+    if fmt_el is None:
+        fmt_el = OxmlElement("w:numFmt")
+        target_lvl.append(fmt_el)
+    fmt_el.set(qn("w:val"), num_fmt)
+
+    # Update lvlText
+    actual_lvl_text = lvl_text.replace("%1", f"%{level + 1}")
+    txt_el = target_lvl.find(qn("w:lvlText"))
+    if txt_el is None:
+        txt_el = OxmlElement("w:lvlText")
+        target_lvl.append(txt_el)
+    txt_el.set(qn("w:val"), actual_lvl_text)
+
+    # Ensure lvlJc exists
+    jc = target_lvl.find(qn("w:lvlJc"))
+    if jc is None:
+        jc = OxmlElement("w:lvlJc")
+        jc.set(qn("w:val"), "left")
+        target_lvl.append(jc)
+
+    # Ensure indentation
+    ppr = target_lvl.find(qn("w:pPr"))
+    if ppr is None:
+        ppr = OxmlElement("w:pPr")
+        ind = OxmlElement("w:ind")
+        left = 720 + (360 * level)
+        ind.set(qn("w:left"), str(left))
+        ind.set(qn("w:hanging"), "360")
+        ppr.append(ind)
+        target_lvl.append(ppr)
+
+
 def _ol_type_to_numfmt(type_attr: str | None, paren: bool = False) -> tuple[str, str]:
     """Map HTML <ol type> to (OOXML numFmt, lvlText).
 
@@ -909,13 +987,19 @@ def parse_markdown_to_docx(doc: Document, markdown_text: str) -> None:
                     run.font.name = "Courier New"
 
 
-def _add_list_items(doc: Document, list_element, level: int, list_state: dict) -> None:
+def _add_list_items(
+    doc: Document, list_element, level: int, list_state: dict, parent_num_id: int | None = None
+) -> None:
     """Recursively add list items to Word document with proper nesting.
 
     For bullet lists, uses Word's built-in 'List Bullet' styles.
     For ordered lists, creates low-level OOXML numbering definitions that
     support custom formats (decimal, lowerLetter, lowerRoman) and proper
     restart/continuation semantics.
+
+    *parent_num_id* is passed when a child ordered list should share the
+    parent's numbering instance so that Word renders all nesting levels
+    under one coherent list.
     """
     is_numbered = list_element.name == "ol"
 
@@ -926,23 +1010,27 @@ def _add_list_items(doc: Document, list_element, level: int, list_state: dict) -
 
         paren = list_element.get("data-paren") == "true"
         num_fmt, lvl_text = _ol_type_to_numfmt(type_attr, paren=paren)
-        abstract_num_id = _get_or_create_abstract_num(doc, num_fmt, lvl_text)
 
-        # Key for tracking continuation: lists at the same nesting level
-        # with the same format can continue numbering across boundaries
-        key = (level, num_fmt, lvl_text)
-
-        if start == 1:
-            # Explicit restart – create a new numbering instance
-            num_id = _create_num(doc, abstract_num_id, start_override=1, level=level)
+        if parent_num_id is not None and level > 0:
+            # Child list: reuse parent numId but patch the abstractNum to
+            # have the correct format at this ilvl.
+            num_id = parent_num_id
+            _patch_abstract_num_level(doc, num_id, level, num_fmt, lvl_text)
         else:
-            # Non-1 start: try to continue from a previous compatible list
-            num_id = list_state["ordered"].get(key)
-            if num_id is None:
-                # No prior list to continue – create one starting at the given value
-                num_id = _create_num(doc, abstract_num_id, start_override=start, level=level)
+            abstract_num_id = _get_or_create_abstract_num(doc, num_fmt, lvl_text)
 
-        list_state["ordered"][key] = num_id
+            # Key for tracking continuation: lists at the same nesting level
+            # with the same format can continue numbering across boundaries
+            key = (level, num_fmt, lvl_text)
+
+            if start == 1:
+                num_id = _create_num(doc, abstract_num_id, start_override=1, level=level)
+            else:
+                num_id = list_state["ordered"].get(key)
+                if num_id is None:
+                    num_id = _create_num(doc, abstract_num_id, start_override=start, level=level)
+
+            list_state["ordered"][key] = num_id
 
     else:
         clamped_level = min(level, 2)
@@ -967,8 +1055,13 @@ def _add_list_items(doc: Document, list_element, level: int, list_state: dict) -
                 doc.add_paragraph(text, style=bullet_style)
 
         # Recurse into nested <ul> or <ol> (direct children of this <li>)
+        # Nested ordered lists inherit the parent numId so Word keeps them
+        # under one coherent multilevel numbering instance.
+        effective_parent = num_id if is_numbered else parent_num_id
         for nested_list in li.find_all(["ul", "ol"], recursive=False):
-            _add_list_items(doc, nested_list, level + 1, list_state=list_state)
+            _add_list_items(
+                doc, nested_list, level + 1, list_state=list_state, parent_num_id=effective_parent
+            )
 
 
 def _add_formatted_text_to_paragraph(paragraph, html_element, skip_nested_lists: bool = False):
