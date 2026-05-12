@@ -160,6 +160,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [instagram](instagram): Comprehensive Instagram Business/Creator integration for managing posts, comments, and insights via the Instagram Graph API v24.0. Supports account information retrieval, content publishing (images, videos, reels, carousels, stories), comment moderation (read, reply, hide/unhide, delete), and advanced analytics for both account and post performance. Features Business Login for Instagram authentication with granular permissions, media container polling for reliable publishing, and support for alt text on images. Includes 8 actions covering account management, content creation, comment engagement, and insights retrieval. Rate limits scale with account reach (4800 × impressions per 24hrs) with 100 posts per day publishing limit.
 
+### Gmail
+
+[gmail](gmail): Comprehensive Gmail integration for sending, reading, searching, labelling, and organising email messages, threads, and drafts via the Gmail API v1. Supports plain-text and rich-HTML messages with attachments (HTML sanitised via `bleach` with auto-generated plain-text fallback), thread replies, full draft lifecycle (create/update/list/get/send/delete), label management (list/create/apply/remove/list-by-label), inbox and all-mail listing with read/unread filtering, batch mark-as-read/unread, and archive operations. Pagination supported on every list endpoint via `nextPageToken`. Uses Google platform OAuth 2.0 with the `gmail.modify` scope. Includes 21 actions across messages, threads, drafts, and labels.
+
 ### Google Calendar
 
 [google-calendar](google-calendar): Integrates with Google Calendar API for comprehensive calendar and event management within Autohive workflows. Supports listing accessible calendars, creating and managing calendar events (both timed and all-day), attendee management, and event lifecycle operations. Features secure OAuth2 authentication and pagination support for large event datasets.
