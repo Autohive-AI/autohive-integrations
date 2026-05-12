@@ -1,0 +1,866 @@
+{
+  "name": "Count",
+  "version": "1.0.0",
+  "description": "Count is a modern accounting platform for startups and SMBs. This integration provides actions for managing accounts, customers, vendors, products, transactions, invoices, bills, journal entries, tags, and financial reports.",
+  "display_name": "Count",
+  "supports_connected_account": true,
+  "entry_point": "count.py",
+  "auth": {
+    "type": "platform",
+    "provider": "count",
+    "scopes": []
+  },
+  "actions": {
+    "list_accounts": {
+      "display_name": "List Accounts",
+      "description": "List all chart of accounts.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer", "description": "Page number (default: 1)"},
+          "limit": {"type": "integer", "description": "Records per page (default: 20, max: 100)"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "accounts": {"type": "array"}
+        }
+      }
+    },
+    "create_account": {
+      "display_name": "Create Account",
+      "description": "Add a new account to the chart of accounts.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Account name"},
+          "type": {"type": "string", "description": "Account type"},
+          "code": {"type": "string", "description": "Account code"}
+        },
+        "required": ["name", "type"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "account": {"type": "object"}
+        }
+      }
+    },
+    "update_account": {
+      "display_name": "Update Account",
+      "description": "Update an existing account.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_uuid": {"type": "string", "description": "UUID of the account to update"},
+          "name": {"type": "string", "description": "New account name"},
+          "type": {"type": "string", "description": "New account type"},
+          "code": {"type": "string", "description": "New account code"}
+        },
+        "required": ["account_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "account": {"type": "object"}
+        }
+      }
+    },
+    "delete_account": {
+      "display_name": "Delete Account",
+      "description": "Delete an account from the chart of accounts.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_uuid": {"type": "string", "description": "UUID of the account to delete"}
+        },
+        "required": ["account_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "deleted": {"type": "boolean"}
+        }
+      }
+    },
+    "list_customers": {
+      "display_name": "List Customers",
+      "description": "List all customers with optional search and pagination.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search": {"type": "string", "description": "Filter by name, email, or phone"},
+          "page": {"type": "integer", "description": "Page number (default: 1)"},
+          "limit": {"type": "integer", "description": "Records per page (default: 20, max: 100)"},
+          "orderBy": {"type": "string", "description": "Sort field: customer, email, createdAt, updatedAt"},
+          "orderDirection": {"type": "string", "description": "ASC or DESC"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "customers": {"type": "array"}
+        }
+      }
+    },
+    "get_customer": {
+      "display_name": "Get Customer",
+      "description": "Get a customer by UUID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_uuid": {"type": "string", "description": "UUID of the customer"}
+        },
+        "required": ["customer_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "customer": {"type": "object"}
+        }
+      }
+    },
+    "find_customer_by_email": {
+      "display_name": "Find Customer by Email",
+      "description": "Find a customer by their email address.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {"type": "string", "description": "Email address to search for"}
+        },
+        "required": ["email"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "customer": {"type": "object"}
+        }
+      }
+    },
+    "create_customer": {
+      "display_name": "Create Customer",
+      "description": "Add a new customer.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Customer name"},
+          "email": {"type": "string", "description": "Customer email"},
+          "phone": {"type": "string", "description": "Customer phone number"},
+          "website": {"type": "string", "description": "Customer website"},
+          "notes": {"type": "string", "description": "Additional notes"}
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "customer": {"type": "object"}
+        }
+      }
+    },
+    "update_customer": {
+      "display_name": "Update Customer",
+      "description": "Update an existing customer.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_uuid": {"type": "string", "description": "UUID of the customer to update"},
+          "name": {"type": "string", "description": "Customer name"},
+          "email": {"type": "string", "description": "Customer email"},
+          "phone": {"type": "string", "description": "Customer phone number"},
+          "website": {"type": "string", "description": "Customer website"},
+          "notes": {"type": "string", "description": "Additional notes"}
+        },
+        "required": ["customer_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "customer": {"type": "object"}
+        }
+      }
+    },
+    "delete_customer": {
+      "display_name": "Delete Customer",
+      "description": "Delete a customer.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_uuid": {"type": "string", "description": "UUID of the customer to delete"}
+        },
+        "required": ["customer_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "deleted": {"type": "boolean"}
+        }
+      }
+    },
+    "list_vendors": {
+      "display_name": "List Vendors",
+      "description": "List all vendors.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search": {"type": "string", "description": "Filter by vendor name or email"},
+          "page": {"type": "integer", "description": "Page number (default: 1)"},
+          "limit": {"type": "integer", "description": "Records per page (default: 20, max: 100)"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "vendors": {"type": "array"}
+        }
+      }
+    },
+    "create_vendor": {
+      "display_name": "Create Vendor",
+      "description": "Add a new vendor.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Vendor name"},
+          "email": {"type": "string", "description": "Vendor email"},
+          "website": {"type": "string", "description": "Vendor website"},
+          "phone": {"type": "string", "description": "Vendor phone"},
+          "taxNumber": {"type": "string", "description": "Tax identification number"}
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "vendor": {"type": "object"}
+        }
+      }
+    },
+    "update_vendor": {
+      "display_name": "Update Vendor",
+      "description": "Update an existing vendor.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "vendor_uuid": {"type": "string", "description": "UUID of the vendor to update"},
+          "name": {"type": "string", "description": "Vendor name"},
+          "email": {"type": "string", "description": "Vendor email"},
+          "website": {"type": "string", "description": "Vendor website"},
+          "phone": {"type": "string", "description": "Vendor phone"}
+        },
+        "required": ["vendor_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "vendor": {"type": "object"}
+        }
+      }
+    },
+    "delete_vendor": {
+      "display_name": "Delete Vendor",
+      "description": "Delete a vendor.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "vendor_uuid": {"type": "string", "description": "UUID of the vendor to delete"}
+        },
+        "required": ["vendor_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "deleted": {"type": "boolean"}
+        }
+      }
+    },
+    "list_products": {
+      "display_name": "List Products",
+      "description": "List all products and services.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search": {"type": "string", "description": "Filter by product name"},
+          "page": {"type": "integer", "description": "Page number (default: 1)"},
+          "limit": {"type": "integer", "description": "Records per page (default: 20, max: 100)"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "products": {"type": "array"}
+        }
+      }
+    },
+    "get_product": {
+      "display_name": "Get Product",
+      "description": "Get a product or service by UUID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_uuid": {"type": "string", "description": "UUID of the product"}
+        },
+        "required": ["product_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "product": {"type": "object"}
+        }
+      }
+    },
+    "find_product_by_name": {
+      "display_name": "Find Product by Name",
+      "description": "Find a product or service by name.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Product name to search for"}
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "product": {"type": "object"}
+        }
+      }
+    },
+    "create_product": {
+      "display_name": "Create Product",
+      "description": "Add a new product or service.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Product name"},
+          "description": {"type": "string", "description": "Product description"},
+          "price": {"type": "number", "description": "Unit price"},
+          "type": {"type": "string", "description": "Product type: product or service"}
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "product": {"type": "object"}
+        }
+      }
+    },
+    "update_product": {
+      "display_name": "Update Product",
+      "description": "Update an existing product or service.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_uuid": {"type": "string", "description": "UUID of the product to update"},
+          "name": {"type": "string", "description": "Product name"},
+          "description": {"type": "string", "description": "Product description"},
+          "price": {"type": "number", "description": "Unit price"}
+        },
+        "required": ["product_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "product": {"type": "object"}
+        }
+      }
+    },
+    "delete_product": {
+      "display_name": "Delete Product",
+      "description": "Delete a product or service.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_uuid": {"type": "string", "description": "UUID of the product to delete"}
+        },
+        "required": ["product_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "deleted": {"type": "boolean"}
+        }
+      }
+    },
+    "list_transactions": {
+      "display_name": "List Transactions",
+      "description": "List all transactions.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer", "description": "Page number (default: 1)"},
+          "limit": {"type": "integer", "description": "Records per page (default: 20, max: 100)"},
+          "startDate": {"type": "string", "description": "Filter from date (ISO 8601)"},
+          "endDate": {"type": "string", "description": "Filter to date (ISO 8601)"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "transactions": {"type": "array"}
+        }
+      }
+    },
+    "create_transaction": {
+      "display_name": "Create Transaction",
+      "description": "Create a new transaction.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "date": {"type": "string", "description": "Transaction date (ISO 8601)"},
+          "amount": {"type": "number", "description": "Transaction amount"},
+          "description": {"type": "string", "description": "Transaction description"},
+          "accountUuid": {"type": "string", "description": "UUID of the account"}
+        },
+        "required": ["date", "amount", "accountUuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "transaction": {"type": "object"}
+        }
+      }
+    },
+    "update_transaction": {
+      "display_name": "Update Transaction",
+      "description": "Update an existing transaction.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "transaction_uuid": {"type": "string", "description": "UUID of the transaction to update"},
+          "date": {"type": "string", "description": "Transaction date (ISO 8601)"},
+          "amount": {"type": "number", "description": "Transaction amount"},
+          "description": {"type": "string", "description": "Transaction description"}
+        },
+        "required": ["transaction_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "transaction": {"type": "object"}
+        }
+      }
+    },
+    "delete_transaction": {
+      "display_name": "Delete Transaction",
+      "description": "Delete a transaction.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "transaction_uuid": {"type": "string", "description": "UUID of the transaction to delete"}
+        },
+        "required": ["transaction_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "deleted": {"type": "boolean"}
+        }
+      }
+    },
+    "get_invoice": {
+      "display_name": "Get Invoice",
+      "description": "Get an invoice by UUID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "invoice_uuid": {"type": "string", "description": "UUID of the invoice"}
+        },
+        "required": ["invoice_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "invoice": {"type": "object"}
+        }
+      }
+    },
+    "create_invoice": {
+      "display_name": "Create Invoice",
+      "description": "Create a new invoice.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customerUuid": {"type": "string", "description": "UUID of the customer"},
+          "invoiceNumber": {"type": "string", "description": "Invoice number"},
+          "date": {"type": "string", "description": "Invoice date (ISO 8601)"},
+          "dueDate": {"type": "string", "description": "Payment due date (ISO 8601)"},
+          "isDraft": {"type": "boolean", "description": "Whether to save as draft"},
+          "invoiceType": {"type": "string", "description": "Type: invoice, quote, or estimate"},
+          "products": {"type": "array", "description": "Line items with productUuid, description, quantity, price"},
+          "notes": {"type": "string", "description": "Additional notes"},
+          "tagUuids": {"type": "array", "description": "Tag UUIDs to attach"}
+        },
+        "required": ["customerUuid", "invoiceNumber", "date", "dueDate", "invoiceType", "products"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "invoice": {"type": "object"}
+        }
+      }
+    },
+    "update_invoice": {
+      "display_name": "Update Invoice",
+      "description": "Update an existing invoice.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "invoice_uuid": {"type": "string", "description": "UUID of the invoice to update"},
+          "dueDate": {"type": "string", "description": "New due date (ISO 8601)"},
+          "notes": {"type": "string", "description": "Updated notes"},
+          "isDraft": {"type": "boolean", "description": "Draft status"}
+        },
+        "required": ["invoice_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "invoice": {"type": "object"}
+        }
+      }
+    },
+    "delete_invoice": {
+      "display_name": "Delete Invoice",
+      "description": "Delete an invoice.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "invoice_uuid": {"type": "string", "description": "UUID of the invoice to delete"}
+        },
+        "required": ["invoice_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "deleted": {"type": "boolean"}
+        }
+      }
+    },
+    "create_bill": {
+      "display_name": "Create Bill",
+      "description": "Add a new bill from a vendor.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "vendorUuid": {"type": "string", "description": "UUID of the vendor"},
+          "billNumber": {"type": "string", "description": "Bill number"},
+          "date": {"type": "string", "description": "Bill date (ISO 8601)"},
+          "dueDate": {"type": "string", "description": "Payment due date (ISO 8601)"},
+          "products": {"type": "array", "description": "Line items with productUuid, description, quantity, price"},
+          "notes": {"type": "string", "description": "Additional notes"}
+        },
+        "required": ["vendorUuid", "date", "dueDate", "products"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "bill": {"type": "object"}
+        }
+      }
+    },
+    "update_bill": {
+      "display_name": "Update Bill",
+      "description": "Update an existing bill.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "bill_uuid": {"type": "string", "description": "UUID of the bill to update"},
+          "dueDate": {"type": "string", "description": "New due date (ISO 8601)"},
+          "notes": {"type": "string", "description": "Updated notes"}
+        },
+        "required": ["bill_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "bill": {"type": "object"}
+        }
+      }
+    },
+    "delete_bill": {
+      "display_name": "Delete Bill",
+      "description": "Delete a bill.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "bill_uuid": {"type": "string", "description": "UUID of the bill to delete"}
+        },
+        "required": ["bill_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "deleted": {"type": "boolean"}
+        }
+      }
+    },
+    "approve_bill": {
+      "display_name": "Approve Bill",
+      "description": "Approve a bill for payment.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "bill_uuid": {"type": "string", "description": "UUID of the bill to approve"}
+        },
+        "required": ["bill_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "bill": {"type": "object"}
+        }
+      }
+    },
+    "list_journal_entries": {
+      "display_name": "List Journal Entries",
+      "description": "List all journal entries.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer", "description": "Page number (default: 1)"},
+          "limit": {"type": "integer", "description": "Records per page (default: 20, max: 100)"},
+          "startDate": {"type": "string", "description": "Filter from date (ISO 8601)"},
+          "endDate": {"type": "string", "description": "Filter to date (ISO 8601)"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "journal_entries": {"type": "array"}
+        }
+      }
+    },
+    "create_journal_entry": {
+      "display_name": "Create Journal Entry",
+      "description": "Add a new journal entry.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "date": {"type": "string", "description": "Entry date (ISO 8601)"},
+          "description": {"type": "string", "description": "Journal entry description"},
+          "lines": {"type": "array", "description": "Debit/credit lines with accountUuid, amount, type (debit/credit)"}
+        },
+        "required": ["date", "lines"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "journal_entry": {"type": "object"}
+        }
+      }
+    },
+    "update_journal_entry": {
+      "display_name": "Update Journal Entry",
+      "description": "Update an existing journal entry.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "journal_entry_uuid": {"type": "string", "description": "UUID of the journal entry to update"},
+          "description": {"type": "string", "description": "Updated description"},
+          "date": {"type": "string", "description": "Updated date (ISO 8601)"}
+        },
+        "required": ["journal_entry_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "journal_entry": {"type": "object"}
+        }
+      }
+    },
+    "delete_journal_entry": {
+      "display_name": "Delete Journal Entry",
+      "description": "Delete a journal entry.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "journal_entry_uuid": {"type": "string", "description": "UUID of the journal entry to delete"}
+        },
+        "required": ["journal_entry_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "deleted": {"type": "boolean"}
+        }
+      }
+    },
+    "list_tags": {
+      "display_name": "List Tags",
+      "description": "List all tags.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer", "description": "Page number (default: 1)"},
+          "limit": {"type": "integer", "description": "Records per page (default: 20, max: 100)"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "tags": {"type": "array"}
+        }
+      }
+    },
+    "create_tag": {
+      "display_name": "Create Tag",
+      "description": "Create a new tag.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Tag name"},
+          "color": {"type": "string", "description": "Tag color (hex)"}
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "tag": {"type": "object"}
+        }
+      }
+    },
+    "update_tag": {
+      "display_name": "Update Tag",
+      "description": "Update an existing tag.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tag_uuid": {"type": "string", "description": "UUID of the tag to update"},
+          "name": {"type": "string", "description": "New tag name"},
+          "color": {"type": "string", "description": "New tag color (hex)"}
+        },
+        "required": ["tag_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "tag": {"type": "object"}
+        }
+      }
+    },
+    "delete_tag": {
+      "display_name": "Delete Tag",
+      "description": "Delete a tag.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tag_uuid": {"type": "string", "description": "UUID of the tag to delete"}
+        },
+        "required": ["tag_uuid"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "deleted": {"type": "boolean"}
+        }
+      }
+    },
+    "get_trial_balance": {
+      "display_name": "Get Trial Balance",
+      "description": "Get the trial balance report.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "startDate": {"type": "string", "description": "Report start date (ISO 8601)"},
+          "endDate": {"type": "string", "description": "Report end date (ISO 8601)"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "report": {"type": "object"}
+        }
+      }
+    },
+    "get_balance_sheet": {
+      "display_name": "Get Balance Sheet",
+      "description": "Get the balance sheet report.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "date": {"type": "string", "description": "As-of date for the balance sheet (ISO 8601)"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "report": {"type": "object"}
+        }
+      }
+    },
+    "get_profit_and_loss": {
+      "display_name": "Get Profit and Loss",
+      "description": "Get the profit and loss report.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "startDate": {"type": "string", "description": "Report start date (ISO 8601)"},
+          "endDate": {"type": "string", "description": "Report end date (ISO 8601)"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "report": {"type": "object"}
+        }
+      }
+    }
+  }
+}

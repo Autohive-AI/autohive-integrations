@@ -75,6 +75,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [coda](coda): Coda integration for managing documents, pages, tables, and rows. Supports full CRUD operations for docs (list, get, create, update, delete) and pages (list, get, create with HTML/Markdown content, update metadata, delete). Includes table and column discovery (list tables/columns, get table/column details) and complete row management (list with filtering/sorting, get, upsert with keyColumns, update, delete single/multiple). Features Bearer token authentication, pagination support, async processing (HTTP 202 responses), multiple value formats (simple/rich), and comprehensive error handling. Ideal for document automation, content management, and data synchronization workflows.
 
+### Count
+
+[count](count): Count is a modern accounting platform for startups and SMBs. The integration provides 43 actions covering chart of accounts, customers, vendors, products, transactions, invoices, bills, journal entries, tags, and financial reports (trial balance, balance sheet, profit & loss). Supports OAuth 2.0 authentication via the Count developer portal. Ideal for automating accounting workflows, syncing financial data, managing invoices and bills, and generating reports for accounting firms.
+
 ### ElevenLabs
 
 [elevenlabs](elevenlabs): Text-to-speech and speech-to-text integration with ElevenLabs API for voice generation, audio transcription, and audio management. Supports converting text to realistic speech with customizable voice settings, transcribing audio/video files using ElevenLabs Scribe with word-level timestamps and speaker diarization, browsing voices, managing transcripts, and monitoring subscription usage. Features 10 actions (1 paid, 9 free) covering text-to-speech, speech-to-text, voice management, history, and account. Uses API key authentication. Ideal for content creation, audiobook narration, voiceovers, meeting transcription, and automated audio/transcription workflows.
