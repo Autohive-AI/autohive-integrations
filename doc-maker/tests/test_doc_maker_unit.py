@@ -17,7 +17,9 @@ from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 # Load the module from its file location (Integration.load() needs the cwd set)
 _original_cwd = os.getcwd()
 os.chdir(_parent)
-_spec = importlib.util.spec_from_file_location("doc_maker_mod", os.path.join(_parent, "doc_maker.py"))
+_spec = importlib.util.spec_from_file_location(
+    "doc_maker_mod", os.path.join(_parent, "doc_maker.py")
+)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 os.chdir(_original_cwd)
@@ -52,7 +54,9 @@ def _make_docx_bytes() -> bytes:
     return buf.read()
 
 
-def _make_file_item(name: str, data: bytes, content_type: str = "application/octet-stream") -> dict:
+def _make_file_item(
+    name: str, data: bytes, content_type: str = "application/octet-stream"
+) -> dict:
     return {
         "name": name,
         "contentType": content_type,
@@ -102,12 +106,16 @@ class TestDetectPlaceholderPatterns:
         assert is_ph is True
 
     def test_real_content_not_placeholder(self):
-        is_ph, pattern = detect_placeholder_patterns("This is a complete sentence with actual content.")
+        is_ph, pattern = detect_placeholder_patterns(
+            "This is a complete sentence with actual content."
+        )
         assert is_ph is False
         assert pattern == "content"
 
     def test_business_content_not_placeholder(self):
-        is_ph, _ = detect_placeholder_patterns("The quarterly revenue exceeded expectations.")
+        is_ph, _ = detect_placeholder_patterns(
+            "The quarterly revenue exceeded expectations."
+        )
         assert is_ph is False
 
 
@@ -148,10 +156,20 @@ class TestIsLikelyPlaceholderContext:
         assert is_likely_placeholder_context("insert data here", "data") is True
 
     def test_content_sentence_not_placeholder(self):
-        assert is_likely_placeholder_context("The project name should be descriptive.", "name") is False
+        assert (
+            is_likely_placeholder_context(
+                "The project name should be descriptive.", "name"
+            )
+            is False
+        )
 
     def test_complete_sentence_not_placeholder(self):
-        assert is_likely_placeholder_context("The date for the meeting has been set.", "date") is False
+        assert (
+            is_likely_placeholder_context(
+                "The date for the meeting has been set.", "date"
+            )
+            is False
+        )
 
 
 class TestAnalyzeReplacementSafety:
@@ -262,7 +280,9 @@ class TestSaveDocument:
     @pytest.mark.asyncio
     async def test_save_existing_document_succeeds(self, mock_context):
         # Create doc first
-        create_result = await doc_maker.execute_action("create_document", {}, mock_context)
+        create_result = await doc_maker.execute_action(
+            "create_document", {}, mock_context
+        )
         doc_id = create_result.result.data["document_id"]
 
         result = await doc_maker.execute_action(
@@ -323,7 +343,9 @@ class TestGetDocumentElements:
 class TestAddTable:
     @pytest.mark.asyncio
     async def test_add_table_to_document(self, mock_context):
-        create_result = await doc_maker.execute_action("create_document", {}, mock_context)
+        create_result = await doc_maker.execute_action(
+            "create_document", {}, mock_context
+        )
         doc_id = create_result.result.data["document_id"]
         docx_bytes = base64.b64decode(create_result.result.data["file"]["content"])
         file_item = _make_file_item(f"{doc_id}.docx", docx_bytes)
@@ -361,7 +383,9 @@ class TestAddTable:
 class TestAddMarkdownContent:
     @pytest.mark.asyncio
     async def test_add_markdown_to_existing_document(self, mock_context):
-        create_result = await doc_maker.execute_action("create_document", {}, mock_context)
+        create_result = await doc_maker.execute_action(
+            "create_document", {}, mock_context
+        )
         doc_id = create_result.result.data["document_id"]
         docx_bytes = base64.b64decode(create_result.result.data["file"]["content"])
         file_item = _make_file_item(f"{doc_id}.docx", docx_bytes)
@@ -392,7 +416,9 @@ class TestAddMarkdownContent:
 class TestAddPageBreak:
     @pytest.mark.asyncio
     async def test_add_page_break(self, mock_context):
-        create_result = await doc_maker.execute_action("create_document", {}, mock_context)
+        create_result = await doc_maker.execute_action(
+            "create_document", {}, mock_context
+        )
         doc_id = create_result.result.data["document_id"]
         docx_bytes = base64.b64decode(create_result.result.data["file"]["content"])
         file_item = _make_file_item(f"{doc_id}.docx", docx_bytes)
@@ -432,7 +458,9 @@ class TestUpdateByPosition:
             "update_by_position",
             {
                 "document_id": doc_id,
-                "updates": [{"type": "paragraph", "index": 0, "content": "Updated content"}],
+                "updates": [
+                    {"type": "paragraph", "index": 0, "content": "Updated content"}
+                ],
                 "files": [file_item],
             },
             mock_context,
@@ -472,7 +500,9 @@ class TestFindAndReplace:
             "find_and_replace",
             {
                 "document_id": doc_id,
-                "replacements": [{"find": "{{NAME}}", "replace": "Alice", "replace_all": True}],
+                "replacements": [
+                    {"find": "{{NAME}}", "replace": "Alice", "replace_all": True}
+                ],
                 "files": [file_item],
             },
             mock_context,
@@ -507,7 +537,9 @@ class TestFindAndReplace:
             "find_and_replace",
             {
                 "document_id": doc_id,
-                "replacements": [{"find": "NONEXISTENT_TEXT_XYZ", "replace": "replacement"}],
+                "replacements": [
+                    {"find": "NONEXISTENT_TEXT_XYZ", "replace": "replacement"}
+                ],
                 "files": [file_item],
             },
             mock_context,
@@ -520,7 +552,9 @@ class TestFindAndReplace:
     async def test_find_and_replace_invalid_type_replacements(self, mock_context):
         # The SDK validates input schema: replacements must be array, so passing a
         # non-array non-string type triggers VALIDATION_ERROR before the handler runs.
-        create_result = await doc_maker.execute_action("create_document", {}, mock_context)
+        create_result = await doc_maker.execute_action(
+            "create_document", {}, mock_context
+        )
         doc_id = create_result.result.data["document_id"]
         docx_bytes = base64.b64decode(create_result.result.data["file"]["content"])
         file_item = _make_file_item(f"{doc_id}.docx", docx_bytes)
@@ -640,8 +674,14 @@ class TestParenthesizedListNumbering:
         doc = Document()
         parse_markdown_to_docx(doc, self.MARKDOWN)
 
-        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
-        assert len(numbered) == 6, f"Expected 6 numbered paragraphs, got {len(numbered)}: {numbered}"
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
+        assert len(numbered) == 6, (
+            f"Expected 6 numbered paragraphs, got {len(numbered)}: {numbered}"
+        )
 
     def test_top_level_items_are_at_ilvl_zero(self):
         from docx import Document
@@ -649,8 +689,16 @@ class TestParenthesizedListNumbering:
         doc = Document()
         parse_markdown_to_docx(doc, self.MARKDOWN)
 
-        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
-        top_items = [(text, numpr) for text, numpr in numbered if "Elephant" == text or "Axolotl" == text]
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
+        top_items = [
+            (text, numpr)
+            for text, numpr in numbered
+            if "Elephant" == text or "Axolotl" == text
+        ]
         assert len(top_items) == 2, f"Expected 2 top-level items, got {top_items}"
         for text, (num_id, ilvl) in top_items:
             assert ilvl == 0, f"'{text}' should be at ilvl 0, got {ilvl}"
@@ -661,11 +709,21 @@ class TestParenthesizedListNumbering:
         doc = Document()
         parse_markdown_to_docx(doc, self.MARKDOWN)
 
-        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
-        sub_items = [(text, numpr) for text, numpr in numbered if text not in ("Elephant", "Axolotl")]
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
+        sub_items = [
+            (text, numpr)
+            for text, numpr in numbered
+            if text not in ("Elephant", "Axolotl")
+        ]
         assert len(sub_items) == 4, f"Expected 4 sub-items, got {len(sub_items)}"
         for text, (num_id, ilvl) in sub_items:
-            assert ilvl >= 1, f"Sub-item should be indented (ilvl >= 1), got {ilvl}: {text}"
+            assert ilvl >= 1, (
+                f"Sub-item should be indented (ilvl >= 1), got {ilvl}: {text}"
+            )
 
     def test_top_level_uses_decimal_numbering(self):
         from docx import Document
@@ -674,7 +732,11 @@ class TestParenthesizedListNumbering:
         doc = Document()
         parse_markdown_to_docx(doc, self.MARKDOWN)
 
-        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
         elephant = next((text, numpr) for text, numpr in numbered if text == "Elephant")
         num_id = elephant[1][0]
         abstract = self._get_abstract_num_for(doc, num_id)
@@ -690,8 +752,14 @@ class TestParenthesizedListNumbering:
         doc = Document()
         parse_markdown_to_docx(doc, self.MARKDOWN)
 
-        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
-        first_sub = next((text, numpr) for text, numpr in numbered if "Elephants are" in text)
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
+        first_sub = next(
+            (text, numpr) for text, numpr in numbered if "Elephants are" in text
+        )
         num_id, ilvl = first_sub[1]
         abstract = self._get_abstract_num_for(doc, num_id)
         assert abstract is not None
@@ -707,7 +775,9 @@ class TestParenthesizedListNumbering:
         fmt = target_lvl.find(qn("w:numFmt")).get(qn("w:val"))
         assert fmt == "lowerLetter", f"Sub-items should be lowerLetter, got {fmt}"
         lvl_text = target_lvl.find(qn("w:lvlText")).get(qn("w:val"))
-        assert "(" in lvl_text, f"Sub-items should have parenthesized format, got '{lvl_text}'"
+        assert "(" in lvl_text, (
+            f"Sub-items should have parenthesized format, got '{lvl_text}'"
+        )
 
     def test_elephant_text_on_same_line_as_number(self):
         """The parent item text must appear in the same paragraph as the numbering."""
@@ -716,7 +786,11 @@ class TestParenthesizedListNumbering:
         doc = Document()
         parse_markdown_to_docx(doc, self.MARKDOWN)
 
-        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
         elephant_paras = [(t, n) for t, n in numbered if "Elephant" in t and n[1] == 0]
         assert len(elephant_paras) >= 1
         assert elephant_paras[0][0] == "Elephant", (
@@ -730,7 +804,11 @@ class TestParenthesizedListNumbering:
         doc = Document()
         parse_markdown_to_docx(doc, self.MARKDOWN)
 
-        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
         num_ids = set(numpr[0] for _, numpr in numbered)
         assert len(num_ids) == 1, (
             f"All items should share one numId for coherent multilevel numbering, got {num_ids}"
@@ -741,14 +819,7 @@ class TestMultipleParenListsAfterHeadings:
     """Verify that multiple (1)-style lists separated by headings all display numbering
     and are left-aligned when the markdown has no leading spaces."""
 
-    MARKDOWN = (
-        "# Animals\n"
-        "(1) Elephant\n"
-        "(2) Tiger\n"
-        "# Fish\n"
-        "(1) squid\n"
-        "(2) Whale"
-    )
+    MARKDOWN = "# Animals\n(1) Elephant\n(2) Tiger\n# Fish\n(1) squid\n(2) Whale"
 
     @staticmethod
     def _get_numpr(paragraph):
@@ -786,8 +857,14 @@ class TestMultipleParenListsAfterHeadings:
         doc = Document()
         parse_markdown_to_docx(doc, self.MARKDOWN)
 
-        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
-        assert len(numbered) == 4, f"Expected 4 numbered paragraphs, got {len(numbered)}: {numbered}"
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
+        assert len(numbered) == 4, (
+            f"Expected 4 numbered paragraphs, got {len(numbered)}: {numbered}"
+        )
 
     def test_each_list_has_its_own_abstract_num(self):
         """Each independent list must get its own abstractNum to avoid Word dropping numbers."""
@@ -797,7 +874,11 @@ class TestMultipleParenListsAfterHeadings:
         doc = Document()
         parse_markdown_to_docx(doc, self.MARKDOWN)
 
-        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
         animals_num_id = numbered[0][1][0]
         fish_num_id = numbered[2][1][0]
 
@@ -819,7 +900,11 @@ class TestMultipleParenListsAfterHeadings:
         doc = Document()
         parse_markdown_to_docx(doc, self.MARKDOWN)
 
-        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
         for text, (num_id, ilvl) in numbered:
             assert ilvl == 0, f"'{text}' should be at ilvl 0, got {ilvl}"
 
@@ -831,7 +916,11 @@ class TestMultipleParenListsAfterHeadings:
         doc = Document()
         parse_markdown_to_docx(doc, self.MARKDOWN)
 
-        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
         first_num_id = numbered[0][1][0]
         abstract = self._get_abstract_num_for(doc, first_num_id)
         assert abstract is not None
@@ -860,7 +949,11 @@ class TestMultipleParenListsAfterHeadings:
         doc = Document()
         parse_markdown_to_docx(doc, self.MARKDOWN)
 
-        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
         for text, (num_id, ilvl) in numbered:
             abstract = self._get_abstract_num_for(doc, num_id)
             assert abstract is not None
@@ -869,7 +962,9 @@ class TestMultipleParenListsAfterHeadings:
                     fmt = lvl.find(qn("w:numFmt")).get(qn("w:val"))
                     assert fmt == "decimal", f"'{text}' should use decimal, got {fmt}"
                     lvl_text = lvl.find(qn("w:lvlText")).get(qn("w:val"))
-                    assert "(" in lvl_text, f"'{text}' should have paren format, got '{lvl_text}'"
+                    assert "(" in lvl_text, (
+                        f"'{text}' should have paren format, got '{lvl_text}'"
+                    )
 
 
 class TestMixedNumberedListFormats:
@@ -959,7 +1054,11 @@ class TestMixedNumberedListFormats:
         return doc
 
     def _numbered_paragraphs(self, doc):
-        return [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        return [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
 
     # ---- 1. All 15 items are numbered paragraphs ----
 
@@ -1019,7 +1118,9 @@ class TestMixedNumberedListFormats:
         abstract = self._get_abstract_num_for(doc, num_id)
         lvl = self._get_lvl(abstract, ilvl)
         fmt = lvl.find(qn("w:numFmt")).get(qn("w:val"))
-        assert fmt == "lowerLetter", f"Lower letter list should be lowerLetter, got {fmt}"
+        assert fmt == "lowerLetter", (
+            f"Lower letter list should be lowerLetter, got {fmt}"
+        )
 
     def test_paren_upper_letter_uses_upper_letter_format(self):
         from docx.oxml.ns import qn
@@ -1031,7 +1132,9 @@ class TestMixedNumberedListFormats:
         abstract = self._get_abstract_num_for(doc, num_id)
         lvl = self._get_lvl(abstract, ilvl)
         fmt = lvl.find(qn("w:numFmt")).get(qn("w:val"))
-        assert fmt == "upperLetter", f"Upper letter list should be upperLetter, got {fmt}"
+        assert fmt == "upperLetter", (
+            f"Upper letter list should be upperLetter, got {fmt}"
+        )
 
     def test_paren_roman_uses_lower_roman_format(self):
         from docx.oxml.ns import qn
@@ -1043,7 +1146,9 @@ class TestMixedNumberedListFormats:
         abstract = self._get_abstract_num_for(doc, num_id)
         lvl = self._get_lvl(abstract, ilvl)
         fmt = lvl.find(qn("w:numFmt")).get(qn("w:val"))
-        assert fmt == "lowerRoman", f"Roman numeral list should be lowerRoman, got {fmt}"
+        assert fmt == "lowerRoman", (
+            f"Roman numeral list should be lowerRoman, got {fmt}"
+        )
 
     # ---- 4. Parenthesized lvlText for bracket lists ----
 
@@ -1124,8 +1229,12 @@ class TestMixedNumberedListFormats:
             assert ind is not None, f"Level {ilvl} should have indent"
             hanging = ind.get(qn("w:hanging"))
             left = ind.get(qn("w:left"))
-            assert hanging is not None, f"Hanging indent should be set for list starting at idx {start_idx}"
-            assert left is not None, f"Left indent should be set for list starting at idx {start_idx}"
+            assert hanging is not None, (
+                f"Hanging indent should be set for list starting at idx {start_idx}"
+            )
+            assert left is not None, (
+                f"Left indent should be set for list starting at idx {start_idx}"
+            )
 
     def test_all_lists_share_same_hanging_indent(self):
         """All lists at the same indentation level must use the same left and
@@ -1172,9 +1281,7 @@ class TestMixedNumberedListFormats:
             abstract = self._get_abstract_num_for(doc, num_id)
             lvl = self._get_lvl(abstract, ilvl)
             suff = lvl.find(qn("w:suff"))
-            assert suff is not None, (
-                f"'{text}' level should have a <w:suff> element"
-            )
+            assert suff is not None, f"'{text}' level should have a <w:suff> element"
             assert suff.get(qn("w:val")) == "tab", (
                 f"'{text}' suffix should be 'tab', got '{suff.get(qn('w:val'))}'"
             )
@@ -1272,7 +1379,11 @@ class TestOrderedListStartOverride:
         return doc
 
     def _numbered_paragraphs(self, doc):
-        return [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        return [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
 
     def test_produces_six_numbered_paragraphs(self):
         doc = self._build_doc()
@@ -1329,14 +1440,10 @@ class TestOrderedListStartOverride:
         checking the start value of its list and its position within the list."""
         doc = self._build_doc()
         numbered = self._numbered_paragraphs(doc)
-        num_ids = [numpr[0] for _, numpr in numbered]
-        distinct = list(dict.fromkeys(num_ids))
 
         for idx, (text, (num_id, ilvl)) in enumerate(numbered):
             list_start = self._get_start_val(doc, num_id, ilvl)
-            position_in_list = sum(
-                1 for i in range(idx) if numbered[i][1][0] == num_id
-            )
+            position_in_list = sum(1 for i in range(idx) if numbered[i][1][0] == num_id)
             effective_number = list_start + position_in_list
             expected_number = self.EXPECTED_ITEMS[idx][1]
             assert effective_number == expected_number, (
@@ -1431,24 +1538,24 @@ class TestNestedNumberedListIndentation:
 
     # (expected_text, expected_ilvl, expected_num_fmt)
     EXPECTED_ITEMS = [
-        ("one", 0, "decimal"),       # 1.
-        ("one", 1, "decimal"),       # (1)
-        ("one", 2, "lowerLetter"),   # (a)
-        ("one", 3, "upperLetter"),   # (A)
-        ("one", 4, "lowerRoman"),    # (i)
-        ("two", 4, "lowerRoman"),    # (ii)
-        ("two", 3, "upperLetter"),   # (B)
-        ("one", 4, "lowerRoman"),    # (i)
-        ("two", 4, "lowerRoman"),    # (ii)
-        ("two", 2, "lowerLetter"),   # (b)
-        ("one", 3, "upperLetter"),   # (A)
-        ("two", 3, "upperLetter"),   # (B)
-        ("two", 1, "decimal"),       # (2)
-        ("one", 2, "lowerLetter"),   # (a)
-        ("two", 2, "lowerLetter"),   # (b)
-        ("two", 0, "decimal"),       # 2.
-        ("one", 1, "decimal"),       # (1)
-        ("two", 1, "decimal"),       # (2)
+        ("one", 0, "decimal"),  # 1.
+        ("one", 1, "decimal"),  # (1)
+        ("one", 2, "lowerLetter"),  # (a)
+        ("one", 3, "upperLetter"),  # (A)
+        ("one", 4, "lowerRoman"),  # (i)
+        ("two", 4, "lowerRoman"),  # (ii)
+        ("two", 3, "upperLetter"),  # (B)
+        ("one", 4, "lowerRoman"),  # (i)
+        ("two", 4, "lowerRoman"),  # (ii)
+        ("two", 2, "lowerLetter"),  # (b)
+        ("one", 3, "upperLetter"),  # (A)
+        ("two", 3, "upperLetter"),  # (B)
+        ("two", 1, "decimal"),  # (2)
+        ("one", 2, "lowerLetter"),  # (a)
+        ("two", 2, "lowerLetter"),  # (b)
+        ("two", 0, "decimal"),  # 2.
+        ("one", 1, "decimal"),  # (1)
+        ("two", 1, "decimal"),  # (2)
     ]
 
     HANGING = 504  # _LIST_HANGING_INDENT
@@ -1500,7 +1607,11 @@ class TestNestedNumberedListIndentation:
         return doc
 
     def _numbered_paragraphs(self, doc):
-        return [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        return [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
 
     def test_produces_eighteen_numbered_paragraphs(self):
         doc = self._build_doc()
