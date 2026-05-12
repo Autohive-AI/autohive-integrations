@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any
 import base64
 
@@ -23,8 +23,7 @@ def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     Returns:
         Dictionary with Authorization and Content-Type headers
     """
-    credentials = context.auth.get("credentials", {})
-    api_key = credentials.get("api_key", "")
+    api_key = context.auth.get("api_key", "")
 
     # Freshdesk requires Basic Auth with format: api_key:X
     auth_string = f"{api_key}:X"
@@ -44,8 +43,7 @@ def get_base_url(context: ExecutionContext) -> str:
     Returns:
         Base URL string (e.g., https://yourcompany.freshdesk.com/api/v2)
     """
-    credentials = context.auth.get("credentials", {})
-    domain = credentials.get("domain", "")
+    domain = context.auth.get("domain", "")
 
     return f"https://{domain}.freshdesk.com/api/{FRESHDESK_API_VERSION}"
 
@@ -78,12 +76,12 @@ class ListCompaniesAction(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Response is a list of companies
-            companies = response if isinstance(response, list) else []
+            companies = response.data if isinstance(response.data, list) else []
 
-            return {"companies": companies, "total": len(companies), "result": True}
+            return ActionResult(data={"companies": companies, "total": len(companies)})
 
         except Exception as e:
-            return {"companies": [], "total": 0, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("create_company")
@@ -99,17 +97,17 @@ class CreateCompanyAction(ActionHandler):
             body = {"name": inputs["name"]}
 
             # Add optional fields if provided
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+            if inputs.get("description"):
+                body["description"] = inputs.get("description")
 
-            if "domains" in inputs and inputs["domains"]:
-                body["domains"] = inputs["domains"]
+            if inputs.get("domains"):
+                body["domains"] = inputs.get("domains")
 
-            if "note" in inputs and inputs["note"]:
-                body["note"] = inputs["note"]
+            if inputs.get("note"):
+                body["note"] = inputs.get("note")
 
-            if "custom_fields" in inputs and inputs["custom_fields"]:
-                body["custom_fields"] = inputs["custom_fields"]
+            if inputs.get("custom_fields"):
+                body["custom_fields"] = inputs.get("custom_fields")
 
             # Get auth headers and base URL
             headers = get_auth_headers(context)
@@ -119,10 +117,10 @@ class CreateCompanyAction(ActionHandler):
             url = f"{base_url}/companies"
             response = await context.fetch(url, method="POST", headers=headers, json=body)
 
-            return {"company": response, "result": True}
+            return ActionResult(data={"company": response.data})
 
         except Exception as e:
-            return {"company": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("get_company")
@@ -144,10 +142,10 @@ class GetCompanyAction(ActionHandler):
             url = f"{base_url}/companies/{company_id}"
             response = await context.fetch(url, method="GET", headers=headers)
 
-            return {"company": response, "result": True}
+            return ActionResult(data={"company": response.data})
 
         except Exception as e:
-            return {"company": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("update_company")
@@ -165,20 +163,20 @@ class UpdateCompanyAction(ActionHandler):
             # Build request body with only provided fields
             body = {}
 
-            if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
+            if inputs.get("name"):
+                body["name"] = inputs.get("name")
 
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+            if inputs.get("description"):
+                body["description"] = inputs.get("description")
 
-            if "domains" in inputs and inputs["domains"]:
-                body["domains"] = inputs["domains"]
+            if inputs.get("domains"):
+                body["domains"] = inputs.get("domains")
 
-            if "note" in inputs and inputs["note"]:
-                body["note"] = inputs["note"]
+            if inputs.get("note"):
+                body["note"] = inputs.get("note")
 
-            if "custom_fields" in inputs and inputs["custom_fields"]:
-                body["custom_fields"] = inputs["custom_fields"]
+            if inputs.get("custom_fields"):
+                body["custom_fields"] = inputs.get("custom_fields")
 
             # Get auth headers and base URL
             headers = get_auth_headers(context)
@@ -188,10 +186,10 @@ class UpdateCompanyAction(ActionHandler):
             url = f"{base_url}/companies/{company_id}"
             response = await context.fetch(url, method="PUT", headers=headers, json=body)
 
-            return {"company": response, "result": True}
+            return ActionResult(data={"company": response.data})
 
         except Exception as e:
-            return {"company": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("delete_company")
@@ -214,10 +212,10 @@ class DeleteCompanyAction(ActionHandler):
             url = f"{base_url}/companies/{company_id}"
             await context.fetch(url, method="DELETE", headers=headers)
 
-            return {"result": True}
+            return ActionResult(data={"deleted": True})
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("search_companies")
@@ -246,12 +244,13 @@ class SearchCompaniesAction(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Extract companies from response
-            companies = response.get("companies", []) if isinstance(response, dict) else []
+            body = response.data
+            companies = body.get("companies", []) if isinstance(body, dict) else []
 
-            return {"companies": companies, "total": len(companies), "result": True}
+            return ActionResult(data={"companies": companies, "total": len(companies)})
 
         except Exception as e:
-            return {"companies": [], "total": 0, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 # ---- Ticket Handlers ----
@@ -265,30 +264,30 @@ class CreateTicketAction(ActionHandler):
         try:
             body = {"subject": inputs["subject"], "email": inputs["email"]}
 
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
-            if "priority" in inputs:
-                body["priority"] = inputs["priority"]
-            if "status" in inputs:
-                body["status"] = inputs["status"]
-            if "source" in inputs:
-                body["source"] = inputs["source"]
-            if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
-            if "company_id" in inputs:
-                body["company_id"] = inputs["company_id"]
-            if "tags" in inputs and inputs["tags"]:
-                body["tags"] = inputs["tags"]
+            if inputs.get("description"):
+                body["description"] = inputs.get("description")
+            if inputs.get("priority") is not None:
+                body["priority"] = inputs.get("priority")
+            if inputs.get("status") is not None:
+                body["status"] = inputs.get("status")
+            if inputs.get("source") is not None:
+                body["source"] = inputs.get("source")
+            if inputs.get("name"):
+                body["name"] = inputs.get("name")
+            if inputs.get("company_id") is not None:
+                body["company_id"] = inputs.get("company_id")
+            if inputs.get("tags"):
+                body["tags"] = inputs.get("tags")
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
             response = await context.fetch(f"{base_url}/tickets", method="POST", headers=headers, json=body)
 
-            return {"ticket": response, "result": True}
+            return ActionResult(data={"ticket": response.data})
 
         except Exception as e:
-            return {"ticket": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("list_tickets")
@@ -304,12 +303,12 @@ class ListTicketsAction(ActionHandler):
 
             response = await context.fetch(f"{base_url}/tickets", method="GET", headers=headers, params=params)
 
-            tickets = response if isinstance(response, list) else []
+            tickets = response.data if isinstance(response.data, list) else []
 
-            return {"tickets": tickets, "total": len(tickets), "result": True}
+            return ActionResult(data={"tickets": tickets, "total": len(tickets)})
 
         except Exception as e:
-            return {"tickets": [], "total": 0, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("get_ticket")
@@ -325,10 +324,10 @@ class GetTicketAction(ActionHandler):
 
             response = await context.fetch(f"{base_url}/tickets/{ticket_id}", method="GET", headers=headers)
 
-            return {"ticket": response, "result": True}
+            return ActionResult(data={"ticket": response.data})
 
         except Exception as e:
-            return {"ticket": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("update_ticket")
@@ -340,26 +339,26 @@ class UpdateTicketAction(ActionHandler):
             ticket_id = inputs["ticket_id"]
             body = {}
 
-            if "subject" in inputs and inputs["subject"]:
-                body["subject"] = inputs["subject"]
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
-            if "priority" in inputs:
-                body["priority"] = inputs["priority"]
-            if "status" in inputs:
-                body["status"] = inputs["status"]
-            if "tags" in inputs and inputs["tags"]:
-                body["tags"] = inputs["tags"]
+            if inputs.get("subject"):
+                body["subject"] = inputs.get("subject")
+            if inputs.get("description"):
+                body["description"] = inputs.get("description")
+            if inputs.get("priority") is not None:
+                body["priority"] = inputs.get("priority")
+            if inputs.get("status") is not None:
+                body["status"] = inputs.get("status")
+            if inputs.get("tags"):
+                body["tags"] = inputs.get("tags")
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
             response = await context.fetch(f"{base_url}/tickets/{ticket_id}", method="PUT", headers=headers, json=body)
 
-            return {"ticket": response, "result": True}
+            return ActionResult(data={"ticket": response.data})
 
         except Exception as e:
-            return {"ticket": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("delete_ticket")
@@ -375,10 +374,10 @@ class DeleteTicketAction(ActionHandler):
 
             await context.fetch(f"{base_url}/tickets/{ticket_id}", method="DELETE", headers=headers)
 
-            return {"result": True}
+            return ActionResult(data={"deleted": True})
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 # ---- Contact Handlers ----
@@ -392,28 +391,28 @@ class CreateContactAction(ActionHandler):
         try:
             body = {"name": inputs["name"], "email": inputs["email"]}
 
-            if "phone" in inputs and inputs["phone"]:
-                body["phone"] = inputs["phone"]
-            if "mobile" in inputs and inputs["mobile"]:
-                body["mobile"] = inputs["mobile"]
-            if "company_id" in inputs:
-                body["company_id"] = inputs["company_id"]
-            if "job_title" in inputs and inputs["job_title"]:
-                body["job_title"] = inputs["job_title"]
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
-            if "tags" in inputs and inputs["tags"]:
-                body["tags"] = inputs["tags"]
+            if inputs.get("phone"):
+                body["phone"] = inputs.get("phone")
+            if inputs.get("mobile"):
+                body["mobile"] = inputs.get("mobile")
+            if inputs.get("company_id") is not None:
+                body["company_id"] = inputs.get("company_id")
+            if inputs.get("job_title"):
+                body["job_title"] = inputs.get("job_title")
+            if inputs.get("description"):
+                body["description"] = inputs.get("description")
+            if inputs.get("tags"):
+                body["tags"] = inputs.get("tags")
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
 
             response = await context.fetch(f"{base_url}/contacts", method="POST", headers=headers, json=body)
 
-            return {"contact": response, "result": True}
+            return ActionResult(data={"contact": response.data})
 
         except Exception as e:
-            return {"contact": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("list_contacts")
@@ -429,12 +428,12 @@ class ListContactsAction(ActionHandler):
 
             response = await context.fetch(f"{base_url}/contacts", method="GET", headers=headers, params=params)
 
-            contacts = response if isinstance(response, list) else []
+            contacts = response.data if isinstance(response.data, list) else []
 
-            return {"contacts": contacts, "total": len(contacts), "result": True}
+            return ActionResult(data={"contacts": contacts, "total": len(contacts)})
 
         except Exception as e:
-            return {"contacts": [], "total": 0, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("get_contact")
@@ -450,10 +449,10 @@ class GetContactAction(ActionHandler):
 
             response = await context.fetch(f"{base_url}/contacts/{contact_id}", method="GET", headers=headers)
 
-            return {"contact": response, "result": True}
+            return ActionResult(data={"contact": response.data})
 
         except Exception as e:
-            return {"contact": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("update_contact")
@@ -465,18 +464,18 @@ class UpdateContactAction(ActionHandler):
             contact_id = inputs["contact_id"]
             body = {}
 
-            if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
-            if "email" in inputs and inputs["email"]:
-                body["email"] = inputs["email"]
-            if "phone" in inputs and inputs["phone"]:
-                body["phone"] = inputs["phone"]
-            if "mobile" in inputs and inputs["mobile"]:
-                body["mobile"] = inputs["mobile"]
-            if "job_title" in inputs and inputs["job_title"]:
-                body["job_title"] = inputs["job_title"]
-            if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+            if inputs.get("name"):
+                body["name"] = inputs.get("name")
+            if inputs.get("email"):
+                body["email"] = inputs.get("email")
+            if inputs.get("phone"):
+                body["phone"] = inputs.get("phone")
+            if inputs.get("mobile"):
+                body["mobile"] = inputs.get("mobile")
+            if inputs.get("job_title"):
+                body["job_title"] = inputs.get("job_title")
+            if inputs.get("description"):
+                body["description"] = inputs.get("description")
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
@@ -485,10 +484,10 @@ class UpdateContactAction(ActionHandler):
                 f"{base_url}/contacts/{contact_id}", method="PUT", headers=headers, json=body
             )
 
-            return {"contact": response, "result": True}
+            return ActionResult(data={"contact": response.data})
 
         except Exception as e:
-            return {"contact": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("delete_contact")
@@ -504,10 +503,10 @@ class DeleteContactAction(ActionHandler):
 
             await context.fetch(f"{base_url}/contacts/{contact_id}", method="DELETE", headers=headers)
 
-            return {"result": True}
+            return ActionResult(data={"deleted": True})
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("search_contacts")
@@ -536,12 +535,12 @@ class SearchContactsAction(ActionHandler):
             response = await context.fetch(url, method="GET", headers=headers, params=params)
 
             # Response is directly an array of contacts
-            contacts = response if isinstance(response, list) else []
+            contacts = response.data if isinstance(response.data, list) else []
 
-            return {"contacts": contacts, "total": len(contacts), "result": True}
+            return ActionResult(data={"contacts": contacts, "total": len(contacts)})
 
         except Exception as e:
-            return {"contacts": [], "total": 0, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 # ---- Conversation Handlers ----
@@ -562,12 +561,12 @@ class ListConversationsAction(ActionHandler):
                 f"{base_url}/tickets/{ticket_id}/conversations", method="GET", headers=headers
             )
 
-            conversations = response if isinstance(response, list) else []
+            conversations = response.data if isinstance(response.data, list) else []
 
-            return {"conversations": conversations, "result": True}
+            return ActionResult(data={"conversations": conversations})
 
         except Exception as e:
-            return {"conversations": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("create_note")
@@ -579,8 +578,8 @@ class CreateNoteAction(ActionHandler):
             ticket_id = inputs["ticket_id"]
             body = {"body": inputs["body"], "private": True}
 
-            if "notify_emails" in inputs and inputs["notify_emails"]:
-                body["notify_emails"] = inputs["notify_emails"]
+            if inputs.get("notify_emails"):
+                body["notify_emails"] = inputs.get("notify_emails")
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
@@ -589,10 +588,10 @@ class CreateNoteAction(ActionHandler):
                 f"{base_url}/tickets/{ticket_id}/notes", method="POST", headers=headers, json=body
             )
 
-            return {"conversation": response, "result": True}
+            return ActionResult(data={"conversation": response.data})
 
         except Exception as e:
-            return {"conversation": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @freshdesk.action("create_reply")
@@ -604,8 +603,8 @@ class CreateReplyAction(ActionHandler):
             ticket_id = inputs["ticket_id"]
             body = {"body": inputs["body"]}
 
-            if "from_email" in inputs and inputs["from_email"]:
-                body["from_email"] = inputs["from_email"]
+            if inputs.get("from_email"):
+                body["from_email"] = inputs.get("from_email")
 
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
@@ -614,7 +613,7 @@ class CreateReplyAction(ActionHandler):
                 f"{base_url}/tickets/{ticket_id}/reply", method="POST", headers=headers, json=body
             )
 
-            return {"conversation": response, "result": True}
+            return ActionResult(data={"conversation": response.data})
 
         except Exception as e:
-            return {"conversation": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
