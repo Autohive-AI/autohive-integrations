@@ -1061,8 +1061,12 @@ def _add_list_items(
 
     # Respect original markdown indentation via data-indent-level attribute.
     # Every 4 leading spaces in the markdown source maps to one indent level.
+    # When data-indent-level is set it already encodes the absolute nesting
+    # depth relative to the top-level list, so we must NOT add `level` (which
+    # the recursive call already incremented) on top of it — that would
+    # double-count the nesting.
     indent_level = int(list_element.get("data-indent-level", 0))
-    effective_level = level + indent_level
+    effective_level = indent_level if indent_level > 0 else level
 
     num_id = None
     if is_numbered:

@@ -1178,3 +1178,206 @@ class TestMixedNumberedListFormats:
             assert suff.get(qn("w:val")) == "tab", (
                 f"'{text}' suffix should be 'tab', got '{suff.get(qn('w:val'))}'"
             )
+
+
+class TestNestedNumberedListIndentation:
+    """Verify deeply nested numbered lists with mixed parenthesized formats.
+
+    Markdown input:
+        1. one
+            (1) one
+                (a) one
+                    (A) one
+                        (i) one
+                        (ii) two
+                    (B) two
+                        (i) one
+                        (ii) two
+                (b) two
+                    (A) one
+                    (B) two
+            (2) two
+                (a) one
+                (b) two
+        2. two
+            (1) one
+            (2) two
+
+    Expected nesting levels (ilvl):
+        0 → 1. / 2.
+        1 → (1) / (2)
+        2 → (a) / (b)
+        3 → (A) / (B)
+        4 → (i) / (ii)
+
+    Each ilvl must have left indent = hanging * (ilvl + 1) where
+    hanging = 504 twips.
+    """
+
+    MARKDOWN = (
+        "# nested numbered lists\n"
+        "1. one\n"
+        "    (1) one\n"
+        "\t    (a) one\n"
+        "\t\t    (A) one\n"
+        "\t\t\t    (i) one\n"
+        "\t\t\t\t(ii) two\n"
+        "\t\t\t(B) two\n"
+        "\t\t\t    (i) one\n"
+        "\t\t\t\t(ii) two\n"
+        "\t\t(b) two\n"
+        "\t\t    (A) one\n"
+        "\t\t\t(B) two\n"
+        "\t(2) two\n"
+        "\t    (a) one\n"
+        "\t\t(b) two\n"
+        "2. two\n"
+        "    (1) one\n"
+        "\t(2) two\n"
+    )
+
+    # (expected_text, expected_ilvl, expected_num_fmt)
+    EXPECTED_ITEMS = [
+        ("one", 0, "decimal"),       # 1.
+        ("one", 1, "decimal"),       # (1)
+        ("one", 2, "lowerLetter"),   # (a)
+        ("one", 3, "upperLetter"),   # (A)
+        ("one", 4, "lowerRoman"),    # (i)
+        ("two", 4, "lowerRoman"),    # (ii)
+        ("two", 3, "upperLetter"),   # (B)
+        ("one", 4, "lowerRoman"),    # (i)
+        ("two", 4, "lowerRoman"),    # (ii)
+        ("two", 2, "lowerLetter"),   # (b)
+        ("one", 3, "upperLetter"),   # (A)
+        ("two", 3, "upperLetter"),   # (B)
+        ("two", 1, "decimal"),       # (2)
+        ("one", 2, "lowerLetter"),   # (a)
+        ("two", 2, "lowerLetter"),   # (b)
+        ("two", 0, "decimal"),       # 2.
+        ("one", 1, "decimal"),       # (1)
+        ("two", 1, "decimal"),       # (2)
+    ]
+
+    HANGING = 504  # _LIST_HANGING_INDENT
+
+    @staticmethod
+    def _get_numpr(paragraph):
+        from docx.oxml.ns import qn
+
+        pPr = paragraph._p.find(qn("w:pPr"))
+        if pPr is None:
+            return None
+        numPr = pPr.find(qn("w:numPr"))
+        if numPr is None:
+            return None
+        numId_el = numPr.find(qn("w:numId"))
+        ilvl_el = numPr.find(qn("w:ilvl"))
+        if numId_el is None or ilvl_el is None:
+            return None
+        return int(numId_el.get(qn("w:val"))), int(ilvl_el.get(qn("w:val")))
+
+    @staticmethod
+    def _get_abstract_num_for(doc, num_id):
+        from docx.oxml.ns import qn
+
+        numbering = doc.part.numbering_part._element
+        for num_el in numbering.findall(qn("w:num")):
+            if int(num_el.get(qn("w:numId"))) == num_id:
+                abstract_ref = num_el.find(qn("w:abstractNumId"))
+                abstract_id = int(abstract_ref.get(qn("w:val")))
+                for an in numbering.findall(qn("w:abstractNum")):
+                    if int(an.get(qn("w:abstractNumId"))) == abstract_id:
+                        return an
+        return None
+
+    @staticmethod
+    def _get_lvl(abstract, ilvl):
+        from docx.oxml.ns import qn
+
+        for lvl in abstract.findall(qn("w:lvl")):
+            if int(lvl.get(qn("w:ilvl"))) == ilvl:
+                return lvl
+        return None
+
+    def _build_doc(self):
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+        return doc
+
+    def _numbered_paragraphs(self, doc):
+        return [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+
+    def test_produces_eighteen_numbered_paragraphs(self):
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        assert len(numbered) == 18, (
+            f"Expected 18 numbered paragraphs, got {len(numbered)}: "
+            f"{[t for t, _ in numbered]}"
+        )
+
+    def test_item_text_matches_expected(self):
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        for idx, (text, _) in enumerate(numbered):
+            expected_text = self.EXPECTED_ITEMS[idx][0]
+            assert text == expected_text, (
+                f"Item {idx}: expected text {expected_text!r}, got {text!r}"
+            )
+
+    def test_ilvl_matches_expected(self):
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        for idx, (text, (num_id, ilvl)) in enumerate(numbered):
+            expected_ilvl = self.EXPECTED_ITEMS[idx][1]
+            assert ilvl == expected_ilvl, (
+                f"Item {idx} ({text!r}): expected ilvl={expected_ilvl}, got ilvl={ilvl}"
+            )
+
+    def test_num_fmt_matches_expected(self):
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        for idx, (text, (num_id, ilvl)) in enumerate(numbered):
+            expected_fmt = self.EXPECTED_ITEMS[idx][2]
+            abstract = self._get_abstract_num_for(doc, num_id)
+            lvl = self._get_lvl(abstract, ilvl)
+            fmt = lvl.find(qn("w:numFmt")).get(qn("w:val"))
+            assert fmt == expected_fmt, (
+                f"Item {idx} ({text!r}): expected numFmt={expected_fmt!r}, got {fmt!r}"
+            )
+
+    def test_left_indent_matches_ilvl(self):
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        for idx, (text, (num_id, ilvl)) in enumerate(numbered):
+            expected_left = self.HANGING * (ilvl + 1)
+            abstract = self._get_abstract_num_for(doc, num_id)
+            lvl = self._get_lvl(abstract, ilvl)
+            pPr = lvl.find(qn("w:pPr"))
+            assert pPr is not None, f"Item {idx} ({text!r}): missing pPr"
+            ind = pPr.find(qn("w:ind"))
+            assert ind is not None, f"Item {idx} ({text!r}): missing ind"
+            left = int(ind.get(qn("w:left")))
+            assert left == expected_left, (
+                f"Item {idx} ({text!r}, ilvl={ilvl}): "
+                f"expected left indent={expected_left}, got {left}"
+            )
+
+    def test_hanging_indent_is_consistent(self):
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        for idx, (text, (num_id, ilvl)) in enumerate(numbered):
+            abstract = self._get_abstract_num_for(doc, num_id)
+            lvl = self._get_lvl(abstract, ilvl)
+            ind = lvl.find(qn("w:pPr")).find(qn("w:ind"))
+            hanging = int(ind.get(qn("w:hanging")))
+            assert hanging == self.HANGING, (
+                f"Item {idx} ({text!r}): expected hanging={self.HANGING}, got {hanging}"
+            )
