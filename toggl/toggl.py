@@ -17,7 +17,8 @@ def _basic_auth_header_for_api_token(api_token: str) -> Dict[str, str]:
 class CreateTimeEntry(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            api_token = context.auth.get("credentials").get("api_token")
+            credentials = (context.auth or {}).get("credentials", {})
+            api_token = credentials.get("api_token")
             if not api_token:
                 return ActionError(message="Toggl API token is required in auth (field 'api_token').")
 

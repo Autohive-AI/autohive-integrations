@@ -113,6 +113,18 @@ class TestCreateTimeEntry:
         assert result.type == ResultType.ACTION_ERROR
         assert "api_token" in result.result.message
 
+    async def test_missing_credentials_returns_action_error(self, mock_context):
+        mock_context.auth = {}
+
+        result = await toggl.execute_action(
+            "create_time_entry",
+            {"workspace_id": 9876543, "start": "2024-01-15T09:00:00Z"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "api_token" in result.result.message
+
     async def test_optional_fields_excluded_when_none(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TIME_ENTRY)
 
