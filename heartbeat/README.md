@@ -1,5 +1,9 @@
 # Heartbeat Integration for Autohive
 
+> ⚠️ **Status: Unsupported**
+>
+> This integration is **no longer supported or maintained** by the Autohive team. It is kept in the repository for reference only and is not covered by validation, CI checks, or bug-fix updates. Use at your own risk — functionality may break without notice.
+
 Connects Autohive to the Heartbeat.chat API to allow users to retrieve channel information, manage threads and comments, access user data, and view community events.
 
 ## Description
