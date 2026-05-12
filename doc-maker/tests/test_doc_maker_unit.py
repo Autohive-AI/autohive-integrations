@@ -1685,3 +1685,37 @@ class TestNestedNumberedListIndentation:
             assert hanging == self.HANGING, (
                 f"Item {idx} ({text!r}): expected hanging={self.HANGING}, got {hanging}"
             )
+
+
+class TestMixedParagraphPreservesNonListText:
+    """Non-list text in a paragraph containing parenthesized markers must be preserved.
+
+    When markdown produces a soft-broken block like:
+
+        Intro text here
+        (1) first item
+        (2) second item
+
+    the leading "Intro text here" line must survive as a paragraph in the
+    generated document rather than being silently dropped when the ``<p>``
+    element is decomposed during paren-list post-processing.
+    """
+
+    MARKDOWN = (
+        "Intro text here\n"
+        "(1) first item\n"
+        "(2) second item"
+    )
+
+    def test_intro_text_preserved_in_output(self):
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        all_texts = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+
+        assert any("Intro text here" in t for t in all_texts), (
+            f"Expected 'Intro text here' to appear in the document paragraphs, "
+            f"but got: {all_texts}"
+        )
