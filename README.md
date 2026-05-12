@@ -144,7 +144,9 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Heartbeat
 
-[heartbeat](heartbeat): Connects to Heartbeat.chat community platform for comprehensive access to channels, threads, comments, users, and events. Supports retrieving channel information, managing thread discussions, creating and viewing comments, accessing user profiles, and viewing community events. Includes full CRUD operations for community engagement and content management. Supports API key authentication.
+> ⚠️ **Unsupported** — this integration is no longer maintained by the Autohive team and is not guaranteed to work. Use at your own risk.
+
+[heartbeat](heartbeat): **[UNSUPPORTED]** Connects to Heartbeat.chat community platform for comprehensive access to channels, threads, comments, users, and events. Supports retrieving channel information, managing thread discussions, creating and viewing comments, accessing user profiles, and viewing community events. Includes full CRUD operations for community engagement and content management. Supports API key authentication.
 
 ### Humanitix
 
