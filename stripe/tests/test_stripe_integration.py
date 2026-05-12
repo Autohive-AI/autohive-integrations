@@ -78,7 +78,7 @@ class TestListSubscriptions:
 
 @pytest.mark.destructive
 class TestCustomerLifecycle:
-    """Create → get → update → delete a test customer."""
+    """Create -> get -> update -> delete a test customer."""
 
     async def test_full_lifecycle(self, stripe_context):
         uid = int(time.time())
@@ -113,7 +113,7 @@ class TestCustomerLifecycle:
 
 @pytest.mark.destructive
 class TestProductAndPriceLifecycle:
-    """Create product → create price → get each → cleanup."""
+    """Create product -> create price -> get each -> update each -> cleanup."""
 
     async def test_full_lifecycle(self, stripe_context):
         uid = int(time.time())
@@ -144,10 +144,35 @@ class TestProductAndPriceLifecycle:
         get_prod = await stripe.execute_action("get_product", {"product_id": product_id}, stripe_context)
         assert get_prod.result.data["product"]["id"] == product_id
 
+        # Update product
+        upd_prod = await stripe.execute_action(
+            "update_product",
+            {"product_id": product_id, "name": f"AH Updated Product {uid}", "description": "Updated via test"},
+            stripe_context,
+        )
+        assert upd_prod.result.data["result"] is True
+        assert upd_prod.result.data["product"]["name"] == f"AH Updated Product {uid}"
+
+        # Update price (only nickname and metadata can be updated)
+        upd_price = await stripe.execute_action(
+            "update_price",
+            {"price_id": price_id, "nickname": f"test-price-{uid}"},
+            stripe_context,
+        )
+        assert upd_price.result.data["result"] is True
+        assert upd_price.result.data["price"]["nickname"] == f"test-price-{uid}"
+
+        # Deactivate product (cleanup - products can't be deleted)
+        await stripe.execute_action(
+            "update_product",
+            {"product_id": product_id, "active": False},
+            stripe_context,
+        )
+
 
 @pytest.mark.destructive
 class TestInvoiceLifecycle:
-    """Create customer → create invoice → add item → finalize → void (cleanup)."""
+    """Create customer -> create invoice -> add item -> update item -> finalize -> send -> void -> cleanup."""
 
     async def test_full_lifecycle(self, stripe_context):
         uid = int(time.time())
@@ -184,6 +209,15 @@ class TestInvoiceLifecycle:
         get_item = await stripe.execute_action("get_invoice_item", {"invoice_item_id": item_id}, stripe_context)
         assert get_item.result.data["invoice_item"]["id"] == item_id
 
+        # Update invoice item
+        upd_item = await stripe.execute_action(
+            "update_invoice_item",
+            {"invoice_item_id": item_id, "description": f"Updated item {uid}"},
+            stripe_context,
+        )
+        assert upd_item.result.data["result"] is True
+        assert upd_item.result.data["invoice_item"]["description"] == f"Updated item {uid}"
+
         # List invoice items
         list_items = await stripe.execute_action("list_invoice_items", {"invoice": invoice_id}, stripe_context)
         assert list_items.result.data["result"] is True
@@ -205,6 +239,10 @@ class TestInvoiceLifecycle:
         assert fin.result.data["result"] is True
         assert fin.result.data["invoice"]["status"] == "open"
 
+        # Send invoice (safe in test mode — Stripe does not send real emails)
+        send = await stripe.execute_action("send_invoice", {"invoice_id": invoice_id}, stripe_context)
+        assert send.result.data["result"] is True
+
         # Void (cleanup)
         void = await stripe.execute_action("void_invoice", {"invoice_id": invoice_id}, stripe_context)
         assert void.result.data["result"] is True
@@ -215,8 +253,76 @@ class TestInvoiceLifecycle:
 
 
 @pytest.mark.destructive
+class TestDeleteInvoice:
+    """Create customer -> create draft invoice -> delete it (only draft invoices can be deleted)."""
+
+    async def test_delete_draft(self, stripe_context):
+        uid = int(time.time())
+
+        cust = await stripe.execute_action(
+            "create_customer",
+            {"email": f"ah-delinv-{uid}@example.com"},
+            stripe_context,
+        )
+        customer_id = cust.result.data["customer"]["id"]
+
+        inv = await stripe.execute_action(
+            "create_invoice",
+            {"customer": customer_id, "collection_method": "send_invoice", "days_until_due": 30},
+            stripe_context,
+        )
+        invoice_id = inv.result.data["invoice"]["id"]
+        assert inv.result.data["invoice"]["status"] == "draft"
+
+        delete = await stripe.execute_action("delete_invoice", {"invoice_id": invoice_id}, stripe_context)
+        assert delete.result.data["result"] is True
+        assert delete.result.data["deleted"] is True
+
+        await stripe.execute_action("delete_customer", {"customer_id": customer_id}, stripe_context)
+
+
+@pytest.mark.destructive
+class TestInvoiceItemStandaloneLifecycle:
+    """Create customer -> create standalone invoice item -> update -> delete."""
+
+    async def test_standalone_item(self, stripe_context):
+        uid = int(time.time())
+
+        cust = await stripe.execute_action(
+            "create_customer",
+            {"email": f"ah-item-{uid}@example.com"},
+            stripe_context,
+        )
+        customer_id = cust.result.data["customer"]["id"]
+
+        # Create standalone invoice item (not attached to any invoice)
+        item = await stripe.execute_action(
+            "create_invoice_item",
+            {"customer": customer_id, "unit_amount": 500, "currency": "nzd", "description": "Standalone item"},
+            stripe_context,
+        )
+        assert item.result.data["result"] is True
+        item_id = item.result.data["invoice_item"]["id"]
+
+        # Update item
+        upd = await stripe.execute_action(
+            "update_invoice_item",
+            {"invoice_item_id": item_id, "description": f"Updated standalone {uid}"},
+            stripe_context,
+        )
+        assert upd.result.data["result"] is True
+
+        # Delete item (only works on pending/unattached items)
+        delete = await stripe.execute_action("delete_invoice_item", {"invoice_item_id": item_id}, stripe_context)
+        assert delete.result.data["result"] is True
+        assert delete.result.data["deleted"] is True
+
+        await stripe.execute_action("delete_customer", {"customer_id": customer_id}, stripe_context)
+
+
+@pytest.mark.destructive
 class TestSubscriptionLifecycle:
-    """Create product + price → create customer → create subscription → update → cancel."""
+    """Create product + price -> create customer -> create subscription -> update -> cancel."""
 
     async def test_full_lifecycle(self, stripe_context):
         uid = int(time.time())
@@ -275,6 +381,96 @@ class TestSubscriptionLifecycle:
         )
         assert cancel.result.data["result"] is True
         assert cancel.result.data["subscription"]["status"] in ("canceled", "incomplete_expired")
+
+        # Cleanup customer
+        await stripe.execute_action("delete_customer", {"customer_id": customer_id}, stripe_context)
+
+        # Deactivate product
+        await stripe.execute_action("update_product", {"product_id": product_id, "active": False}, stripe_context)
+
+
+@pytest.mark.destructive
+class TestPaymentMethodLifecycle:
+    """Create customer -> attach test payment method -> list -> get -> detach -> pay invoice -> cleanup."""
+
+    async def test_full_lifecycle(self, stripe_context):
+        uid = int(time.time())
+
+        # Create customer
+        cust = await stripe.execute_action(
+            "create_customer",
+            {"email": f"ah-pm-{uid}@example.com"},
+            stripe_context,
+        )
+        customer_id = cust.result.data["customer"]["id"]
+
+        # Attach a Stripe test payment method (pm_card_visa is a permanent test token)
+        attach = await stripe.execute_action(
+            "attach_payment_method",
+            {"payment_method_id": "pm_card_visa", "customer": customer_id},
+            stripe_context,
+        )
+        assert attach.result.data["result"] is True
+        pm_id = attach.result.data["payment_method"]["id"]
+        assert pm_id.startswith("pm_")
+
+        # List payment methods for this customer
+        list_pm = await stripe.execute_action(
+            "list_payment_methods",
+            {"customer": customer_id, "type": "card"},
+            stripe_context,
+        )
+        assert list_pm.result.data["result"] is True
+        assert len(list_pm.result.data["payment_methods"]) >= 1
+
+        # Get payment method
+        get_pm = await stripe.execute_action(
+            "get_payment_method",
+            {"payment_method_id": pm_id},
+            stripe_context,
+        )
+        assert get_pm.result.data["result"] is True
+        assert get_pm.result.data["payment_method"]["id"] == pm_id
+
+        # Create and pay an invoice using this payment method
+        inv = await stripe.execute_action(
+            "create_invoice",
+            {
+                "customer": customer_id,
+                "collection_method": "charge_automatically",
+                "currency": "usd",
+            },
+            stripe_context,
+        )
+        invoice_id = inv.result.data["invoice"]["id"]
+
+        item = await stripe.execute_action(
+            "create_invoice_item",
+            {"customer": customer_id, "invoice": invoice_id, "unit_amount": 100, "currency": "usd"},
+            stripe_context,
+        )
+        assert item.result.data["result"] is True
+
+        fin = await stripe.execute_action("finalize_invoice", {"invoice_id": invoice_id}, stripe_context)
+        assert fin.result.data["result"] is True
+        assert fin.result.data["invoice"]["status"] == "open"
+
+        pay = await stripe.execute_action(
+            "pay_invoice",
+            {"invoice_id": invoice_id, "payment_method": pm_id},
+            stripe_context,
+        )
+        assert pay.result.data["result"] is True
+        assert pay.result.data["invoice"]["status"] == "paid"
+
+        # Detach payment method
+        detach = await stripe.execute_action(
+            "detach_payment_method",
+            {"payment_method_id": pm_id},
+            stripe_context,
+        )
+        assert detach.result.data["result"] is True
+        assert detach.result.data["payment_method"]["customer"] is None
 
         # Cleanup customer
         await stripe.execute_action("delete_customer", {"customer_id": customer_id}, stripe_context)
