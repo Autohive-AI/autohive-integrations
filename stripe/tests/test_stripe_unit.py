@@ -437,3 +437,47 @@ class TestDetachPaymentMethod:
         ctx.fetch.return_value = FetchResponse(200, {}, {})
         await stripe.execute_action("detach_payment_method", {"payment_method_id": "pm_abc"}, ctx)
         assert "detach" in ctx.fetch.call_args.args[0]
+
+
+# ---- ConnectedAccountHandler ----
+
+
+class TestConnectedAccountHandler:
+    async def test_returns_account_name(self, ctx):
+        ctx.fetch.return_value = FetchResponse(
+            200,
+            {},
+            {
+                "id": "acct_test123",
+                "business_profile": {"name": "Acme Corp", "support_email": ""},
+                "email": "owner@acme.com",
+            },
+        )
+        result = await stripe.get_connected_account(ctx)
+        assert result.result.username == "Acme Corp"
+        assert result.result.user_id == "acct_test123"
+
+    async def test_falls_back_to_email_when_no_name(self, ctx):
+        ctx.fetch.return_value = FetchResponse(
+            200,
+            {},
+            {
+                "id": "acct_test456",
+                "email": "owner@example.com",
+                "business_profile": {"name": None, "support_email": ""},
+            },
+        )
+        result = await stripe.get_connected_account(ctx)
+        assert result.result.username == "owner@example.com"
+        assert result.result.user_id == "acct_test456"
+
+    async def test_falls_back_to_stripe_account_on_exception(self, ctx):
+        ctx.fetch.side_effect = Exception("network error")
+        result = await stripe.get_connected_account(ctx)
+        assert result.result.username == "Stripe Account"
+
+    async def test_calls_account_endpoint(self, ctx):
+        ctx.fetch.return_value = FetchResponse(200, {}, {"id": "acct_test123", "email": "x@x.com"})
+        await stripe.get_connected_account(ctx)
+        assert "/account" in ctx.fetch.call_args.args[0]
+        assert ctx.fetch.call_args.kwargs["method"] == "GET"
