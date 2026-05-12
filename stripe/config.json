@@ -1,7 +1,7 @@
 {
     "name": "Stripe",
     "display_name": "Stripe",
-    "version": "2.1.0",
+    "version": "3.0.0",
     "description": "Stripe integration for managing customers, invoices, products, prices, subscriptions, payment methods and invoice items via the Stripe API",
     "entry_point": "stripe.py",
     "supports_billing": true,

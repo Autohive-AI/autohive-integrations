@@ -77,11 +77,11 @@ class TestListCustomers:
         assert "customers" in call.args[0]
         assert call.kwargs["method"] == "GET"
 
-    async def test_exception_returns_result_false(self, ctx):
+    async def test_exception_returns_action_error(self, ctx):
         ctx.fetch.side_effect = Exception("timeout")
         result = await stripe.execute_action("list_customers", {}, ctx)
-        assert result.result.data["result"] is False
-        assert "timeout" in result.result.data["error"]
+        assert result.type == ResultType.ACTION_ERROR
+        assert "timeout" in result.result.message
 
 
 class TestGetCustomer:
