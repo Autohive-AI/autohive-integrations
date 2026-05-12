@@ -14,7 +14,7 @@ def _get_env(var: str) -> str | None:
 @pytest.fixture
 def mock_context(mocker):
     from unittest.mock import AsyncMock, MagicMock
-    from autohive_integrations_sdk import FetchResponse
+    from autohive_integrations_sdk.integration import FetchResponse
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data={}))
@@ -30,7 +30,7 @@ def stripe_context():
     import aiohttp
     import json as _json
     from unittest.mock import AsyncMock, MagicMock
-    from autohive_integrations_sdk import FetchResponse
+    from autohive_integrations_sdk.integration import FetchResponse
 
     api_key = _get_env("STRIPE_TEST_API_KEY")
     if not api_key:

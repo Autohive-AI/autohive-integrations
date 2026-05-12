@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import FetchResponse
 from autohive_integrations_sdk.integration import ResultType
 
 from stripe.stripe import stripe

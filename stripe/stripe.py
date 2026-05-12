@@ -71,9 +71,9 @@ def build_list_params(inputs: Dict[str, Any]) -> Dict[str, Any]:
     if "limit" in inputs and inputs["limit"]:
         params["limit"] = min(inputs["limit"], 100)
     if "starting_after" in inputs and inputs["starting_after"]:
-        params["starting_after"] = inputs["starting_after"]
+        params["starting_after"] = inputs.get("starting_after")
     if "ending_before" in inputs and inputs["ending_before"]:
-        params["ending_before"] = inputs["ending_before"]
+        params["ending_before"] = inputs.get("ending_before")
 
     return params
 
@@ -104,15 +104,21 @@ class ListCustomersAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = build_list_params(inputs)
+            params = {}
+            if inputs.get("limit"):
+                params["limit"] = min(inputs.get("limit"), 100)
+            if inputs.get("starting_after"):
+                params["starting_after"] = inputs.get("starting_after")
+            if inputs.get("ending_before"):
+                params["ending_before"] = inputs.get("ending_before")
 
             # Add optional filters
             if "email" in inputs and inputs["email"]:
-                params["email"] = inputs["email"]
+                params["email"] = inputs.get("email")
             if "created_gte" in inputs and inputs["created_gte"]:
-                params["created[gte]"] = inputs["created_gte"]
+                params["created[gte]"] = inputs.get("created_gte")
             if "created_lte" in inputs and inputs["created_lte"]:
-                params["created[lte]"] = inputs["created_lte"]
+                params["created[lte]"] = inputs.get("created_lte")
 
             headers = get_common_headers()
 
@@ -177,17 +183,17 @@ class CreateCustomerAction(ActionHandler):
 
             # Add optional fields
             if "email" in inputs and inputs["email"]:
-                body["email"] = inputs["email"]
+                body["email"] = inputs.get("email")
             if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
+                body["name"] = inputs.get("name")
             if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+                body["description"] = inputs.get("description")
             if "phone" in inputs and inputs["phone"]:
-                body["phone"] = inputs["phone"]
+                body["phone"] = inputs.get("phone")
             if "address" in inputs and inputs["address"]:
-                body["address"] = inputs["address"]
+                body["address"] = inputs.get("address")
             if "metadata" in inputs and inputs["metadata"]:
-                body["metadata"] = inputs["metadata"]
+                body["metadata"] = inputs.get("metadata")
 
             headers = get_common_headers()
             form_data = build_form_data(body)
@@ -216,17 +222,17 @@ class UpdateCustomerAction(ActionHandler):
 
             # Add only provided fields
             if "email" in inputs and inputs["email"]:
-                body["email"] = inputs["email"]
+                body["email"] = inputs.get("email")
             if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
+                body["name"] = inputs.get("name")
             if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+                body["description"] = inputs.get("description")
             if "phone" in inputs and inputs["phone"]:
-                body["phone"] = inputs["phone"]
+                body["phone"] = inputs.get("phone")
             if "address" in inputs and inputs["address"]:
-                body["address"] = inputs["address"]
+                body["address"] = inputs.get("address")
             if "metadata" in inputs and inputs["metadata"]:
-                body["metadata"] = inputs["metadata"]
+                body["metadata"] = inputs.get("metadata")
 
             headers = get_common_headers()
             form_data = build_form_data(body)
@@ -289,17 +295,23 @@ class ListInvoicesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = build_list_params(inputs)
+            params = {}
+            if inputs.get("limit"):
+                params["limit"] = min(inputs.get("limit"), 100)
+            if inputs.get("starting_after"):
+                params["starting_after"] = inputs.get("starting_after")
+            if inputs.get("ending_before"):
+                params["ending_before"] = inputs.get("ending_before")
 
             # Add optional filters
             if "customer" in inputs and inputs["customer"]:
-                params["customer"] = inputs["customer"]
+                params["customer"] = inputs.get("customer")
             if "status" in inputs and inputs["status"]:
-                params["status"] = inputs["status"]
+                params["status"] = inputs.get("status")
             if "created_gte" in inputs and inputs["created_gte"]:
-                params["created[gte]"] = inputs["created_gte"]
+                params["created[gte]"] = inputs.get("created_gte")
             if "created_lte" in inputs and inputs["created_lte"]:
-                params["created[lte]"] = inputs["created_lte"]
+                params["created[lte]"] = inputs.get("created_lte")
 
             headers = get_common_headers()
 
@@ -364,17 +376,17 @@ class CreateInvoiceAction(ActionHandler):
 
             # Add optional fields
             if "currency" in inputs and inputs["currency"]:
-                body["currency"] = inputs["currency"]
+                body["currency"] = inputs.get("currency")
             if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+                body["description"] = inputs.get("description")
             if "auto_advance" in inputs:
-                body["auto_advance"] = inputs["auto_advance"]
+                body["auto_advance"] = inputs.get("auto_advance")
             if "collection_method" in inputs and inputs["collection_method"]:
-                body["collection_method"] = inputs["collection_method"]
+                body["collection_method"] = inputs.get("collection_method")
             if "days_until_due" in inputs and inputs["days_until_due"]:
-                body["days_until_due"] = inputs["days_until_due"]
+                body["days_until_due"] = inputs.get("days_until_due")
             if "metadata" in inputs and inputs["metadata"]:
-                body["metadata"] = inputs["metadata"]
+                body["metadata"] = inputs.get("metadata")
 
             headers = get_common_headers()
             form_data = build_form_data(body)
@@ -403,15 +415,15 @@ class UpdateInvoiceAction(ActionHandler):
 
             # Add only provided fields
             if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+                body["description"] = inputs.get("description")
             if "auto_advance" in inputs:
-                body["auto_advance"] = inputs["auto_advance"]
+                body["auto_advance"] = inputs.get("auto_advance")
             if "collection_method" in inputs and inputs["collection_method"]:
-                body["collection_method"] = inputs["collection_method"]
+                body["collection_method"] = inputs.get("collection_method")
             if "days_until_due" in inputs and inputs["days_until_due"]:
-                body["days_until_due"] = inputs["days_until_due"]
+                body["days_until_due"] = inputs.get("days_until_due")
             if "metadata" in inputs and inputs["metadata"]:
-                body["metadata"] = inputs["metadata"]
+                body["metadata"] = inputs.get("metadata")
 
             headers = get_common_headers()
             form_data = build_form_data(body)
@@ -475,7 +487,7 @@ class FinalizeInvoiceAction(ActionHandler):
             body = {}
 
             if "auto_advance" in inputs:
-                body["auto_advance"] = inputs["auto_advance"]
+                body["auto_advance"] = inputs.get("auto_advance")
 
             headers = get_common_headers()
             form_data = build_form_data(body) if body else {}
@@ -524,7 +536,7 @@ class PayInvoiceAction(ActionHandler):
             body = {}
 
             if "payment_method" in inputs and inputs["payment_method"]:
-                body["payment_method"] = inputs["payment_method"]
+                body["payment_method"] = inputs.get("payment_method")
 
             headers = get_common_headers()
             form_data = build_form_data(body) if body else {}
@@ -572,13 +584,19 @@ class ListInvoiceItemsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = build_list_params(inputs)
+            params = {}
+            if inputs.get("limit"):
+                params["limit"] = min(inputs.get("limit"), 100)
+            if inputs.get("starting_after"):
+                params["starting_after"] = inputs.get("starting_after")
+            if inputs.get("ending_before"):
+                params["ending_before"] = inputs.get("ending_before")
 
             # Add optional filters
             if "customer" in inputs and inputs["customer"]:
-                params["customer"] = inputs["customer"]
+                params["customer"] = inputs.get("customer")
             if "invoice" in inputs and inputs["invoice"]:
-                params["invoice"] = inputs["invoice"]
+                params["invoice"] = inputs.get("invoice")
             if "pending" in inputs:
                 params["pending"] = "true" if inputs["pending"] else "false"
 
@@ -648,19 +666,19 @@ class CreateInvoiceItemAction(ActionHandler):
 
             # Add optional fields
             if "invoice" in inputs and inputs["invoice"]:
-                body["invoice"] = inputs["invoice"]
+                body["invoice"] = inputs.get("invoice")
             if "amount" in inputs and inputs["amount"] is not None:
-                body["amount"] = inputs["amount"]
+                body["amount"] = inputs.get("amount")
             if "currency" in inputs and inputs["currency"]:
-                body["currency"] = inputs["currency"]
+                body["currency"] = inputs.get("currency")
             if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+                body["description"] = inputs.get("description")
             if "quantity" in inputs and inputs["quantity"] is not None:
-                body["quantity"] = inputs["quantity"]
+                body["quantity"] = inputs.get("quantity")
             if "unit_amount" in inputs and inputs["unit_amount"] is not None:
                 body["unit_amount_decimal"] = str(inputs["unit_amount"])
             if "metadata" in inputs and inputs["metadata"]:
-                body["metadata"] = inputs["metadata"]
+                body["metadata"] = inputs.get("metadata")
 
             headers = get_common_headers()
             form_data = build_form_data(body)
@@ -692,15 +710,15 @@ class UpdateInvoiceItemAction(ActionHandler):
 
             # Add only provided fields
             if "amount" in inputs and inputs["amount"] is not None:
-                body["amount"] = inputs["amount"]
+                body["amount"] = inputs.get("amount")
             if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+                body["description"] = inputs.get("description")
             if "quantity" in inputs and inputs["quantity"] is not None:
-                body["quantity"] = inputs["quantity"]
+                body["quantity"] = inputs.get("quantity")
             if "unit_amount" in inputs and inputs["unit_amount"] is not None:
                 body["unit_amount_decimal"] = str(inputs["unit_amount"])
             if "metadata" in inputs and inputs["metadata"]:
-                body["metadata"] = inputs["metadata"]
+                body["metadata"] = inputs.get("metadata")
 
             headers = get_common_headers()
             form_data = build_form_data(body)
@@ -766,17 +784,23 @@ class ListProductsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = build_list_params(inputs)
+            params = {}
+            if inputs.get("limit"):
+                params["limit"] = min(inputs.get("limit"), 100)
+            if inputs.get("starting_after"):
+                params["starting_after"] = inputs.get("starting_after")
+            if inputs.get("ending_before"):
+                params["ending_before"] = inputs.get("ending_before")
 
             # Add optional filters
             if "active" in inputs and inputs["active"] is not None:
                 params["active"] = "true" if inputs["active"] else "false"
             if "type" in inputs and inputs["type"]:
-                params["type"] = inputs["type"]
+                params["type"] = inputs.get("type")
             if "created_gte" in inputs and inputs["created_gte"]:
-                params["created[gte]"] = inputs["created_gte"]
+                params["created[gte]"] = inputs.get("created_gte")
             if "created_lte" in inputs and inputs["created_lte"]:
-                params["created[lte]"] = inputs["created_lte"]
+                params["created[lte]"] = inputs.get("created_lte")
 
             headers = get_common_headers()
 
@@ -841,21 +865,21 @@ class CreateProductAction(ActionHandler):
 
             # Add optional fields
             if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+                body["description"] = inputs.get("description")
             if "active" in inputs and inputs["active"] is not None:
-                body["active"] = inputs["active"]
+                body["active"] = inputs.get("active")
             if "default_price_data" in inputs and inputs["default_price_data"]:
-                body["default_price_data"] = inputs["default_price_data"]
+                body["default_price_data"] = inputs.get("default_price_data")
             if "images" in inputs and inputs["images"]:
-                body["images"] = inputs["images"]
+                body["images"] = inputs.get("images")
             if "metadata" in inputs and inputs["metadata"]:
-                body["metadata"] = inputs["metadata"]
+                body["metadata"] = inputs.get("metadata")
             if "tax_code" in inputs and inputs["tax_code"]:
-                body["tax_code"] = inputs["tax_code"]
+                body["tax_code"] = inputs.get("tax_code")
             if "unit_label" in inputs and inputs["unit_label"]:
-                body["unit_label"] = inputs["unit_label"]
+                body["unit_label"] = inputs.get("unit_label")
             if "url" in inputs and inputs["url"]:
-                body["url"] = inputs["url"]
+                body["url"] = inputs.get("url")
 
             headers = get_common_headers()
             form_data = build_form_data(body)
@@ -884,23 +908,23 @@ class UpdateProductAction(ActionHandler):
 
             # Add only provided fields
             if "name" in inputs and inputs["name"]:
-                body["name"] = inputs["name"]
+                body["name"] = inputs.get("name")
             if "description" in inputs and inputs["description"]:
-                body["description"] = inputs["description"]
+                body["description"] = inputs.get("description")
             if "active" in inputs and inputs["active"] is not None:
-                body["active"] = inputs["active"]
+                body["active"] = inputs.get("active")
             if "default_price" in inputs and inputs["default_price"]:
-                body["default_price"] = inputs["default_price"]
+                body["default_price"] = inputs.get("default_price")
             if "images" in inputs and inputs["images"]:
-                body["images"] = inputs["images"]
+                body["images"] = inputs.get("images")
             if "metadata" in inputs and inputs["metadata"]:
-                body["metadata"] = inputs["metadata"]
+                body["metadata"] = inputs.get("metadata")
             if "tax_code" in inputs and inputs["tax_code"]:
-                body["tax_code"] = inputs["tax_code"]
+                body["tax_code"] = inputs.get("tax_code")
             if "unit_label" in inputs and inputs["unit_label"]:
-                body["unit_label"] = inputs["unit_label"]
+                body["unit_label"] = inputs.get("unit_label")
             if "url" in inputs and inputs["url"]:
-                body["url"] = inputs["url"]
+                body["url"] = inputs.get("url")
 
             headers = get_common_headers()
             form_data = build_form_data(body)
@@ -927,21 +951,27 @@ class ListPricesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = build_list_params(inputs)
+            params = {}
+            if inputs.get("limit"):
+                params["limit"] = min(inputs.get("limit"), 100)
+            if inputs.get("starting_after"):
+                params["starting_after"] = inputs.get("starting_after")
+            if inputs.get("ending_before"):
+                params["ending_before"] = inputs.get("ending_before")
 
             # Add optional filters
             if "active" in inputs and inputs["active"] is not None:
                 params["active"] = "true" if inputs["active"] else "false"
             if "product" in inputs and inputs["product"]:
-                params["product"] = inputs["product"]
+                params["product"] = inputs.get("product")
             if "type" in inputs and inputs["type"]:
-                params["type"] = inputs["type"]
+                params["type"] = inputs.get("type")
             if "currency" in inputs and inputs["currency"]:
-                params["currency"] = inputs["currency"]
+                params["currency"] = inputs.get("currency")
             if "created_gte" in inputs and inputs["created_gte"]:
-                params["created[gte]"] = inputs["created_gte"]
+                params["created[gte]"] = inputs.get("created_gte")
             if "created_lte" in inputs and inputs["created_lte"]:
-                params["created[lte]"] = inputs["created_lte"]
+                params["created[lte]"] = inputs.get("created_lte")
 
             headers = get_common_headers()
 
@@ -1003,7 +1033,7 @@ class CreatePriceAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             body = {
-                "currency": inputs.get("currency", "usd"),
+                "currency": inputs["currency"],
                 "product": inputs["product"],
             }
 
@@ -1011,25 +1041,25 @@ class CreatePriceAction(ActionHandler):
             if "unit_amount" in inputs and inputs["unit_amount"] is not None:
                 body["unit_amount_decimal"] = str(inputs["unit_amount"])
             elif "unit_amount_decimal" in inputs and inputs["unit_amount_decimal"]:
-                body["unit_amount_decimal"] = inputs["unit_amount_decimal"]
+                body["unit_amount_decimal"] = inputs.get("unit_amount_decimal")
 
             # Add optional fields
             if "active" in inputs and inputs["active"] is not None:
-                body["active"] = inputs["active"]
+                body["active"] = inputs.get("active")
             if "nickname" in inputs and inputs["nickname"]:
-                body["nickname"] = inputs["nickname"]
+                body["nickname"] = inputs.get("nickname")
             if "recurring" in inputs and inputs["recurring"]:
-                body["recurring"] = inputs["recurring"]
+                body["recurring"] = inputs.get("recurring")
             if "billing_scheme" in inputs and inputs["billing_scheme"]:
-                body["billing_scheme"] = inputs["billing_scheme"]
+                body["billing_scheme"] = inputs.get("billing_scheme")
             if "tiers" in inputs and inputs["tiers"]:
-                body["tiers"] = inputs["tiers"]
+                body["tiers"] = inputs.get("tiers")
             if "tiers_mode" in inputs and inputs["tiers_mode"]:
-                body["tiers_mode"] = inputs["tiers_mode"]
+                body["tiers_mode"] = inputs.get("tiers_mode")
             if "tax_behavior" in inputs and inputs["tax_behavior"]:
-                body["tax_behavior"] = inputs["tax_behavior"]
+                body["tax_behavior"] = inputs.get("tax_behavior")
             if "metadata" in inputs and inputs["metadata"]:
-                body["metadata"] = inputs["metadata"]
+                body["metadata"] = inputs.get("metadata")
 
             headers = get_common_headers()
             form_data = build_form_data(body)
@@ -1058,13 +1088,13 @@ class UpdatePriceAction(ActionHandler):
 
             # Only certain fields can be updated on a price
             if "active" in inputs and inputs["active"] is not None:
-                body["active"] = inputs["active"]
+                body["active"] = inputs.get("active")
             if "nickname" in inputs and inputs["nickname"]:
-                body["nickname"] = inputs["nickname"]
+                body["nickname"] = inputs.get("nickname")
             if "metadata" in inputs and inputs["metadata"]:
-                body["metadata"] = inputs["metadata"]
+                body["metadata"] = inputs.get("metadata")
             if "tax_behavior" in inputs and inputs["tax_behavior"]:
-                body["tax_behavior"] = inputs["tax_behavior"]
+                body["tax_behavior"] = inputs.get("tax_behavior")
 
             headers = get_common_headers()
             form_data = build_form_data(body)
@@ -1091,23 +1121,29 @@ class ListSubscriptionsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = build_list_params(inputs)
+            params = {}
+            if inputs.get("limit"):
+                params["limit"] = min(inputs.get("limit"), 100)
+            if inputs.get("starting_after"):
+                params["starting_after"] = inputs.get("starting_after")
+            if inputs.get("ending_before"):
+                params["ending_before"] = inputs.get("ending_before")
 
             # Add optional filters
             if "customer" in inputs and inputs["customer"]:
-                params["customer"] = inputs["customer"]
+                params["customer"] = inputs.get("customer")
             if "price" in inputs and inputs["price"]:
-                params["price"] = inputs["price"]
+                params["price"] = inputs.get("price")
             if "status" in inputs and inputs["status"]:
-                params["status"] = inputs["status"]
+                params["status"] = inputs.get("status")
             if "created_gte" in inputs and inputs["created_gte"]:
-                params["created[gte]"] = inputs["created_gte"]
+                params["created[gte]"] = inputs.get("created_gte")
             if "created_lte" in inputs and inputs["created_lte"]:
-                params["created[lte]"] = inputs["created_lte"]
+                params["created[lte]"] = inputs.get("created_lte")
             if "current_period_start_gte" in inputs and inputs["current_period_start_gte"]:
-                params["current_period_start[gte]"] = inputs["current_period_start_gte"]
+                params["current_period_start[gte]"] = inputs.get("current_period_start_gte")
             if "current_period_start_lte" in inputs and inputs["current_period_start_lte"]:
-                params["current_period_start[lte]"] = inputs["current_period_start_lte"]
+                params["current_period_start[lte]"] = inputs.get("current_period_start_lte")
 
             headers = get_common_headers()
 
@@ -1175,31 +1211,31 @@ class CreateSubscriptionAction(ActionHandler):
 
             # Add items (required for most subscriptions)
             if "items" in inputs and inputs["items"]:
-                body["items"] = inputs["items"]
+                body["items"] = inputs.get("items")
 
             # Add optional fields
             if "default_payment_method" in inputs and inputs["default_payment_method"]:
-                body["default_payment_method"] = inputs["default_payment_method"]
+                body["default_payment_method"] = inputs.get("default_payment_method")
             if "payment_behavior" in inputs and inputs["payment_behavior"]:
-                body["payment_behavior"] = inputs["payment_behavior"]
+                body["payment_behavior"] = inputs.get("payment_behavior")
             if "billing_cycle_anchor" in inputs and inputs["billing_cycle_anchor"]:
-                body["billing_cycle_anchor"] = inputs["billing_cycle_anchor"]
+                body["billing_cycle_anchor"] = inputs.get("billing_cycle_anchor")
             if "cancel_at_period_end" in inputs and inputs["cancel_at_period_end"] is not None:
-                body["cancel_at_period_end"] = inputs["cancel_at_period_end"]
+                body["cancel_at_period_end"] = inputs.get("cancel_at_period_end")
             if "cancel_at" in inputs and inputs["cancel_at"]:
-                body["cancel_at"] = inputs["cancel_at"]
+                body["cancel_at"] = inputs.get("cancel_at")
             if "collection_method" in inputs and inputs["collection_method"]:
-                body["collection_method"] = inputs["collection_method"]
+                body["collection_method"] = inputs.get("collection_method")
             if "days_until_due" in inputs and inputs["days_until_due"]:
-                body["days_until_due"] = inputs["days_until_due"]
+                body["days_until_due"] = inputs.get("days_until_due")
             if "trial_period_days" in inputs and inputs["trial_period_days"]:
-                body["trial_period_days"] = inputs["trial_period_days"]
+                body["trial_period_days"] = inputs.get("trial_period_days")
             if "trial_end" in inputs and inputs["trial_end"]:
-                body["trial_end"] = inputs["trial_end"]
+                body["trial_end"] = inputs.get("trial_end")
             if "proration_behavior" in inputs and inputs["proration_behavior"]:
-                body["proration_behavior"] = inputs["proration_behavior"]
+                body["proration_behavior"] = inputs.get("proration_behavior")
             if "metadata" in inputs and inputs["metadata"]:
-                body["metadata"] = inputs["metadata"]
+                body["metadata"] = inputs.get("metadata")
 
             headers = get_common_headers()
             form_data = build_form_data(body)
@@ -1231,25 +1267,25 @@ class UpdateSubscriptionAction(ActionHandler):
 
             # Add only provided fields
             if "items" in inputs and inputs["items"]:
-                body["items"] = inputs["items"]
+                body["items"] = inputs.get("items")
             if "default_payment_method" in inputs and inputs["default_payment_method"]:
-                body["default_payment_method"] = inputs["default_payment_method"]
+                body["default_payment_method"] = inputs.get("default_payment_method")
             if "payment_behavior" in inputs and inputs["payment_behavior"]:
-                body["payment_behavior"] = inputs["payment_behavior"]
+                body["payment_behavior"] = inputs.get("payment_behavior")
             if "cancel_at_period_end" in inputs and inputs["cancel_at_period_end"] is not None:
-                body["cancel_at_period_end"] = inputs["cancel_at_period_end"]
+                body["cancel_at_period_end"] = inputs.get("cancel_at_period_end")
             if "cancel_at" in inputs and inputs["cancel_at"]:
-                body["cancel_at"] = inputs["cancel_at"]
+                body["cancel_at"] = inputs.get("cancel_at")
             if "collection_method" in inputs and inputs["collection_method"]:
-                body["collection_method"] = inputs["collection_method"]
+                body["collection_method"] = inputs.get("collection_method")
             if "days_until_due" in inputs and inputs["days_until_due"]:
-                body["days_until_due"] = inputs["days_until_due"]
+                body["days_until_due"] = inputs.get("days_until_due")
             if "trial_end" in inputs and inputs["trial_end"]:
-                body["trial_end"] = inputs["trial_end"]
+                body["trial_end"] = inputs.get("trial_end")
             if "proration_behavior" in inputs and inputs["proration_behavior"]:
-                body["proration_behavior"] = inputs["proration_behavior"]
+                body["proration_behavior"] = inputs.get("proration_behavior")
             if "metadata" in inputs and inputs["metadata"]:
-                body["metadata"] = inputs["metadata"]
+                body["metadata"] = inputs.get("metadata")
 
             headers = get_common_headers()
             form_data = build_form_data(body)
@@ -1297,11 +1333,11 @@ class CancelSubscriptionAction(ActionHandler):
                 # Cancel immediately
                 body = {}
                 if "cancellation_details" in inputs and inputs["cancellation_details"]:
-                    body["cancellation_details"] = inputs["cancellation_details"]
+                    body["cancellation_details"] = inputs.get("cancellation_details")
                 if "invoice_now" in inputs and inputs["invoice_now"] is not None:
-                    body["invoice_now"] = inputs["invoice_now"]
+                    body["invoice_now"] = inputs.get("invoice_now")
                 if "prorate" in inputs and inputs["prorate"] is not None:
-                    body["prorate"] = inputs["prorate"]
+                    body["prorate"] = inputs.get("prorate")
 
                 form_data = build_form_data(body) if body else {}
 
@@ -1330,11 +1366,17 @@ class ListPaymentMethodsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = build_list_params(inputs)
+            params = {}
+            if inputs.get("limit"):
+                params["limit"] = min(inputs.get("limit"), 100)
+            if inputs.get("starting_after"):
+                params["starting_after"] = inputs.get("starting_after")
+            if inputs.get("ending_before"):
+                params["ending_before"] = inputs.get("ending_before")
 
             # Customer is required for listing payment methods
             if "customer" in inputs and inputs["customer"]:
-                params["customer"] = inputs["customer"]
+                params["customer"] = inputs.get("customer")
 
             # Type is required by Stripe API - default to 'card'
             params["type"] = inputs.get("type", "card")
