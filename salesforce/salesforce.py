@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlparse
 from autohive_integrations_sdk import (
     Integration,
     ExecutionContext,
@@ -32,7 +33,24 @@ def _headers(token: str) -> Dict[str, str]:
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 
-def _get_token_and_instance(context: ExecutionContext):
+async def _resolve_instance_url(context: ExecutionContext, token: str) -> str:
+    """Derive instance URL from the Salesforce userinfo endpoint as a fallback."""
+    resp = await context.fetch(
+        "https://login.salesforce.com/services/oauth2/userinfo",
+        method="GET",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    rest_url = (resp.data or {}).get("urls", {}).get("rest", "")
+    if rest_url:
+        parsed = urlparse(rest_url)
+        return f"{parsed.scheme}://{parsed.netloc}"
+    raise ValueError(
+        "Salesforce instance_url not found in credentials or metadata and could not be resolved "
+        "from the userinfo endpoint. Please reconnect."
+    )
+
+
+async def _get_token_and_instance(context: ExecutionContext):
     credentials = context.auth.get("credentials", {})
     token = credentials.get("access_token", "")
     instance_url = (
@@ -41,7 +59,7 @@ def _get_token_and_instance(context: ExecutionContext):
         or os.environ.get("SALESFORCE_INSTANCE_URL", "")
     )
     if not instance_url:
-        raise ValueError("Salesforce instance_url not found in credentials or metadata. Please reconnect.")
+        instance_url = await _resolve_instance_url(context, token)
     return token, instance_url
 
 
@@ -49,7 +67,7 @@ def _get_token_and_instance(context: ExecutionContext):
 class SearchRecordsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            token, instance_url = _get_token_and_instance(context)
+            token, instance_url = await _get_token_and_instance(context)
             response = await context.fetch(
                 f"{_base_url(instance_url)}/query",
                 method="GET",
@@ -73,7 +91,7 @@ class SearchRecordsAction(ActionHandler):
 class GetRecordAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            token, instance_url = _get_token_and_instance(context)
+            token, instance_url = await _get_token_and_instance(context)
             object_type = inputs["object_type"]
             record_id = _validate_sf_id(inputs["record_id"], "record_id")
             url = f"{_base_url(instance_url)}/sobjects/{object_type}/{record_id}"
@@ -92,7 +110,7 @@ class GetRecordAction(ActionHandler):
 class UpdateRecordAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            token, instance_url = _get_token_and_instance(context)
+            token, instance_url = await _get_token_and_instance(context)
             object_type = inputs["object_type"]
             record_id = _validate_sf_id(inputs["record_id"], "record_id")
             url = f"{_base_url(instance_url)}/sobjects/{object_type}/{record_id}"
@@ -164,7 +182,7 @@ def _build_event_query(  # nosec B608
 class ListTasksAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            token, instance_url = _get_token_and_instance(context)
+            token, instance_url = await _get_token_and_instance(context)
             soql = _build_task_query(
                 status=inputs.get("status"),
                 assigned_to_id=inputs.get("assigned_to_id"),
@@ -194,7 +212,7 @@ class ListTasksAction(ActionHandler):
 class ListEventsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            token, instance_url = _get_token_and_instance(context)
+            token, instance_url = await _get_token_and_instance(context)
             soql = _build_event_query(
                 start_date_from=inputs.get("start_date_from"),
                 start_date_to=inputs.get("start_date_to"),
@@ -242,7 +260,7 @@ def _summarise_event(event: Dict[str, Any]) -> str:
 class GetTaskSummaryAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            token, instance_url = _get_token_and_instance(context)
+            token, instance_url = await _get_token_and_instance(context)
             task_id = _validate_sf_id(inputs["task_id"], "task_id")
             fields = (
                 "Id, Subject, Status, Priority, ActivityDate, Description, "
@@ -271,7 +289,7 @@ class GetTaskSummaryAction(ActionHandler):
 class GetEventSummaryAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            token, instance_url = _get_token_and_instance(context)
+            token, instance_url = await _get_token_and_instance(context)
             event_id = _validate_sf_id(inputs["event_id"], "event_id")
             fields = (
                 "Id, Subject, StartDateTime, EndDateTime, Location, Description, "
