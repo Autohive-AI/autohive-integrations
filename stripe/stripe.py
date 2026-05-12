@@ -28,8 +28,23 @@ def get_common_headers() -> Dict[str, str]:
     """
     return {
         "Content-Type": "application/x-www-form-urlencoded",
+        # Preview version required for unit_amount_decimal support on invoice items
         "Stripe-Version": "2025-12-15.preview",
     }
+
+
+class StripeAPIError(Exception):
+    pass
+
+
+async def _fetch(context: ExecutionContext, url: str, *, method: str = "GET", headers=None, data=None, params=None):
+    """Wrap context.fetch and raise StripeAPIError with Stripe's error message on non-2xx responses."""
+    response = await context.fetch(url, method=method, headers=headers, data=data, params=params)
+    if response.status >= 400:
+        err = (response.data or {}).get("error") or {}
+        msg = err.get("message") or f"Stripe API error (HTTP {response.status})"
+        raise StripeAPIError(msg)
+    return response
 
 
 def build_form_data(data: Dict[str, Any], prefix: str = "") -> Dict[str, str]:
@@ -65,32 +80,20 @@ def build_form_data(data: Dict[str, Any], prefix: str = "") -> Dict[str, str]:
     return result
 
 
-def build_list_params(inputs: Dict[str, Any]) -> Dict[str, Any]:
-    """Build query parameters for list endpoints."""
-    params = {}
-
-    if "limit" in inputs and inputs["limit"]:
-        params["limit"] = min(inputs["limit"], 100)
-    if "starting_after" in inputs and inputs["starting_after"]:
-        params["starting_after"] = inputs.get("starting_after")
-    if "ending_before" in inputs and inputs["ending_before"]:
-        params["ending_before"] = inputs.get("ending_before")
-
-    return params
-
-
 @stripe.connected_account()
 class StripeConnectedAccountHandler(ConnectedAccountHandler):
     async def get_account_info(self, context: ExecutionContext) -> ConnectedAccountInfo:
         try:
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/account",
                 method="GET",
                 headers=get_common_headers(),
             )
             data = response.data or {}
-            email = data.get("email") or data.get("business_profile", {}).get("support_email", "")
-            name = data.get("business_profile", {}).get("name") or data.get("display_name") or email or "Stripe Account"
+            # business_profile is null for unconfigured accounts, so guard against None before .get()
+            business_profile = data.get("business_profile") or {}
+            email = data.get("email") or business_profile.get("support_email", "")
+            name = business_profile.get("name") or data.get("display_name") or email or "Stripe Account"
             return ConnectedAccountInfo(username=name, user_id=data.get("id"))
         except Exception:
             return ConnectedAccountInfo(username="Stripe Account")
@@ -123,7 +126,7 @@ class ListCustomersAction(ActionHandler):
 
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers",
                 method="GET",
                 headers=headers,
@@ -154,7 +157,7 @@ class GetCustomerAction(ActionHandler):
             customer_id = inputs["customer_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers/{customer_id}",
                 method="GET",
                 headers=headers,
@@ -191,7 +194,7 @@ class CreateCustomerAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers",
                 method="POST",
                 headers=headers,
@@ -230,7 +233,7 @@ class UpdateCustomerAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers/{customer_id}",
                 method="POST",
                 headers=headers,
@@ -252,7 +255,7 @@ class DeleteCustomerAction(ActionHandler):
             customer_id = inputs["customer_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/customers/{customer_id}",
                 method="DELETE",
                 headers=headers,
@@ -300,7 +303,7 @@ class ListInvoicesAction(ActionHandler):
 
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices",
                 method="GET",
                 headers=headers,
@@ -331,7 +334,7 @@ class GetInvoiceAction(ActionHandler):
             invoice_id = inputs["invoice_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}",
                 method="GET",
                 headers=headers,
@@ -368,7 +371,7 @@ class CreateInvoiceAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices",
                 method="POST",
                 headers=headers,
@@ -405,7 +408,7 @@ class UpdateInvoiceAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}",
                 method="POST",
                 headers=headers,
@@ -427,7 +430,7 @@ class DeleteInvoiceAction(ActionHandler):
             invoice_id = inputs["invoice_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}",
                 method="DELETE",
                 headers=headers,
@@ -461,7 +464,7 @@ class FinalizeInvoiceAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body) if body else {}
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}/finalize",
                 method="POST",
                 headers=headers,
@@ -483,7 +486,7 @@ class SendInvoiceAction(ActionHandler):
             invoice_id = inputs["invoice_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}/send",
                 method="POST",
                 headers=headers,
@@ -510,7 +513,7 @@ class PayInvoiceAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body) if body else {}
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}/pay",
                 method="POST",
                 headers=headers,
@@ -532,7 +535,7 @@ class VoidInvoiceAction(ActionHandler):
             invoice_id = inputs["invoice_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoices/{invoice_id}/void",
                 method="POST",
                 headers=headers,
@@ -571,7 +574,7 @@ class ListInvoiceItemsAction(ActionHandler):
 
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems",
                 method="GET",
                 headers=headers,
@@ -602,7 +605,7 @@ class GetInvoiceItemAction(ActionHandler):
             invoice_item_id = inputs["invoice_item_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems/{invoice_item_id}",
                 method="GET",
                 headers=headers,
@@ -634,6 +637,7 @@ class CreateInvoiceItemAction(ActionHandler):
             if "quantity" in inputs and inputs["quantity"] is not None:
                 body["quantity"] = inputs.get("quantity")
             if inputs.get("unit_amount") is not None:
+                # Stripe preview API requires unit_amount_decimal (string) instead of unit_amount (int)
                 body["unit_amount_decimal"] = str(inputs.get("unit_amount"))
             if "metadata" in inputs and inputs["metadata"]:
                 body["metadata"] = inputs.get("metadata")
@@ -641,7 +645,7 @@ class CreateInvoiceItemAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems",
                 method="POST",
                 headers=headers,
@@ -671,6 +675,7 @@ class UpdateInvoiceItemAction(ActionHandler):
             if "quantity" in inputs and inputs["quantity"] is not None:
                 body["quantity"] = inputs.get("quantity")
             if inputs.get("unit_amount") is not None:
+                # Stripe preview API requires unit_amount_decimal (string) instead of unit_amount (int)
                 body["unit_amount_decimal"] = str(inputs.get("unit_amount"))
             if "metadata" in inputs and inputs["metadata"]:
                 body["metadata"] = inputs.get("metadata")
@@ -678,7 +683,7 @@ class UpdateInvoiceItemAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems/{invoice_item_id}",
                 method="POST",
                 headers=headers,
@@ -700,7 +705,7 @@ class DeleteInvoiceItemAction(ActionHandler):
             invoice_item_id = inputs["invoice_item_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/invoiceitems/{invoice_item_id}",
                 method="DELETE",
                 headers=headers,
@@ -748,7 +753,7 @@ class ListProductsAction(ActionHandler):
 
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/products",
                 method="GET",
                 headers=headers,
@@ -779,7 +784,7 @@ class GetProductAction(ActionHandler):
             product_id = inputs["product_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/products/{product_id}",
                 method="GET",
                 headers=headers,
@@ -820,7 +825,7 @@ class CreateProductAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/products",
                 method="POST",
                 headers=headers,
@@ -865,7 +870,7 @@ class UpdateProductAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/products/{product_id}",
                 method="POST",
                 headers=headers,
@@ -911,7 +916,7 @@ class ListPricesAction(ActionHandler):
 
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices",
                 method="GET",
                 headers=headers,
@@ -942,7 +947,7 @@ class GetPriceAction(ActionHandler):
             price_id = inputs["price_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices/{price_id}",
                 method="GET",
                 headers=headers,
@@ -967,6 +972,7 @@ class CreatePriceAction(ActionHandler):
 
             # Add unit_amount or custom_unit_amount
             if inputs.get("unit_amount") is not None:
+                # Stripe preview API requires unit_amount_decimal (string) instead of unit_amount (int)
                 body["unit_amount_decimal"] = str(inputs.get("unit_amount"))
             elif "unit_amount_decimal" in inputs and inputs["unit_amount_decimal"]:
                 body["unit_amount_decimal"] = inputs.get("unit_amount_decimal")
@@ -992,7 +998,7 @@ class CreatePriceAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices",
                 method="POST",
                 headers=headers,
@@ -1027,7 +1033,7 @@ class UpdatePriceAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/prices/{price_id}",
                 method="POST",
                 headers=headers,
@@ -1075,7 +1081,7 @@ class ListSubscriptionsAction(ActionHandler):
 
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions",
                 method="GET",
                 headers=headers,
@@ -1106,7 +1112,7 @@ class GetSubscriptionAction(ActionHandler):
             subscription_id = inputs["subscription_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions/{subscription_id}",
                 method="GET",
                 headers=headers,
@@ -1157,7 +1163,7 @@ class CreateSubscriptionAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions",
                 method="POST",
                 headers=headers,
@@ -1204,7 +1210,7 @@ class UpdateSubscriptionAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions/{subscription_id}",
                 method="POST",
                 headers=headers,
@@ -1234,7 +1240,7 @@ class CancelSubscriptionAction(ActionHandler):
                 body = {"cancel_at_period_end": True}
                 form_data = build_form_data(body)
 
-                response = await context.fetch(
+                response = await _fetch(context,
                     f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions/{subscription_id}",
                     method="POST",
                     headers=headers,
@@ -1252,7 +1258,7 @@ class CancelSubscriptionAction(ActionHandler):
 
                 form_data = build_form_data(body) if body else {}
 
-                response = await context.fetch(
+                response = await _fetch(context,
                     f"{STRIPE_API_BASE_URL}/{API_VERSION}/subscriptions/{subscription_id}",
                     method="DELETE",
                     headers=headers,
@@ -1291,7 +1297,7 @@ class ListPaymentMethodsAction(ActionHandler):
 
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/payment_methods",
                 method="GET",
                 headers=headers,
@@ -1322,7 +1328,7 @@ class GetPaymentMethodAction(ActionHandler):
             payment_method_id = inputs["payment_method_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/payment_methods/{payment_method_id}",
                 method="GET",
                 headers=headers,
@@ -1346,7 +1352,7 @@ class AttachPaymentMethodAction(ActionHandler):
             headers = get_common_headers()
             form_data = build_form_data(body)
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/payment_methods/{payment_method_id}/attach",
                 method="POST",
                 headers=headers,
@@ -1368,7 +1374,7 @@ class DetachPaymentMethodAction(ActionHandler):
             payment_method_id = inputs["payment_method_id"]
             headers = get_common_headers()
 
-            response = await context.fetch(
+            response = await _fetch(context,
                 f"{STRIPE_API_BASE_URL}/{API_VERSION}/payment_methods/{payment_method_id}/detach",
                 method="POST",
                 headers=headers,

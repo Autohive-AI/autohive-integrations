@@ -471,6 +471,21 @@ class TestConnectedAccountHandler:
         assert result.result.username == "owner@example.com"
         assert result.result.user_id == "acct_test456"
 
+    async def test_handles_null_business_profile(self, ctx):
+        # Stripe returns business_profile: null for unconfigured accounts
+        ctx.fetch.return_value = FetchResponse(
+            200,
+            {},
+            {
+                "id": "acct_test789",
+                "email": "owner@example.com",
+                "business_profile": None,
+            },
+        )
+        result = await stripe.get_connected_account(ctx)
+        assert result.result.username == "owner@example.com"
+        assert result.result.user_id == "acct_test789"
+
     async def test_falls_back_to_stripe_account_on_exception(self, ctx):
         ctx.fetch.side_effect = Exception("network error")
         result = await stripe.get_connected_account(ctx)
