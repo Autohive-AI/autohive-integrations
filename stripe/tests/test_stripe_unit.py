@@ -57,8 +57,8 @@ def ctx():
     mock.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data={}))
     mock.auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "sk_test_fake"},
-    }  # nosec B105
+        "credentials": {"access_token": "sk_test_fake"},  # nosec B105
+    }
     return mock
 
 
