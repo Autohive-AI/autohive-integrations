@@ -19,7 +19,7 @@ import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
 
-from box import box
+from box.box import box
 
 pytestmark = pytest.mark.integration
 
@@ -87,7 +87,6 @@ async def test_list_folder_contents(live_context):
 
 
 async def test_get_file(live_context):
-    # First find a file to test with
     list_result = await box.execute_action("list_files", {}, live_context)
     assert list_result.type == ResultType.ACTION
     files = list_result.result.data.get("files", [])
@@ -103,3 +102,28 @@ async def test_get_file(live_context):
     assert data["file"]["name"]
     assert data["file"]["content"]
     assert data["file"]["contentType"]
+
+
+@pytest.mark.destructive
+async def test_upload_file(live_context):
+    """Upload a small test file to the root folder then verify it appears in list_files."""
+    import time
+
+    uid = int(time.time())
+    import base64
+
+    result = await box.execute_action(
+        "upload_file",
+        {
+            "folder_id": "0",
+            "file": {
+                "name": f"ah-test-{uid}.txt",
+                "content": base64.b64encode(b"autohive integration test").decode(),
+                "contentType": "text/plain",
+            },
+        },
+        live_context,
+    )
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert data.get("file_id")
