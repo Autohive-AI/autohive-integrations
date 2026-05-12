@@ -714,17 +714,14 @@ def _next_num_id(numbering) -> int:
     return max(ids, default=0) + 1
 
 
-def _hanging_indent_for_fmt(num_fmt: str) -> int:
-    """Return the hanging indent (twips) appropriate for a numbering format.
+_LIST_HANGING_INDENT = 504
+"""Hanging indent in twips used for every numbered-list level.
 
-    Wider formats like roman numerals need more space so that item text
-    stays consistently aligned even when labels vary in width (e.g. ``(iii)``).
-    """
-    _HANGING = {
-        "lowerRoman": 504,
-        "upperRoman": 504,
-    }
-    return _HANGING.get(num_fmt, 360)
+A single value is used for **all** numbering formats so that item text aligns
+at the same column across lists that use different label styles (e.g. ``1.``,
+``(a)``, ``(iii)``).  504 twips (≈ 0.35 in) is wide enough for the widest
+common parenthesized roman label ``(viii)`` while keeping the indent compact.
+"""
 
 
 def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels: int = 3) -> int:
@@ -747,7 +744,7 @@ def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels
     multi_level_type.set(qn("w:val"), "multilevel")
     abstract_num.append(multi_level_type)
 
-    hanging = _hanging_indent_for_fmt(num_fmt)
+    hanging = _LIST_HANGING_INDENT
 
     for ilvl in range(nesting_levels):
         lvl = OxmlElement("w:lvl")
@@ -771,12 +768,28 @@ def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels
         jc.set(qn("w:val"), "left")
         lvl.append(jc)
 
+        # Force a tab character after the label so text aligns at the
+        # left-indent position regardless of label width.
+        suff = OxmlElement("w:suff")
+        suff.set(qn("w:val"), "tab")
+        lvl.append(suff)
+
+        left = hanging + (hanging * ilvl)
         ppr = OxmlElement("w:pPr")
         ind = OxmlElement("w:ind")
-        left = hanging + (hanging * ilvl)
         ind.set(qn("w:left"), str(left))
         ind.set(qn("w:hanging"), str(hanging))
         ppr.append(ind)
+
+        # Explicit tab stop at the text position so the tab after the
+        # label lands exactly at the left indent.
+        tabs = OxmlElement("w:tabs")
+        tab = OxmlElement("w:tab")
+        tab.set(qn("w:val"), "num")
+        tab.set(qn("w:pos"), str(left))
+        tabs.append(tab)
+        ppr.append(tabs)
+
         lvl.append(ppr)
 
         abstract_num.append(lvl)
@@ -909,17 +922,36 @@ def _patch_abstract_num_level(doc, num_id: int, level: int, num_fmt: str, lvl_te
         jc.set(qn("w:val"), "left")
         target_lvl.append(jc)
 
+    # Ensure suffix is tab-based for consistent text alignment
+    suff = target_lvl.find(qn("w:suff"))
+    if suff is None:
+        suff = OxmlElement("w:suff")
+        target_lvl.append(suff)
+    suff.set(qn("w:val"), "tab")
+
     # Ensure indentation
-    hanging = _hanging_indent_for_fmt(num_fmt)
+    hanging = _LIST_HANGING_INDENT
+    left = hanging + (hanging * level)
     ppr = target_lvl.find(qn("w:pPr"))
     if ppr is None:
         ppr = OxmlElement("w:pPr")
-        ind = OxmlElement("w:ind")
-        left = hanging + (hanging * level)
-        ind.set(qn("w:left"), str(left))
-        ind.set(qn("w:hanging"), str(hanging))
-        ppr.append(ind)
         target_lvl.append(ppr)
+    ind = ppr.find(qn("w:ind"))
+    if ind is None:
+        ind = OxmlElement("w:ind")
+        ppr.append(ind)
+    ind.set(qn("w:left"), str(left))
+    ind.set(qn("w:hanging"), str(hanging))
+
+    # Explicit tab stop at the text position
+    tabs = ppr.find(qn("w:tabs"))
+    if tabs is None:
+        tabs = OxmlElement("w:tabs")
+        ppr.append(tabs)
+    tab = OxmlElement("w:tab")
+    tab.set(qn("w:val"), "num")
+    tab.set(qn("w:pos"), str(left))
+    tabs.append(tab)
 
 
 def _ol_type_to_numfmt(type_attr: str | None, paren: bool = False) -> tuple[str, str]:

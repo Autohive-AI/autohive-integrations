@@ -824,7 +824,7 @@ class TestMultipleParenListsAfterHeadings:
             assert ilvl == 0, f"'{text}' should be at ilvl 0, got {ilvl}"
 
     def test_level_zero_is_left_aligned(self):
-        """Level-0 paren lists with no leading spaces should be left-aligned (left=360, hanging=360)."""
+        """Level-0 paren lists with no leading spaces should be left-aligned (left=hanging, hanging=504)."""
         from docx import Document
         from docx.oxml.ns import qn
 
@@ -847,10 +847,11 @@ class TestMultipleParenListsAfterHeadings:
         assert pPr is not None
         ind = pPr.find(qn("w:ind"))
         assert ind is not None
-        assert ind.get(qn("w:left")) == "360", (
-            f"Level 0 left indent should be 360 (left-aligned), got {ind.get(qn('w:left'))}"
+        left = ind.get(qn("w:left"))
+        hanging = ind.get(qn("w:hanging"))
+        assert left == hanging, (
+            f"Level 0 left indent should equal hanging (left-aligned), got left={left}, hanging={hanging}"
         )
-        assert ind.get(qn("w:hanging")) == "360"
 
     def test_all_use_decimal_parenthesized_format(self):
         from docx import Document
@@ -1126,29 +1127,54 @@ class TestMixedNumberedListFormats:
             assert hanging is not None, f"Hanging indent should be set for list starting at idx {start_idx}"
             assert left is not None, f"Left indent should be set for list starting at idx {start_idx}"
 
-    def test_roman_numeral_hanging_indent_is_wide_enough(self):
-        """Roman numeral labels like ``(iii)`` are wider than ``(1)`` so the
-        hanging indent must be larger to keep text aligned."""
+    def test_all_lists_share_same_hanging_indent(self):
+        """All lists at the same indentation level must use the same left and
+        hanging indent so that item text aligns at the same column regardless
+        of whether the list uses ``1.``, ``(a)``, ``(A)``, or ``(iii)`` labels."""
         from docx.oxml.ns import qn
 
         doc = self._build_doc()
         numbered = self._numbered_paragraphs(doc)
 
-        # Roman numerals start at index 12
-        roman_num_id = numbered[12][1][0]
-        roman_ilvl = numbered[12][1][1]
-        roman_abstract = self._get_abstract_num_for(doc, roman_num_id)
-        roman_lvl = self._get_lvl(roman_abstract, roman_ilvl)
-        roman_hanging = int(roman_lvl.find(qn("w:pPr")).find(qn("w:ind")).get(qn("w:hanging")))
+        indent_values = []
+        for start_idx in range(0, 15, 3):
+            num_id = numbered[start_idx][1][0]
+            ilvl = numbered[start_idx][1][1]
+            abstract = self._get_abstract_num_for(doc, num_id)
+            lvl = self._get_lvl(abstract, ilvl)
+            ind = lvl.find(qn("w:pPr")).find(qn("w:ind"))
+            hanging = ind.get(qn("w:hanging"))
+            left = ind.get(qn("w:left"))
+            indent_values.append((left, hanging))
 
-        # Decimal at index 3
-        decimal_num_id = numbered[3][1][0]
-        decimal_ilvl = numbered[3][1][1]
-        decimal_abstract = self._get_abstract_num_for(doc, decimal_num_id)
-        decimal_lvl = self._get_lvl(decimal_abstract, decimal_ilvl)
-        decimal_hanging = int(decimal_lvl.find(qn("w:pPr")).find(qn("w:ind")).get(qn("w:hanging")))
+        first = indent_values[0]
+        for i, val in enumerate(indent_values):
+            assert val == first, (
+                f"List group {i} indent {val} differs from group 0 indent {first}; "
+                f"all lists must share the same indent for consistent text alignment"
+            )
 
-        assert roman_hanging > decimal_hanging, (
-            f"Roman numeral hanging indent ({roman_hanging}) should be wider than "
-            f"decimal ({decimal_hanging}) to accommodate wider labels like (iii)"
-        )
+    def test_all_levels_use_tab_suffix(self):
+        """Each numbering level must use ``<w:suff w:val='tab'/>`` so Word
+        inserts a tab (not a space) after the label.  This ensures text aligns
+        at the left-indent position regardless of label width."""
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+
+        checked = set()
+        for text, (num_id, ilvl) in numbered:
+            key = (num_id, ilvl)
+            if key in checked:
+                continue
+            checked.add(key)
+            abstract = self._get_abstract_num_for(doc, num_id)
+            lvl = self._get_lvl(abstract, ilvl)
+            suff = lvl.find(qn("w:suff"))
+            assert suff is not None, (
+                f"'{text}' level should have a <w:suff> element"
+            )
+            assert suff.get(qn("w:val")) == "tab", (
+                f"'{text}' suffix should be 'tab', got '{suff.get(qn('w:val'))}'"
+            )
