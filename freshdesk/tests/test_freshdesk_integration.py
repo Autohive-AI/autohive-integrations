@@ -1,26 +1,19 @@
 """
 Live integration tests for the Freshdesk integration.
 
-Requires FRESHDESK_API_KEY and FRESHDESK_DOMAIN set in the environment or
-project .env.
+Requires FRESHDESK_API_KEY and FRESHDESK_DOMAIN set in the environment.
 
-Credential extraction recipe:
-1. In Freshdesk, open Profile Settings > View API key and copy the API key to
-   FRESHDESK_API_KEY.
-2. Copy the Freshdesk subdomain to FRESHDESK_DOMAIN. For example, use
-   "acme" for https://acme.freshdesk.com.
-3. Add both values to the project .env file or export them in your shell before
-   running these tests.
-
-Safe read-only run:
-    pytest freshdesk/tests/test_freshdesk_integration.py -m "integration and not destructive"
+Run with:
+    pytest freshdesk/tests/test_freshdesk_integration.py -m "integration" --import-mode=importlib --tb=short
 """
+
+import time
 
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
 
-from freshdesk import freshdesk
+from freshdesk.freshdesk import freshdesk
 
 pytestmark = pytest.mark.integration
 
@@ -36,14 +29,7 @@ def live_context(env_credentials, make_context):
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
         async with aiohttp.ClientSession() as session:
-            async with session.request(
-                method,
-                url,
-                json=json,
-                headers=headers,
-                params=params,
-                **kwargs,
-            ) as resp:
+            async with session.request(method, url, json=json, headers=headers, params=params, **kwargs) as resp:
                 try:
                     data = await resp.json(content_type=None)
                 except Exception:
@@ -55,105 +41,174 @@ def live_context(env_credentials, make_context):
     return ctx
 
 
-async def _first_ticket_id(live_context):
-    result = await freshdesk.execute_action("list_tickets", {"per_page": 5}, live_context)
-    if result.type != ResultType.ACTION:
-        pytest.skip(f"Unable to list Freshdesk tickets: {result.result.message}")
-
-    tickets = result.result.data["tickets"]
-    if not tickets:
-        pytest.skip("No Freshdesk tickets available for ticket-scoped live tests")
-    return tickets[0]["id"]
+# ---- Read-Only Tests ----
 
 
-async def _first_company_id(live_context):
+async def test_list_companies(live_context):
     result = await freshdesk.execute_action("list_companies", {"per_page": 5}, live_context)
-    if result.type != ResultType.ACTION:
-        pytest.skip(f"Unable to list Freshdesk companies: {result.result.message}")
-
-    companies = result.result.data["companies"]
-    if not companies:
-        pytest.skip("No Freshdesk companies available for company-scoped live tests")
-    return companies[0]["id"]
-
-
-async def _first_contact_id(live_context):
-    result = await freshdesk.execute_action("list_contacts", {"per_page": 5}, live_context)
-    if result.type != ResultType.ACTION:
-        pytest.skip(f"Unable to list Freshdesk contacts: {result.result.message}")
-
-    contacts = result.result.data["contacts"]
-    if not contacts:
-        pytest.skip("No Freshdesk contacts available for contact-scoped live tests")
-    return contacts[0]["id"]
-
-
-async def test_list_companies_returns_companies(live_context):
-    result = await freshdesk.execute_action("list_companies", {"per_page": 5}, live_context)
-
     assert result.type == ResultType.ACTION
-    data = result.result.data
-    assert "companies" in data
-    assert isinstance(data["companies"], list)
+    assert "companies" in result.result.data
+    assert isinstance(result.result.data["companies"], list)
 
 
-async def test_list_tickets_returns_tickets(live_context):
+async def test_list_tickets(live_context):
     result = await freshdesk.execute_action("list_tickets", {"per_page": 5}, live_context)
-
     assert result.type == ResultType.ACTION
-    data = result.result.data
-    assert "tickets" in data
-    assert isinstance(data["tickets"], list)
+    assert "tickets" in result.result.data
+    assert isinstance(result.result.data["tickets"], list)
 
 
-async def test_list_contacts_returns_contacts(live_context):
+async def test_list_contacts(live_context):
     result = await freshdesk.execute_action("list_contacts", {"per_page": 5}, live_context)
-
     assert result.type == ResultType.ACTION
-    data = result.result.data
-    assert "contacts" in data
-    assert isinstance(data["contacts"], list)
+    assert "contacts" in result.result.data
+    assert isinstance(result.result.data["contacts"], list)
 
 
-async def test_get_company_returns_company_shape(live_context):
-    company_id = await _first_company_id(live_context)
-
-    result = await freshdesk.execute_action("get_company", {"company_id": company_id}, live_context)
-
+async def test_search_companies(live_context):
+    result = await freshdesk.execute_action("search_companies", {"name": "a"}, live_context)
     assert result.type == ResultType.ACTION
-    data = result.result.data
-    assert "company" in data
-    assert data["company"]["id"] == company_id
+    assert "companies" in result.result.data
 
 
-async def test_get_ticket_returns_ticket_shape(live_context):
-    ticket_id = await _first_ticket_id(live_context)
-
-    result = await freshdesk.execute_action("get_ticket", {"ticket_id": ticket_id}, live_context)
-
+async def test_search_contacts(live_context):
+    result = await freshdesk.execute_action("search_contacts", {"term": "a"}, live_context)
     assert result.type == ResultType.ACTION
-    data = result.result.data
-    assert "ticket" in data
-    assert data["ticket"]["id"] == ticket_id
+    assert "contacts" in result.result.data
 
 
-async def test_get_contact_returns_contact_shape(live_context):
-    contact_id = await _first_contact_id(live_context)
-
-    result = await freshdesk.execute_action("get_contact", {"contact_id": contact_id}, live_context)
-
-    assert result.type == ResultType.ACTION
-    data = result.result.data
-    assert "contact" in data
-    assert data["contact"]["id"] == contact_id
+# ---- Destructive / Lifecycle Tests ----
 
 
-async def test_list_conversations_returns_conversations(live_context):
-    ticket_id = await _first_ticket_id(live_context)
+@pytest.mark.destructive
+async def test_company_lifecycle(live_context):
+    """create -> get -> update -> delete company."""
+    uid = int(time.time())
 
-    result = await freshdesk.execute_action("list_conversations", {"ticket_id": ticket_id}, live_context)
+    # Create
+    create = await freshdesk.execute_action(
+        "create_company",
+        {"name": f"AH Test Co {uid}", "description": "Created by integration test"},
+        live_context,
+    )
+    assert create.type == ResultType.ACTION
+    company_id = create.result.data["company"]["id"]
+    assert company_id
 
-    assert result.type == ResultType.ACTION
-    data = result.result.data
-    assert "conversations" in data
-    assert isinstance(data["conversations"], list)
+    # Get
+    get = await freshdesk.execute_action("get_company", {"company_id": company_id}, live_context)
+    assert get.type == ResultType.ACTION
+    assert get.result.data["company"]["id"] == company_id
+
+    # Update
+    update = await freshdesk.execute_action(
+        "update_company",
+        {"company_id": company_id, "description": f"Updated at {uid}"},
+        live_context,
+    )
+    assert update.type == ResultType.ACTION
+    assert update.result.data["company"]["id"] == company_id
+
+    # Delete
+    delete = await freshdesk.execute_action("delete_company", {"company_id": company_id}, live_context)
+    assert delete.type == ResultType.ACTION
+    assert delete.result.data["deleted"] is True
+
+
+@pytest.mark.destructive
+async def test_contact_lifecycle(live_context):
+    """create -> get -> update -> delete contact."""
+    uid = int(time.time())
+
+    # Create
+    create = await freshdesk.execute_action(
+        "create_contact",
+        {"name": f"AH Test Contact {uid}", "email": f"ah-test-{uid}@example.com"},
+        live_context,
+    )
+    assert create.type == ResultType.ACTION
+    contact_id = create.result.data["contact"]["id"]
+    assert contact_id
+
+    # Get
+    get = await freshdesk.execute_action("get_contact", {"contact_id": contact_id}, live_context)
+    assert get.type == ResultType.ACTION
+    assert get.result.data["contact"]["id"] == contact_id
+
+    # Update
+    update = await freshdesk.execute_action(
+        "update_contact",
+        {"contact_id": contact_id, "job_title": "Test Engineer"},
+        live_context,
+    )
+    assert update.type == ResultType.ACTION
+    assert update.result.data["contact"]["id"] == contact_id
+
+    # Delete (soft delete)
+    delete = await freshdesk.execute_action("delete_contact", {"contact_id": contact_id}, live_context)
+    assert delete.type == ResultType.ACTION
+    assert delete.result.data["deleted"] is True
+
+
+@pytest.mark.destructive
+async def test_ticket_lifecycle(live_context):
+    """create -> get -> update -> list_conversations -> create_note -> create_reply -> delete ticket."""
+    uid = int(time.time())
+
+    # Create
+    create = await freshdesk.execute_action(
+        "create_ticket",
+        {
+            "subject": f"AH Test Ticket {uid}",
+            "email": f"ah-test-{uid}@example.com",
+            "description": "Integration test ticket",
+            "priority": 1,
+            "status": 2,
+        },
+        live_context,
+    )
+    assert create.type == ResultType.ACTION
+    ticket_id = create.result.data["ticket"]["id"]
+    assert ticket_id
+
+    # Get
+    get = await freshdesk.execute_action("get_ticket", {"ticket_id": ticket_id}, live_context)
+    assert get.type == ResultType.ACTION
+    assert get.result.data["ticket"]["id"] == ticket_id
+
+    # Update
+    update = await freshdesk.execute_action(
+        "update_ticket",
+        {"ticket_id": ticket_id, "priority": 2, "subject": f"AH Updated Ticket {uid}"},
+        live_context,
+    )
+    assert update.type == ResultType.ACTION
+    assert update.result.data["ticket"]["id"] == ticket_id
+
+    # List conversations
+    convs = await freshdesk.execute_action("list_conversations", {"ticket_id": ticket_id}, live_context)
+    assert convs.type == ResultType.ACTION
+    assert "conversations" in convs.result.data
+
+    # Create note
+    note = await freshdesk.execute_action(
+        "create_note",
+        {"ticket_id": ticket_id, "body": f"Test note at {uid}"},
+        live_context,
+    )
+    assert note.type == ResultType.ACTION
+    assert "conversation" in note.result.data
+
+    # Create reply
+    reply = await freshdesk.execute_action(
+        "create_reply",
+        {"ticket_id": ticket_id, "body": f"Test reply at {uid}"},
+        live_context,
+    )
+    assert reply.type == ResultType.ACTION
+    assert "conversation" in reply.result.data
+
+    # Delete
+    delete = await freshdesk.execute_action("delete_ticket", {"ticket_id": ticket_id}, live_context)
+    assert delete.type == ResultType.ACTION
+    assert delete.result.data["deleted"] is True

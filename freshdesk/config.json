@@ -74,7 +74,10 @@
                                     }
                                 },
                                 "note": {
-                                    "type": "string",
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "description": "Additional notes about the company"
                                 },
                                 "created_at": {
@@ -93,7 +96,10 @@
                         "description": "Total number of companies"
                     }
                 },
-                "required": ["companies", "total"]
+                "required": [
+                    "companies",
+                    "total"
+                ]
             }
         },
         "create_company": {
@@ -118,7 +124,10 @@
                         }
                     },
                     "note": {
-                        "type": "string",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Additional notes about the company"
                     },
                     "custom_fields": {
@@ -126,7 +135,9 @@
                         "description": "Custom fields for the company (key-value pairs)"
                     }
                 },
-                "required": ["name"]
+                "required": [
+                    "name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -155,7 +166,10 @@
                                 }
                             },
                             "note": {
-                                "type": "string",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
                                 "description": "Additional notes about the company"
                             },
                             "created_at": {
@@ -169,7 +183,9 @@
                         }
                     }
                 },
-                "required": ["company"]
+                "required": [
+                    "company"
+                ]
             }
         },
         "get_company": {
@@ -183,7 +199,9 @@
                         "description": "The unique ID of the company to retrieve"
                     }
                 },
-                "required": ["company_id"]
+                "required": [
+                    "company_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -212,7 +230,10 @@
                                 }
                             },
                             "note": {
-                                "type": "string",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
                                 "description": "Additional notes about the company"
                             },
                             "created_at": {
@@ -226,7 +247,9 @@
                         }
                     }
                 },
-                "required": ["company"]
+                "required": [
+                    "company"
+                ]
             }
         },
         "update_company": {
@@ -255,7 +278,10 @@
                         }
                     },
                     "note": {
-                        "type": "string",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Updated notes about the company"
                     },
                     "custom_fields": {
@@ -263,7 +289,9 @@
                         "description": "Updated custom fields (key-value pairs)"
                     }
                 },
-                "required": ["company_id"]
+                "required": [
+                    "company_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -292,7 +320,10 @@
                                 }
                             },
                             "note": {
-                                "type": "string",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
                                 "description": "Additional notes about the company"
                             },
                             "created_at": {
@@ -306,7 +337,9 @@
                         }
                     }
                 },
-                "required": ["company"]
+                "required": [
+                    "company"
+                ]
             }
         },
         "delete_company": {
@@ -320,7 +353,9 @@
                         "description": "The unique ID of the company to delete"
                     }
                 },
-                "required": ["company_id"]
+                "required": [
+                    "company_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -330,7 +365,9 @@
                         "description": "Whether the company was deleted"
                     }
                 },
-                "required": ["deleted"]
+                "required": [
+                    "deleted"
+                ]
             }
         },
         "search_companies": {
@@ -344,7 +381,9 @@
                         "description": "Company name or keyword to search for (case insensitive, requires word prefix matching)"
                     }
                 },
-                "required": ["name"]
+                "required": [
+                    "name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -371,7 +410,10 @@
                         "description": "Total number of companies found"
                     }
                 },
-                "required": ["companies", "total"]
+                "required": [
+                    "companies",
+                    "total"
+                ]
             }
         },
         "create_ticket": {
@@ -395,17 +437,34 @@
                     "priority": {
                         "type": "integer",
                         "description": "Priority: 1-Low, 2-Medium, 3-High, 4-Urgent",
-                        "enum": [1, 2, 3, 4]
+                        "enum": [
+                            1,
+                            2,
+                            3,
+                            4
+                        ]
                     },
                     "status": {
                         "type": "integer",
                         "description": "Status: 2-Open, 3-Pending, 4-Resolved, 5-Closed",
-                        "enum": [2, 3, 4, 5]
+                        "enum": [
+                            2,
+                            3,
+                            4,
+                            5
+                        ]
                     },
                     "source": {
                         "type": "integer",
                         "description": "Source: 1-Email, 2-Portal, 3-Phone, 7-Chat, 9-Feedback, 10-Outbound Email",
-                        "enum": [1, 2, 3, 7, 9, 10]
+                        "enum": [
+                            1,
+                            2,
+                            3,
+                            7,
+                            9,
+                            10
+                        ]
                     },
                     "name": {
                         "type": "string",
@@ -423,7 +482,10 @@
                         }
                     }
                 },
-                "required": ["subject", "email"]
+                "required": [
+                    "subject",
+                    "email"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -433,7 +495,9 @@
                         "description": "Created ticket details"
                     }
                 },
-                "required": ["ticket"]
+                "required": [
+                    "ticket"
+                ]
             }
         },
         "list_tickets": {
@@ -468,7 +532,10 @@
                         "description": "Total number of tickets returned"
                     }
                 },
-                "required": ["tickets", "total"]
+                "required": [
+                    "tickets",
+                    "total"
+                ]
             }
         },
         "get_ticket": {
@@ -482,7 +549,9 @@
                         "description": "The unique ID of the ticket to retrieve"
                     }
                 },
-                "required": ["ticket_id"]
+                "required": [
+                    "ticket_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -492,7 +561,9 @@
                         "description": "Ticket details"
                     }
                 },
-                "required": ["ticket"]
+                "required": [
+                    "ticket"
+                ]
             }
         },
         "update_ticket": {
@@ -516,12 +587,22 @@
                     "priority": {
                         "type": "integer",
                         "description": "Priority: 1-Low, 2-Medium, 3-High, 4-Urgent",
-                        "enum": [1, 2, 3, 4]
+                        "enum": [
+                            1,
+                            2,
+                            3,
+                            4
+                        ]
                     },
                     "status": {
                         "type": "integer",
                         "description": "Status: 2-Open, 3-Pending, 4-Resolved, 5-Closed",
-                        "enum": [2, 3, 4, 5]
+                        "enum": [
+                            2,
+                            3,
+                            4,
+                            5
+                        ]
                     },
                     "tags": {
                         "type": "array",
@@ -531,7 +612,9 @@
                         }
                     }
                 },
-                "required": ["ticket_id"]
+                "required": [
+                    "ticket_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -541,7 +624,9 @@
                         "description": "Updated ticket details"
                     }
                 },
-                "required": ["ticket"]
+                "required": [
+                    "ticket"
+                ]
             }
         },
         "delete_ticket": {
@@ -555,7 +640,9 @@
                         "description": "The unique ID of the ticket to delete"
                     }
                 },
-                "required": ["ticket_id"]
+                "required": [
+                    "ticket_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -565,7 +652,9 @@
                         "description": "Whether the ticket was deleted"
                     }
                 },
-                "required": ["deleted"]
+                "required": [
+                    "deleted"
+                ]
             }
         },
         "create_contact": {
@@ -610,7 +699,10 @@
                         }
                     }
                 },
-                "required": ["name", "email"]
+                "required": [
+                    "name",
+                    "email"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -620,7 +712,9 @@
                         "description": "Created contact details"
                     }
                 },
-                "required": ["contact"]
+                "required": [
+                    "contact"
+                ]
             }
         },
         "list_contacts": {
@@ -655,7 +749,10 @@
                         "description": "Total number of contacts returned"
                     }
                 },
-                "required": ["contacts", "total"]
+                "required": [
+                    "contacts",
+                    "total"
+                ]
             }
         },
         "get_contact": {
@@ -669,7 +766,9 @@
                         "description": "The unique ID of the contact to retrieve"
                     }
                 },
-                "required": ["contact_id"]
+                "required": [
+                    "contact_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -679,7 +778,9 @@
                         "description": "Contact details"
                     }
                 },
-                "required": ["contact"]
+                "required": [
+                    "contact"
+                ]
             }
         },
         "update_contact": {
@@ -717,7 +818,9 @@
                         "description": "Updated description"
                     }
                 },
-                "required": ["contact_id"]
+                "required": [
+                    "contact_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -727,7 +830,9 @@
                         "description": "Updated contact details"
                     }
                 },
-                "required": ["contact"]
+                "required": [
+                    "contact"
+                ]
             }
         },
         "delete_contact": {
@@ -741,7 +846,9 @@
                         "description": "The unique ID of the contact to delete"
                     }
                 },
-                "required": ["contact_id"]
+                "required": [
+                    "contact_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -751,7 +858,9 @@
                         "description": "Whether the contact was deleted"
                     }
                 },
-                "required": ["deleted"]
+                "required": [
+                    "deleted"
+                ]
             }
         },
         "search_contacts": {
@@ -765,7 +874,9 @@
                         "description": "Contact name or keyword to search for (case insensitive, requires word prefix matching)"
                     }
                 },
-                "required": ["term"]
+                "required": [
+                    "term"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -792,7 +903,10 @@
                         "description": "Total number of contacts found"
                     }
                 },
-                "required": ["contacts", "total"]
+                "required": [
+                    "contacts",
+                    "total"
+                ]
             }
         },
         "list_conversations": {
@@ -806,7 +920,9 @@
                         "description": "The unique ID of the ticket"
                     }
                 },
-                "required": ["ticket_id"]
+                "required": [
+                    "ticket_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -816,7 +932,9 @@
                         "description": "List of conversations"
                     }
                 },
-                "required": ["conversations"]
+                "required": [
+                    "conversations"
+                ]
             }
         },
         "create_note": {
@@ -841,7 +959,10 @@
                         }
                     }
                 },
-                "required": ["ticket_id", "body"]
+                "required": [
+                    "ticket_id",
+                    "body"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -851,7 +972,9 @@
                         "description": "Created note details"
                     }
                 },
-                "required": ["conversation"]
+                "required": [
+                    "conversation"
+                ]
             }
         },
         "create_reply": {
@@ -873,7 +996,10 @@
                         "description": "Email address from which the reply is sent"
                     }
                 },
-                "required": ["ticket_id", "body"]
+                "required": [
+                    "ticket_id",
+                    "body"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -883,7 +1009,9 @@
                         "description": "Created reply details"
                     }
                 },
-                "required": ["conversation"]
+                "required": [
+                    "conversation"
+                ]
             }
         }
     }
