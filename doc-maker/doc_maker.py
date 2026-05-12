@@ -724,7 +724,7 @@ common parenthesized roman label ``(viii)`` while keeping the indent compact.
 """
 
 
-def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels: int = 3) -> int:
+def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels: int = 3, start: int = 1) -> int:
     """Create an abstract numbering definition for the given format.
 
     Always creates a new definition so that each independent list gets its own
@@ -733,6 +733,10 @@ def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels
 
     Creates a multilevel abstract numbering so nested lists at different ilvl
     values share a single definition with increasing indentation.
+
+    *start* sets the ``<w:start>`` value for the first level (ilvl 0).
+    This ensures renderers that ignore ``<w:lvlOverride>/<w:startOverride>``
+    still produce the correct numbering.
     """
     numbering = _numbering_root(doc)
     abstract_num_id = _next_abstract_num_id(numbering)
@@ -751,7 +755,7 @@ def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels
         lvl.set(qn("w:ilvl"), str(ilvl))
 
         start_el = OxmlElement("w:start")
-        start_el.set(qn("w:val"), "1")
+        start_el.set(qn("w:val"), str(start if ilvl == 0 else 1))
         lvl.append(start_el)
 
         fmt_el = OxmlElement("w:numFmt")
@@ -1082,7 +1086,7 @@ def _add_list_items(
             num_id = parent_num_id
             _patch_abstract_num_level(doc, num_id, effective_level, num_fmt, lvl_text)
         else:
-            abstract_num_id = _get_or_create_abstract_num(doc, num_fmt, lvl_text)
+            abstract_num_id = _get_or_create_abstract_num(doc, num_fmt, lvl_text, start=start)
 
             # Key for tracking continuation: lists at the same nesting level
             # with the same format can continue numbering across boundaries

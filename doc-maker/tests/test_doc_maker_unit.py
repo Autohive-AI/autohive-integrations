@@ -1180,6 +1180,199 @@ class TestMixedNumberedListFormats:
             )
 
 
+class TestOrderedListStartOverride:
+    """Verify that ordered lists respect the start number from the markdown.
+
+    Markdown input:
+        # numbers
+        1. one
+        2. two
+        3. three
+        # continuation of numbers
+        4. four
+        5. five
+        6. six
+
+    Expected: two separate lists, each with 3 items.
+    The first list numbers 1, 2, 3; the second list numbers 4, 5, 6.
+    """
+
+    MARKDOWN = (
+        "# numbers\n"
+        "1. one\n"
+        "2. two\n"
+        "3. three\n"
+        "# continuation of numbers\n"
+        "4. four\n"
+        "5. five\n"
+        "6. six\n"
+    )
+
+    EXPECTED_ITEMS = [
+        ("one", 1),
+        ("two", 2),
+        ("three", 3),
+        ("four", 4),
+        ("five", 5),
+        ("six", 6),
+    ]
+
+    @staticmethod
+    def _get_numpr(paragraph):
+        from docx.oxml.ns import qn
+
+        pPr = paragraph._p.find(qn("w:pPr"))
+        if pPr is None:
+            return None
+        numPr = pPr.find(qn("w:numPr"))
+        if numPr is None:
+            return None
+        numId_el = numPr.find(qn("w:numId"))
+        ilvl_el = numPr.find(qn("w:ilvl"))
+        if numId_el is None or ilvl_el is None:
+            return None
+        return int(numId_el.get(qn("w:val"))), int(ilvl_el.get(qn("w:val")))
+
+    @staticmethod
+    def _get_start_val(doc, num_id, ilvl):
+        """Return the effective start value for a numbering instance.
+
+        Checks <w:lvlOverride>/<w:startOverride> first, then falls back to
+        the <w:start> value in the abstract numbering level definition.
+        """
+        from docx.oxml.ns import qn
+
+        numbering = doc.part.numbering_part._element
+        for num_el in numbering.findall(qn("w:num")):
+            if int(num_el.get(qn("w:numId"))) != num_id:
+                continue
+            # Check for startOverride
+            for ovr in num_el.findall(qn("w:lvlOverride")):
+                if int(ovr.get(qn("w:ilvl"))) == ilvl:
+                    start_ovr = ovr.find(qn("w:startOverride"))
+                    if start_ovr is not None:
+                        return int(start_ovr.get(qn("w:val")))
+            # Fall back to abstract num
+            abs_ref = num_el.find(qn("w:abstractNumId"))
+            abs_id = int(abs_ref.get(qn("w:val")))
+            for an in numbering.findall(qn("w:abstractNum")):
+                if int(an.get(qn("w:abstractNumId"))) == abs_id:
+                    for lvl_el in an.findall(qn("w:lvl")):
+                        if int(lvl_el.get(qn("w:ilvl"))) == ilvl:
+                            start_el = lvl_el.find(qn("w:start"))
+                            if start_el is not None:
+                                return int(start_el.get(qn("w:val")))
+        return None
+
+    def _build_doc(self):
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+        return doc
+
+    def _numbered_paragraphs(self, doc):
+        return [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+
+    def test_produces_six_numbered_paragraphs(self):
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        assert len(numbered) == 6, (
+            f"Expected 6 numbered paragraphs, got {len(numbered)}: "
+            f"{[t for t, _ in numbered]}"
+        )
+
+    def test_two_distinct_lists(self):
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        num_ids = [numpr[0] for _, numpr in numbered]
+        distinct = list(dict.fromkeys(num_ids))
+        assert len(distinct) == 2, (
+            f"Expected 2 distinct numIds (two lists), got {len(distinct)}: {distinct}"
+        )
+
+    def test_each_list_has_three_items(self):
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        num_ids = [numpr[0] for _, numpr in numbered]
+        distinct = list(dict.fromkeys(num_ids))
+        first_count = sum(1 for n in num_ids if n == distinct[0])
+        second_count = sum(1 for n in num_ids if n == distinct[1])
+        assert first_count == 3, f"First list should have 3 items, got {first_count}"
+        assert second_count == 3, f"Second list should have 3 items, got {second_count}"
+
+    def test_item_text_matches(self):
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        for idx, (text, _) in enumerate(numbered):
+            expected_text = self.EXPECTED_ITEMS[idx][0]
+            assert text == expected_text, (
+                f"Item {idx}: expected text {expected_text!r}, got {text!r}"
+            )
+
+    def test_first_list_starts_at_one(self):
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        num_id, ilvl = numbered[0][1]
+        start = self._get_start_val(doc, num_id, ilvl)
+        assert start == 1, f"First list should start at 1, got {start}"
+
+    def test_second_list_starts_at_four(self):
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        num_id, ilvl = numbered[3][1]
+        start = self._get_start_val(doc, num_id, ilvl)
+        assert start == 4, f"Second list should start at 4, got {start}"
+
+    def test_effective_numbers_are_correct(self):
+        """Verify that the effective number for each item is correct by
+        checking the start value of its list and its position within the list."""
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        num_ids = [numpr[0] for _, numpr in numbered]
+        distinct = list(dict.fromkeys(num_ids))
+
+        for idx, (text, (num_id, ilvl)) in enumerate(numbered):
+            list_start = self._get_start_val(doc, num_id, ilvl)
+            position_in_list = sum(
+                1 for i in range(idx) if numbered[i][1][0] == num_id
+            )
+            effective_number = list_start + position_in_list
+            expected_number = self.EXPECTED_ITEMS[idx][1]
+            assert effective_number == expected_number, (
+                f"Item {idx} ({text!r}): expected number {expected_number}, "
+                f"got {effective_number} (list_start={list_start}, pos={position_in_list})"
+            )
+
+    def test_abstract_num_start_matches_override(self):
+        """The abstract numbering <w:start> value must match the startOverride
+        so that renderers which ignore lvlOverride still produce correct
+        numbering."""
+        from docx.oxml.ns import qn
+
+        doc = self._build_doc()
+        numbered = self._numbered_paragraphs(doc)
+        numbering = doc.part.numbering_part._element
+
+        # Second list (items 3-5) should have abstract start = 4
+        num_id, ilvl = numbered[3][1]
+        for num_el in numbering.findall(qn("w:num")):
+            if int(num_el.get(qn("w:numId"))) != num_id:
+                continue
+            abs_ref = num_el.find(qn("w:abstractNumId"))
+            abs_id = int(abs_ref.get(qn("w:val")))
+            for an in numbering.findall(qn("w:abstractNum")):
+                if int(an.get(qn("w:abstractNumId"))) == abs_id:
+                    for lvl_el in an.findall(qn("w:lvl")):
+                        if int(lvl_el.get(qn("w:ilvl"))) == ilvl:
+                            start_el = lvl_el.find(qn("w:start"))
+                            assert start_el is not None
+                            assert int(start_el.get(qn("w:val"))) == 4, (
+                                f"Abstract numbering start should be 4, "
+                                f"got {start_el.get(qn('w:val'))}"
+                            )
+
+
 class TestNestedNumberedListIndentation:
     """Verify deeply nested numbered lists with mixed parenthesized formats.
 
