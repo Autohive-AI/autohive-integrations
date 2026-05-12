@@ -603,7 +603,7 @@ def _post_process_paren_lists(soup) -> None:
         # Split text into the leading part (before the first marker) and the list items
         lines = full_text.split("\n")
         leading_lines: list[str] = []
-        list_items: list[tuple[str, int, str]] = []  # (type, start_val, text)
+        list_items: list[tuple[str, int, str, int]] = []  # (type, start_val, text, indent_spaces)
 
         for line in lines:
             stripped = line.strip()
@@ -613,14 +613,15 @@ def _post_process_paren_lists(soup) -> None:
             if m:
                 ol_type, start_val = _detect_paren_type(m.group(1))
                 item_text = stripped[m.end():]
-                list_items.append((ol_type, start_val, item_text))
+                indent_spaces = len(line) - len(line.lstrip())
+                list_items.append((ol_type, start_val, item_text, indent_spaces))
             else:
                 if not list_items:
                     leading_lines.append(stripped)
                 else:
                     # Continuation text for the last list item
                     last = list_items[-1]
-                    list_items[-1] = (last[0], last[1], last[2] + " " + stripped)
+                    list_items[-1] = (last[0], last[1], last[2] + " " + stripped, last[3])
 
         if not list_items:
             continue
@@ -633,10 +634,14 @@ def _post_process_paren_lists(soup) -> None:
         # Group consecutive items by type and build <ol> elements
         current_type = None
         current_ol = None
-        for ol_type, start_val, item_text in list_items:
+        for ol_type, start_val, item_text, indent_spaces in list_items:
             if ol_type != current_type:
                 current_type = ol_type
-                current_ol = soup.new_tag("ol", attrs={"type": ol_type, "data-paren": "true"})
+                indent_level = indent_spaces // 4
+                current_ol = soup.new_tag(
+                    "ol",
+                    attrs={"type": ol_type, "data-paren": "true", "data-indent-level": str(indent_level)},
+                )
                 if start_val != 1:
                     current_ol["start"] = str(start_val)
                 li.append(current_ol)
@@ -651,7 +656,7 @@ def _post_process_paren_lists(soup) -> None:
             continue
 
         lines = full_text.split("\n")
-        list_items: list[tuple[str, int, str]] = []
+        list_items: list[tuple[str, int, str, int]] = []
         for line in lines:
             stripped = line.strip()
             if not stripped:
@@ -659,16 +664,21 @@ def _post_process_paren_lists(soup) -> None:
             m = _PAREN_ITEM_RE.match(stripped)
             if m:
                 ol_type, start_val = _detect_paren_type(m.group(1))
-                list_items.append((ol_type, start_val, stripped[m.end():]))
+                indent_spaces = len(line) - len(line.lstrip())
+                list_items.append((ol_type, start_val, stripped[m.end():], indent_spaces))
         if not list_items:
             continue
 
         current_type = None
         current_ol = None
-        for ol_type, start_val, item_text in list_items:
+        for ol_type, start_val, item_text, indent_spaces in list_items:
             if ol_type != current_type:
                 current_type = ol_type
-                current_ol = soup.new_tag("ol", attrs={"type": ol_type, "data-paren": "true"})
+                indent_level = indent_spaces // 4
+                current_ol = soup.new_tag(
+                    "ol",
+                    attrs={"type": ol_type, "data-paren": "true", "data-indent-level": str(indent_level)},
+                )
                 if start_val != 1:
                     current_ol["start"] = str(start_val)
                 p.insert_before(current_ol)
@@ -681,9 +691,6 @@ def _post_process_paren_lists(soup) -> None:
 # ---------------------------------------------------------------------------
 # Low-level OOXML numbering helpers
 # ---------------------------------------------------------------------------
-
-_ABSTRACT_NUM_CACHE: dict[tuple, int] = {}
-
 
 def _numbering_root(doc):
     """Return the <w:numbering> root element, creating the numbering part if needed."""
@@ -707,15 +714,15 @@ def _next_num_id(numbering) -> int:
 
 
 def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels: int = 3) -> int:
-    """Get or create an abstract numbering definition for the given format.
+    """Create an abstract numbering definition for the given format.
+
+    Always creates a new definition so that each independent list gets its own
+    ``abstractNumId``.  Sharing an abstract num across multiple ``<w:num>``
+    elements can cause Word to silently drop numbering on some lists.
 
     Creates a multilevel abstract numbering so nested lists at different ilvl
     values share a single definition with increasing indentation.
     """
-    cache_key = (id(doc), num_fmt, lvl_text)
-    if cache_key in _ABSTRACT_NUM_CACHE:
-        return _ABSTRACT_NUM_CACHE[cache_key]
-
     numbering = _numbering_root(doc)
     abstract_num_id = _next_abstract_num_id(numbering)
 
@@ -750,7 +757,7 @@ def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels
 
         ppr = OxmlElement("w:pPr")
         ind = OxmlElement("w:ind")
-        left = 720 + (360 * ilvl)  # 720 twips = 0.5", increase by 0.25" per level
+        left = 360 + (360 * ilvl)  # 360 twips = hanging indent; left-aligned at level 0
         ind.set(qn("w:left"), str(left))
         ind.set(qn("w:hanging"), "360")
         ppr.append(ind)
@@ -765,7 +772,6 @@ def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels
         first_num.addprevious(abstract_num)
     else:
         numbering.append(abstract_num)
-    _ABSTRACT_NUM_CACHE[cache_key] = abstract_num_id
     return abstract_num_id
 
 
@@ -892,7 +898,7 @@ def _patch_abstract_num_level(doc, num_id: int, level: int, num_fmt: str, lvl_te
     if ppr is None:
         ppr = OxmlElement("w:pPr")
         ind = OxmlElement("w:ind")
-        left = 720 + (360 * level)
+        left = 360 + (360 * level)
         ind.set(qn("w:left"), str(left))
         ind.set(qn("w:hanging"), "360")
         ppr.append(ind)
@@ -1003,6 +1009,11 @@ def _add_list_items(
     """
     is_numbered = list_element.name == "ol"
 
+    # Respect original markdown indentation via data-indent-level attribute.
+    # Every 4 leading spaces in the markdown source maps to one indent level.
+    indent_level = int(list_element.get("data-indent-level", 0))
+    effective_level = level + indent_level
+
     num_id = None
     if is_numbered:
         start = int(list_element.get("start", 1))
@@ -1015,25 +1026,25 @@ def _add_list_items(
             # Child list: reuse parent numId but patch the abstractNum to
             # have the correct format at this ilvl.
             num_id = parent_num_id
-            _patch_abstract_num_level(doc, num_id, level, num_fmt, lvl_text)
+            _patch_abstract_num_level(doc, num_id, effective_level, num_fmt, lvl_text)
         else:
             abstract_num_id = _get_or_create_abstract_num(doc, num_fmt, lvl_text)
 
             # Key for tracking continuation: lists at the same nesting level
             # with the same format can continue numbering across boundaries
-            key = (level, num_fmt, lvl_text)
+            key = (effective_level, num_fmt, lvl_text)
 
             if start == 1:
-                num_id = _create_num(doc, abstract_num_id, start_override=1, level=level)
+                num_id = _create_num(doc, abstract_num_id, start_override=1, level=effective_level)
             else:
                 num_id = list_state["ordered"].get(key)
                 if num_id is None:
-                    num_id = _create_num(doc, abstract_num_id, start_override=start, level=level)
+                    num_id = _create_num(doc, abstract_num_id, start_override=start, level=effective_level)
 
             list_state["ordered"][key] = num_id
 
     else:
-        clamped_level = min(level, 2)
+        clamped_level = min(effective_level, 2)
         bullet_style = "List Bullet" if clamped_level == 0 else f"List Bullet {clamped_level + 1}"
 
     for li in list_element.find_all("li", recursive=False):
@@ -1049,7 +1060,7 @@ def _add_list_items(
             if is_numbered:
                 p = doc.add_paragraph()
                 p.style = doc.styles["List Paragraph"]
-                _apply_numbering(p, num_id=num_id, level=level)
+                _apply_numbering(p, num_id=num_id, level=effective_level)
                 _add_formatted_text_to_paragraph(p, li, skip_nested_lists=True)
             else:
                 doc.add_paragraph(text, style=bullet_style)

@@ -735,3 +735,137 @@ class TestParenthesizedListNumbering:
         assert len(num_ids) == 1, (
             f"All items should share one numId for coherent multilevel numbering, got {num_ids}"
         )
+
+
+class TestMultipleParenListsAfterHeadings:
+    """Verify that multiple (1)-style lists separated by headings all display numbering
+    and are left-aligned when the markdown has no leading spaces."""
+
+    MARKDOWN = (
+        "# Animals\n"
+        "(1) Elephant\n"
+        "(2) Tiger\n"
+        "# Fish\n"
+        "(1) squid\n"
+        "(2) Whale"
+    )
+
+    @staticmethod
+    def _get_numpr(paragraph):
+        from docx.oxml.ns import qn
+
+        pPr = paragraph._p.find(qn("w:pPr"))
+        if pPr is None:
+            return None
+        numPr = pPr.find(qn("w:numPr"))
+        if numPr is None:
+            return None
+        numId_el = numPr.find(qn("w:numId"))
+        ilvl_el = numPr.find(qn("w:ilvl"))
+        if numId_el is None or ilvl_el is None:
+            return None
+        return int(numId_el.get(qn("w:val"))), int(ilvl_el.get(qn("w:val")))
+
+    @staticmethod
+    def _get_abstract_num_for(doc, num_id):
+        from docx.oxml.ns import qn
+
+        numbering = doc.part.numbering_part._element
+        for num_el in numbering.findall(qn("w:num")):
+            if int(num_el.get(qn("w:numId"))) == num_id:
+                abstract_ref = num_el.find(qn("w:abstractNumId"))
+                abstract_id = int(abstract_ref.get(qn("w:val")))
+                for an in numbering.findall(qn("w:abstractNum")):
+                    if int(an.get(qn("w:abstractNumId"))) == abstract_id:
+                        return an
+        return None
+
+    def test_both_lists_produce_numbered_paragraphs(self):
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        assert len(numbered) == 4, f"Expected 4 numbered paragraphs, got {len(numbered)}: {numbered}"
+
+    def test_each_list_has_its_own_abstract_num(self):
+        """Each independent list must get its own abstractNum to avoid Word dropping numbers."""
+        from docx import Document
+        from docx.oxml.ns import qn
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        animals_num_id = numbered[0][1][0]
+        fish_num_id = numbered[2][1][0]
+
+        animals_abstract = self._get_abstract_num_for(doc, animals_num_id)
+        fish_abstract = self._get_abstract_num_for(doc, fish_num_id)
+
+        assert animals_abstract is not None
+        assert fish_abstract is not None
+
+        animals_abstract_id = int(animals_abstract.get(qn("w:abstractNumId")))
+        fish_abstract_id = int(fish_abstract.get(qn("w:abstractNumId")))
+        assert animals_abstract_id != fish_abstract_id, (
+            "Each list should reference a different abstractNum to prevent Word from dropping numbers"
+        )
+
+    def test_all_items_at_ilvl_zero(self):
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        for text, (num_id, ilvl) in numbered:
+            assert ilvl == 0, f"'{text}' should be at ilvl 0, got {ilvl}"
+
+    def test_level_zero_is_left_aligned(self):
+        """Level-0 paren lists with no leading spaces should be left-aligned (left=360, hanging=360)."""
+        from docx import Document
+        from docx.oxml.ns import qn
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        first_num_id = numbered[0][1][0]
+        abstract = self._get_abstract_num_for(doc, first_num_id)
+        assert abstract is not None
+
+        lvl0 = None
+        for lvl in abstract.findall(qn("w:lvl")):
+            if int(lvl.get(qn("w:ilvl"))) == 0:
+                lvl0 = lvl
+                break
+        assert lvl0 is not None
+
+        pPr = lvl0.find(qn("w:pPr"))
+        assert pPr is not None
+        ind = pPr.find(qn("w:ind"))
+        assert ind is not None
+        assert ind.get(qn("w:left")) == "360", (
+            f"Level 0 left indent should be 360 (left-aligned), got {ind.get(qn('w:left'))}"
+        )
+        assert ind.get(qn("w:hanging")) == "360"
+
+    def test_all_use_decimal_parenthesized_format(self):
+        from docx import Document
+        from docx.oxml.ns import qn
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        for text, (num_id, ilvl) in numbered:
+            abstract = self._get_abstract_num_for(doc, num_id)
+            assert abstract is not None
+            for lvl in abstract.findall(qn("w:lvl")):
+                if int(lvl.get(qn("w:ilvl"))) == ilvl:
+                    fmt = lvl.find(qn("w:numFmt")).get(qn("w:val"))
+                    assert fmt == "decimal", f"'{text}' should use decimal, got {fmt}"
+                    lvl_text = lvl.find(qn("w:lvlText")).get(qn("w:val"))
+                    assert "(" in lvl_text, f"'{text}' should have paren format, got '{lvl_text}'"
