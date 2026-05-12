@@ -1,22 +1,9 @@
-import os
-import sys
-import importlib
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("hubspot_mod", os.path.join(_parent, "hubspot.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-
-hubspot = _mod.hubspot
+from hubspot.hubspot import hubspot
 
 pytestmark = pytest.mark.unit
 
@@ -111,7 +98,13 @@ class TestGetRecentTickets:
         await hubspot.execute_action("get_recent_tickets", {}, mock_context)
 
         props = mock_context.fetch.call_args.kwargs["json"]["properties"]
-        for expected in ["subject", "content", "hs_pipeline_stage", "hs_ticket_priority", "createdate"]:
+        for expected in [
+            "subject",
+            "content",
+            "hs_pipeline_stage",
+            "hs_ticket_priority",
+            "createdate",
+        ]:
             assert expected in props
 
     @pytest.mark.asyncio
@@ -263,7 +256,10 @@ class TestGetTicketConversation:
 
     @pytest.mark.asyncio
     async def test_request_sequence(self, mock_context):
-        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, CONVERSATION_MESSAGES_RESPONSE]
+        mock_context.fetch.side_effect = [
+            TICKET_RESPONSE_WITH_THREAD,
+            CONVERSATION_MESSAGES_RESPONSE,
+        ]
 
         await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "ticket-1"}, mock_context)
 
@@ -297,7 +293,10 @@ class TestGetTicketConversation:
                 ]
             },
         )
-        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, unsorted_response]
+        mock_context.fetch.side_effect = [
+            TICKET_RESPONSE_WITH_THREAD,
+            unsorted_response,
+        ]
 
         result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
 
@@ -307,7 +306,10 @@ class TestGetTicketConversation:
 
     @pytest.mark.asyncio
     async def test_sender_extracted_from_senders(self, mock_context):
-        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, CONVERSATION_MESSAGES_RESPONSE]
+        mock_context.fetch.side_effect = [
+            TICKET_RESPONSE_WITH_THREAD,
+            CONVERSATION_MESSAGES_RESPONSE,
+        ]
 
         result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
 
@@ -336,11 +338,19 @@ class TestGetTicketConversation:
                         "createdAt": "2025-01-02T00:00:00Z",
                         "id": "m2",
                     },
-                    {"type": "MESSAGE", "senders": [{"name": "C"}], "createdAt": "2025-01-03T00:00:00Z", "id": "m3"},
+                    {
+                        "type": "MESSAGE",
+                        "senders": [{"name": "C"}],
+                        "createdAt": "2025-01-03T00:00:00Z",
+                        "id": "m3",
+                    },
                 ]
             },
         )
-        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, response_with_empty]
+        mock_context.fetch.side_effect = [
+            TICKET_RESPONSE_WITH_THREAD,
+            response_with_empty,
+        ]
 
         result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
 
@@ -360,7 +370,10 @@ class TestGetTicketConversation:
 
     @pytest.mark.asyncio
     async def test_response_includes_thread_id(self, mock_context):
-        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, CONVERSATION_MESSAGES_RESPONSE]
+        mock_context.fetch.side_effect = [
+            TICKET_RESPONSE_WITH_THREAD,
+            CONVERSATION_MESSAGES_RESPONSE,
+        ]
 
         result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
 
@@ -379,7 +392,10 @@ class TestAddTicketComment:
             headers={},
             data={"id": "msg-new", "text": "My comment", "type": "COMMENT"},
         )
-        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, comment_post_response]
+        mock_context.fetch.side_effect = [
+            TICKET_RESPONSE_WITH_THREAD,
+            comment_post_response,
+        ]
 
         result = await hubspot.execute_action(
             "add_ticket_comment",
@@ -431,9 +447,14 @@ class TestAddTicketComment:
     @pytest.mark.asyncio
     async def test_request_url_contains_thread_id(self, mock_context):
         comment_post_response = FetchResponse(
-            status=200, headers={}, data={"id": "msg-new", "text": "test", "type": "COMMENT"}
+            status=200,
+            headers={},
+            data={"id": "msg-new", "text": "test", "type": "COMMENT"},
         )
-        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, comment_post_response]
+        mock_context.fetch.side_effect = [
+            TICKET_RESPONSE_WITH_THREAD,
+            comment_post_response,
+        ]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "test"}, mock_context)
 
@@ -443,9 +464,14 @@ class TestAddTicketComment:
     @pytest.mark.asyncio
     async def test_request_payload(self, mock_context):
         comment_post_response = FetchResponse(
-            status=200, headers={}, data={"id": "msg-new", "text": "hello", "type": "COMMENT"}
+            status=200,
+            headers={},
+            data={"id": "msg-new", "text": "hello", "type": "COMMENT"},
         )
-        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, comment_post_response]
+        mock_context.fetch.side_effect = [
+            TICKET_RESPONSE_WITH_THREAD,
+            comment_post_response,
+        ]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "hello"}, mock_context)
 
@@ -456,9 +482,14 @@ class TestAddTicketComment:
     @pytest.mark.asyncio
     async def test_request_method_is_post(self, mock_context):
         comment_post_response = FetchResponse(
-            status=200, headers={}, data={"id": "msg-new", "text": "x", "type": "COMMENT"}
+            status=200,
+            headers={},
+            data={"id": "msg-new", "text": "x", "type": "COMMENT"},
         )
-        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, comment_post_response]
+        mock_context.fetch.side_effect = [
+            TICKET_RESPONSE_WITH_THREAD,
+            comment_post_response,
+        ]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "x"}, mock_context)
 
@@ -467,9 +498,14 @@ class TestAddTicketComment:
     @pytest.mark.asyncio
     async def test_response_success_true(self, mock_context):
         comment_post_response = FetchResponse(
-            status=200, headers={}, data={"id": "msg-new", "text": "ok", "type": "COMMENT"}
+            status=200,
+            headers={},
+            data={"id": "msg-new", "text": "ok", "type": "COMMENT"},
         )
-        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, comment_post_response]
+        mock_context.fetch.side_effect = [
+            TICKET_RESPONSE_WITH_THREAD,
+            comment_post_response,
+        ]
 
         result = await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "ok"}, mock_context)
 

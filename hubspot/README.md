@@ -441,19 +441,75 @@ This integration provides comprehensive actions covering complete CRUD operation
 ### Task Management
 
 #### Action: `create_task`
-- **Description:** Creates a new task/to-do item
+- **Description:** Create a new HubSpot task and optionally associate it with contacts, companies, or deals
 - **Inputs:**
-  - `Subject` (required): Task description
-  - `Status`: Task status (Not Started, In Progress, Completed)
-  - `Priority`: Priority level (High, Normal, Low)
-  - `Due_Date`: When the task is due
-  - `What_Id`: Related record ID (contact, account, deal, etc.)
-  - `Who_Id`: Assigned user ID
-  - `Description`: Detailed task description
-- **Outputs:** Task object with `id` and task details
+  - `hs_task_body` (required): The task notes (HubSpot property `hs_task_body`)
+  - `hs_timestamp` (required): Task due date; Unix timestamp in milliseconds or UTC string (HubSpot `hs_timestamp`)
+  - `hs_task_subject` (optional): Task title
+  - `hs_task_status` (optional): Task status (e.g., `COMPLETED`, `NOT_STARTED`)
+  - `hs_task_priority` (optional): Task priority (e.g., `LOW`, `MEDIUM`, `HIGH`)
+  - `hs_task_type` (optional): Task type (e.g., `EMAIL`, `CALL`, `TODO`)
+  - `hubspot_owner_id` (optional): HubSpot owner ID for the assignee
+  - `hs_task_reminders` (optional): Reminder time as Unix timestamp in milliseconds
+  - `associations` (optional): HubSpot associations array (native `to` / `types` format)
+  - `contact_id` (optional): Contact ID to associate the task with
+  - `company_id` (optional): Company ID to associate the task with
+  - `deal_id` (optional): Deal ID to associate the task with
+- **Outputs:**
+  - `task`: Created task object
+  - `success`: Boolean indicating creation status
+  - `message`: Success or error message
 
-#### Action: `get_task`, `update_task`, `delete_task`, `list_tasks`, `search_tasks`
-- **Description:** Standard CRUD operations for tasks
+#### Action: `get_task`
+- **Description:** Retrieve a single task by ID
+- **Inputs:**
+  - `hs_object_id` (required): HubSpot internal ID of the task record
+  - `hs_task_properties` (optional): Array of HubSpot task CRM property internal names to retrieve (e.g. `hs_task_body`, `hubspot_owner_id`, `hs_timestamp`; defaults match create/update task fields)
+- **Outputs:**
+  - `task`: Task object with requested properties
+  - `success`: Boolean indicating retrieval status
+  - `message`: Success or error message
+
+#### Action: `list_tasks`
+- **Description:** Retrieve tasks with optional pagination
+- **Inputs:**
+  - `limit` (optional): Maximum tasks to return (default: 100, max: 100)
+  - `after` (optional): Paging cursor for next page
+  - `hs_task_properties` (optional): Array of HubSpot task CRM property internal names to retrieve (defaults match create/update task fields)
+- **Outputs:**
+  - `tasks`: Array of task objects
+  - `total`: Number of tasks returned in this response
+  - `paging`: Next-page metadata if available
+  - `success`: Boolean indicating retrieval status
+  - `message`: Success or error message
+
+#### Action: `update_task`
+- **Description:** Update an existing task's content or properties
+- **Inputs:**
+  - `hs_object_id` (required): HubSpot internal ID of the task record
+  - `hs_task_body` (optional): Updated task notes
+  - `hs_task_subject` (optional): Updated task title
+  - `hs_task_status` (optional): Updated task status
+  - `hs_task_priority` (optional): Updated task priority
+  - `hs_task_type` (optional): Updated task type
+  - `hubspot_owner_id` (optional): Updated HubSpot owner ID
+  - `hs_task_reminders` (optional): Updated reminder time in milliseconds
+  - `hs_timestamp` (optional): Updated due date (milliseconds or UTC string)
+  - `additional_properties` (optional): Additional task properties to update
+- **Outputs:**
+  - `task`: Updated task object
+  - `success`: Boolean indicating update status
+  - `updated_properties`: Properties that were modified
+  - `message`: Success or error message
+
+#### Action: `delete_task`
+- **Description:** Permanently delete a task by ID
+- **Inputs:**
+  - `hs_object_id` (required): HubSpot internal ID of the task record to delete
+- **Outputs:**
+  - `success`: Boolean indicating deletion status
+  - `hs_object_id`: HubSpot task record ID that was deleted
+  - `message`: Success or error message
 
 ### Event Management
 

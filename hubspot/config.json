@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -395,6 +395,384 @@
         "required": [
           "success",
           "note_id"
+        ]
+      }
+    },
+    "create_task": {
+      "display_name": "Create Task",
+      "description": "Create a new task and associate it with a contact, company, or deal in HubSpot",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "hs_task_body": {
+            "type": "string",
+            "description": "The task notes"
+          },
+          "hs_task_subject": {
+            "type": "string",
+            "description": "The title of the task"
+          },
+          "hs_task_status": {
+            "type": "string",
+            "description": "The status of the task, either COMPLETED or NOT_STARTED"
+          },
+          "hs_task_priority": {
+            "type": "string",
+            "description": "The priority of the task. Values include LOW, MEDIUM, or HIGH"
+          },
+          "hs_task_type": {
+            "type": "string",
+            "description": "The type of task. Values include EMAIL, CALL, or TODO"
+          },
+          "hubspot_owner_id": {
+            "type": "string",
+            "description": "The owner ID of the user assigned to the task"
+          },
+          "hs_task_reminders": {
+            "type": "number",
+            "description": "The timestamp for when to send a reminder for the due date of the task. Must use Unix timestamp in milliseconds"
+          },
+          "associations": {
+            "type": "array",
+            "description": "HubSpot associations object array. Each entry must include 'to' (with record id) and 'types' (with associationCategory and associationTypeId)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": [
+                        "string",
+                        "number"
+                      ],
+                      "description": "The unique ID of the record to associate"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                },
+                "types": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "associationCategory": {
+                        "type": "string",
+                        "description": "Association category, usually HUBSPOT_DEFINED"
+                      },
+                      "associationTypeId": {
+                        "type": "integer",
+                        "description": "HubSpot association type ID for the relationship"
+                      }
+                    },
+                    "required": [
+                      "associationCategory",
+                      "associationTypeId"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "to",
+                "types"
+              ]
+            }
+          },
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID to associate the task with (optional)"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "The company ID to associate the task with (optional)"
+          },
+          "deal_id": {
+            "type": "string",
+            "description": "The deal ID to associate the task with (optional)"
+          },
+          "hs_timestamp": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "Required. This field marks the task due date. Supports Unix timestamp in milliseconds or UTC format"
+          }
+        },
+        "required": [
+          "hs_task_body",
+          "hs_timestamp"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The created task object"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the task was created successfully"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success or error message"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if creation failed"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      }
+    },
+    "update_task": {
+      "display_name": "Update Task",
+      "description": "Update an existing task in HubSpot",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "hs_object_id": {
+            "type": "string",
+            "description": "HubSpot internal ID of the task record (CRM object id)"
+          },
+          "hs_task_body": {
+            "type": "string",
+            "description": "The task notes"
+          },
+          "hs_task_subject": {
+            "type": "string",
+            "description": "The title of the task"
+          },
+          "hs_task_status": {
+            "type": "string",
+            "description": "The status of the task, either COMPLETED or NOT_STARTED"
+          },
+          "hs_task_priority": {
+            "type": "string",
+            "description": "The priority of the task. Values include LOW, MEDIUM, or HIGH"
+          },
+          "hs_task_type": {
+            "type": "string",
+            "description": "The type of task. Values include EMAIL, CALL, or TODO"
+          },
+          "hubspot_owner_id": {
+            "type": "string",
+            "description": "The owner ID of the user assigned to the task"
+          },
+          "hs_task_reminders": {
+            "type": "number",
+            "description": "The timestamp for when to send a reminder for the due date of the task. Must use Unix timestamp in milliseconds"
+          },
+          "hs_timestamp": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "This field marks the task due date. Supports Unix timestamp in milliseconds or UTC format"
+          },
+          "additional_properties": {
+            "type": "object",
+            "description": "Additional task properties to update (optional)"
+          }
+        },
+        "required": [
+          "hs_object_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The updated task object"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the task was updated successfully"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success or error message"
+          },
+          "updated_properties": {
+            "type": "object",
+            "description": "Properties that were updated"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if update failed"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      }
+    },
+    "delete_task": {
+      "display_name": "Delete Task",
+      "description": "Delete a task from HubSpot",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "hs_object_id": {
+            "type": "string",
+            "description": "HubSpot internal ID of the task record to delete"
+          }
+        },
+        "required": [
+          "hs_object_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the task was deleted successfully"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success or error message"
+          },
+          "hs_object_id": {
+            "type": "string",
+            "description": "The HubSpot task record ID that was deleted"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if deletion failed"
+          }
+        },
+        "required": [
+          "success",
+          "hs_object_id"
+        ]
+      }
+    },
+    "get_task": {
+      "display_name": "Get Task",
+      "description": "Retrieve a task from HubSpot by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "hs_object_id": {
+            "type": "string",
+            "description": "HubSpot internal ID of the task record to retrieve"
+          },
+          "hs_task_properties": {
+            "type": "array",
+            "description": "Optional list of HubSpot task CRM property internal names to retrieve (e.g. hs_task_body, hs_task_subject, hs_task_status, hs_task_priority, hs_task_type, hubspot_owner_id, hs_task_reminders, hs_timestamp, hs_createdate, hs_lastmodifieddate). When omitted, a default set aligned with create_task/update_task is used.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "hs_object_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The retrieved task object"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the task was retrieved successfully"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success or error message"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if retrieval failed"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      }
+    },
+    "list_tasks": {
+      "display_name": "List Tasks",
+      "description": "Retrieve tasks from HubSpot with optional pagination",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of tasks to retrieve (default: 100, max: 100)",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "after": {
+            "type": "string",
+            "description": "Pagination cursor for next page (optional)"
+          },
+          "hs_task_properties": {
+            "type": "array",
+            "description": "Optional list of HubSpot task CRM property internal names to retrieve (e.g. hs_task_body, hs_task_subject, hs_task_status, hs_task_priority, hs_task_type, hubspot_owner_id, hs_task_reminders, hs_timestamp, hs_createdate, hs_lastmodifieddate). When omitted, a default set aligned with create_task/update_task is used.",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "description": "List of retrieved tasks",
+            "items": {
+              "type": "object"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Number of tasks retrieved in this response"
+          },
+          "paging": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Paging metadata for the next page"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether tasks were retrieved successfully"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success or error message"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if retrieval failed"
+          }
+        },
+        "required": [
+          "tasks",
+          "total",
+          "success"
         ]
       }
     },

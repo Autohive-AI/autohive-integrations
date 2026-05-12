@@ -20,23 +20,12 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
 import os
-import sys
-import importlib
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
+import pytest
+from unittest.mock import MagicMock, AsyncMock
+from autohive_integrations_sdk import FetchResponse
 
-import pytest  # noqa: E402
-from unittest.mock import MagicMock, AsyncMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("hubspot_mod", os.path.join(_parent, "hubspot.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-
-hubspot = _mod.hubspot
+from hubspot.hubspot import hubspot
 
 pytestmark = pytest.mark.integration
 
@@ -134,7 +123,10 @@ class TestGetContact:
         require_contact_email()
         result = await hubspot.execute_action(
             "get_contact",
-            {"email": TEST_CONTACT_EMAIL, "properties": ["email", "firstname", "lastname"]},
+            {
+                "email": TEST_CONTACT_EMAIL,
+                "properties": ["email", "firstname", "lastname"],
+            },
             live_context,
         )
         data = result.result.data
@@ -165,7 +157,9 @@ class TestGetContactEmails:
     async def test_returns_emails(self, live_context):
         require_contact_id()
         result = await hubspot.execute_action(
-            "get_contact_emails", {"contact_id": TEST_CONTACT_ID, "email_limit": 3}, live_context
+            "get_contact_emails",
+            {"contact_id": TEST_CONTACT_ID, "email_limit": 3},
+            live_context,
         )
         data = result.result.data
         assert "contact_id" in data
@@ -177,7 +171,9 @@ class TestGetContactNotes:
     async def test_returns_notes(self, live_context):
         require_contact_id()
         result = await hubspot.execute_action(
-            "get_contact_notes", {"contact_id": TEST_CONTACT_ID, "limit": 5}, live_context
+            "get_contact_notes",
+            {"contact_id": TEST_CONTACT_ID, "limit": 5},
+            live_context,
         )
         data = result.result.data
         assert data["contact_id"] == TEST_CONTACT_ID
@@ -208,7 +204,9 @@ class TestGetCompanyNotes:
     async def test_returns_notes(self, live_context):
         require_company_id()
         result = await hubspot.execute_action(
-            "get_company_notes", {"company_id": TEST_COMPANY_ID, "limit": 5}, live_context
+            "get_company_notes",
+            {"company_id": TEST_COMPANY_ID, "limit": 5},
+            live_context,
         )
         data = result.result.data
         assert data["company_id"] == TEST_COMPANY_ID
@@ -222,7 +220,12 @@ class TestGetDeals:
     async def test_single_page(self, live_context):
         result = await hubspot.execute_action(
             "get_deals",
-            {"limit": 5, "sort_property": "hs_lastmodifieddate", "sort_direction": "DESC", "fetch_all": False},
+            {
+                "limit": 5,
+                "sort_property": "hs_lastmodifieddate",
+                "sort_direction": "DESC",
+                "fetch_all": False,
+            },
             live_context,
         )
         data = result.result.data
@@ -246,7 +249,10 @@ class TestGetDeal:
         require_deal_id()
         result = await hubspot.execute_action(
             "get_deal",
-            {"deal_id": TEST_DEAL_ID, "properties": ["dealname", "amount", "closedate"]},
+            {
+                "deal_id": TEST_DEAL_ID,
+                "properties": ["dealname", "amount", "closedate"],
+            },
             live_context,
         )
         data = result.result.data
@@ -256,7 +262,9 @@ class TestGetDeal:
 class TestSearchDeals:
     async def test_search_returns_results(self, live_context):
         result = await hubspot.execute_action(
-            "search_deals", {"query": "deal", "limit": 5, "fetch_all": False}, live_context
+            "search_deals",
+            {"query": "deal", "limit": 5, "fetch_all": False},
+            live_context,
         )
         data = result.result.data
         assert "results" in data
@@ -286,7 +294,11 @@ class TestGetRecentTickets:
     async def test_returns_tickets(self, live_context):
         result = await hubspot.execute_action(
             "get_recent_tickets",
-            {"limit": 5, "sort_property": "hs_lastmodifieddate", "sort_direction": "DESC"},
+            {
+                "limit": 5,
+                "sort_property": "hs_lastmodifieddate",
+                "sort_direction": "DESC",
+            },
             live_context,
         )
         data = result.result.data
@@ -370,7 +382,10 @@ class TestGetContactAssociations:
         require_contact_id()
         result = await hubspot.execute_action(
             "get_contact_associations",
-            {"contact_id": TEST_CONTACT_ID, "association_types": ["companies", "deals"]},
+            {
+                "contact_id": TEST_CONTACT_ID,
+                "association_types": ["companies", "deals"],
+            },
             live_context,
         )
         data = result.result.data
@@ -488,7 +503,10 @@ class TestUpdateContact:
         require_contact_id()
         result = await hubspot.execute_action(
             "update_contact",
-            {"contact_id": TEST_CONTACT_ID, "properties": {"jobtitle": "Integration Test"}},
+            {
+                "contact_id": TEST_CONTACT_ID,
+                "properties": {"jobtitle": "Integration Test"},
+            },
             live_context,
         )
         data = result.result.data
@@ -500,7 +518,12 @@ class TestCreateCompany:
     async def test_creates_company(self, live_context):
         result = await hubspot.execute_action(
             "create_company",
-            {"properties": {"name": f"Integration Test Co {os.getpid()}", "domain": "integration-test.example.com"}},
+            {
+                "properties": {
+                    "name": f"Integration Test Co {os.getpid()}",
+                    "domain": "integration-test.example.com",
+                }
+            },
             live_context,
         )
         data = result.result.data
@@ -514,7 +537,10 @@ class TestUpdateCompany:
         require_company_id()
         result = await hubspot.execute_action(
             "update_company",
-            {"company_id": TEST_COMPANY_ID, "properties": {"description": "Integration test update"}},
+            {
+                "company_id": TEST_COMPANY_ID,
+                "properties": {"description": "Integration test update"},
+            },
             live_context,
         )
         data = result.result.data
@@ -545,7 +571,10 @@ class TestUpdateDeal:
         require_deal_id()
         result = await hubspot.execute_action(
             "update_deal",
-            {"deal_id": TEST_DEAL_ID, "properties": {"dealname": "Integration Test Updated Deal"}},
+            {
+                "deal_id": TEST_DEAL_ID,
+                "properties": {"dealname": "Integration Test Updated Deal"},
+            },
             live_context,
         )
         data = result.result.data
@@ -562,7 +591,10 @@ class TestNoteWorkflow:
         # Step 1: Create
         create_result = await hubspot.execute_action(
             "create_note",
-            {"note_body": "Integration test note — will be deleted.", "contact_id": TEST_CONTACT_ID},
+            {
+                "note_body": "Integration test note — will be deleted.",
+                "contact_id": TEST_CONTACT_ID,
+            },
             live_context,
         )
         assert create_result.result.data["success"] is True
@@ -571,14 +603,18 @@ class TestNoteWorkflow:
 
         # Step 2: Read
         read_result = await hubspot.execute_action(
-            "get_contact_notes", {"contact_id": TEST_CONTACT_ID, "limit": 5}, live_context
+            "get_contact_notes",
+            {"contact_id": TEST_CONTACT_ID, "limit": 5},
+            live_context,
         )
         note_ids = [n["id"] for n in read_result.result.data["notes"]]
         assert note_id in note_ids
 
         # Step 3: Update
         update_result = await hubspot.execute_action(
-            "update_note", {"note_id": note_id, "note_body": "Updated integration test note."}, live_context
+            "update_note",
+            {"note_id": note_id, "note_body": "Updated integration test note."},
+            live_context,
         )
         assert update_result.result.data["success"] is True
 
