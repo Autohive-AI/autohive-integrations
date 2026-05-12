@@ -1,41 +1,36 @@
-import asyncio
-from pprint import pprint
-from context import toggl_app
-from autohive_integrations_sdk import ExecutionContext
+"""
+Live integration tests for the Toggl Track integration.
+
+Requires TOGGL_API_TOKEN set in the environment.
+Requires TOGGL_WORKSPACE_ID set in the environment.
+
+Run with:
+    pytest toggl/tests/test_toggl_integration.py -m "integration" -o "addopts=--import-mode=importlib --tb=short"
+"""
+
+import pytest
+from autohive_integrations_sdk.integration import ResultType
+
+from toggl.toggl import toggl
+
+pytestmark = pytest.mark.integration
 
 
-async def test_create_time_entry():
-    # Replace with a real token and workspace to run end-to-end
-    auth = {"api_token": "YOUR_TOGGL_API_TOKEN"}  # nosec B105
-
-    inputs = {
-        "workspace_id": 1234567,  # replace with your workspace ID
-        "start": "2025-08-14T10:00:00Z",
-        "stop": "2025-08-14T11:00:00Z",
-        "description": "Integration test entry",
-        # "project_id": 7654321,
-        # "billable": True,
-        # "tags": ["autohive", "test"]
-    }
-
-    async with ExecutionContext(auth=auth) as context:
-        try:
-            result = await toggl_app.execute_action("create_time_entry", inputs, context)
-            print("\nToggl Create Time Entry Results:")
-            print("================================")
-            pprint(result)
-        except Exception as e:
-            print(f"Error testing Toggl create_time_entry: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-
-
-async def main():
-    print("Testing Toggl Integration")
-    print("=========================")
-    await test_create_time_entry()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+@pytest.mark.destructive
+async def test_create_time_entry(toggl_context, toggl_workspace_id):
+    async with toggl_context as ctx:
+        result = await toggl.execute_action(
+            "create_time_entry",
+            {
+                "workspace_id": toggl_workspace_id,
+                "start": "2026-01-01T10:00:00Z",
+                "stop": "2026-01-01T11:00:00Z",
+                "duration": 3600,
+                "description": "Autohive integration test — safe to delete",
+            },
+            ctx,
+        )
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert "id" in data
+    assert data["workspace_id"] == toggl_workspace_id
