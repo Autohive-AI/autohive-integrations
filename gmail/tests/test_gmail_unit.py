@@ -9,7 +9,6 @@ import base64
 from unittest.mock import MagicMock, patch
 
 import pytest
-from autohive_integrations_sdk import FetchResponse  # noqa: F401  (kept for SDK 2.0 contract)
 from autohive_integrations_sdk.integration import ResultType
 
 from gmail.gmail import gmail, create_email_message
