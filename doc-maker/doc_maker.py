@@ -589,7 +589,8 @@ def _detect_paren_type(marker: str) -> tuple[str, int]:
     low = marker.lower()
     roman_val = _parse_roman(low)
     if roman_val is not None and (len(low) > 1 or low in _AMBIGUOUS_ROMAN_LETTERS):
-        return "i", roman_val
+        roman_type = "I" if marker[0].isupper() else "i"
+        return roman_type, roman_val
     if low.isalpha() and len(low) == 1:
         ol_type = "A" if marker.isupper() else "a"
         return ol_type, ord(low) - ord("a") + 1
@@ -605,8 +606,9 @@ def _reconcile_ambiguous_markers(
     they belong to an alphabetic sequence.
 
     Walk the collected items and look at the preceding run.  When a marker
-    was tagged as roman but is a single ambiguous letter whose alphabetic
-    position is consistent with the prior alphabetic item, reclassify it.
+    was tagged as roman (``"i"`` or ``"I"``) but is a single ambiguous letter
+    whose alphabetic position is consistent with the prior alphabetic item,
+    reclassify it as lowercase (``"a"``) or uppercase (``"A"``) accordingly.
     """
     if not list_items:
         return list_items
@@ -614,18 +616,20 @@ def _reconcile_ambiguous_markers(
     result = list(list_items)
     for idx in range(len(result)):
         ol_type, start_val, text, indent = result[idx]
-        if ol_type != "i" or start_val not in _ROMAN_CHAR_VALS.values():
+        if ol_type not in ("i", "I") or start_val not in _ROMAN_CHAR_VALS.values():
             continue
         # Only single-letter ambiguous markers need reconciliation
         letter = next((ch for ch, val in _ROMAN_CHAR_VALS.items() if val == start_val), None)
         if letter is None:
             continue
         alpha_pos = ord(letter) - ord("a") + 1
+        # Determine the target alphabetic type based on the roman marker's case
+        target_alpha = "A" if ol_type == "I" else "a"
         # Check if the preceding item is alphabetic and this letter continues it
         if idx > 0:
             prev_type, prev_val, _, _ = result[idx - 1]
-            if prev_type == "a" and alpha_pos == prev_val + 1:
-                result[idx] = ("a", alpha_pos, text, indent)
+            if prev_type == target_alpha and alpha_pos == prev_val + 1:
+                result[idx] = (target_alpha, alpha_pos, text, indent)
     return result
 
 
@@ -1042,6 +1046,7 @@ def _ol_type_to_numfmt(type_attr: str | None, paren: bool = False) -> tuple[str,
         "a": "lowerLetter",
         "A": "upperLetter",
         "i": "lowerRoman",
+        "I": "upperRoman",
     }
     num_fmt = fmt_map.get(type_attr, "decimal")
     if paren or type_attr.lower() in ("a", "i"):
