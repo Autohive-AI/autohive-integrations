@@ -886,6 +886,96 @@ class TestAlphabeticListDoesNotSwitchAtI:
         )
 
 
+class TestRomanNumeralListUpTo100:
+    """Verify that a parenthesized roman-numeral list (i)–(c) covering all
+    100 items is recognised and rendered as a single continuous Word list.
+
+    The integration currently only supports roman numerals up to xii (12),
+    so this test is expected to **fail** until that support is extended.
+    """
+
+    _ROMAN_MAP = [
+        (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"),
+        (100, "c"), (90, "xc"), (50, "l"), (40, "xl"),
+        (10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i"),
+    ]
+
+    @classmethod
+    def _to_roman(cls, n: int) -> str:
+        result = []
+        for value, numeral in cls._ROMAN_MAP:
+            while n >= value:
+                result.append(numeral)
+                n -= value
+        return "".join(result)
+
+    @classmethod
+    def _build_markdown(cls) -> str:
+        return "\n".join(
+            f"({cls._to_roman(n)}) item {n}" for n in range(1, 101)
+        )
+
+    MARKDOWN = None  # built lazily via _build_markdown
+
+    @pytest.fixture(autouse=True)
+    def _setup_markdown(self):
+        if TestRomanNumeralListUpTo100.MARKDOWN is None:
+            TestRomanNumeralListUpTo100.MARKDOWN = self._build_markdown()
+
+    @staticmethod
+    def _get_numpr(paragraph):
+        from docx.oxml.ns import qn
+
+        pPr = paragraph._p.find(qn("w:pPr"))
+        if pPr is None:
+            return None
+        numPr = pPr.find(qn("w:numPr"))
+        if numPr is None:
+            return None
+        numId_el = numPr.find(qn("w:numId"))
+        ilvl_el = numPr.find(qn("w:ilvl"))
+        if numId_el is None or ilvl_el is None:
+            return None
+        return int(numId_el.get(qn("w:val"))), int(ilvl_el.get(qn("w:val")))
+
+    def test_produces_100_numbered_paragraphs(self):
+        """All 100 roman-numeral items must appear as numbered paragraphs."""
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
+
+        assert len(numbered) == 100, (
+            f"Expected 100 numbered paragraphs, got {len(numbered)}"
+        )
+
+    def test_all_items_share_same_numid(self):
+        """All (i)–(c) items must share a single numId, confirming they
+        form one continuous list."""
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
+
+        num_ids = set(numpr[0] for _, numpr in numbered)
+        assert len(num_ids) == 1, (
+            f"All (i)–(c) items should share one numId for a continuous "
+            f"list, but got {len(num_ids)} distinct numIds: {num_ids}"
+        )
+
+
 class TestMultipleParenListsAfterHeadings:
     """Verify that multiple (1)-style lists separated by headings all display numbering
     and are left-aligned when the markdown has no leading spaces."""
