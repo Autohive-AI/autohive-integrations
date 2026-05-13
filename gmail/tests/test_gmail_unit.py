@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from autohive_integrations_sdk.integration import ResultType
 
-from gmail.gmail import gmail, create_email_message
+from gmail.gmail import gmail, create_email_message, build_raw_email
 
 pytestmark = pytest.mark.unit
 
@@ -116,6 +116,103 @@ class TestCreateEmailMessage:
         msg = create_email_message("<p>Hello</p>", files=files, is_html=True)
         # Outer container is multipart/mixed; should walk into alternative + attachment
         assert msg.get_content_type() == "multipart/mixed"
+
+
+def _decode_raw(raw_b64):
+    """Decode a base64url-encoded RFC822 payload into an email.Message."""
+    import email
+
+    return email.message_from_bytes(base64.urlsafe_b64decode(raw_b64.encode()))
+
+
+class TestBuildRawEmail:
+    """Tests for the shared build_raw_email helper.
+
+    Exercises the helper directly (not through the SDK envelope) so that
+    we can cover string-vs-list normalization without tripping the
+    config.json input_schema, which constrains some actions to arrays.
+    """
+
+    def test_string_recipients_are_not_character_split(self):
+        """Regression: passing 'to'/'cc'/'bcc' as a single string used to
+        be treated as an iterable of single characters by the inline
+        ReplyToThread builder, producing malformed headers like
+        'b, o, b, @, e, x, ...'. Both forms must produce a clean header."""
+        msg = _decode_raw(
+            build_raw_email(
+                {
+                    "to": "alice@example.com",
+                    "cc": "carol@example.com",
+                    "bcc": "dan@example.com",
+                    "subject": "Hi",
+                    "body": "hello",
+                },
+            )
+        )
+        assert msg["to"] == "alice@example.com"
+        assert msg["cc"] == "carol@example.com"
+        assert msg["bcc"] == "dan@example.com"
+
+    def test_list_recipients_are_comma_joined(self):
+        msg = _decode_raw(
+            build_raw_email(
+                {
+                    "to": ["alice@example.com", "bob@example.com"],
+                    "cc": ["carol@example.com", "dan@example.com"],
+                    "subject": "Hi",
+                    "body": "hello",
+                },
+            )
+        )
+        assert msg["to"] == "alice@example.com, bob@example.com"
+        assert msg["cc"] == "carol@example.com, dan@example.com"
+
+    def test_extra_to_is_prepended(self):
+        """ReplyToThread uses extra_to to put the original sender first."""
+        msg = _decode_raw(
+            build_raw_email(
+                {"to": ["bob@example.com"], "subject": "x", "body": "y"},
+                extra_to=["original@example.com"],
+            )
+        )
+        assert msg["to"] == "original@example.com, bob@example.com"
+
+    def test_subject_override_wins(self):
+        msg = _decode_raw(
+            build_raw_email(
+                {"to": "x@example.com", "subject": "ignored", "body": "b"},
+                subject_override="Re: real",
+            )
+        )
+        assert msg["subject"] == "Re: real"
+
+    def test_from_me_sentinel_is_skipped(self):
+        msg = _decode_raw(
+            build_raw_email(
+                {"to": "x@example.com", "subject": "s", "body": "b", "from": "me"},
+            )
+        )
+        assert msg["from"] is None
+
+    def test_threading_headers_default_references_to_in_reply_to(self):
+        msg = _decode_raw(
+            build_raw_email(
+                {"to": "x@example.com", "subject": "s", "body": "b"},
+                in_reply_to="<msg-id@example.com>",
+            )
+        )
+        assert msg["In-Reply-To"] == "<msg-id@example.com>"
+        assert msg["References"] == "<msg-id@example.com>"
+
+    def test_threading_headers_pass_references_through(self):
+        msg = _decode_raw(
+            build_raw_email(
+                {"to": "x@example.com", "subject": "s", "body": "b"},
+                in_reply_to="<new@example.com>",
+                references="<old@example.com> <new@example.com>",
+            )
+        )
+        assert msg["References"] == "<old@example.com> <new@example.com>"
 
 
 # ============================================================
