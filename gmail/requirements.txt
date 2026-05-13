@@ -1,0 +1,6 @@
+autohive-integrations-sdk~=1.0.2
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+html2text
+bleach

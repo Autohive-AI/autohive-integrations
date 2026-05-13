@@ -1,0 +1,1746 @@
+{
+    "name": "Gmail",
+    "display_name": "Gmail",
+    "version": "0.1.0",
+    "description": "Send, read, and manage emails with labels and threads.",
+    "entry_point": "gmail.py",
+    "auth": {
+        "type": "platform",
+        "provider": "gmail",
+        "scopes": [
+            "https://www.googleapis.com/auth/gmail.modify"
+        ]
+    },
+    "actions": {
+        "reply_to_thread": {
+            "display_name": "Reply to Email Thread",
+            "description": "Reply to an existing email thread",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "thread_id": {
+                        "type": "string",
+                        "description": "The ID of the thread to reply to"
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "The ID of the message being replied to"
+                    },
+                    "to": {
+                        "type": "array",
+                        "description": "Additional recipients to include in the reply",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address of a recipient"
+                        }
+                    },
+                    "cc": {
+                        "type": "array",
+                        "description": "The email addresses to CC in the reply",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address to CC"
+                        }
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "The body of the reply"
+                    },
+                    "body_format": {
+                        "type": "string",
+                        "description": "Format of the reply body content. When set to 'html', the body parameter will be treated as HTML content and the reply will be sent as a rich HTML email with automatic plain text fallback for maximum compatibility. When set to 'text' (default), the body will be sent as plain text. LLMs can use 'html' to generate well-formatted replies with styling, links, tables, headers, lists, and other rich formatting elements. When using 'html' format, NEVER include CSS rule blocks (like <style> tags) in the body - instead use the 'style' attribute directly on HTML tags for styling (e.g., <p style=\"color: red;\">).",
+                        "enum": ["text", "html"],
+                        "default": "text"
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files to attach to the reply",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name of the file to attach to the reply"
+                                },
+                                "contentType": {
+                                    "type": "string",
+                                    "description": "The MIME type of the file"
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "The file content encoded as base64"
+                                }
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": [
+                    "thread_id",
+                    "message_id",
+                    "body"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The ID of the sent reply"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the reply send operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "id",
+                    "result"
+                ]
+            }
+        },
+
+        "mark_emails_as_unread": {
+            "display_name": "Mark Emails as Unread",
+            "description": "Mark emails as unread",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "ids": {
+                        "type": "array",
+                        "description": "The IDs of the emails to mark as unread",
+                        "items": {
+                            "type": "string",
+                            "description": "The ID of the email to mark as unread"
+                        }
+                    }
+                },
+                "required": [
+                    "user_id",
+                    "ids"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the email modification"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+
+        "mark_emails_as_read": {
+            "display_name": "Mark Emails as Read",
+            "description": "Mark emails as read",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "ids": {
+                        "type": "array",
+                        "description": "The IDs of the emails to mark as read",
+                        "items": {
+                            "type": "string",
+                            "description": "The ID of the email to mark as read"
+                        }
+                    }
+                },
+                "required": [
+                    "user_id",
+                    "ids"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the email modification"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+
+        "get_user_info": {
+            "display_name": "Get User Info",
+            "description": "Get user info",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "A user's email address. Special value 'me' indicates the authenticated user."
+                    }
+                },
+                "required": [
+                    "user_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "user_info": {
+                        "type": "object",
+                        "description": "The user info",
+                        "properties": {
+                            "email_address": {
+                                "type": "string",
+                                "description": "The user's email address"
+                            },
+                            "messages_total": {
+                                "type": "number",
+                                "description": "The total number of messages in the user's inbox"
+                            },
+                            "threads_total": {
+                                "type": "number",
+                                "description": "The total number of threads in the user's inbox"
+                            },
+                            "history_id": {
+                                "type": "string",
+                                "description": "The history ID of the user's inbox"
+                            }
+                        },
+                        "required": [
+                            "email_address",
+                            "messages_total",
+                            "threads_total",
+                            "history_id"
+                        ]
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the user info"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "user_info",
+                    "result"
+                ]
+            }
+        },
+
+        "read_email": {
+            "display_name": "Read Email",
+            "description": "Read an email",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "email_id": {
+                        "type": "string",
+                        "description": "The ID of the email to read"
+                    },
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    }
+                },
+                "required": [
+                    "email_id",
+                    "user_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the email read"
+                    },
+                    "email": {
+                        "type": "object",
+                        "description": "The email object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Unique identifier of the email"
+                            },
+                            "thread_id": {
+                                "type": "string",
+                                "description": "Unique identifier of the thread"
+                            },
+                            "subject": {
+                                "type": "string",
+                                "description": "Subject line of the email"
+                            },
+                            "from": {
+                                "type": "string",
+                                "description": "Sender's email address"
+                            },
+                            "to": {
+                                "type": "string",
+                                "description": "recipients's email address"
+                            },
+                            "cc": {
+                                "type": "array",
+                                "description": "CC recipients' email addresses",
+                                "items": {
+                                    "type": "string",
+                                    "description": "Email address of a CC recipient"
+                                }
+                            },
+                            "date": {
+                                "type": "string",
+                                "description": "Date the email was received"
+                            },
+                            "body": {
+                                "type": "string",
+                                "description": "Body contents of the email"
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "thread_id",
+                            "subject",
+                            "from",
+                            "to",
+                            "date",
+                            "body"
+                        ]
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files to attach to the email",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name of the file to attach"
+                                },
+                                "contentType": {
+                                    "type": "string",
+                                    "description": "The MIME type of the file"
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "The file content encoded as base64"
+                                }
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "email",
+                    "result",
+                    "files"
+                ]
+            }
+        },
+
+        "send_email": {
+            "display_name": "Send Email",
+            "description": "Send an email",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "to": {
+                        "type": "array",
+                        "description": "The email addresses of the recipients",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address of a recipient"
+                        }
+                    },
+                    "cc": {
+                        "type": "array",
+                        "description": "The email addresses to CC",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address to CC"
+                        }
+                    },
+                    "subject": {
+                        "type": "string",
+                        "description": "The subject of the email"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "The body of the email"
+                    },
+                    "body_format": {
+                        "type": "string",
+                        "description": "Format of the email body content. When set to 'html', the body parameter will be treated as HTML content and the email will be sent as a rich HTML email with automatic plain text fallback for maximum compatibility. When set to 'text' (default), the body will be sent as plain text. LLMs can use 'html' to generate well-formatted emails with styling, links, tables, headers, lists, and other rich formatting elements. When using 'html' format, NEVER include CSS rule blocks (like <style> tags) in the body - instead use the 'style' attribute directly on HTML tags for styling (e.g., <p style=\"color: red;\">).",
+                        "enum": ["text", "html"],
+                        "default": "text"
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files to attach to the email",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name of the file to attach"
+                                },
+                                "contentType": {
+                                    "type": "string",
+                                    "description": "The MIME type of the file"
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "The file content encoded as base64"
+                                }
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": [
+                    "to",
+                    "subject",
+                    "body"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The ID of the email"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the email send"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "id",
+                    "result"
+                ]
+            }
+        },
+
+        "read_inbox": {
+            "display_name": "Read Inbox",
+            "description": "List emails in the user's inbox, filtered by read status. Results are paginated - use the nextPageToken from a previous response to retrieve the next page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "scope": {
+                        "type": "string",
+                        "description": "Filter emails by read status. 'all' returns all emails, 'unread' returns only unread emails, 'read' returns only emails that have been read.",
+                        "enum": ["all", "read", "unread"]
+                    },
+                    "pageToken": {
+                        "type": "string",
+                        "description": "An optional parameter: The page token to get the next page of results. Use the nextPageToken from a previous response."
+                    }
+                },
+                "required": [
+                    "user_id",
+                    "scope"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the email list"
+                    },
+                    "nextPageToken": {
+                        "type": "string",
+                        "description": "An optional parameter: The page token to get the next page of results (only present if there are more results)"
+                    },
+                    "emails": {
+                        "type": "array",
+                        "description": "List of email messages",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Unique identifier of the email"
+                                },
+                                "thread_id": {
+                                    "type": "string",
+                                    "description": "Unique identifier of the thread"
+                                },
+                                "subject": {
+                                    "type": "string",
+                                    "description": "Subject line of the email"
+                                },
+                                "from": {
+                                    "type": "string",
+                                    "description": "Sender's email address"
+                                },
+                                "to": {
+                                    "type": "string",
+                                    "description": "recipients's email address"
+                                },
+                                "cc": {
+                                    "type": "array",
+                                    "description": "CC recipients' email addresses",
+                                    "items": {
+                                        "type": "string",
+                                        "description": "Email address of a CC recipient"
+                                    }
+                                },
+                                "date": {
+                                    "type": "string",
+                                    "description": "Date the email was received"
+                                },
+                                "snippet": {
+                                    "type": "string",
+                                    "description": "Preview snippet of the email content"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "thread_id",
+                                "subject",
+                                "from",
+                                "to",
+                                "date",
+                                "snippet"
+                            ]
+                        }
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "emails",
+                    "result"
+                ]
+            }
+        },
+
+        "read_all_mail": {
+            "display_name": "Read All Mail",
+            "description": "List all emails across the entire mailbox regardless of labels, filtered by read status. Results are paginated - use the nextPageToken from a previous response to retrieve the next page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "scope": {
+                        "type": "string",
+                        "description": "Filter emails by read status. 'all' returns all emails, 'unread' returns only unread emails, 'read' returns only emails that have been read.",
+                        "enum": ["all", "read", "unread"]
+                    },
+                    "pageToken": {
+                        "type": "string",
+                        "description": "An optional parameter: The page token to get the next page of results. Use the nextPageToken from a previous response."
+                    },
+                    "include_spam_trash": {
+                        "type": "boolean",
+                        "description": "An optional parameter: Whether to include emails from spam and trash. When false, emails in trash and spam are excluded. When true, returns all emails including those in trash and spam."
+                    }
+                },
+                "required": [
+                    "user_id",
+                    "scope"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the email list"
+                    },
+                    "nextPageToken": {
+                        "type": "string",
+                        "description": "An optional parameter: The page token to get the next page of results (only present if there are more results)"
+                    },
+                    "emails": {
+                        "type": "array",
+                        "description": "List of email messages",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Unique identifier of the email"
+                                },
+                                "thread_id": {
+                                    "type": "string",
+                                    "description": "Unique identifier of the thread"
+                                },
+                                "subject": {
+                                    "type": "string",
+                                    "description": "Subject line of the email"
+                                },
+                                "from": {
+                                    "type": "string",
+                                    "description": "Sender's email address"
+                                },
+                                "to": {
+                                    "type": "string",
+                                    "description": "recipients's email address"
+                                },
+                                "cc": {
+                                    "type": "array",
+                                    "description": "CC recipients' email addresses",
+                                    "items": {
+                                        "type": "string",
+                                        "description": "Email address of a CC recipient"
+                                    }
+                                },
+                                "date": {
+                                    "type": "string",
+                                    "description": "Date the email was received"
+                                },
+                                "snippet": {
+                                    "type": "string",
+                                    "description": "Preview snippet of the email content"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "thread_id",
+                                "subject",
+                                "from",
+                                "to",
+                                "date",
+                                "snippet"
+                            ]
+                        }
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "emails",
+                    "result"
+                ]
+            }
+        },
+
+        "list_labels": {
+            "display_name": "List Gmail Labels",
+            "description": "List all Gmail labels (folders) available to the user. Can filter by label type (user-created or system labels).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "label_type": {
+                        "type": "string",
+                        "description": "Optional filter for label type. 'user' for user-created labels, 'system' for Gmail system labels (like INBOX, SENT, etc.)",
+                        "enum": ["user", "system"]
+                    }
+                },
+                "required": [
+                    "user_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "labels": {
+                        "type": "array",
+                        "description": "List of Gmail labels",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Unique identifier of the label"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Display name of the label"
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "description": "Type of label (user or system)"
+                                },
+                                "messageListVisibility": {
+                                    "type": "string",
+                                    "description": "Visibility of the label in the message list"
+                                },
+                                "labelListVisibility": {
+                                    "type": "string",
+                                    "description": "Visibility of the label in the label list"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "type"
+                            ]
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the label list operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "labels",
+                    "result"
+                ]
+            }
+        },
+
+        "list_emails_by_label": {
+            "display_name": "List Emails by Label",
+            "description": "List emails that have specific Gmail labels (folders). By default, only returns emails in the inbox (excludes archived emails) unless include_archived is true or INBOX label is explicitly specified. Supports pagination and can filter by multiple labels. Uses label names (not IDs) for filtering.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "label_names": {
+                        "oneOf": [
+                            {
+                                "type": "string",
+                                "description": "Single label name to filter emails by (e.g., 'INBOX', 'SENT', 'Work', 'Personal')"
+                            },
+                            {
+                                "type": "array",
+                                "description": "Array of label names - emails must have ALL specified labels (e.g., ['Work', 'STARRED'])",
+                                "items": {
+                                    "type": "string",
+                                    "description": "Label name (e.g., 'INBOX', 'SENT', 'Work', 'Personal')"
+                                }
+                            }
+                        ]
+                    },
+                    "pageToken": {
+                        "type": "string",
+                        "description": "An optional parameter: The page token to get the next page of results. Use the nextPageToken from a previous response."
+                    },
+                    "maxResults": {
+                        "type": "integer",
+                        "description": "Maximum number of emails to return (default is Gmail API default)"
+                    },
+                    "include_archived": {
+                        "type": "boolean",
+                        "description": "An optional parameter: Whether to include archived emails. When false (default), only returns emails in the inbox. When true, returns all emails with the specified labels including archived ones.",
+                        "default": false
+                    }
+                },
+                "required": [
+                    "user_id",
+                    "label_names"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "emails": {
+                        "type": "array",
+                        "description": "List of email messages with the specified labels",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Unique identifier of the email"
+                                },
+                                "thread_id": {
+                                    "type": "string",
+                                    "description": "Unique identifier of the thread"
+                                },
+                                "subject": {
+                                    "type": "string",
+                                    "description": "Subject line of the email"
+                                },
+                                "from": {
+                                    "type": "string",
+                                    "description": "Sender's email address"
+                                },
+                                "to": {
+                                    "type": "string",
+                                    "description": "recipients's email address"
+                                },
+                                "cc": {
+                                    "type": "array",
+                                    "description": "CC recipients' email addresses",
+                                    "items": {
+                                        "type": "string",
+                                        "description": "Email address of a CC recipient"
+                                    }
+                                },
+                                "date": {
+                                    "type": "string",
+                                    "description": "Date the email was received"
+                                },
+                                "snippet": {
+                                    "type": "string",
+                                    "description": "Preview snippet of the email content"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "thread_id",
+                                "subject",
+                                "from",
+                                "to",
+                                "date",
+                                "snippet"
+                            ]
+                        }
+                    },
+                    "nextPageToken": {
+                        "type": "string",
+                        "description": "An optional parameter: The page token to get the next page of results (only present if there are more results)"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the email list operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "emails",
+                    "result"
+                ]
+            }
+        },
+
+        "add_labels_to_emails": {
+            "display_name": "Add Labels to Emails",
+            "description": "Add one or more labels to specified emails. This is equivalent to moving emails to folders or applying tags.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "message_ids": {
+                        "type": "array",
+                        "description": "Array of email message IDs to add labels to",
+                        "items": {
+                            "type": "string",
+                            "description": "Email message ID"
+                        }
+                    },
+                    "label_ids": {
+                        "type": "array",
+                        "description": "Array of label IDs to add to the emails",
+                        "items": {
+                            "type": "string",
+                            "description": "Label ID"
+                        }
+                    }
+                },
+                "required": [
+                    "user_id",
+                    "message_ids",
+                    "label_ids"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the label addition operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+
+        "remove_labels_from_emails": {
+            "display_name": "Remove Labels from Emails",
+            "description": "Remove one or more labels from specified emails. This is equivalent to moving emails out of folders or removing tags.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "message_ids": {
+                        "type": "array",
+                        "description": "Array of email message IDs to remove labels from",
+                        "items": {
+                            "type": "string",
+                            "description": "Email message ID"
+                        }
+                    },
+                    "label_ids": {
+                        "type": "array",
+                        "description": "Array of label IDs to remove from the emails",
+                        "items": {
+                            "type": "string",
+                            "description": "Label ID"
+                        }
+                    }
+                },
+                "required": [
+                    "user_id",
+                    "message_ids",
+                    "label_ids"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the label removal operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+
+        "create_label": {
+            "display_name": "Create Custom Label",
+            "description": "Create a new custom label (folder) in Gmail. Labels are used to organize and categorize emails.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The display name for the new label. Cannot conflict with existing system labels (INBOX, SENT, etc.)"
+                    },
+                    "messageListVisibility": {
+                        "type": "string",
+                        "description": "Whether to show messages with this label in the message list",
+                        "enum": ["show", "hide"],
+                        "default": "show"
+                    },
+                    "labelListVisibility": {
+                        "type": "string",
+                        "description": "How to display the label in the label list",
+                        "enum": ["labelShow", "labelShowIfUnread", "labelHide"],
+                        "default": "labelShow"
+                    },
+                    "textColor": {
+                        "type": "string",
+                        "description": "Optional: Text color for the label as hex string (e.g., #000000). Must be from Gmail's predefined color set."
+                    },
+                    "backgroundColor": {
+                        "type": "string",
+                        "description": "Optional: Background color for the label as hex string (e.g., #ffffff). Must be from Gmail's predefined color set."
+                    }
+                },
+                "required": [
+                    "user_id",
+                    "name"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "object",
+                        "description": "The created label object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "The unique ID of the created label"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The display name of the label"
+                            },
+                            "type": {
+                                "type": "string",
+                                "description": "The type of label (will be 'user' for custom labels)"
+                            },
+                            "messageListVisibility": {
+                                "type": "string",
+                                "description": "Visibility setting for messages with this label"
+                            },
+                            "labelListVisibility": {
+                                "type": "string",
+                                "description": "Visibility setting for the label in the label list"
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "name",
+                            "type",
+                            "messageListVisibility",
+                            "labelListVisibility"
+                        ]
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the label creation operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "label",
+                    "result"
+                ]
+            }
+        },
+
+        "get_thread_emails": {
+            "display_name": "Get Thread Emails",
+            "description": "Get all emails in a thread, returned as snippets in chronological order",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "thread_id": {
+                        "type": "string",
+                        "description": "The ID of the thread to retrieve emails from"
+                    }
+                },
+                "required": [
+                    "user_id",
+                    "thread_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {
+                        "type": "string",
+                        "description": "The ID of the thread"
+                    },
+                    "emails": {
+                        "type": "array",
+                        "description": "List of email messages in the thread, ordered chronologically",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Unique identifier of the email"
+                                },
+                                "thread_id": {
+                                    "type": "string",
+                                    "description": "Unique identifier of the thread"
+                                },
+                                "subject": {
+                                    "type": "string",
+                                    "description": "Subject line of the email"
+                                },
+                                "from": {
+                                    "type": "string",
+                                    "description": "Sender's email address"
+                                },
+                                "to": {
+                                    "type": "string",
+                                    "description": "recipients's email address"
+                                },
+                                "cc": {
+                                    "type": "array",
+                                    "description": "CC recipients' email addresses",
+                                    "items": {
+                                        "type": "string",
+                                        "description": "Email address of a CC recipient"
+                                    }
+                                },
+                                "date": {
+                                    "type": "string",
+                                    "description": "Date the email was received"
+                                },
+                                "snippet": {
+                                    "type": "string",
+                                    "description": "Preview snippet of the email content"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "thread_id",
+                                "subject",
+                                "from",
+                                "to",
+                                "date",
+                                "snippet"
+                            ]
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the thread retrieval operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "thread_id",
+                    "emails",
+                    "result"
+                ]
+            }
+        },
+
+        "archive_emails": {
+            "display_name": "Archive Emails",
+            "description": "Archive emails by removing the INBOX label. Archived emails remain accessible but are hidden from the main inbox view.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "ids": {
+                        "type": "array",
+                        "description": "The IDs of the emails to archive",
+                        "items": {
+                            "type": "string",
+                            "description": "The ID of the email to archive"
+                        }
+                    }
+                },
+                "required": [
+                    "user_id",
+                    "ids"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the email archiving operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+
+        "create_draft": {
+            "display_name": "Create Draft",
+            "description": "Create a new email draft or a draft reply to an existing email. For replies, provide thread_id and message_id - the recipient ('to'), subject, and threading headers will be automatically populated from the original message.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user.",
+                        "default": "me"
+                    },
+                    "thread_id": {
+                        "type": "string",
+                        "description": "Optional: The thread ID to reply to. When provided with message_id, creates a draft reply instead of a new draft."
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "Optional: The Gmail message ID to reply to (the 'id' field from the email object, NOT the Message-ID header). Required if thread_id is provided."
+                    },
+                    "to": {
+                        "type": "array",
+                        "description": "The email addresses of the recipients. For replies, if not provided, defaults to the original sender.",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address of a recipient"
+                        }
+                    },
+                    "cc": {
+                        "type": "array",
+                        "description": "The email addresses to CC",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address to CC"
+                        }
+                    },
+                    "bcc": {
+                        "type": "array",
+                        "description": "The email addresses to BCC",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address to BCC"
+                        }
+                    },
+                    "subject": {
+                        "type": "string",
+                        "description": "The subject of the draft email. For replies, if not provided, automatically prefixes the original subject with 'Re:'"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "The body content of the draft email"
+                    },
+                    "body_format": {
+                        "type": "string",
+                        "description": "Format of the email body content. When set to 'html', the body parameter will be treated as HTML content. When set to 'text' (default), the body will be sent as plain text.",
+                        "enum": ["text", "html"],
+                        "default": "text"
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files to attach to the draft",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name of the file to attach"
+                                },
+                                "contentType": {
+                                    "type": "string",
+                                    "description": "The MIME type of the file"
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "The file content encoded as base64"
+                                }
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "draft": {
+                        "type": "object",
+                        "description": "The created draft object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "The unique ID of the created draft"
+                            },
+                            "message": {
+                                "type": "object",
+                                "description": "The message content of the draft",
+                                "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "description": "The message ID"
+                                    },
+                                    "threadId": {
+                                        "type": "string",
+                                        "description": "The thread ID"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the draft creation operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "draft",
+                    "result"
+                ]
+            }
+        },
+
+        "update_draft": {
+            "display_name": "Update Draft",
+            "description": "Update an existing email draft with new content, recipients, or attachments. Automatically preserves thread context for reply drafts - the threadId and threading headers (In-Reply-To, References) are maintained so the draft remains associated with its original conversation.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user.",
+                        "default": "me"
+                    },
+                    "draft_id": {
+                        "type": "string",
+                        "description": "The ID of the draft to update"
+                    },
+                    "to": {
+                        "type": "array",
+                        "description": "The email addresses of the recipients",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address of a recipient"
+                        }
+                    },
+                    "cc": {
+                        "type": "array",
+                        "description": "The email addresses to CC",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address to CC"
+                        }
+                    },
+                    "bcc": {
+                        "type": "array",
+                        "description": "The email addresses to BCC",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address to BCC"
+                        }
+                    },
+                    "subject": {
+                        "type": "string",
+                        "description": "The subject of the draft email"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "The body content of the draft email"
+                    },
+                    "body_format": {
+                        "type": "string",
+                        "description": "Format of the email body content. When set to 'html', the body parameter will be treated as HTML content. When set to 'text' (default), the body will be sent as plain text.",
+                        "enum": ["text", "html"],
+                        "default": "text"
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files to attach to the draft. Note: This replaces any existing attachments - include all desired files in the update.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name of the file to attach"
+                                },
+                                "contentType": {
+                                    "type": "string",
+                                    "description": "The MIME type of the file"
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "The file content encoded as base64"
+                                }
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    }
+                },
+                "required": [
+                    "draft_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "draft": {
+                        "type": "object",
+                        "description": "The updated draft object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "The unique ID of the draft"
+                            },
+                            "message": {
+                                "type": "object",
+                                "description": "The message content of the draft",
+                                "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "description": "The message ID"
+                                    },
+                                    "threadId": {
+                                        "type": "string",
+                                        "description": "The thread ID"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the draft update operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "draft",
+                    "result"
+                ]
+            }
+        },
+
+        "list_drafts": {
+            "display_name": "List Drafts",
+            "description": "List all drafts in the user's mailbox with pagination support",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user.",
+                        "default": "me"
+                    },
+                    "pageToken": {
+                        "type": "string",
+                        "description": "Page token for pagination. Use the nextPageToken from a previous response to get the next page."
+                    },
+                    "maxResults": {
+                        "type": "integer",
+                        "description": "Maximum number of drafts to return (1-500, default: 100)",
+                        "minimum": 1,
+                        "maximum": 500,
+                        "default": 100
+                    },
+                    "q": {
+                        "type": "string",
+                        "description": "Query to filter drafts using Gmail search syntax (e.g., 'subject:urgent', 'from:example@gmail.com')"
+                    },
+                    "includeSpamTrash": {
+                        "type": "boolean",
+                        "description": "Include drafts from spam and trash folders",
+                        "default": false
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "drafts": {
+                        "type": "array",
+                        "description": "List of draft objects",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "The unique ID of the draft"
+                                },
+                                "message": {
+                                    "type": "object",
+                                    "description": "Basic message information",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "description": "The message ID"
+                                        },
+                                        "threadId": {
+                                            "type": "string",
+                                            "description": "The thread ID"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "nextPageToken": {
+                        "type": "string",
+                        "description": "Token for the next page of results (only present if there are more results)"
+                    },
+                    "resultSizeEstimate": {
+                        "type": "integer",
+                        "description": "Estimated total number of drafts"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the list operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "drafts",
+                    "result"
+                ]
+            }
+        },
+
+        "get_draft": {
+            "display_name": "Get Draft",
+            "description": "Retrieve a specific draft by ID with full content details",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user.",
+                        "default": "me"
+                    },
+                    "draft_id": {
+                        "type": "string",
+                        "description": "The ID of the draft to retrieve"
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "The format to return the draft message in",
+                        "enum": ["minimal", "full", "raw", "metadata"],
+                        "default": "full"
+                    }
+                },
+                "required": [
+                    "draft_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "draft": {
+                        "type": "object",
+                        "description": "The complete draft object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "The unique ID of the draft"
+                            },
+                            "message": {
+                                "type": "object",
+                                "description": "Full message content",
+                                "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "description": "The message ID"
+                                    },
+                                    "threadId": {
+                                        "type": "string",
+                                        "description": "The thread ID"
+                                    },
+                                    "subject": {
+                                        "type": "string",
+                                        "description": "Subject of the draft"
+                                    },
+                                    "from": {
+                                        "type": "string",
+                                        "description": "Sender's email address"
+                                    },
+                                    "to": {
+                                        "type": "string",
+                                        "description": "Recipients' email addresses"
+                                    },
+                                    "cc": {
+                                        "type": "array",
+                                        "description": "CC recipients' email addresses",
+                                        "items": {
+                                            "type": "string",
+                                            "description": "Email address of a CC recipient"
+                                        }
+                                    },
+                                    "bcc": {
+                                        "type": "array",
+                                        "description": "BCC recipients' email addresses",
+                                        "items": {
+                                            "type": "string",
+                                            "description": "Email address of a BCC recipient"
+                                        }
+                                    },
+                                    "body": {
+                                        "type": "string",
+                                        "description": "Body content of the draft"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "List of files attached to the draft",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name of the attached file"
+                                },
+                                "contentType": {
+                                    "type": "string",
+                                    "description": "The MIME type of the file"
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "The file content encoded as base64"
+                                }
+                            },
+                            "required": ["name", "contentType", "content"]
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the get operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "draft",
+                    "files",
+                    "result"
+                ]
+            }
+        },
+
+        "send_draft": {
+            "display_name": "Send Draft",
+            "description": "Send an existing draft to its recipients. The draft will be automatically deleted after sending.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user.",
+                        "default": "me"
+                    },
+                    "draft_id": {
+                        "type": "string",
+                        "description": "The ID of the draft to send"
+                    }
+                },
+                "required": [
+                    "draft_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "object",
+                        "description": "The sent message object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "The unique ID of the sent message"
+                            },
+                            "threadId": {
+                                "type": "string",
+                                "description": "The thread ID of the sent message"
+                            }
+                        }
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the send operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "message",
+                    "result"
+                ]
+            }
+        },
+
+        "delete_draft": {
+            "display_name": "Delete Draft",
+            "description": "Permanently delete a draft from the user's mailbox",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user.",
+                        "default": "me"
+                    },
+                    "draft_id": {
+                        "type": "string",
+                        "description": "The ID of the draft to delete"
+                    }
+                },
+                "required": [
+                    "draft_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "boolean",
+                        "description": "The result of the delete operation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        }
+    }
+}
