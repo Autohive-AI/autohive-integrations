@@ -1795,9 +1795,7 @@ class TestUppercaseAlphabeticListAtoZ:
                 break
 
         lvl_text = target_lvl.find(qn("w:lvlText")).get(qn("w:val"))
-        assert "(" in lvl_text and ")" in lvl_text, (
-            f"Expected parenthesized lvlText like '(%1)', got '{lvl_text}'"
-        )
+        assert "(" in lvl_text and ")" in lvl_text, f"Expected parenthesized lvlText like '(%1)', got '{lvl_text}'"
 
     def test_each_item_has_correct_text(self):
         """Each paragraph text must match 'item N' for N=1..26."""
@@ -1812,6 +1810,4 @@ class TestUppercaseAlphabeticListAtoZ:
 
         for i, (text, _) in enumerate(numbered):
             expected = f"item {i + 1}"
-            assert text == expected, (
-                f"Item {i} (letter {chr(ord('A') + i)}): expected text '{expected}', got '{text}'"
-            )
+            assert text == expected, f"Item {i} (letter {chr(ord('A') + i)}): expected text '{expected}', got '{text}'"
