@@ -1,6 +1,6 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -159,6 +159,86 @@ def create_email_message(body: str, files: list = None, is_html: bool = False) -
     return message
 
 
+def _normalize_addresses(value) -> str:
+    """Accept either a string or a list of strings and return a comma-joined header value.
+
+    Inputs from the platform may arrive as either a single recipient string
+    or a list of recipient strings. Treating a string as a list (e.g. via
+    ``", ".join(value)``) silently splits it into individual characters and
+    produces malformed headers, so always normalize through this helper.
+    """
+    if isinstance(value, list):
+        return ", ".join(value)
+    return str(value)
+
+
+def build_raw_email(
+    inputs: Dict[str, Any],
+    *,
+    extra_to: Optional[List[str]] = None,
+    subject_override: Optional[str] = None,
+    in_reply_to: Optional[str] = None,
+    references: Optional[str] = None,
+) -> str:
+    """Build a base64url-encoded RFC822 email payload from action inputs.
+
+    Shared by SendEmail, ReplyToThread, CreateDraft, and UpdateDraft so that
+    recipient handling, HTML/text body selection, attachments, and threading
+    headers stay consistent.
+
+    Args:
+        inputs: Action input dict. Recognized keys: body, body_format, files,
+            from, to, cc, bcc, subject. ``to``/``cc``/``bcc`` may each be a
+            string or list of strings.
+        extra_to: Optional list of addresses to prepend to the To header
+            (used by ReplyToThread to include the original sender).
+        subject_override: Optional subject string that wins over
+            ``inputs["subject"]`` (used by ReplyToThread for ``Re: ...``).
+        in_reply_to: Optional ``In-Reply-To`` header value.
+        references: Optional ``References`` header value. Falls back to
+            ``in_reply_to`` when only the latter is provided.
+    """
+    body_format = inputs.get("body_format", "text")
+    is_html = body_format == "html"
+    input_files = inputs.get("files", [])
+    body = inputs.get("body", "")
+    message = create_email_message(body, input_files, is_html)
+
+    # From — skip the "me" sentinel used by SendEmail
+    sender = inputs.get("from")
+    if sender and sender != "me":
+        message["from"] = sender
+
+    # To — combine optional extra_to with caller-supplied to (string or list)
+    recipients: List[str] = []
+    if extra_to:
+        recipients.extend(extra_to)
+    to_value = inputs.get("to")
+    if to_value:
+        if isinstance(to_value, list):
+            recipients.extend(to_value)
+        else:
+            recipients.append(to_value)
+    if recipients:
+        message["to"] = ", ".join(recipients)
+
+    if inputs.get("cc"):
+        message["cc"] = _normalize_addresses(inputs["cc"])
+    if inputs.get("bcc"):
+        message["bcc"] = _normalize_addresses(inputs["bcc"])
+
+    if subject_override is not None:
+        message["subject"] = subject_override
+    elif inputs.get("subject"):
+        message["subject"] = inputs["subject"]
+
+    if in_reply_to:
+        message["In-Reply-To"] = in_reply_to
+        message["References"] = references if references else in_reply_to
+
+    return base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+
 def build_credentials(context: ExecutionContext):
     """Build Google credentials from ExecutionContext.
 
@@ -169,7 +249,7 @@ def build_credentials(context: ExecutionContext):
         Google credentials object
     """
     # Extract access token from context.auth.credentials
-    access_token = context.auth["credentials"]["access_token"]
+    access_token = context.auth.get("credentials", {}).get("access_token", "")
 
     creds = Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")  # nosec B106
 
@@ -359,10 +439,10 @@ class MarkEmailsAsUnread(ActionHandler):
             request = service.users().messages().batchModify(userId=user_id, body=body)
             request.execute()
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("mark_emails_as_read")
@@ -378,10 +458,10 @@ class MarkEmailsAsRead(ActionHandler):
             request = service.users().messages().batchModify(userId=user_id, body=body)
             request.execute()
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("get_user_info")
@@ -402,13 +482,12 @@ class GetUserInfo(ActionHandler):
                         "threads_total": result["threadsTotal"],
                         "history_id": result["historyId"],
                     },
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("read_email")
@@ -430,10 +509,10 @@ class ReadEmail(ActionHandler):
                 service, user_id, message_data["id"], message_data["payload"]
             )
 
-            return ActionResult(data={"email": email_object, "files": extracted_files, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"email": email_object, "files": extracted_files}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("send_email")
@@ -446,48 +525,16 @@ class SendEmail(ActionHandler):
             user_id = "me"
 
             # Create the email message
-            message = {"raw": self._create_raw_email(inputs)}
+            message = {"raw": build_raw_email(inputs)}
 
             # Send the email using Gmail API
             request = service.users().messages().send(userId=user_id, body=message)
             response = request.execute()
 
-            return ActionResult(data={"id": response.get("id", ""), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"id": response.get("id", "")}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
-
-    def _create_raw_email(self, inputs: Dict[str, Any]) -> str:
-        """Create base64 encoded email message."""
-        # Determine if HTML formatting is requested
-        body_format = inputs.get("body_format", "text")
-        is_html = body_format == "html"
-
-        # Create message with optional files and HTML support
-        input_files = inputs.get("files", [])
-        message = create_email_message(inputs["body"], input_files, is_html)
-
-        # Handle multiple recipients in 'to' field
-        if isinstance(inputs["to"], list):
-            message["to"] = ", ".join(inputs["to"])
-        else:
-            message["to"] = inputs["to"]
-
-        # Handle CC recipients if present
-        if "cc" in inputs:
-            if isinstance(inputs["cc"], list):
-                message["cc"] = ", ".join(inputs["cc"])
-            else:
-                message["cc"] = inputs["cc"]
-
-        message["subject"] = inputs["subject"]
-
-        # Add from if provided
-        if "from" in inputs and inputs["from"] != "me":
-            message["from"] = inputs["from"]
-
-        # Encode the message
-        return base64.urlsafe_b64encode(message.as_bytes()).decode()
+            return ActionError(message=str(e))
 
 
 @gmail.action("reply_to_thread")
@@ -498,7 +545,6 @@ class ReplyToThread(ActionHandler):
             user_id = inputs.get("user_id", "me")
             thread_id = inputs["thread_id"]
             message_id = inputs["message_id"]
-            body = inputs["body"]
 
             # Fetch the original message to get headers
             original_request = service.users().messages().get(userId=user_id, id=message_id)
@@ -511,45 +557,30 @@ class ReplyToThread(ActionHandler):
             message_id_header = GmailMessageParser.get_header_value(headers, "Message-ID")
             references = GmailMessageParser.get_header_value(headers, "References")
 
-            # Determine if HTML formatting is requested
-            body_format = inputs.get("body_format", "text")
-            is_html = body_format == "html"
-
-            # Create message with optional files and HTML support
-            input_files = inputs.get("files", [])
-            message = create_email_message(body, input_files, is_html)
-
-            # Set recipients
-            recipients = [original_from]
-            if "to" in inputs and inputs["to"]:
-                recipients.extend(inputs["to"])
-            message["to"] = ", ".join(recipients)
-
-            # Add CC if provided
-            if "cc" in inputs and inputs["cc"]:
-                message["cc"] = ", ".join(inputs["cc"])
-
-            message["subject"] = (
-                f"Re: {original_subject}" if not original_subject.startswith("Re:") else original_subject
+            # Build the reply: prepend the original sender to To, set "Re: ..."
+            # subject, and append the new message id to the existing References
+            # chain so the thread keeps a complete reply history.
+            new_references = f"{references} {message_id_header}" if references else message_id_header
+            subject_override = f"Re: {original_subject}" if not original_subject.startswith("Re:") else original_subject
+            raw = build_raw_email(
+                inputs,
+                extra_to=[original_from],
+                subject_override=subject_override,
+                in_reply_to=message_id_header,
+                references=new_references,
             )
 
-            # Add threading headers
-            message["In-Reply-To"] = message_id_header
-            # Combine existing references with the new message ID
-            new_references = f"{references} {message_id_header}" if references else message_id_header
-            message["References"] = new_references
-
             # Add thread ID to keep messages grouped
-            message_payload = {"raw": base64.urlsafe_b64encode(message.as_bytes()).decode(), "threadId": thread_id}
+            message_payload = {"raw": raw, "threadId": thread_id}
 
             # Send the reply
             request = service.users().messages().send(userId=user_id, body=message_payload)
             response = request.execute()
 
-            return ActionResult(data={"id": response.get("id", ""), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"id": response.get("id", "")}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("read_inbox")
@@ -586,7 +617,7 @@ class ReadInbox(ActionHandler):
                 inbox_emails.append(GmailMessageParser.parse_message_with_snippet(email_with_id))
 
             # Prepare response with pagination support
-            response = {"emails": inbox_emails, "result": True}
+            response = {"emails": inbox_emails}
 
             # Add nextPageToken if present in Gmail API response
             if "nextPageToken" in messages:
@@ -595,7 +626,7 @@ class ReadInbox(ActionHandler):
             return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("read_all_mail")
@@ -635,7 +666,7 @@ class ReadAllMail(ActionHandler):
                 all_emails.append(GmailMessageParser.parse_message_with_snippet(email_with_id))
 
             # Prepare response with pagination support
-            response = {"emails": all_emails, "result": True}
+            response = {"emails": all_emails}
 
             # Add nextPageToken if present in Gmail API response
             if "nextPageToken" in messages:
@@ -644,7 +675,7 @@ class ReadAllMail(ActionHandler):
             return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("list_labels")
@@ -668,10 +699,10 @@ class ListLabels(ActionHandler):
                 elif label_type == "system":
                     labels = [label for label in labels if label.get("type") == "system"]
 
-            return ActionResult(data={"labels": labels, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"labels": labels}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("list_emails_by_label")
@@ -723,7 +754,7 @@ class ListEmailsByLabel(ActionHandler):
                 emails.append(GmailMessageParser.parse_message_with_snippet(email_with_id))
 
             # Prepare response with pagination support
-            response = {"emails": emails, "result": True}
+            response = {"emails": emails}
 
             # Add nextPageToken if present in Gmail API response
             if "nextPageToken" in messages:
@@ -732,7 +763,7 @@ class ListEmailsByLabel(ActionHandler):
             return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("add_labels_to_emails")
@@ -749,10 +780,10 @@ class AddLabelsToEmails(ActionHandler):
             request = service.users().messages().batchModify(userId=user_id, body=body)
             request.execute()
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("remove_labels_from_emails")
@@ -769,10 +800,10 @@ class RemoveLabelsFromEmails(ActionHandler):
             request = service.users().messages().batchModify(userId=user_id, body=body)
             request.execute()
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("create_label")
@@ -811,13 +842,12 @@ class CreateLabel(ActionHandler):
                         "messageListVisibility": created_label.get("messageListVisibility", "show"),
                         "labelListVisibility": created_label.get("labelListVisibility", "labelShow"),
                     },
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("get_thread_emails")
@@ -852,10 +882,10 @@ class GetThreadEmails(ActionHandler):
 
             thread_emails.sort(key=parse_date_for_sorting)
 
-            return ActionResult(data={"thread_id": thread_id, "emails": thread_emails, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"thread_id": thread_id, "emails": thread_emails}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("archive_emails")
@@ -871,10 +901,10 @@ class ArchiveEmails(ActionHandler):
             request = service.users().messages().batchModify(userId=user_id, body=body)
             request.execute()
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("create_draft")
@@ -935,14 +965,20 @@ class CreateDraft(ActionHandler):
                     else:
                         inputs["subject"] = f"Re: {original_subject}"
 
-                # Create the draft reply message with threading headers
+                # Create the draft reply message with threading headers.
+                # Append the new message id to the existing References chain.
+                combined_references = f"{references} {message_id_header}" if references else message_id_header
                 draft_message = {
-                    "raw": self._create_raw_email(inputs, message_id_header, references),
+                    "raw": build_raw_email(
+                        inputs,
+                        in_reply_to=message_id_header,
+                        references=combined_references,
+                    ),
                     "threadId": thread_id,
                 }
             else:
                 # Create a new draft (not a reply)
-                draft_message = {"raw": self._create_raw_email(inputs)}
+                draft_message = {"raw": build_raw_email(inputs)}
 
             # Create the draft using Gmail API
             draft_body = {"message": draft_message}
@@ -958,65 +994,12 @@ class CreateDraft(ActionHandler):
                             "threadId": response.get("message", {}).get("threadId", ""),
                         },
                     },
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
-
-    def _create_raw_email(self, inputs: Dict[str, Any], message_id_header: str = None, references: str = None) -> str:
-        """Create base64 encoded email message for draft."""
-        # Determine if HTML formatting is requested
-        body_format = inputs.get("body_format", "text")
-        is_html = body_format == "html"
-
-        # Create message with optional files and HTML support
-        input_files = inputs.get("files", [])
-        body = inputs.get("body", "")
-        message = create_email_message(body, input_files, is_html)
-
-        # Add From header (REQUIRED for drafts to display properly in Gmail)
-        if "from" in inputs and inputs["from"]:
-            message["from"] = inputs["from"]
-
-        # Add reply headers for proper threading if provided
-        if message_id_header:
-            message["In-Reply-To"] = message_id_header
-            # Combine existing references with the new message ID
-            if references:
-                message["References"] = f"{references} {message_id_header}"
-            else:
-                message["References"] = message_id_header
-
-        # Handle recipients
-        if "to" in inputs and inputs["to"]:
-            if isinstance(inputs["to"], list):
-                message["to"] = ", ".join(inputs["to"])
-            else:
-                message["to"] = inputs["to"]
-
-        # Handle CC recipients if present
-        if "cc" in inputs and inputs["cc"]:
-            if isinstance(inputs["cc"], list):
-                message["cc"] = ", ".join(inputs["cc"])
-            else:
-                message["cc"] = inputs["cc"]
-
-        # Handle BCC recipients if present
-        if "bcc" in inputs and inputs["bcc"]:
-            if isinstance(inputs["bcc"], list):
-                message["bcc"] = ", ".join(inputs["bcc"])
-            else:
-                message["bcc"] = inputs["bcc"]
-
-        # Set subject
-        if "subject" in inputs and inputs["subject"]:
-            message["subject"] = inputs["subject"]
-
-        # Encode the message
-        return base64.urlsafe_b64encode(message.as_bytes()).decode()
+            return ActionError(message=str(e))
 
 
 @gmail.action("update_draft")
@@ -1046,8 +1029,16 @@ class UpdateDraft(ActionHandler):
                 elif header["name"] == "References":
                     references = header["value"]
 
-            # Create the updated email message with threading headers if this was a reply
-            draft_message = {"raw": self._create_raw_email(inputs, message_id_header, references)}
+            # Create the updated email message with threading headers if this
+            # was a reply. The existing draft's References header already
+            # contains the full chain, so pass it through verbatim.
+            draft_message = {
+                "raw": build_raw_email(
+                    inputs,
+                    in_reply_to=message_id_header,
+                    references=references,
+                )
+            }
 
             # Preserve threadId if the draft was part of a thread
             if existing_thread_id:
@@ -1067,65 +1058,12 @@ class UpdateDraft(ActionHandler):
                             "threadId": response.get("message", {}).get("threadId", ""),
                         },
                     },
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
-
-    def _create_raw_email(self, inputs: Dict[str, Any], message_id_header: str = None, references: str = None) -> str:
-        """Create base64 encoded email message for draft."""
-        # Determine if HTML formatting is requested
-        body_format = inputs.get("body_format", "text")
-        is_html = body_format == "html"
-
-        # Create message with optional files and HTML support
-        input_files = inputs.get("files", [])
-        body = inputs.get("body", "")
-        message = create_email_message(body, input_files, is_html)
-
-        # Add From header (REQUIRED for drafts to display properly in Gmail)
-        if "from" in inputs and inputs["from"]:
-            message["from"] = inputs["from"]
-
-        # Add reply headers for proper threading if provided (preserved from existing draft)
-        if message_id_header:
-            message["In-Reply-To"] = message_id_header
-            # Combine existing references with the message ID
-            if references:
-                message["References"] = references
-            else:
-                message["References"] = message_id_header
-
-        # Handle recipients
-        if "to" in inputs and inputs["to"]:
-            if isinstance(inputs["to"], list):
-                message["to"] = ", ".join(inputs["to"])
-            else:
-                message["to"] = inputs["to"]
-
-        # Handle CC recipients if present
-        if "cc" in inputs and inputs["cc"]:
-            if isinstance(inputs["cc"], list):
-                message["cc"] = ", ".join(inputs["cc"])
-            else:
-                message["cc"] = inputs["cc"]
-
-        # Handle BCC recipients if present
-        if "bcc" in inputs and inputs["bcc"]:
-            if isinstance(inputs["bcc"], list):
-                message["bcc"] = ", ".join(inputs["bcc"])
-            else:
-                message["bcc"] = inputs["bcc"]
-
-        # Set subject
-        if "subject" in inputs and inputs["subject"]:
-            message["subject"] = inputs["subject"]
-
-        # Encode the message
-        return base64.urlsafe_b64encode(message.as_bytes()).decode()
+            return ActionError(message=str(e))
 
 
 @gmail.action("list_drafts")
@@ -1157,7 +1095,7 @@ class ListDrafts(ActionHandler):
             drafts = response.get("drafts", [])
 
             # Prepare response with pagination support
-            result = {"drafts": drafts, "result": True}
+            result = {"drafts": drafts}
 
             # Add pagination info if present
             if "nextPageToken" in response:
@@ -1169,7 +1107,7 @@ class ListDrafts(ActionHandler):
             return ActionResult(data=result, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("get_draft")
@@ -1223,10 +1161,10 @@ class GetDraft(ActionHandler):
                         service, user_id, message_data["id"], message_data["payload"]
                     )
 
-            return ActionResult(data={"draft": draft_info, "files": extracted_files, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"draft": draft_info, "files": extracted_files}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("send_draft")
@@ -1245,13 +1183,12 @@ class SendDraft(ActionHandler):
             return ActionResult(
                 data={
                     "message": {"id": response.get("id", ""), "threadId": response.get("threadId", "")},
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("delete_draft")
@@ -1266,7 +1203,7 @@ class DeleteDraft(ActionHandler):
             request = service.users().drafts().delete(userId=user_id, id=draft_id)
             request.execute()
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))

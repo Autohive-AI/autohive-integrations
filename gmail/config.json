@@ -1,7 +1,7 @@
 {
     "name": "Gmail",
     "display_name": "Gmail",
-    "version": "0.1.0",
+    "version": "2.0.0",
     "description": "Send, read, and manage emails with labels and threads.",
     "entry_point": "gmail.py",
     "auth": {
@@ -53,7 +53,10 @@
                     "body_format": {
                         "type": "string",
                         "description": "Format of the reply body content. When set to 'html', the body parameter will be treated as HTML content and the reply will be sent as a rich HTML email with automatic plain text fallback for maximum compatibility. When set to 'text' (default), the body will be sent as plain text. LLMs can use 'html' to generate well-formatted replies with styling, links, tables, headers, lists, and other rich formatting elements. When using 'html' format, NEVER include CSS rule blocks (like <style> tags) in the body - instead use the 'style' attribute directly on HTML tags for styling (e.g., <p style=\"color: red;\">).",
-                        "enum": ["text", "html"],
+                        "enum": [
+                            "text",
+                            "html"
+                        ],
                         "default": "text"
                     },
                     "files": {
@@ -75,7 +78,11 @@
                                     "description": "The file content encoded as base64"
                                 }
                             },
-                            "required": ["name", "contentType", "content"]
+                            "required": [
+                                "name",
+                                "contentType",
+                                "content"
+                            ]
                         }
                     }
                 },
@@ -91,23 +98,13 @@
                     "id": {
                         "type": "string",
                         "description": "The ID of the sent reply"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the reply send operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "id",
-                    "result"
+                    "id"
                 ]
             }
         },
-
         "mark_emails_as_unread": {
             "display_name": "Mark Emails as Unread",
             "description": "Mark emails as unread",
@@ -134,22 +131,9 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the email modification"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": [
-                    "result"
-                ]
+                "properties": {}
             }
         },
-
         "mark_emails_as_read": {
             "display_name": "Mark Emails as Read",
             "description": "Mark emails as read",
@@ -176,22 +160,9 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the email modification"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": [
-                    "result"
-                ]
+                "properties": {}
             }
         },
-
         "get_user_info": {
             "display_name": "Get User Info",
             "description": "Get user info",
@@ -237,23 +208,13 @@
                             "threads_total",
                             "history_id"
                         ]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the user info"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "user_info",
-                    "result"
+                    "user_info"
                 ]
             }
         },
-
         "read_email": {
             "display_name": "Read Email",
             "description": "Read an email",
@@ -277,10 +238,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the email read"
-                    },
                     "email": {
                         "type": "object",
                         "description": "The email object",
@@ -351,22 +308,20 @@
                                     "description": "The file content encoded as base64"
                                 }
                             },
-                            "required": ["name", "contentType", "content"]
+                            "required": [
+                                "name",
+                                "contentType",
+                                "content"
+                            ]
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
                     "email",
-                    "result",
                     "files"
                 ]
             }
         },
-
         "send_email": {
             "display_name": "Send Email",
             "description": "Send an email",
@@ -400,7 +355,10 @@
                     "body_format": {
                         "type": "string",
                         "description": "Format of the email body content. When set to 'html', the body parameter will be treated as HTML content and the email will be sent as a rich HTML email with automatic plain text fallback for maximum compatibility. When set to 'text' (default), the body will be sent as plain text. LLMs can use 'html' to generate well-formatted emails with styling, links, tables, headers, lists, and other rich formatting elements. When using 'html' format, NEVER include CSS rule blocks (like <style> tags) in the body - instead use the 'style' attribute directly on HTML tags for styling (e.g., <p style=\"color: red;\">).",
-                        "enum": ["text", "html"],
+                        "enum": [
+                            "text",
+                            "html"
+                        ],
                         "default": "text"
                     },
                     "files": {
@@ -422,7 +380,11 @@
                                     "description": "The file content encoded as base64"
                                 }
                             },
-                            "required": ["name", "contentType", "content"]
+                            "required": [
+                                "name",
+                                "contentType",
+                                "content"
+                            ]
                         }
                     }
                 },
@@ -438,23 +400,13 @@
                     "id": {
                         "type": "string",
                         "description": "The ID of the email"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the email send"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "id",
-                    "result"
+                    "id"
                 ]
             }
         },
-
         "read_inbox": {
             "display_name": "Read Inbox",
             "description": "List emails in the user's inbox, filtered by read status. Results are paginated - use the nextPageToken from a previous response to retrieve the next page.",
@@ -468,7 +420,11 @@
                     "scope": {
                         "type": "string",
                         "description": "Filter emails by read status. 'all' returns all emails, 'unread' returns only unread emails, 'read' returns only emails that have been read.",
-                        "enum": ["all", "read", "unread"]
+                        "enum": [
+                            "all",
+                            "read",
+                            "unread"
+                        ]
                     },
                     "pageToken": {
                         "type": "string",
@@ -483,10 +439,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the email list"
-                    },
                     "nextPageToken": {
                         "type": "string",
                         "description": "An optional parameter: The page token to get the next page of results (only present if there are more results)"
@@ -544,19 +496,13 @@
                                 "snippet"
                             ]
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "emails",
-                    "result"
+                    "emails"
                 ]
             }
         },
-
         "read_all_mail": {
             "display_name": "Read All Mail",
             "description": "List all emails across the entire mailbox regardless of labels, filtered by read status. Results are paginated - use the nextPageToken from a previous response to retrieve the next page.",
@@ -570,7 +516,11 @@
                     "scope": {
                         "type": "string",
                         "description": "Filter emails by read status. 'all' returns all emails, 'unread' returns only unread emails, 'read' returns only emails that have been read.",
-                        "enum": ["all", "read", "unread"]
+                        "enum": [
+                            "all",
+                            "read",
+                            "unread"
+                        ]
                     },
                     "pageToken": {
                         "type": "string",
@@ -589,10 +539,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the email list"
-                    },
                     "nextPageToken": {
                         "type": "string",
                         "description": "An optional parameter: The page token to get the next page of results (only present if there are more results)"
@@ -650,19 +596,13 @@
                                 "snippet"
                             ]
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "emails",
-                    "result"
+                    "emails"
                 ]
             }
         },
-
         "list_labels": {
             "display_name": "List Gmail Labels",
             "description": "List all Gmail labels (folders) available to the user. Can filter by label type (user-created or system labels).",
@@ -676,7 +616,10 @@
                     "label_type": {
                         "type": "string",
                         "description": "Optional filter for label type. 'user' for user-created labels, 'system' for Gmail system labels (like INBOX, SENT, etc.)",
-                        "enum": ["user", "system"]
+                        "enum": [
+                            "user",
+                            "system"
+                        ]
                     }
                 },
                 "required": [
@@ -719,23 +662,13 @@
                                 "type"
                             ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the label list operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "labels",
-                    "result"
+                    "labels"
                 ]
             }
         },
-
         "list_emails_by_label": {
             "display_name": "List Emails by Label",
             "description": "List emails that have specific Gmail labels (folders). By default, only returns emails in the inbox (excludes archived emails) unless include_archived is true or INBOX label is explicitly specified. Supports pagination and can filter by multiple labels. Uses label names (not IDs) for filtering.",
@@ -841,23 +774,13 @@
                     "nextPageToken": {
                         "type": "string",
                         "description": "An optional parameter: The page token to get the next page of results (only present if there are more results)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the email list operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "emails",
-                    "result"
+                    "emails"
                 ]
             }
         },
-
         "add_labels_to_emails": {
             "display_name": "Add Labels to Emails",
             "description": "Add one or more labels to specified emails. This is equivalent to moving emails to folders or applying tags.",
@@ -893,22 +816,9 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the label addition operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": [
-                    "result"
-                ]
+                "properties": {}
             }
         },
-
         "remove_labels_from_emails": {
             "display_name": "Remove Labels from Emails",
             "description": "Remove one or more labels from specified emails. This is equivalent to moving emails out of folders or removing tags.",
@@ -944,22 +854,9 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the label removal operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": [
-                    "result"
-                ]
+                "properties": {}
             }
         },
-
         "create_label": {
             "display_name": "Create Custom Label",
             "description": "Create a new custom label (folder) in Gmail. Labels are used to organize and categorize emails.",
@@ -977,13 +874,20 @@
                     "messageListVisibility": {
                         "type": "string",
                         "description": "Whether to show messages with this label in the message list",
-                        "enum": ["show", "hide"],
+                        "enum": [
+                            "show",
+                            "hide"
+                        ],
                         "default": "show"
                     },
                     "labelListVisibility": {
                         "type": "string",
                         "description": "How to display the label in the label list",
-                        "enum": ["labelShow", "labelShowIfUnread", "labelHide"],
+                        "enum": [
+                            "labelShow",
+                            "labelShowIfUnread",
+                            "labelHide"
+                        ],
                         "default": "labelShow"
                     },
                     "textColor": {
@@ -1035,23 +939,13 @@
                             "messageListVisibility",
                             "labelListVisibility"
                         ]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the label creation operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "label",
-                    "result"
+                    "label"
                 ]
             }
         },
-
         "get_thread_emails": {
             "display_name": "Get Thread Emails",
             "description": "Get all emails in a thread, returned as snippets in chronological order",
@@ -1132,24 +1026,14 @@
                                 "snippet"
                             ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the thread retrieval operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
                     "thread_id",
-                    "emails",
-                    "result"
+                    "emails"
                 ]
             }
         },
-
         "archive_emails": {
             "display_name": "Archive Emails",
             "description": "Archive emails by removing the INBOX label. Archived emails remain accessible but are hidden from the main inbox view.",
@@ -1176,22 +1060,9 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the email archiving operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": [
-                    "result"
-                ]
+                "properties": {}
             }
         },
-
         "create_draft": {
             "display_name": "Create Draft",
             "description": "Create a new email draft or a draft reply to an existing email. For replies, provide thread_id and message_id - the recipient ('to'), subject, and threading headers will be automatically populated from the original message.",
@@ -1246,7 +1117,10 @@
                     "body_format": {
                         "type": "string",
                         "description": "Format of the email body content. When set to 'html', the body parameter will be treated as HTML content. When set to 'text' (default), the body will be sent as plain text.",
-                        "enum": ["text", "html"],
+                        "enum": [
+                            "text",
+                            "html"
+                        ],
                         "default": "text"
                     },
                     "files": {
@@ -1268,7 +1142,11 @@
                                     "description": "The file content encoded as base64"
                                 }
                             },
-                            "required": ["name", "contentType", "content"]
+                            "required": [
+                                "name",
+                                "contentType",
+                                "content"
+                            ]
                         }
                     }
                 },
@@ -1300,23 +1178,13 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the draft creation operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "draft",
-                    "result"
+                    "draft"
                 ]
             }
         },
-
         "update_draft": {
             "display_name": "Update Draft",
             "description": "Update an existing email draft with new content, recipients, or attachments. Automatically preserves thread context for reply drafts - the threadId and threading headers (In-Reply-To, References) are maintained so the draft remains associated with its original conversation.",
@@ -1367,7 +1235,10 @@
                     "body_format": {
                         "type": "string",
                         "description": "Format of the email body content. When set to 'html', the body parameter will be treated as HTML content. When set to 'text' (default), the body will be sent as plain text.",
-                        "enum": ["text", "html"],
+                        "enum": [
+                            "text",
+                            "html"
+                        ],
                         "default": "text"
                     },
                     "files": {
@@ -1389,7 +1260,11 @@
                                     "description": "The file content encoded as base64"
                                 }
                             },
-                            "required": ["name", "contentType", "content"]
+                            "required": [
+                                "name",
+                                "contentType",
+                                "content"
+                            ]
                         }
                     }
                 },
@@ -1423,23 +1298,13 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the draft update operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "draft",
-                    "result"
+                    "draft"
                 ]
             }
         },
-
         "list_drafts": {
             "display_name": "List Drafts",
             "description": "List all drafts in the user's mailbox with pagination support",
@@ -1511,23 +1376,13 @@
                     "resultSizeEstimate": {
                         "type": "integer",
                         "description": "Estimated total number of drafts"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the list operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "drafts",
-                    "result"
+                    "drafts"
                 ]
             }
         },
-
         "get_draft": {
             "display_name": "Get Draft",
             "description": "Retrieve a specific draft by ID with full content details",
@@ -1546,7 +1401,12 @@
                     "format": {
                         "type": "string",
                         "description": "The format to return the draft message in",
-                        "enum": ["minimal", "full", "raw", "metadata"],
+                        "enum": [
+                            "minimal",
+                            "full",
+                            "raw",
+                            "metadata"
+                        ],
                         "default": "full"
                     }
                 },
@@ -1632,26 +1492,20 @@
                                     "description": "The file content encoded as base64"
                                 }
                             },
-                            "required": ["name", "contentType", "content"]
+                            "required": [
+                                "name",
+                                "contentType",
+                                "content"
+                            ]
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the get operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
                     "draft",
-                    "files",
-                    "result"
+                    "files"
                 ]
             }
         },
-
         "send_draft": {
             "display_name": "Send Draft",
             "description": "Send an existing draft to its recipients. The draft will be automatically deleted after sending.",
@@ -1688,23 +1542,13 @@
                                 "description": "The thread ID of the sent message"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the send operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "message",
-                    "result"
+                    "message"
                 ]
             }
         },
-
         "delete_draft": {
             "display_name": "Delete Draft",
             "description": "Permanently delete a draft from the user's mailbox",
@@ -1727,19 +1571,7 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the delete operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": [
-                    "result"
-                ]
+                "properties": {}
             }
         }
     }
