@@ -592,35 +592,36 @@ _PAREN_ITEM_RE = re.compile(
     r"\(("
     r"\d+"  # (1), (2), …
     r"|[a-z]"  # (a), (b), …
-    r"|(?:i{1,3}|iv|vi{0,3}|ix|x{1,3}|xi{1,2})"  # (i), (ii), …
+    r"|[mdclxvi]{2,}"  # (ii), (iv), (xiii), (xlii), …
     r")\)\s+",
     re.IGNORECASE,
 )
 
-_ROMAN_VALS = {
-    "i": 1,
-    "ii": 2,
-    "iii": 3,
-    "iv": 4,
-    "v": 5,
-    "vi": 6,
-    "vii": 7,
-    "viii": 8,
-    "ix": 9,
-    "x": 10,
-    "xi": 11,
-    "xii": 12,
-}
+_ROMAN_CHAR_VALS = {"m": 1000, "d": 500, "c": 100, "l": 50, "x": 10, "v": 5, "i": 1}
+_AMBIGUOUS_ROMAN_LETTERS = frozenset(_ROMAN_CHAR_VALS)
 
 
-_AMBIGUOUS_ROMAN_LETTERS = frozenset("ivx")
+def _parse_roman(s: str) -> int | None:
+    """Parse a roman numeral string and return its integer value, or None if invalid."""
+    low = s.lower()
+    if not low or not all(c in _ROMAN_CHAR_VALS for c in low):
+        return None
+    total = 0
+    for idx, ch in enumerate(low):
+        val = _ROMAN_CHAR_VALS[ch]
+        if idx + 1 < len(low) and _ROMAN_CHAR_VALS[low[idx + 1]] > val:
+            total -= val
+        else:
+            total += val
+    return total
 
 
 def _detect_paren_type(marker: str) -> tuple[str, int]:
     """Given the text between parens (e.g. 'a', 'ii', '3'), return (ol_type, start_val)."""
     low = marker.lower()
-    if low in _ROMAN_VALS:
-        return "i", _ROMAN_VALS[low]
+    roman_val = _parse_roman(low)
+    if roman_val is not None and (len(low) > 1 or low in _AMBIGUOUS_ROMAN_LETTERS):
+        return "i", roman_val
     if low.isalpha() and len(low) == 1:
         ol_type = "A" if marker.isupper() else "a"
         return ol_type, ord(low) - ord("a") + 1
@@ -632,8 +633,8 @@ def _detect_paren_type(marker: str) -> tuple[str, int]:
 def _reconcile_ambiguous_markers(
     list_items: list[tuple[str, int, str, int]],
 ) -> list[tuple[str, int, str, int]]:
-    """Fix single-letter markers (i/v/x) misclassified as roman when they
-    belong to an alphabetic sequence.
+    """Fix single-letter markers (i/v/x/l/c/d/m) misclassified as roman when
+    they belong to an alphabetic sequence.
 
     Walk the collected items and look at the preceding run.  When a marker
     was tagged as roman but is a single ambiguous letter whose alphabetic
@@ -645,16 +646,15 @@ def _reconcile_ambiguous_markers(
     result = list(list_items)
     for idx in range(len(result)):
         ol_type, start_val, text, indent = result[idx]
-        if ol_type != "i":
+        if ol_type != "i" or start_val not in _ROMAN_CHAR_VALS.values():
             continue
         # Only single-letter ambiguous markers need reconciliation
-        roman_key = next(
-            (k for k, v in _ROMAN_VALS.items() if v == start_val and len(k) == 1),
-            None,
+        letter = next(
+            (ch for ch, val in _ROMAN_CHAR_VALS.items() if val == start_val), None
         )
-        if roman_key is None or roman_key not in _AMBIGUOUS_ROMAN_LETTERS:
+        if letter is None:
             continue
-        alpha_pos = ord(roman_key) - ord("a") + 1
+        alpha_pos = ord(letter) - ord("a") + 1
         # Check if the preceding item is alphabetic and this letter continues it
         if idx > 0:
             prev_type, prev_val, _, _ = result[idx - 1]
