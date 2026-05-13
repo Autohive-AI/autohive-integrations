@@ -1686,3 +1686,132 @@ class TestMixedParagraphPreservesNonListText:
         assert any("Intro text here" in t for t in all_texts), (
             f"Expected 'Intro text here' to appear in the document paragraphs, but got: {all_texts}"
         )
+
+
+class TestUppercaseAlphabeticListAtoZ:
+    """Verify that a parenthesized uppercase alphabetic list (A)–(Z) is
+    recognised and rendered as a single continuous Word list with the correct
+    uppercase-letter numbering format and correct item text."""
+
+    MARKDOWN = "\n".join(f"({chr(ord('A') + n)}) item {n + 1}" for n in range(26))
+
+    @staticmethod
+    def _get_numpr(paragraph):
+        from docx.oxml.ns import qn
+
+        pPr = paragraph._p.find(qn("w:pPr"))
+        if pPr is None:
+            return None
+        numPr = pPr.find(qn("w:numPr"))
+        if numPr is None:
+            return None
+        numId_el = numPr.find(qn("w:numId"))
+        ilvl_el = numPr.find(qn("w:ilvl"))
+        if numId_el is None or ilvl_el is None:
+            return None
+        return int(numId_el.get(qn("w:val"))), int(ilvl_el.get(qn("w:val")))
+
+    def test_all_items_share_same_numid(self):
+        """All (A)–(Z) items must share a single numId, confirming they
+        form one continuous list and no letter is misclassified."""
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+
+        assert len(numbered) == 26, f"Expected 26 numbered paragraphs (A)–(Z), got {len(numbered)}: {numbered}"
+
+        num_ids = set(numpr[0] for _, numpr in numbered)
+        assert len(num_ids) == 1, (
+            f"All (A)–(Z) items should share one numId for a continuous "
+            f"list, but got {len(num_ids)} distinct numIds: {num_ids}"
+        )
+
+    def test_numbering_format_is_upper_letter(self):
+        """The numbering format must be upperLetter."""
+        from docx import Document
+        from docx.oxml.ns import qn
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        num_id = numbered[0][1][0]
+        ilvl = numbered[0][1][1]
+
+        numbering = doc.part.numbering_part.numbering_definitions._numbering
+        num_el = None
+        for n in numbering.findall(qn("w:num")):
+            if int(n.get(qn("w:numId"))) == num_id:
+                num_el = n
+                break
+        abstract_num_id = int(num_el.find(qn("w:abstractNumId")).get(qn("w:val")))
+        abstract = None
+        for a in numbering.findall(qn("w:abstractNum")):
+            if int(a.get(qn("w:abstractNumId"))) == abstract_num_id:
+                abstract = a
+                break
+
+        target_lvl = None
+        for lvl in abstract.findall(qn("w:lvl")):
+            if int(lvl.get(qn("w:ilvl"))) == ilvl:
+                target_lvl = lvl
+                break
+
+        fmt = target_lvl.find(qn("w:numFmt")).get(qn("w:val"))
+        assert fmt == "upperLetter", f"Expected upperLetter numbering format, got {fmt}"
+
+    def test_lvl_text_is_parenthesized(self):
+        """The lvlText must contain both '(' and ')' for bracket formatting."""
+        from docx import Document
+        from docx.oxml.ns import qn
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+        num_id = numbered[0][1][0]
+        ilvl = numbered[0][1][1]
+
+        numbering = doc.part.numbering_part.numbering_definitions._numbering
+        num_el = None
+        for n in numbering.findall(qn("w:num")):
+            if int(n.get(qn("w:numId"))) == num_id:
+                num_el = n
+                break
+        abstract_num_id = int(num_el.find(qn("w:abstractNumId")).get(qn("w:val")))
+        abstract = None
+        for a in numbering.findall(qn("w:abstractNum")):
+            if int(a.get(qn("w:abstractNumId"))) == abstract_num_id:
+                abstract = a
+                break
+
+        target_lvl = None
+        for lvl in abstract.findall(qn("w:lvl")):
+            if int(lvl.get(qn("w:ilvl"))) == ilvl:
+                target_lvl = lvl
+                break
+
+        lvl_text = target_lvl.find(qn("w:lvlText")).get(qn("w:val"))
+        assert "(" in lvl_text and ")" in lvl_text, (
+            f"Expected parenthesized lvlText like '(%1)', got '{lvl_text}'"
+        )
+
+    def test_each_item_has_correct_text(self):
+        """Each paragraph text must match 'item N' for N=1..26."""
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [(p.text.strip(), self._get_numpr(p)) for p in doc.paragraphs if self._get_numpr(p)]
+
+        assert len(numbered) == 26, f"Expected 26 items, got {len(numbered)}"
+
+        for i, (text, _) in enumerate(numbered):
+            expected = f"item {i + 1}"
+            assert text == expected, (
+                f"Item {i} (letter {chr(ord('A') + i)}): expected text '{expected}', got '{text}'"
+            )
