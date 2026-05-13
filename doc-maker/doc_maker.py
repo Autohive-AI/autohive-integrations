@@ -710,6 +710,7 @@ def _post_process_paren_lists(soup) -> None:
             continue
 
         lines = full_text.split("\n")
+        leading_lines: list[str] = []
         list_items: list[tuple[str, int, str, int]] = []
         for line in lines:
             stripped = line.strip()
@@ -722,8 +723,16 @@ def _post_process_paren_lists(soup) -> None:
                 list_items.append(
                     (ol_type, start_val, stripped[m.end() :], indent_spaces)
                 )
+            elif not list_items:
+                leading_lines.append(stripped)
         if not list_items:
             continue
+
+        # Preserve any non-list text that appeared before the first marker
+        if leading_lines:
+            new_p = soup.new_tag("p")
+            new_p.string = "\n".join(leading_lines)
+            p.insert_before(new_p)
 
         current_type = None
         current_ol = None
