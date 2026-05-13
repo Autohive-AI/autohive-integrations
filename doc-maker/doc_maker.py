@@ -613,6 +613,9 @@ _ROMAN_VALS = {
 }
 
 
+_AMBIGUOUS_ROMAN_LETTERS = frozenset("ivx")
+
+
 def _detect_paren_type(marker: str) -> tuple[str, int]:
     """Given the text between parens (e.g. 'a', 'ii', '3'), return (ol_type, start_val)."""
     low = marker.lower()
@@ -624,6 +627,40 @@ def _detect_paren_type(marker: str) -> tuple[str, int]:
     if low.isdigit():
         return "1", int(low)
     return "1", 1
+
+
+def _reconcile_ambiguous_markers(
+    list_items: list[tuple[str, int, str, int]],
+) -> list[tuple[str, int, str, int]]:
+    """Fix single-letter markers (i/v/x) misclassified as roman when they
+    belong to an alphabetic sequence.
+
+    Walk the collected items and look at the preceding run.  When a marker
+    was tagged as roman but is a single ambiguous letter whose alphabetic
+    position is consistent with the prior alphabetic item, reclassify it.
+    """
+    if not list_items:
+        return list_items
+
+    result = list(list_items)
+    for idx in range(len(result)):
+        ol_type, start_val, text, indent = result[idx]
+        if ol_type != "i":
+            continue
+        # Only single-letter ambiguous markers need reconciliation
+        roman_key = next(
+            (k for k, v in _ROMAN_VALS.items() if v == start_val and len(k) == 1),
+            None,
+        )
+        if roman_key is None or roman_key not in _AMBIGUOUS_ROMAN_LETTERS:
+            continue
+        alpha_pos = ord(roman_key) - ord("a") + 1
+        # Check if the preceding item is alphabetic and this letter continues it
+        if idx > 0:
+            prev_type, prev_val, _, _ = result[idx - 1]
+            if prev_type == "a" and alpha_pos == prev_val + 1:
+                result[idx] = ("a", alpha_pos, text, indent)
+    return result
 
 
 def _post_process_paren_lists(soup) -> None:
@@ -676,6 +713,8 @@ def _post_process_paren_lists(soup) -> None:
         if not list_items:
             continue
 
+        list_items = _reconcile_ambiguous_markers(list_items)
+
         # Rebuild the <li> contents
         li.clear()
         if leading_lines:
@@ -727,6 +766,8 @@ def _post_process_paren_lists(soup) -> None:
                 leading_lines.append(stripped)
         if not list_items:
             continue
+
+        list_items = _reconcile_ambiguous_markers(list_items)
 
         # Preserve any non-list text that appeared before the first marker
         if leading_lines:
