@@ -20,7 +20,8 @@ def _build_comment_response(comment: Dict[str, Any]) -> Dict[str, Any]:
             {
                 "id": reply.get("id", ""),
                 "text": reply.get("text", ""),
-                "username": reply.get("username") or reply.get("from", {}).get("username", ""),
+                "username": reply.get("username")
+                or reply.get("from", {}).get("username", ""),
                 "user_id": reply.get("from", {}).get("id", ""),
                 "timestamp": reply.get("timestamp", ""),
             }
@@ -31,7 +32,9 @@ def _build_comment_response(comment: Dict[str, Any]) -> Dict[str, Any]:
 
 @instagram.action("get_comments")
 class GetCommentsAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         media_id = inputs["media_id"]
         limit = min(inputs.get("limit", 25), 100)
         after_cursor = inputs.get("after_cursor")
@@ -45,7 +48,9 @@ class GetCommentsAction(ActionHandler):
             params["after"] = after_cursor
 
         response = await context.fetch(
-            f"{INSTAGRAM_GRAPH_API_BASE}/{media_id}/comments", method="GET", params=params
+            f"{INSTAGRAM_GRAPH_API_BASE}/{media_id}/comments",
+            method="GET",
+            params=params,
         )
         data = response.data
         comments = [_build_comment_response(c) for c in data.get("data", [])]
@@ -53,12 +58,20 @@ class GetCommentsAction(ActionHandler):
         cursors = paging.get("cursors", {})
         next_cursor = cursors.get("after") if paging.get("next") else None
 
-        return ActionResult(data={"comments": comments, "total_count": len(comments), "next_cursor": next_cursor})
+        return ActionResult(
+            data={
+                "comments": comments,
+                "total_count": len(comments),
+                "next_cursor": next_cursor,
+            }
+        )
 
 
 @instagram.action("manage_comment")
 class ManageCommentAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         comment_id = inputs["comment_id"]
         action = inputs["action"]
         message = inputs.get("message")
@@ -68,9 +81,14 @@ class ManageCommentAction(ActionHandler):
 
         if action == "reply":
             response = await context.fetch(
-                f"{INSTAGRAM_GRAPH_API_BASE}/{comment_id}/replies", method="POST", data={"message": message}
+                f"{INSTAGRAM_GRAPH_API_BASE}/{comment_id}/replies",
+                method="POST",
+                data={"message": message},
             )
-            return ActionResult(data={"success": True, "action_taken": "reply", "reply_id": response.data.get("id", "")})
+            reply_id = response.data.get("id", "")
+            return ActionResult(
+                data={"success": True, "action_taken": "reply", "reply_id": reply_id}
+            )
 
         elif action in ("hide", "unhide"):
             hide_value = action == "hide"
@@ -79,14 +97,18 @@ class ManageCommentAction(ActionHandler):
                 method="POST",
                 data={"hide": str(hide_value).lower()},
             )
-            return ActionResult(data={"success": True, "action_taken": action, "is_hidden": hide_value})
+            return ActionResult(
+                data={"success": True, "action_taken": action, "is_hidden": hide_value}
+            )
 
         raise Exception(f"Unknown action: {action}. Use 'reply', 'hide', or 'unhide'.")
 
 
 @instagram.action("delete_comment")
 class DeleteCommentAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(
+        self, inputs: Dict[str, Any], context: ExecutionContext
+    ) -> ActionResult:
         comment_id = inputs["comment_id"]
         await context.fetch(f"{INSTAGRAM_GRAPH_API_BASE}/{comment_id}", method="DELETE")
         return ActionResult(data={"success": True, "deleted_comment_id": comment_id})
