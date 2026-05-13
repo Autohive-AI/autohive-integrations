@@ -1,11 +1,11 @@
-import os
-import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-# Make gmail.py importable as a top-level module.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Note: the repo-root conftest.py puts the workspace root on sys.path and
+# monkeypatches Integration.load() to resolve config.json from the caller
+# frame, so `from gmail.gmail import gmail` resolves to the gmail/ package
+# without any extra path manipulation here.
 
 
 @pytest.fixture
