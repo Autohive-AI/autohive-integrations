@@ -162,9 +162,7 @@ class TestGetComments:
 
         # try each post until we find one (some may have comments disabled)
         for post in media:
-            result = await instagram_integration.execute_action(
-                "get_comments", {"media_id": post["id"]}, live_context
-            )
+            result = await instagram_integration.execute_action("get_comments", {"media_id": post["id"]}, live_context)
             data = result.result.data
             assert "comments" in data
             assert isinstance(data["comments"], list)
@@ -178,9 +176,7 @@ class TestGetComments:
             pytest.skip("No posts on this account")
 
         for post in media:
-            result = await instagram_integration.execute_action(
-                "get_comments", {"media_id": post["id"]}, live_context
-            )
+            result = await instagram_integration.execute_action("get_comments", {"media_id": post["id"]}, live_context)
             comments = result.result.data["comments"]
             if comments:
                 c = comments[0]
@@ -200,9 +196,7 @@ class TestGetComments:
 
 class TestGetInsights:
     async def test_account_insights_returns_metrics(self, live_context):
-        result = await instagram_integration.execute_action(
-            "get_insights", {"target_type": "account"}, live_context
-        )
+        result = await instagram_integration.execute_action("get_insights", {"target_type": "account"}, live_context)
         data = result.result.data
         assert data["target_type"] == "account"
         assert isinstance(data["metrics"], dict)
@@ -220,14 +214,14 @@ class TestGetInsights:
             pytest.skip("No posts on this account")
 
         # find a non-story post
-        feed_post = next(
-            (m for m in media if m.get("media_type") not in ("STORY",)), None
-        )
+        feed_post = next((m for m in media if m.get("media_type") not in ("STORY",)), None)
         if not feed_post:
             pytest.skip("No feed posts found")
 
         result = await instagram_integration.execute_action(
-            "get_insights", {"target_type": "media", "target_id": feed_post["id"]}, live_context
+            "get_insights",
+            {"target_type": "media", "target_id": feed_post["id"]},
+            live_context,
         )
         data = result.result.data
         assert data["target_type"] == "media"
@@ -271,7 +265,11 @@ class TestCommentLifecycle:
         # reply
         reply_result = await instagram_integration.execute_action(
             "manage_comment",
-            {"comment_id": target_comment_id, "action": "reply", "message": "Integration test reply — will be deleted"},
+            {
+                "comment_id": target_comment_id,
+                "action": "reply",
+                "message": "Integration test reply — will be deleted",
+            },
             live_context,
         )
         assert reply_result.result.data["success"] is True
@@ -280,13 +278,17 @@ class TestCommentLifecycle:
 
         # hide the original comment
         hide_result = await instagram_integration.execute_action(
-            "manage_comment", {"comment_id": target_comment_id, "action": "hide"}, live_context
+            "manage_comment",
+            {"comment_id": target_comment_id, "action": "hide"},
+            live_context,
         )
         assert hide_result.result.data["is_hidden"] is True
 
         # unhide
         unhide_result = await instagram_integration.execute_action(
-            "manage_comment", {"comment_id": target_comment_id, "action": "unhide"}, live_context
+            "manage_comment",
+            {"comment_id": target_comment_id, "action": "unhide"},
+            live_context,
         )
         assert unhide_result.result.data["is_hidden"] is False
 
