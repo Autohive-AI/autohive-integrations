@@ -825,9 +825,7 @@ class TestAlphabeticListDoesNotSwitchAtI:
     correct that when the letter continues an existing alphabetic run.
     """
 
-    MARKDOWN = "\n".join(
-        f"({chr(ord('a') + n)}) item {n + 1}" for n in range(26)
-    )
+    MARKDOWN = "\n".join(f"({chr(ord('a') + n)}) item {n + 1}" for n in range(26))
 
     @staticmethod
     def _get_numpr(paragraph):
@@ -860,8 +858,7 @@ class TestAlphabeticListDoesNotSwitchAtI:
         ]
 
         assert len(numbered) == 26, (
-            f"Expected 26 numbered paragraphs (a)–(z), got {len(numbered)}: "
-            f"{numbered}"
+            f"Expected 26 numbered paragraphs (a)–(z), got {len(numbered)}: {numbered}"
         )
 
         num_ids = set(numpr[0] for _, numpr in numbered)
@@ -880,9 +877,19 @@ class TestRomanNumeralListUpTo100:
     """
 
     _ROMAN_MAP = [
-        (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"),
-        (100, "c"), (90, "xc"), (50, "l"), (40, "xl"),
-        (10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i"),
+        (1000, "m"),
+        (900, "cm"),
+        (500, "d"),
+        (400, "cd"),
+        (100, "c"),
+        (90, "xc"),
+        (50, "l"),
+        (40, "xl"),
+        (10, "x"),
+        (9, "ix"),
+        (5, "v"),
+        (4, "iv"),
+        (1, "i"),
     ]
 
     @classmethod
@@ -896,9 +903,7 @@ class TestRomanNumeralListUpTo100:
 
     @classmethod
     def _build_markdown(cls) -> str:
-        return "\n".join(
-            f"({cls._to_roman(n)}) item {n}" for n in range(1, 101)
-        )
+        return "\n".join(f"({cls._to_roman(n)}) item {n}" for n in range(1, 101))
 
     MARKDOWN = None  # built lazily via _build_markdown
 
@@ -1847,11 +1852,7 @@ class TestMixedParagraphPreservesNonListText:
     element is decomposed during paren-list post-processing.
     """
 
-    MARKDOWN = (
-        "Intro text here\n"
-        "(1) first item\n"
-        "(2) second item"
-    )
+    MARKDOWN = "Intro text here\n(1) first item\n(2) second item"
 
     def test_intro_text_preserved_in_output(self):
         from docx import Document
