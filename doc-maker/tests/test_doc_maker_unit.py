@@ -815,6 +815,77 @@ class TestParenthesizedListNumbering:
         )
 
 
+class TestAlphabeticListDoesNotSwitchAtI:
+    """Regression: an (a)…(j) alphabetic list must not switch numbering
+    format at ``(i)`` because ``_detect_paren_type`` classifies ``i`` as
+    lowerRoman before considering it as the ninth alphabetic letter.
+
+    The bug causes the list to be split into three separate ``<ol>``
+    elements (a–h, i, j) which produce different Word numbering
+    definitions.  Item ``(i)`` ends up with a different ``numId`` and
+    ``lowerRoman`` format with ``startOverride=1`` instead of continuing
+    as the ninth letter in the original ``lowerLetter`` sequence.
+
+    The test is expected to **fail** until the underlying detection logic
+    is fixed to infer the marker type from the surrounding sequence.
+    """
+
+    MARKDOWN = (
+        "(a) first\n"
+        "(b) second\n"
+        "(c) third\n"
+        "(d) fourth\n"
+        "(e) fifth\n"
+        "(f) sixth\n"
+        "(g) seventh\n"
+        "(h) eighth\n"
+        "(i) ninth\n"
+        "(j) tenth"
+    )
+
+    @staticmethod
+    def _get_numpr(paragraph):
+        from docx.oxml.ns import qn
+
+        pPr = paragraph._p.find(qn("w:pPr"))
+        if pPr is None:
+            return None
+        numPr = pPr.find(qn("w:numPr"))
+        if numPr is None:
+            return None
+        numId_el = numPr.find(qn("w:numId"))
+        ilvl_el = numPr.find(qn("w:ilvl"))
+        if numId_el is None or ilvl_el is None:
+            return None
+        return int(numId_el.get(qn("w:val"))), int(ilvl_el.get(qn("w:val")))
+
+    def test_all_items_share_same_numid(self):
+        """All (a)–(j) items must share a single numId, confirming they
+        form one continuous list.  Currently ``(i)`` gets a separate
+        numId because it is misclassified as lowerRoman."""
+        from docx import Document
+
+        doc = Document()
+        parse_markdown_to_docx(doc, self.MARKDOWN)
+
+        numbered = [
+            (p.text.strip(), self._get_numpr(p))
+            for p in doc.paragraphs
+            if self._get_numpr(p)
+        ]
+
+        assert len(numbered) == 10, (
+            f"Expected 10 numbered paragraphs (a)–(j), got {len(numbered)}: "
+            f"{numbered}"
+        )
+
+        num_ids = set(numpr[0] for _, numpr in numbered)
+        assert len(num_ids) == 1, (
+            f"All (a)–(j) items should share one numId for a continuous "
+            f"list, but got {len(num_ids)} distinct numIds: {num_ids}"
+        )
+
+
 class TestMultipleParenListsAfterHeadings:
     """Verify that multiple (1)-style lists separated by headings all display numbering
     and are left-aligned when the markdown has no leading spaces."""
