@@ -10,6 +10,10 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Optional title for the document. Added as a heading if no markdown content is provided"
+                    },
                     "markdown_content": {
                         "type": "string",
                         "description": "Markdown content to convert to Word document format. Use standard markdown: # for headings, **bold**, *italic*, - for bullets, 1. for numbers, | tables |, > blockquotes, ```code blocks```"

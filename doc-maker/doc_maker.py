@@ -1442,7 +1442,7 @@ class AddImageAction(ActionHandler):
         document_id = inputs["document_id"]
         width = inputs.get("width")  # in inches
         height = inputs.get("height")  # in inches
-        files = inputs.get("files", [])
+        files = inputs["files"]
 
         try:
             load_document_from_files(document_id, files)
