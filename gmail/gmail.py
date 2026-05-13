@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 
 from typing import Dict, Any
 from email.mime.text import MIMEText
@@ -169,7 +169,7 @@ def build_credentials(context: ExecutionContext):
         Google credentials object
     """
     # Extract access token from context.auth.credentials
-    access_token = context.auth["credentials"]["access_token"]
+    access_token = context.auth.get("credentials", {}).get("access_token", "")
 
     creds = Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")  # nosec B106
 
@@ -359,10 +359,10 @@ class MarkEmailsAsUnread(ActionHandler):
             request = service.users().messages().batchModify(userId=user_id, body=body)
             request.execute()
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("mark_emails_as_read")
@@ -378,10 +378,10 @@ class MarkEmailsAsRead(ActionHandler):
             request = service.users().messages().batchModify(userId=user_id, body=body)
             request.execute()
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("get_user_info")
@@ -402,13 +402,12 @@ class GetUserInfo(ActionHandler):
                         "threads_total": result["threadsTotal"],
                         "history_id": result["historyId"],
                     },
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("read_email")
@@ -430,10 +429,10 @@ class ReadEmail(ActionHandler):
                 service, user_id, message_data["id"], message_data["payload"]
             )
 
-            return ActionResult(data={"email": email_object, "files": extracted_files, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"email": email_object, "files": extracted_files}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("send_email")
@@ -452,10 +451,10 @@ class SendEmail(ActionHandler):
             request = service.users().messages().send(userId=user_id, body=message)
             response = request.execute()
 
-            return ActionResult(data={"id": response.get("id", ""), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"id": response.get("id", "")}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
     def _create_raw_email(self, inputs: Dict[str, Any]) -> str:
         """Create base64 encoded email message."""
@@ -546,10 +545,10 @@ class ReplyToThread(ActionHandler):
             request = service.users().messages().send(userId=user_id, body=message_payload)
             response = request.execute()
 
-            return ActionResult(data={"id": response.get("id", ""), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"id": response.get("id", "")}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("read_inbox")
@@ -586,7 +585,7 @@ class ReadInbox(ActionHandler):
                 inbox_emails.append(GmailMessageParser.parse_message_with_snippet(email_with_id))
 
             # Prepare response with pagination support
-            response = {"emails": inbox_emails, "result": True}
+            response = {"emails": inbox_emails}
 
             # Add nextPageToken if present in Gmail API response
             if "nextPageToken" in messages:
@@ -595,7 +594,7 @@ class ReadInbox(ActionHandler):
             return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("read_all_mail")
@@ -635,7 +634,7 @@ class ReadAllMail(ActionHandler):
                 all_emails.append(GmailMessageParser.parse_message_with_snippet(email_with_id))
 
             # Prepare response with pagination support
-            response = {"emails": all_emails, "result": True}
+            response = {"emails": all_emails}
 
             # Add nextPageToken if present in Gmail API response
             if "nextPageToken" in messages:
@@ -644,7 +643,7 @@ class ReadAllMail(ActionHandler):
             return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("list_labels")
@@ -668,10 +667,10 @@ class ListLabels(ActionHandler):
                 elif label_type == "system":
                     labels = [label for label in labels if label.get("type") == "system"]
 
-            return ActionResult(data={"labels": labels, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"labels": labels}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("list_emails_by_label")
@@ -723,7 +722,7 @@ class ListEmailsByLabel(ActionHandler):
                 emails.append(GmailMessageParser.parse_message_with_snippet(email_with_id))
 
             # Prepare response with pagination support
-            response = {"emails": emails, "result": True}
+            response = {"emails": emails}
 
             # Add nextPageToken if present in Gmail API response
             if "nextPageToken" in messages:
@@ -732,7 +731,7 @@ class ListEmailsByLabel(ActionHandler):
             return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("add_labels_to_emails")
@@ -749,10 +748,10 @@ class AddLabelsToEmails(ActionHandler):
             request = service.users().messages().batchModify(userId=user_id, body=body)
             request.execute()
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("remove_labels_from_emails")
@@ -769,10 +768,10 @@ class RemoveLabelsFromEmails(ActionHandler):
             request = service.users().messages().batchModify(userId=user_id, body=body)
             request.execute()
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("create_label")
@@ -811,13 +810,12 @@ class CreateLabel(ActionHandler):
                         "messageListVisibility": created_label.get("messageListVisibility", "show"),
                         "labelListVisibility": created_label.get("labelListVisibility", "labelShow"),
                     },
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("get_thread_emails")
@@ -852,10 +850,10 @@ class GetThreadEmails(ActionHandler):
 
             thread_emails.sort(key=parse_date_for_sorting)
 
-            return ActionResult(data={"thread_id": thread_id, "emails": thread_emails, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"thread_id": thread_id, "emails": thread_emails}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("archive_emails")
@@ -871,10 +869,10 @@ class ArchiveEmails(ActionHandler):
             request = service.users().messages().batchModify(userId=user_id, body=body)
             request.execute()
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("create_draft")
@@ -958,13 +956,12 @@ class CreateDraft(ActionHandler):
                             "threadId": response.get("message", {}).get("threadId", ""),
                         },
                     },
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
     def _create_raw_email(self, inputs: Dict[str, Any], message_id_header: str = None, references: str = None) -> str:
         """Create base64 encoded email message for draft."""
@@ -1067,13 +1064,12 @@ class UpdateDraft(ActionHandler):
                             "threadId": response.get("message", {}).get("threadId", ""),
                         },
                     },
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
     def _create_raw_email(self, inputs: Dict[str, Any], message_id_header: str = None, references: str = None) -> str:
         """Create base64 encoded email message for draft."""
@@ -1157,7 +1153,7 @@ class ListDrafts(ActionHandler):
             drafts = response.get("drafts", [])
 
             # Prepare response with pagination support
-            result = {"drafts": drafts, "result": True}
+            result = {"drafts": drafts}
 
             # Add pagination info if present
             if "nextPageToken" in response:
@@ -1169,7 +1165,7 @@ class ListDrafts(ActionHandler):
             return ActionResult(data=result, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("get_draft")
@@ -1223,10 +1219,10 @@ class GetDraft(ActionHandler):
                         service, user_id, message_data["id"], message_data["payload"]
                     )
 
-            return ActionResult(data={"draft": draft_info, "files": extracted_files, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"draft": draft_info, "files": extracted_files}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("send_draft")
@@ -1245,13 +1241,12 @@ class SendDraft(ActionHandler):
             return ActionResult(
                 data={
                     "message": {"id": response.get("id", ""), "threadId": response.get("threadId", "")},
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("delete_draft")
@@ -1266,7 +1261,7 @@ class DeleteDraft(ActionHandler):
             request = service.users().drafts().delete(userId=user_id, id=draft_id)
             request.execute()
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
