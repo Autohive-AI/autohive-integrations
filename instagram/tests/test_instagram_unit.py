@@ -65,9 +65,7 @@ async def test_connected_account_full_name():
 
 @pytest.mark.asyncio
 async def test_connected_account_single_name():
-    ctx = make_ctx(
-        {"id": "123", "username": "solo", "name": "Cher", "profile_picture_url": None}
-    )
+    ctx = make_ctx({"id": "123", "username": "solo", "name": "Cher", "profile_picture_url": None})
     handler = InstagramConnectedAccountHandler()
     result = await handler.get_account_info(ctx)
     assert result.first_name == "Cher"
@@ -76,9 +74,7 @@ async def test_connected_account_single_name():
 
 @pytest.mark.asyncio
 async def test_connected_account_no_name():
-    ctx = make_ctx(
-        {"id": "123", "username": "noname", "name": "", "profile_picture_url": None}
-    )
+    ctx = make_ctx({"id": "123", "username": "noname", "name": "", "profile_picture_url": None})
     handler = InstagramConnectedAccountHandler()
     result = await handler.get_account_info(ctx)
     assert result.first_name is None
@@ -124,9 +120,7 @@ async def test_get_account_id_missing_raises():
 @pytest.mark.asyncio
 async def test_wait_for_container_finished():
     ctx = make_ctx({"status_code": "FINISHED"})
-    result = await wait_for_media_container(
-        ctx, "container_123", max_attempts=3, delay=0
-    )
+    result = await wait_for_media_container(ctx, "container_123", max_attempts=3, delay=0)
     assert result["status_code"] == "FINISHED"
 
 
@@ -167,9 +161,7 @@ async def test_wait_for_container_polls_until_ready():
             {"status_code": "FINISHED"},
         ]
     )
-    result = await wait_for_media_container(
-        ctx, "container_123", max_attempts=5, delay=0
-    )
+    result = await wait_for_media_container(ctx, "container_123", max_attempts=5, delay=0)
     assert result["status_code"] == "FINISHED"
     assert ctx.fetch.call_count == 3
 
@@ -220,11 +212,7 @@ async def test_get_account_missing_fields_default_to_empty():
 async def test_get_account_fetches_me_endpoint():
     ctx = make_ctx({"id": "123", "username": "u"})
     await instagram_integration.execute_action("get_account", {}, ctx)
-    url = (
-        ctx.fetch.call_args.args[0]
-        if ctx.fetch.call_args.args
-        else ctx.fetch.call_args.kwargs["url"]
-    )
+    url = ctx.fetch.call_args.args[0] if ctx.fetch.call_args.args else ctx.fetch.call_args.kwargs["url"]
     assert "/me" in url
 
 
@@ -288,9 +276,7 @@ async def test_get_posts_single_by_id():
             "comments_count": 1,
         }
     )
-    result = await instagram_integration.execute_action(
-        "get_posts", {"media_id": "post1"}, ctx
-    )
+    result = await instagram_integration.execute_action("get_posts", {"media_id": "post1"}, ctx)
     data = result.result.data
     assert len(data["media"]) == 1
     assert data["media"][0]["id"] == "post1"
@@ -340,9 +326,7 @@ async def test_get_posts_limit_capped_at_100():
 @pytest.mark.asyncio
 async def test_get_posts_after_cursor_forwarded():
     ctx = make_ctx_multi([{"id": "17841400000000000"}, {"data": []}])
-    await instagram_integration.execute_action(
-        "get_posts", {"after_cursor": "cursor_xyz"}, ctx
-    )
+    await instagram_integration.execute_action("get_posts", {"after_cursor": "cursor_xyz"}, ctx)
     params = ctx.fetch.call_args_list[1].kwargs.get("params", {})
     assert params["after"] == "cursor_xyz"
 
@@ -428,9 +412,7 @@ async def test_create_post_video():
 async def test_create_post_video_missing_url_raises():
     ctx = make_ctx_multi([{"id": "17841400000000000"}])
     with pytest.raises(Exception, match="media_url is required for VIDEO"):
-        await instagram_integration.execute_action(
-            "create_post", {"media_type": "VIDEO"}, ctx
-        )
+        await instagram_integration.execute_action("create_post", {"media_type": "VIDEO"}, ctx)
 
 
 @pytest.mark.asyncio
@@ -460,18 +442,14 @@ async def test_create_post_reels():
 async def test_create_post_reels_missing_url_raises():
     ctx = make_ctx_multi([{"id": "17841400000000000"}])
     with pytest.raises(Exception, match="media_url is required for REELS"):
-        await instagram_integration.execute_action(
-            "create_post", {"media_type": "REELS"}, ctx
-        )
+        await instagram_integration.execute_action("create_post", {"media_type": "REELS"}, ctx)
 
 
 @pytest.mark.asyncio
 async def test_create_post_image_missing_url_raises():
     ctx = make_ctx_multi([{"id": "17841400000000000"}])
     with pytest.raises(Exception, match="media_url is required"):
-        await instagram_integration.execute_action(
-            "create_post", {"media_type": "IMAGE"}, ctx
-        )
+        await instagram_integration.execute_action("create_post", {"media_type": "IMAGE"}, ctx)
 
 
 @pytest.mark.asyncio
@@ -630,9 +608,7 @@ async def test_get_comments_success():
             ]
         }
     )
-    result = await instagram_integration.execute_action(
-        "get_comments", {"media_id": "post1"}, ctx
-    )
+    result = await instagram_integration.execute_action("get_comments", {"media_id": "post1"}, ctx)
     data = result.result.data
     assert len(data["comments"]) == 2
     assert data["comments"][0]["text"] == "Great post!"
@@ -644,9 +620,7 @@ async def test_get_comments_success():
 @pytest.mark.asyncio
 async def test_get_comments_empty():
     ctx = make_ctx({"data": []})
-    result = await instagram_integration.execute_action(
-        "get_comments", {"media_id": "post1"}, ctx
-    )
+    result = await instagram_integration.execute_action("get_comments", {"media_id": "post1"}, ctx)
     assert result.result.data["comments"] == []
     assert result.result.data["total_count"] == 0
 
@@ -666,9 +640,7 @@ async def test_get_comments_username_from_from_field():
             ]
         }
     )
-    result = await instagram_integration.execute_action(
-        "get_comments", {"media_id": "post1"}, ctx
-    )
+    result = await instagram_integration.execute_action("get_comments", {"media_id": "post1"}, ctx)
     assert result.result.data["comments"][0]["username"] == "fromuser"
     assert result.result.data["comments"][0]["user_id"] == "u1"
 
@@ -677,27 +649,21 @@ async def test_get_comments_username_from_from_field():
 async def test_get_comments_pagination_cursor():
     ctx = make_ctx(
         {
-            "data": [
-                {"id": "c1", "text": "Hi", "like_count": 0, "replies": {"data": []}}
-            ],
+            "data": [{"id": "c1", "text": "Hi", "like_count": 0, "replies": {"data": []}}],
             "paging": {
                 "cursors": {"after": "next_cursor_123"},
                 "next": "https://graph.instagram.com/next",
             },
         }
     )
-    result = await instagram_integration.execute_action(
-        "get_comments", {"media_id": "post1"}, ctx
-    )
+    result = await instagram_integration.execute_action("get_comments", {"media_id": "post1"}, ctx)
     assert result.result.data["next_cursor"] == "next_cursor_123"
 
 
 @pytest.mark.asyncio
 async def test_get_comments_limit_forwarded():
     ctx = make_ctx({"data": []})
-    await instagram_integration.execute_action(
-        "get_comments", {"media_id": "post1", "limit": 10}, ctx
-    )
+    await instagram_integration.execute_action("get_comments", {"media_id": "post1", "limit": 10}, ctx)
     params = ctx.fetch.call_args.kwargs.get("params", {})
     assert params["limit"] == 10
 
@@ -705,9 +671,7 @@ async def test_get_comments_limit_forwarded():
 @pytest.mark.asyncio
 async def test_get_comments_limit_capped_at_100():
     ctx = make_ctx({"data": []})
-    await instagram_integration.execute_action(
-        "get_comments", {"media_id": "post1", "limit": 999}, ctx
-    )
+    await instagram_integration.execute_action("get_comments", {"media_id": "post1", "limit": 999}, ctx)
     params = ctx.fetch.call_args.kwargs.get("params", {})
     assert params["limit"] == 100
 
@@ -739,11 +703,7 @@ async def test_manage_comment_reply_posts_to_replies_endpoint():
         {"comment_id": "c1", "action": "reply", "message": "Nice!"},
         ctx,
     )
-    url = (
-        ctx.fetch.call_args.args[0]
-        if ctx.fetch.call_args.args
-        else ctx.fetch.call_args.kwargs.get("url", "")
-    )
+    url = ctx.fetch.call_args.args[0] if ctx.fetch.call_args.args else ctx.fetch.call_args.kwargs.get("url", "")
     assert "/replies" in url
     assert ctx.fetch.call_args.kwargs.get("data", {}).get("message") == "Nice!"
 
@@ -751,9 +711,7 @@ async def test_manage_comment_reply_posts_to_replies_endpoint():
 @pytest.mark.asyncio
 async def test_manage_comment_hide():
     ctx = make_ctx({"success": True})
-    result = await instagram_integration.execute_action(
-        "manage_comment", {"comment_id": "c1", "action": "hide"}, ctx
-    )
+    result = await instagram_integration.execute_action("manage_comment", {"comment_id": "c1", "action": "hide"}, ctx)
     assert result.result.data["is_hidden"] is True
     assert ctx.fetch.call_args.kwargs.get("data", {}).get("hide") == "true"
 
@@ -761,9 +719,7 @@ async def test_manage_comment_hide():
 @pytest.mark.asyncio
 async def test_manage_comment_unhide():
     ctx = make_ctx({"success": True})
-    result = await instagram_integration.execute_action(
-        "manage_comment", {"comment_id": "c1", "action": "unhide"}, ctx
-    )
+    result = await instagram_integration.execute_action("manage_comment", {"comment_id": "c1", "action": "unhide"}, ctx)
     assert result.result.data["is_hidden"] is False
     assert ctx.fetch.call_args.kwargs.get("data", {}).get("hide") == "false"
 
@@ -772,17 +728,13 @@ async def test_manage_comment_unhide():
 async def test_manage_comment_reply_missing_message_raises():
     ctx = make_ctx({})
     with pytest.raises(Exception, match="message is required"):
-        await instagram_integration.execute_action(
-            "manage_comment", {"comment_id": "c1", "action": "reply"}, ctx
-        )
+        await instagram_integration.execute_action("manage_comment", {"comment_id": "c1", "action": "reply"}, ctx)
 
 
 @pytest.mark.asyncio
 async def test_manage_comment_invalid_action_returns_error():
     ctx = make_ctx({})
-    result = await instagram_integration.execute_action(
-        "manage_comment", {"comment_id": "c1", "action": "nuke"}, ctx
-    )
+    result = await instagram_integration.execute_action("manage_comment", {"comment_id": "c1", "action": "nuke"}, ctx)
     assert result.result is not None
     result_str = str(result.result)
     assert "Unknown action" in result_str or "nuke" in result_str
@@ -796,9 +748,7 @@ async def test_manage_comment_invalid_action_returns_error():
 @pytest.mark.asyncio
 async def test_delete_comment_success():
     ctx = make_ctx({})
-    result = await instagram_integration.execute_action(
-        "delete_comment", {"comment_id": "c1"}, ctx
-    )
+    result = await instagram_integration.execute_action("delete_comment", {"comment_id": "c1"}, ctx)
     data = result.result.data
     assert data["success"] is True
     assert data["deleted_comment_id"] == "c1"
@@ -807,15 +757,9 @@ async def test_delete_comment_success():
 @pytest.mark.asyncio
 async def test_delete_comment_uses_delete_method():
     ctx = make_ctx({})
-    await instagram_integration.execute_action(
-        "delete_comment", {"comment_id": "c99"}, ctx
-    )
+    await instagram_integration.execute_action("delete_comment", {"comment_id": "c99"}, ctx)
     assert ctx.fetch.call_args.kwargs.get("method") == "DELETE"
-    url = (
-        ctx.fetch.call_args.args[0]
-        if ctx.fetch.call_args.args
-        else ctx.fetch.call_args.kwargs.get("url", "")
-    )
+    url = ctx.fetch.call_args.args[0] if ctx.fetch.call_args.args else ctx.fetch.call_args.kwargs.get("url", "")
     assert "c99" in url
 
 
@@ -837,9 +781,7 @@ async def test_get_insights_account():
             },
         ]
     )
-    result = await instagram_integration.execute_action(
-        "get_insights", {"target_type": "account"}, ctx
-    )
+    result = await instagram_integration.execute_action("get_insights", {"target_type": "account"}, ctx)
     data = result.result.data
     assert data["target_type"] == "account"
     assert data["target_id"] == "account"
@@ -850,9 +792,7 @@ async def test_get_insights_account():
 @pytest.mark.asyncio
 async def test_get_insights_account_default_period():
     ctx = make_ctx_multi([{"id": "17841400000000000"}, {"data": []}])
-    result = await instagram_integration.execute_action(
-        "get_insights", {"target_type": "account"}, ctx
-    )
+    result = await instagram_integration.execute_action("get_insights", {"target_type": "account"}, ctx)
     assert result.result.data["period"] == "days_28"
     params = ctx.fetch.call_args_list[1].kwargs.get("params", {})
     assert params["period"] == "days_28"
@@ -861,9 +801,7 @@ async def test_get_insights_account_default_period():
 @pytest.mark.asyncio
 async def test_get_insights_account_custom_period():
     ctx = make_ctx_multi([{"id": "17841400000000000"}, {"data": []}])
-    await instagram_integration.execute_action(
-        "get_insights", {"target_type": "account", "period": "week"}, ctx
-    )
+    await instagram_integration.execute_action("get_insights", {"target_type": "account", "period": "week"}, ctx)
     params = ctx.fetch.call_args_list[1].kwargs.get("params", {})
     assert params["period"] == "week"
 
@@ -907,16 +845,10 @@ async def test_get_insights_media_reels_uses_reels_metrics():
     ctx = make_ctx_multi(
         [
             {"media_product_type": "REELS"},
-            {
-                "data": [
-                    {"name": "ig_reels_avg_watch_time", "total_value": {"value": 12}}
-                ]
-            },
+            {"data": [{"name": "ig_reels_avg_watch_time", "total_value": {"value": 12}}]},
         ]
     )
-    await instagram_integration.execute_action(
-        "get_insights", {"target_type": "media", "target_id": "reel1"}, ctx
-    )
+    await instagram_integration.execute_action("get_insights", {"target_type": "media", "target_id": "reel1"}, ctx)
     params = ctx.fetch.call_args_list[1].kwargs.get("params", {})
     assert "ig_reels_avg_watch_time" in params["metric"]
 
@@ -929,9 +861,7 @@ async def test_get_insights_media_story_uses_story_metrics():
             {"data": [{"name": "navigation", "total_value": {"value": 5}}]},
         ]
     )
-    await instagram_integration.execute_action(
-        "get_insights", {"target_type": "media", "target_id": "story1"}, ctx
-    )
+    await instagram_integration.execute_action("get_insights", {"target_type": "media", "target_id": "story1"}, ctx)
     params = ctx.fetch.call_args_list[1].kwargs.get("params", {})
     assert "navigation" in params["metric"]
 
@@ -940,6 +870,4 @@ async def test_get_insights_media_story_uses_story_metrics():
 async def test_get_insights_media_missing_target_id_raises():
     ctx = make_ctx({})
     with pytest.raises(Exception, match="target_id is required"):
-        await instagram_integration.execute_action(
-            "get_insights", {"target_type": "media"}, ctx
-        )
+        await instagram_integration.execute_action("get_insights", {"target_type": "media"}, ctx)

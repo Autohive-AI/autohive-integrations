@@ -8,15 +8,44 @@ from helpers import INSTAGRAM_GRAPH_API_BASE, get_instagram_account_id
 @instagram.action("get_insights")
 class GetInsightsAction(ActionHandler):
     DEFAULT_ACCOUNT_METRICS = [
-        "reach", "profile_views", "accounts_engaged", "total_interactions",
-        "likes", "comments", "shares", "saves", "follows_and_unfollows",
+        "reach",
+        "profile_views",
+        "accounts_engaged",
+        "total_interactions",
+        "likes",
+        "comments",
+        "shares",
+        "saves",
+        "follows_and_unfollows",
     ]
-    DEFAULT_MEDIA_METRICS_FEED = ["reach", "likes", "comments", "shares", "saved", "total_interactions", "views"]
+    DEFAULT_MEDIA_METRICS_FEED = [
+        "reach",
+        "likes",
+        "comments",
+        "shares",
+        "saved",
+        "total_interactions",
+        "views",
+    ]
     DEFAULT_MEDIA_METRICS_REELS = [
-        "reach", "likes", "comments", "shares", "saved", "total_interactions",
-        "views", "ig_reels_avg_watch_time", "ig_reels_video_view_total_time",
+        "reach",
+        "likes",
+        "comments",
+        "shares",
+        "saved",
+        "total_interactions",
+        "views",
+        "ig_reels_avg_watch_time",
+        "ig_reels_video_view_total_time",
     ]
-    DEFAULT_MEDIA_METRICS_STORY = ["reach", "views", "navigation", "profile_activity", "shares", "follows"]
+    DEFAULT_MEDIA_METRICS_STORY = [
+        "reach",
+        "views",
+        "navigation",
+        "profile_activity",
+        "shares",
+        "follows",
+    ]
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         target_type = inputs["target_type"]
@@ -27,7 +56,11 @@ class GetInsightsAction(ActionHandler):
         if target_type == "account":
             account_id = await get_instagram_account_id(context)
             metrics = custom_metrics or self.DEFAULT_ACCOUNT_METRICS
-            params = {"metric": ",".join(metrics), "period": period, "metric_type": "total_value"}
+            params = {
+                "metric": ",".join(metrics),
+                "period": period,
+                "metric_type": "total_value",
+            }
             endpoint = f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/insights"
         else:
             if not target_id:
@@ -59,9 +92,11 @@ class GetInsightsAction(ActionHandler):
                 if values:
                     metrics_data[metric_name] = values[-1].get("value")
 
-        return ActionResult(data={
-            "target_type": target_type,
-            "target_id": target_id if target_type == "media" else "account",
-            "period": period if target_type == "account" else "lifetime",
-            "metrics": metrics_data,
-        })
+        return ActionResult(
+            data={
+                "target_type": target_type,
+                "target_id": target_id if target_type == "media" else "account",
+                "period": period if target_type == "account" else "lifetime",
+                "metrics": metrics_data,
+            }
+        )

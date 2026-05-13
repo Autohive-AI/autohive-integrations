@@ -1,4 +1,4 @@
-from . import account as account
-from . import media as media
-from . import comments as comments
-from . import insights as insights
+from . import account
+from . import media
+from . import comments
+from . import insights

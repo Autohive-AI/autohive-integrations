@@ -5,9 +5,7 @@ INSTAGRAM_GRAPH_API_BASE = f"https://graph.instagram.com/{GRAPH_API_VERSION}"
 
 
 async def get_instagram_account_id(context: ExecutionContext) -> str:
-    response = await context.fetch(
-        f"{INSTAGRAM_GRAPH_API_BASE}/me", method="GET", params={"fields": "id,username"}
-    )
+    response = await context.fetch(f"{INSTAGRAM_GRAPH_API_BASE}/me", method="GET", params={"fields": "id,username"})
     account_id = response.data.get("id")
     if not account_id:
         raise Exception(
@@ -18,7 +16,10 @@ async def get_instagram_account_id(context: ExecutionContext) -> str:
 
 
 async def wait_for_media_container(
-    context: ExecutionContext, container_id: str, max_attempts: int = 30, delay: float = 2.0
+    context: ExecutionContext,
+    container_id: str,
+    max_attempts: int = 30,
+    delay: float = 2.0,
 ) -> dict:
     import asyncio
 

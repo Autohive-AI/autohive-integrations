@@ -4,7 +4,12 @@ import sys
 # Ensure this directory is in sys.path so subpackages can resolve helpers and instagram
 sys.path.insert(0, os.path.dirname(__file__))
 
-from autohive_integrations_sdk import Integration, ExecutionContext, ConnectedAccountHandler, ConnectedAccountInfo
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ConnectedAccountHandler,
+    ConnectedAccountInfo,
+)
 
 from helpers import INSTAGRAM_GRAPH_API_BASE
 
@@ -17,9 +22,7 @@ import actions  # noqa: F401, E402 - registers action handlers
 class InstagramConnectedAccountHandler(ConnectedAccountHandler):
     async def get_account_info(self, context: ExecutionContext) -> ConnectedAccountInfo:
         fields = ",".join(["id", "username", "name", "profile_picture_url"])
-        response = await context.fetch(
-            f"{INSTAGRAM_GRAPH_API_BASE}/me", method="GET", params={"fields": fields}
-        )
+        response = await context.fetch(f"{INSTAGRAM_GRAPH_API_BASE}/me", method="GET", params={"fields": fields})
         data = response.data
         name = data.get("name", "")
         name_parts = name.split(maxsplit=1) if name else []

@@ -2,7 +2,11 @@ from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionCont
 from typing import Dict, Any
 
 from instagram import instagram
-from helpers import INSTAGRAM_GRAPH_API_BASE, get_instagram_account_id, wait_for_media_container
+from helpers import (
+    INSTAGRAM_GRAPH_API_BASE,
+    get_instagram_account_id,
+    wait_for_media_container,
+)
 
 
 def _build_media_response(media: Dict[str, Any]) -> Dict[str, Any]:
@@ -27,15 +31,26 @@ class GetPostsAction(ActionHandler):
         limit = min(inputs.get("limit", 25), 100)
         after_cursor = inputs.get("after_cursor")
 
-        fields = ",".join([
-            "id", "media_type", "media_product_type", "caption",
-            "permalink", "timestamp", "thumbnail_url", "media_url",
-            "like_count", "comments_count",
-        ])
+        fields = ",".join(
+            [
+                "id",
+                "media_type",
+                "media_product_type",
+                "caption",
+                "permalink",
+                "timestamp",
+                "thumbnail_url",
+                "media_url",
+                "like_count",
+                "comments_count",
+            ]
+        )
 
         if media_id:
             response = await context.fetch(
-                f"{INSTAGRAM_GRAPH_API_BASE}/{media_id}", method="GET", params={"fields": fields}
+                f"{INSTAGRAM_GRAPH_API_BASE}/{media_id}",
+                method="GET",
+                params={"fields": fields},
             )
             media_list = [_build_media_response(response.data)]
             next_cursor = None
@@ -45,7 +60,9 @@ class GetPostsAction(ActionHandler):
             if after_cursor:
                 params["after"] = after_cursor
             response = await context.fetch(
-                f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media", method="GET", params=params
+                f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media",
+                method="GET",
+                params=params,
             )
             data = response.data
             media_list = [_build_media_response(m) for m in data.get("data", [])]
@@ -59,7 +76,7 @@ class GetPostsAction(ActionHandler):
 @instagram.action("create_post")
 class CreatePostAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
-        media_type = inputs.get("media_type", "IMAGE").upper()
+        media_type = inputs["media_type"].upper()
         media_url = inputs.get("media_url")
         caption = inputs.get("caption", "")
         children = inputs.get("children", [])
@@ -84,7 +101,9 @@ class CreatePostAction(ActionHandler):
                 else:
                     child_data["image_url"] = child_url
                 r = await context.fetch(
-                    f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media", method="POST", data=child_data
+                    f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media",
+                    method="POST",
+                    data=child_data,
                 )
                 child_container_ids.append(r.data.get("id"))
 
@@ -94,7 +113,11 @@ class CreatePostAction(ActionHandler):
             r = await context.fetch(
                 f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media",
                 method="POST",
-                data={"media_type": "CAROUSEL", "caption": caption, "children": ",".join(child_container_ids)},
+                data={
+                    "media_type": "CAROUSEL",
+                    "caption": caption,
+                    "children": ",".join(child_container_ids),
+                },
             )
             container_id = r.data.get("id")
 
@@ -104,7 +127,11 @@ class CreatePostAction(ActionHandler):
             r = await context.fetch(
                 f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media",
                 method="POST",
-                data={"media_type": "REELS", "video_url": media_url, "caption": caption},
+                data={
+                    "media_type": "REELS",
+                    "video_url": media_url,
+                    "caption": caption,
+                },
             )
             container_id = r.data.get("id")
 
@@ -114,7 +141,11 @@ class CreatePostAction(ActionHandler):
             r = await context.fetch(
                 f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media",
                 method="POST",
-                data={"media_type": "VIDEO", "video_url": media_url, "caption": caption},
+                data={
+                    "media_type": "VIDEO",
+                    "video_url": media_url,
+                    "caption": caption,
+                },
             )
             container_id = r.data.get("id")
 
@@ -125,7 +156,9 @@ class CreatePostAction(ActionHandler):
             if alt_text:
                 post_data["alt_text"] = alt_text
             r = await context.fetch(
-                f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media", method="POST", data=post_data
+                f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media",
+                method="POST",
+                data=post_data,
             )
             container_id = r.data.get("id")
 
@@ -139,15 +172,22 @@ class CreatePostAction(ActionHandler):
         media_id = publish_r.data.get("id", "")
 
         details_r = await context.fetch(
-            f"{INSTAGRAM_GRAPH_API_BASE}/{media_id}", method="GET", params={"fields": "permalink"}
+            f"{INSTAGRAM_GRAPH_API_BASE}/{media_id}",
+            method="GET",
+            params={"fields": "permalink"},
         )
-        return ActionResult(data={"media_id": media_id, "permalink": details_r.data.get("permalink", "")})
+        return ActionResult(
+            data={
+                "media_id": media_id,
+                "permalink": details_r.data.get("permalink", ""),
+            }
+        )
 
 
 @instagram.action("create_story")
 class CreateStoryAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
-        media_type = inputs.get("media_type", "IMAGE").upper()
+        media_type = inputs["media_type"].upper()
         media_url = inputs["media_url"]
 
         account_id = await get_instagram_account_id(context)
@@ -157,9 +197,7 @@ class CreateStoryAction(ActionHandler):
         else:
             data["image_url"] = media_url
 
-        r = await context.fetch(
-            f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media", method="POST", data=data
-        )
+        r = await context.fetch(f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media", method="POST", data=data)
         container_id = r.data.get("id")
         await wait_for_media_container(context, container_id)
 
