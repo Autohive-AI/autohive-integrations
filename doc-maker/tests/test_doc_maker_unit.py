@@ -816,31 +816,17 @@ class TestParenthesizedListNumbering:
 
 
 class TestAlphabeticListDoesNotSwitchAtI:
-    """Regression: an (a)…(j) alphabetic list must not switch numbering
-    format at ``(i)`` because ``_detect_paren_type`` classifies ``i`` as
-    lowerRoman before considering it as the ninth alphabetic letter.
+    """Regression: an (a)…(z) alphabetic list must not switch numbering
+    format at ambiguous roman-numeral letters like ``(i)``, ``(v)``,
+    ``(x)``, ``(l)``, ``(c)``, ``(d)`` or ``(m)``.
 
-    The bug causes the list to be split into three separate ``<ol>``
-    elements (a–h, i, j) which produce different Word numbering
-    definitions.  Item ``(i)`` ends up with a different ``numId`` and
-    ``lowerRoman`` format with ``startOverride=1`` instead of continuing
-    as the ninth letter in the original ``lowerLetter`` sequence.
-
-    The test is expected to **fail** until the underlying detection logic
-    is fixed to infer the marker type from the surrounding sequence.
+    ``_detect_paren_type`` classifies these single letters as lowerRoman
+    before considering them as alphabetic.  The reconciliation pass must
+    correct that when the letter continues an existing alphabetic run.
     """
 
-    MARKDOWN = (
-        "(a) first\n"
-        "(b) second\n"
-        "(c) third\n"
-        "(d) fourth\n"
-        "(e) fifth\n"
-        "(f) sixth\n"
-        "(g) seventh\n"
-        "(h) eighth\n"
-        "(i) ninth\n"
-        "(j) tenth"
+    MARKDOWN = "\n".join(
+        f"({chr(ord('a') + n)}) item {n + 1}" for n in range(26)
     )
 
     @staticmethod
@@ -860,9 +846,8 @@ class TestAlphabeticListDoesNotSwitchAtI:
         return int(numId_el.get(qn("w:val"))), int(ilvl_el.get(qn("w:val")))
 
     def test_all_items_share_same_numid(self):
-        """All (a)–(j) items must share a single numId, confirming they
-        form one continuous list.  Currently ``(i)`` gets a separate
-        numId because it is misclassified as lowerRoman."""
+        """All (a)–(z) items must share a single numId, confirming they
+        form one continuous list and no letter is misclassified as roman."""
         from docx import Document
 
         doc = Document()
@@ -874,14 +859,14 @@ class TestAlphabeticListDoesNotSwitchAtI:
             if self._get_numpr(p)
         ]
 
-        assert len(numbered) == 10, (
-            f"Expected 10 numbered paragraphs (a)–(j), got {len(numbered)}: "
+        assert len(numbered) == 26, (
+            f"Expected 26 numbered paragraphs (a)–(z), got {len(numbered)}: "
             f"{numbered}"
         )
 
         num_ids = set(numpr[0] for _, numpr in numbered)
         assert len(num_ids) == 1, (
-            f"All (a)–(j) items should share one numId for a continuous "
+            f"All (a)–(z) items should share one numId for a continuous "
             f"list, but got {len(num_ids)} distinct numIds: {num_ids}"
         )
 
