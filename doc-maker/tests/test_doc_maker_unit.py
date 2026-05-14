@@ -1811,3 +1811,42 @@ class TestUppercaseAlphabeticListAtoZ:
         for i, (text, _) in enumerate(numbered):
             expected = f"item {i + 1}"
             assert text == expected, f"Item {i} (letter {chr(ord('A') + i)}): expected text '{expected}', got '{text}'"
+
+
+class TestMidListNonMarkerTextInParagraph:
+    """Verify that non-marker text between parenthesized list items inside a
+    <p> element is not silently discarded."""
+
+    def test_no_blank_line_indented_paragraph_belongs_to_item(self):
+        """When there is no blank line between a list item and a following
+        indented paragraph, the paragraph text should be preserved as part of
+        the preceding list item (continuation text)."""
+        from docx import Document
+
+        md = "(1) first item\nsome trailing note\n(2) second item"
+        doc = Document()
+        parse_markdown_to_docx(doc, md)
+
+        texts = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        combined = " ".join(texts)
+        assert "some trailing note" in combined, (
+            f"Expected 'some trailing note' to be preserved as continuation text "
+            f"of the first list item, but it was lost. Paragraphs: {texts}"
+        )
+
+    def test_blank_line_paragraph_is_standalone(self):
+        """When there is a blank line separating a non-marker paragraph from
+        the surrounding list items, the paragraph should appear as its own
+        standalone paragraph between the two list items, and the second item
+        should continue numbering from 2."""
+        from docx import Document
+
+        md = "(1) first item\n\nsome standalone paragraph\n\n(2) second item"
+        doc = Document()
+        parse_markdown_to_docx(doc, md)
+
+        texts = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        assert "some standalone paragraph" in texts, (
+            f"Expected 'some standalone paragraph' as its own paragraph, "
+            f"but it was not found. Paragraphs: {texts}"
+        )
