@@ -13,12 +13,16 @@ This module provides comprehensive Instagram management including:
 All actions use the Instagram Graph API v24.0.
 """
 
+import sys
+
 from autohive_integrations_sdk import Integration, ExecutionContext, ConnectedAccountHandler, ConnectedAccountInfo
 
 
 from helpers import INSTAGRAM_GRAPH_API_BASE
 
 instagram = Integration.load()
+
+sys.modules.setdefault("instagram", sys.modules[__name__])
 
 # Import actions to register handlers
 from instagram import actions  # noqa: F401, E402 - registers action handlers
