@@ -1836,8 +1836,7 @@ class TestMidListNonMarkerTextInParagraph:
         # It should be on a new line within the same paragraph, not concatenated
         first_item_text = texts[0]
         assert "first item\nsome trailing note" == first_item_text, (
-            f"Expected continuation text on a new line within the list item, "
-            f"got: {first_item_text!r}"
+            f"Expected continuation text on a new line within the list item, got: {first_item_text!r}"
         )
 
     def test_blank_line_paragraph_is_standalone(self):
@@ -1853,6 +1852,5 @@ class TestMidListNonMarkerTextInParagraph:
 
         texts = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
         assert "some standalone paragraph" in texts, (
-            f"Expected 'some standalone paragraph' as its own paragraph, "
-            f"but it was not found. Paragraphs: {texts}"
+            f"Expected 'some standalone paragraph' as its own paragraph, but it was not found. Paragraphs: {texts}"
         )

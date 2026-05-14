@@ -18,6 +18,9 @@ addopts = "--import-mode=importlib -m unit --tb=short"
 
 norecursedirs = ["dependencies", "__pycache__", ".git", ".ruff_cache"]
 
+[tool.ruff]
+line-length = 120
+
 # Environment variables for integration tests are loaded from .env
 # by the root conftest.py (stdlib-only, no plugin dependency).
 
