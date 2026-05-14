@@ -10,6 +10,8 @@ from docx import Document
 from docx.shared import Inches
 from docx.enum.text import WD_BREAK
 from docx.document import Document as _Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.oxml.text.paragraph import CT_P
 from docx.oxml.table import CT_Tbl
 from docx.table import _Cell, Table
@@ -554,11 +556,536 @@ def analyze_document_structure(doc: Document) -> dict:
     }
 
 
+_PAREN_ITEM_RE = re.compile(
+    r"\(("
+    r"\d+"  # (1), (2), …
+    r"|[a-z]"  # (a), (b), …
+    r"|[mdclxvi]{2,}"  # (ii), (iv), (xiii), (xlii), …
+    r")\)\s+",
+    re.IGNORECASE,
+)
+
+_ROMAN_CHAR_VALS = {"m": 1000, "d": 500, "c": 100, "l": 50, "x": 10, "v": 5, "i": 1}
+_AMBIGUOUS_ROMAN_LETTERS = frozenset(_ROMAN_CHAR_VALS)
+
+
+def _parse_roman(s: str) -> int | None:
+    """Parse a roman numeral string and return its integer value, or None if invalid."""
+    low = s.lower()
+    if not low or not all(c in _ROMAN_CHAR_VALS for c in low):
+        return None
+    total = 0
+    for idx, ch in enumerate(low):
+        val = _ROMAN_CHAR_VALS[ch]
+        if idx + 1 < len(low) and _ROMAN_CHAR_VALS[low[idx + 1]] > val:
+            total -= val
+        else:
+            total += val
+    return total
+
+
+def _detect_paren_type(marker: str) -> tuple[str, int]:
+    """Given the text between parens (e.g. 'a', 'ii', '3'), return (ol_type, start_val)."""
+    low = marker.lower()
+    roman_val = _parse_roman(low)
+    if roman_val is not None and (len(low) > 1 or low in _AMBIGUOUS_ROMAN_LETTERS):
+        roman_type = "I" if marker[0].isupper() else "i"
+        return roman_type, roman_val
+    if low.isalpha() and len(low) == 1:
+        ol_type = "A" if marker.isupper() else "a"
+        return ol_type, ord(low) - ord("a") + 1
+    if low.isdigit():
+        return "1", int(low)
+    return "1", 1
+
+
+def _reconcile_ambiguous_markers(
+    list_items: list[tuple[str, int, str, int]],
+) -> list[tuple[str, int, str, int]]:
+    """Fix single-letter markers (i/v/x/l/c/d/m) misclassified as roman when
+    they belong to an alphabetic sequence.
+
+    Walk the collected items and look at the preceding run.  When a marker
+    was tagged as roman (``"i"`` or ``"I"``) but is a single ambiguous letter
+    whose alphabetic position is consistent with the prior alphabetic item,
+    reclassify it as lowercase (``"a"``) or uppercase (``"A"``) accordingly.
+    """
+    if not list_items:
+        return list_items
+
+    result = list(list_items)
+    for idx in range(len(result)):
+        ol_type, start_val, text, indent = result[idx]
+        if ol_type not in ("i", "I") or start_val not in _ROMAN_CHAR_VALS.values():
+            continue
+        # Only single-letter ambiguous markers need reconciliation
+        letter = next((ch for ch, val in _ROMAN_CHAR_VALS.items() if val == start_val), None)
+        if letter is None:
+            continue
+        alpha_pos = ord(letter) - ord("a") + 1
+        # Determine the target alphabetic type based on the roman marker's case
+        target_alpha = "A" if ol_type == "I" else "a"
+        # Check if the preceding item is alphabetic and this letter continues it
+        if idx > 0:
+            prev_type, prev_val, _, _ = result[idx - 1]
+            if prev_type == target_alpha and alpha_pos == prev_val + 1:
+                result[idx] = (target_alpha, alpha_pos, text, indent)
+    return result
+
+
+def _set_li_text_with_breaks(soup, li_tag, text: str) -> None:
+    """Set the text of a ``<li>`` element, inserting ``<br>`` tags for newlines."""
+    from bs4 import NavigableString
+
+    parts = text.split("\n")
+    li_tag.append(NavigableString(parts[0]))
+    for part in parts[1:]:
+        li_tag.append(soup.new_tag("br"))
+        li_tag.append(NavigableString(part))
+
+
+def _post_process_paren_lists(soup) -> None:
+    """Walk the soup and convert parenthesized numbering in text into nested <ol> elements.
+
+    After the markdown parser runs, ``(a) text`` patterns appear as plain text
+    inside ``<li>`` or ``<p>`` elements.  This function finds those patterns
+    and restructures the HTML so that ``_add_list_items`` sees proper nested
+    ``<ol>`` elements with ``type`` and ``data-paren`` attributes.
+    """
+    from bs4 import NavigableString
+
+    # Process <li> elements that contain inline (a)/(1)/(i) patterns
+    for li in list(soup.find_all("li")):
+        # Get the raw text content of this li (may span multiple NavigableStrings)
+        full_text = li.get_text()
+        if not _PAREN_ITEM_RE.search(full_text):
+            continue
+
+        # Split text into the leading part (before the first marker) and the list items
+        lines = full_text.split("\n")
+        leading_lines: list[str] = []
+        list_items: list[tuple[str, int, str, int]] = []  # (type, start_val, text, indent_spaces)
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            m = _PAREN_ITEM_RE.match(stripped)
+            if m:
+                ol_type, start_val = _detect_paren_type(m.group(1))
+                item_text = stripped[m.end() :]
+                indent_spaces = len(line) - len(line.lstrip())
+                list_items.append((ol_type, start_val, item_text, indent_spaces))
+            else:
+                if not list_items:
+                    leading_lines.append(stripped)
+                else:
+                    # Continuation text for the last list item
+                    last = list_items[-1]
+                    list_items[-1] = (
+                        last[0],
+                        last[1],
+                        last[2] + "\n" + stripped,
+                        last[3],
+                    )
+
+        if not list_items:
+            continue
+
+        list_items = _reconcile_ambiguous_markers(list_items)
+
+        # Rebuild the <li> contents
+        li.clear()
+        if leading_lines:
+            li.append(NavigableString(" ".join(leading_lines)))
+
+        # Group consecutive items by type and build <ol> elements
+        current_type = None
+        current_ol = None
+        for ol_type, start_val, item_text, indent_spaces in list_items:
+            if ol_type != current_type:
+                current_type = ol_type
+                indent_level = indent_spaces // 4
+                current_ol = soup.new_tag(
+                    "ol",
+                    attrs={
+                        "type": ol_type,
+                        "data-paren": "true",
+                        "data-indent-level": str(indent_level),
+                    },
+                )
+                if start_val != 1:
+                    current_ol["start"] = str(start_val)
+                li.append(current_ol)
+            new_li = soup.new_tag("li")
+            _set_li_text_with_breaks(soup, new_li, item_text)
+            current_ol.append(new_li)
+
+    # Also handle standalone <p> elements with (a)/(1)/(i) patterns (not inside a list)
+    for p in list(soup.find_all("p", recursive=False)):
+        full_text = p.get_text()
+        if not _PAREN_ITEM_RE.search(full_text):
+            continue
+
+        lines = full_text.split("\n")
+        leading_lines: list[str] = []
+        list_items: list[tuple[str, int, str, int]] = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            m = _PAREN_ITEM_RE.match(stripped)
+            if m:
+                ol_type, start_val = _detect_paren_type(m.group(1))
+                indent_spaces = len(line) - len(line.lstrip())
+                list_items.append((ol_type, start_val, stripped[m.end() :], indent_spaces))
+            elif not list_items:
+                leading_lines.append(stripped)
+            else:
+                last = list_items[-1]
+                list_items[-1] = (
+                    last[0],
+                    last[1],
+                    last[2] + "\n" + stripped,
+                    last[3],
+                )
+        if not list_items:
+            continue
+
+        list_items = _reconcile_ambiguous_markers(list_items)
+
+        # Preserve any non-list text that appeared before the first marker
+        if leading_lines:
+            new_p = soup.new_tag("p")
+            new_p.string = "\n".join(leading_lines)
+            p.insert_before(new_p)
+
+        current_type = None
+        current_ol = None
+        for ol_type, start_val, item_text, indent_spaces in list_items:
+            if ol_type != current_type:
+                current_type = ol_type
+                indent_level = indent_spaces // 4
+                current_ol = soup.new_tag(
+                    "ol",
+                    attrs={
+                        "type": ol_type,
+                        "data-paren": "true",
+                        "data-indent-level": str(indent_level),
+                    },
+                )
+                if start_val != 1:
+                    current_ol["start"] = str(start_val)
+                p.insert_before(current_ol)
+            new_li = soup.new_tag("li")
+            _set_li_text_with_breaks(soup, new_li, item_text)
+            current_ol.append(new_li)
+        p.decompose()
+
+
+# ---------------------------------------------------------------------------
+# Low-level OOXML numbering helpers
+# ---------------------------------------------------------------------------
+
+
+def _numbering_root(doc):
+    """Return the <w:numbering> root element, creating the numbering part if needed."""
+    try:
+        return doc.part.numbering_part._element
+    except Exception:
+        # No numbering part yet – force creation by adding and removing a list paragraph
+        dummy = doc.add_paragraph("", style="List Number")
+        dummy._element.getparent().remove(dummy._element)
+        return doc.part.numbering_part._element
+
+
+def _next_abstract_num_id(numbering) -> int:
+    ids = [int(el.get(qn("w:abstractNumId"))) for el in numbering.findall(qn("w:abstractNum"))]
+    return max(ids, default=-1) + 1
+
+
+def _next_num_id(numbering) -> int:
+    ids = [int(el.get(qn("w:numId"))) for el in numbering.findall(qn("w:num"))]
+    return max(ids, default=0) + 1
+
+
+_LIST_HANGING_INDENT = 504
+"""Hanging indent in twips used for every numbered-list level.
+
+A single value is used for **all** numbering formats so that item text aligns
+at the same column across lists that use different label styles (e.g. ``1.``,
+``(a)``, ``(iii)``).  504 twips (≈ 0.35 in) is wide enough for the widest
+common parenthesized roman label ``(viii)`` while keeping the indent compact.
+"""
+
+
+def _get_or_create_abstract_num(doc, num_fmt: str, lvl_text: str, nesting_levels: int = 3, start: int = 1) -> int:
+    """Create an abstract numbering definition for the given format.
+
+    Always creates a new definition so that each independent list gets its own
+    ``abstractNumId``.  Sharing an abstract num across multiple ``<w:num>``
+    elements can cause Word to silently drop numbering on some lists.
+
+    Creates a multilevel abstract numbering so nested lists at different ilvl
+    values share a single definition with increasing indentation.
+
+    *start* sets the ``<w:start>`` value for the first level (ilvl 0).
+    This ensures renderers that ignore ``<w:lvlOverride>/<w:startOverride>``
+    still produce the correct numbering.
+    """
+    numbering = _numbering_root(doc)
+    abstract_num_id = _next_abstract_num_id(numbering)
+
+    abstract_num = OxmlElement("w:abstractNum")
+    abstract_num.set(qn("w:abstractNumId"), str(abstract_num_id))
+
+    multi_level_type = OxmlElement("w:multiLevelType")
+    multi_level_type.set(qn("w:val"), "multilevel")
+    abstract_num.append(multi_level_type)
+
+    hanging = _LIST_HANGING_INDENT
+
+    for ilvl in range(nesting_levels):
+        lvl = OxmlElement("w:lvl")
+        lvl.set(qn("w:ilvl"), str(ilvl))
+
+        start_el = OxmlElement("w:start")
+        start_el.set(qn("w:val"), str(start if ilvl == 0 else 1))
+        lvl.append(start_el)
+
+        fmt_el = OxmlElement("w:numFmt")
+        fmt_el.set(qn("w:val"), num_fmt)
+        lvl.append(fmt_el)
+
+        # Use the ilvl+1 placeholder for each level (e.g. %1, %2, %3)
+        actual_lvl_text = lvl_text.replace("%1", f"%{ilvl + 1}")
+        text_el = OxmlElement("w:lvlText")
+        text_el.set(qn("w:val"), actual_lvl_text)
+        lvl.append(text_el)
+
+        jc = OxmlElement("w:lvlJc")
+        jc.set(qn("w:val"), "left")
+        lvl.append(jc)
+
+        # Force a tab character after the label so text aligns at the
+        # left-indent position regardless of label width.
+        suff = OxmlElement("w:suff")
+        suff.set(qn("w:val"), "tab")
+        lvl.append(suff)
+
+        left = hanging + (hanging * ilvl)
+        ppr = OxmlElement("w:pPr")
+        ind = OxmlElement("w:ind")
+        ind.set(qn("w:left"), str(left))
+        ind.set(qn("w:hanging"), str(hanging))
+        ppr.append(ind)
+
+        # Explicit tab stop at the text position so the tab after the
+        # label lands exactly at the left indent.
+        tabs = OxmlElement("w:tabs")
+        tab = OxmlElement("w:tab")
+        tab.set(qn("w:val"), "num")
+        tab.set(qn("w:pos"), str(left))
+        tabs.append(tab)
+        ppr.append(tabs)
+
+        lvl.append(ppr)
+
+        abstract_num.append(lvl)
+
+    # OOXML requires all <w:abstractNum> elements before any <w:num>.
+    # Insert before the first <w:num> so Word doesn't silently ignore it.
+    first_num = numbering.find(qn("w:num"))
+    if first_num is not None:
+        first_num.addprevious(abstract_num)
+    else:
+        numbering.append(abstract_num)
+    return abstract_num_id
+
+
+def _create_num(doc, abstract_num_id: int, start_override: int | None = None, level: int = 0) -> int:
+    """Create a new <w:num> referencing the given abstract numbering.
+
+    If *start_override* is provided, a ``<w:lvlOverride>`` element is added so
+    that numbering starts at the given value rather than continuing.
+    """
+    numbering = _numbering_root(doc)
+    num_id = _next_num_id(numbering)
+
+    num = OxmlElement("w:num")
+    num.set(qn("w:numId"), str(num_id))
+
+    abstract_ref = OxmlElement("w:abstractNumId")
+    abstract_ref.set(qn("w:val"), str(abstract_num_id))
+    num.append(abstract_ref)
+
+    if start_override is not None:
+        lvl_override = OxmlElement("w:lvlOverride")
+        lvl_override.set(qn("w:ilvl"), str(level))
+
+        start_el = OxmlElement("w:startOverride")
+        start_el.set(qn("w:val"), str(start_override))
+        lvl_override.append(start_el)
+
+        num.append(lvl_override)
+
+    numbering.append(num)
+    return num_id
+
+
+def _apply_numbering(paragraph, num_id: int, level: int = 0) -> None:
+    """Apply numbering properties to a paragraph at the given nesting level."""
+    p_pr = paragraph._p.get_or_add_pPr()
+
+    num_pr = p_pr.find(qn("w:numPr"))
+    if num_pr is None:
+        num_pr = OxmlElement("w:numPr")
+        p_pr.append(num_pr)
+
+    ilvl = num_pr.find(qn("w:ilvl"))
+    if ilvl is None:
+        ilvl = OxmlElement("w:ilvl")
+        num_pr.append(ilvl)
+    ilvl.set(qn("w:val"), str(level))
+
+    num_id_el = num_pr.find(qn("w:numId"))
+    if num_id_el is None:
+        num_id_el = OxmlElement("w:numId")
+        num_pr.append(num_id_el)
+    num_id_el.set(qn("w:val"), str(num_id))
+
+
+def _patch_abstract_num_level(doc, num_id: int, level: int, num_fmt: str, lvl_text: str) -> None:
+    """Patch the abstractNum referenced by *num_id* so that *level* uses the given format.
+
+    When a child list (e.g. ``(a)``) is nested under a parent list (e.g. ``1.``),
+    both must share the same ``numId``.  This function updates the parent's
+    abstract numbering definition so that the child's ``ilvl`` has the correct
+    ``numFmt`` and ``lvlText``.
+    """
+    numbering = _numbering_root(doc)
+
+    # Find the <w:num> for this numId and get its abstractNumId
+    abstract_num_id = None
+    for num_el in numbering.findall(qn("w:num")):
+        if int(num_el.get(qn("w:numId"))) == num_id:
+            abstract_num_id = int(num_el.find(qn("w:abstractNumId")).get(qn("w:val")))
+            break
+    if abstract_num_id is None:
+        return
+
+    # Find the abstractNum
+    abstract_num = None
+    for an in numbering.findall(qn("w:abstractNum")):
+        if int(an.get(qn("w:abstractNumId"))) == abstract_num_id:
+            abstract_num = an
+            break
+    if abstract_num is None:
+        return
+
+    # Find or create the <w:lvl> for this ilvl
+    target_lvl = None
+    for lvl in abstract_num.findall(qn("w:lvl")):
+        if int(lvl.get(qn("w:ilvl"))) == level:
+            target_lvl = lvl
+            break
+
+    if target_lvl is None:
+        # Create a new level
+        target_lvl = OxmlElement("w:lvl")
+        target_lvl.set(qn("w:ilvl"), str(level))
+        start_el = OxmlElement("w:start")
+        start_el.set(qn("w:val"), "1")
+        target_lvl.append(start_el)
+        abstract_num.append(target_lvl)
+
+    # Update numFmt
+    fmt_el = target_lvl.find(qn("w:numFmt"))
+    if fmt_el is None:
+        fmt_el = OxmlElement("w:numFmt")
+        target_lvl.append(fmt_el)
+    fmt_el.set(qn("w:val"), num_fmt)
+
+    # Update lvlText
+    actual_lvl_text = lvl_text.replace("%1", f"%{level + 1}")
+    txt_el = target_lvl.find(qn("w:lvlText"))
+    if txt_el is None:
+        txt_el = OxmlElement("w:lvlText")
+        target_lvl.append(txt_el)
+    txt_el.set(qn("w:val"), actual_lvl_text)
+
+    # Ensure lvlJc exists
+    jc = target_lvl.find(qn("w:lvlJc"))
+    if jc is None:
+        jc = OxmlElement("w:lvlJc")
+        jc.set(qn("w:val"), "left")
+        target_lvl.append(jc)
+
+    # Ensure suffix is tab-based for consistent text alignment
+    suff = target_lvl.find(qn("w:suff"))
+    if suff is None:
+        suff = OxmlElement("w:suff")
+        target_lvl.append(suff)
+    suff.set(qn("w:val"), "tab")
+
+    # Ensure indentation
+    hanging = _LIST_HANGING_INDENT
+    left = hanging + (hanging * level)
+    ppr = target_lvl.find(qn("w:pPr"))
+    if ppr is None:
+        ppr = OxmlElement("w:pPr")
+        target_lvl.append(ppr)
+    ind = ppr.find(qn("w:ind"))
+    if ind is None:
+        ind = OxmlElement("w:ind")
+        ppr.append(ind)
+    ind.set(qn("w:left"), str(left))
+    ind.set(qn("w:hanging"), str(hanging))
+
+    # Explicit tab stop at the text position
+    tabs = ppr.find(qn("w:tabs"))
+    if tabs is None:
+        tabs = OxmlElement("w:tabs")
+        ppr.append(tabs)
+    tab = OxmlElement("w:tab")
+    tab.set(qn("w:val"), "num")
+    tab.set(qn("w:pos"), str(left))
+    tabs.append(tab)
+
+
+def _ol_type_to_numfmt(type_attr: str | None, paren: bool = False) -> tuple[str, str]:
+    """Map HTML <ol type> to (OOXML numFmt, lvlText).
+
+    When *paren* is True the level text uses parenthesized form ``(%1)``
+    for all types.  Otherwise decimal uses ``%1.`` (standard ``1. 2. 3.``).
+    """
+    type_attr = type_attr or "1"
+    fmt_map = {
+        "1": "decimal",
+        "a": "lowerLetter",
+        "A": "upperLetter",
+        "i": "lowerRoman",
+        "I": "upperRoman",
+    }
+    num_fmt = fmt_map.get(type_attr, "decimal")
+    if paren or type_attr.lower() in ("a", "i"):
+        lvl_text = "(%1)"
+    else:
+        lvl_text = "%1."
+    return num_fmt, lvl_text
+
+
 def parse_markdown_to_docx(doc: Document, markdown_text: str) -> None:
     """Parse markdown text and add elements to Word document"""
     # Convert markdown to HTML
-    html = markdown.markdown(markdown_text, extensions=["tables", "fenced_code"])
+    html = markdown.markdown(markdown_text, extensions=["tables", "fenced_code", "sane_lists"])
     soup = BeautifulSoup(html, "html.parser")
+
+    # Post-process: convert (a), (1), (i) text patterns into nested <ol> elements
+    _post_process_paren_lists(soup)
+
+    # Track ordered list numbering state for restart/continue semantics
+    list_state: dict[str, Any] = {"ordered": {}}
 
     # Process each HTML element in order
     for element in soup.find_all(
@@ -575,10 +1102,13 @@ def parse_markdown_to_docx(doc: Document, markdown_text: str) -> None:
             "blockquote",
             "table",
             "pre",
-        ]
+        ],
+        recursive=False,
     ):
         if element.name.startswith("h"):
-            # Handle headings
+            # Handle headings – reset list continuation state so lists
+            # after a heading start fresh
+            list_state["ordered"] = {}
             level = int(element.name[1])  # Extract number from h1, h2, etc.
             text = element.get_text().strip()
             if text:
@@ -590,15 +1120,8 @@ def parse_markdown_to_docx(doc: Document, markdown_text: str) -> None:
             _add_formatted_text_to_paragraph(paragraph, element)
 
         elif element.name in ["ul", "ol"]:
-            # Handle lists
-            is_numbered = element.name == "ol"
-            for li in element.find_all("li", recursive=False):
-                text = li.get_text().strip()
-                if text:
-                    if is_numbered:
-                        doc.add_paragraph(text, style="List Number")
-                    else:
-                        doc.add_paragraph(text, style="List Bullet")
+            # Handle lists (including nested)
+            _add_list_items(doc, element, level=0, list_state=list_state)
 
         elif element.name == "blockquote":
             # Handle blockquotes
@@ -620,13 +1143,116 @@ def parse_markdown_to_docx(doc: Document, markdown_text: str) -> None:
                     run.font.name = "Courier New"
 
 
-def _add_formatted_text_to_paragraph(paragraph, html_element):
+def _add_list_items(
+    doc: Document,
+    list_element,
+    level: int,
+    list_state: dict,
+    parent_num_id: int | None = None,
+) -> None:
+    """Recursively add list items to Word document with proper nesting.
+
+    For bullet lists, uses Word's built-in 'List Bullet' styles.
+    For ordered lists, creates low-level OOXML numbering definitions that
+    support custom formats (decimal, lowerLetter, lowerRoman) and proper
+    restart/continuation semantics.
+
+    *parent_num_id* is passed when a child ordered list should share the
+    parent's numbering instance so that Word renders all nesting levels
+    under one coherent list.
+    """
+    is_numbered = list_element.name == "ol"
+
+    # Respect original markdown indentation via data-indent-level attribute.
+    # Every 4 leading spaces in the markdown source maps to one indent level.
+    # When data-indent-level is set it already encodes the absolute nesting
+    # depth relative to the top-level list, so we must NOT add `level` (which
+    # the recursive call already incremented) on top of it — that would
+    # double-count the nesting.
+    indent_level = int(list_element.get("data-indent-level", 0))
+    effective_level = indent_level if indent_level > 0 else level
+
+    num_id = None
+    if is_numbered:
+        start = int(list_element.get("start", 1))
+        type_attr = list_element.get("type") or "1"
+
+        paren = list_element.get("data-paren") == "true"
+        num_fmt, lvl_text = _ol_type_to_numfmt(type_attr, paren=paren)
+
+        if parent_num_id is not None and level > 0:
+            # Child list: reuse parent numId but patch the abstractNum to
+            # have the correct format at this ilvl.
+            num_id = parent_num_id
+            _patch_abstract_num_level(doc, num_id, effective_level, num_fmt, lvl_text)
+        else:
+            abstract_num_id = _get_or_create_abstract_num(doc, num_fmt, lvl_text, start=start)
+
+            # Key for tracking continuation: lists at the same nesting level
+            # with the same format can continue numbering across boundaries
+            key = (effective_level, num_fmt, lvl_text)
+
+            if start == 1:
+                num_id = _create_num(doc, abstract_num_id, start_override=1, level=effective_level)
+            else:
+                num_id = list_state["ordered"].get(key)
+                if num_id is None:
+                    num_id = _create_num(
+                        doc,
+                        abstract_num_id,
+                        start_override=start,
+                        level=effective_level,
+                    )
+
+            list_state["ordered"][key] = num_id
+
+    else:
+        clamped_level = min(effective_level, 2)
+        bullet_style = "List Bullet" if clamped_level == 0 else f"List Bullet {clamped_level + 1}"
+
+    for li in list_element.find_all("li", recursive=False):
+        # Collect direct text of this <li>, ignoring nested <ul>/<ol>
+        text_parts = []
+        for child in li.children:
+            if hasattr(child, "name") and child.name in ("ul", "ol"):
+                continue
+            text_parts.append(child.get_text() if hasattr(child, "get_text") else str(child))
+        text = "".join(text_parts).strip()
+
+        if text:
+            if is_numbered:
+                p = doc.add_paragraph()
+                p.style = doc.styles["List Paragraph"]
+                _apply_numbering(p, num_id=num_id, level=effective_level)
+                _add_formatted_text_to_paragraph(p, li, skip_nested_lists=True)
+            else:
+                doc.add_paragraph(text, style=bullet_style)
+
+        # Recurse into nested <ul> or <ol> (direct children of this <li>)
+        # Nested ordered lists inherit the parent numId so Word keeps them
+        # under one coherent multilevel numbering instance.
+        effective_parent = num_id if is_numbered else parent_num_id
+        for nested_list in li.find_all(["ul", "ol"], recursive=False):
+            _add_list_items(
+                doc,
+                nested_list,
+                level + 1,
+                list_state=list_state,
+                parent_num_id=effective_parent,
+            )
+
+
+def _add_formatted_text_to_paragraph(paragraph, html_element, skip_nested_lists: bool = False):
     """Add formatted text from HTML element to Word paragraph"""
     # Handle direct text and formatting
     for content in html_element.contents:
+        if skip_nested_lists and hasattr(content, "name") and content.name in ("ul", "ol"):
+            continue
         if hasattr(content, "name") and content.name:
             # This is an HTML tag
-            if content.name == "strong" or content.name == "b":
+            if content.name == "br":
+                paragraph.add_run().add_break()
+            elif content.name == "strong" or content.name == "b":
                 run = paragraph.add_run(content.get_text())
                 run.bold = True
             elif content.name == "em" or content.name == "i":
@@ -641,7 +1267,7 @@ def _add_formatted_text_to_paragraph(paragraph, html_element):
             else:
                 # Nested elements - recursively process only if it has contents
                 if hasattr(content, "contents"):
-                    _add_formatted_text_to_paragraph(paragraph, content)
+                    _add_formatted_text_to_paragraph(paragraph, content, skip_nested_lists=skip_nested_lists)
                 else:
                     # Just add the text content
                     text = content.get_text()
@@ -842,7 +1468,7 @@ class AddImageAction(ActionHandler):
         document_id = inputs["document_id"]
         width = inputs.get("width")  # in inches
         height = inputs.get("height")  # in inches
-        files = inputs.get("files", [])
+        files = inputs["files"]
 
         try:
             load_document_from_files(document_id, files)
