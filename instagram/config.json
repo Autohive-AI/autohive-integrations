@@ -1,6 +1,6 @@
 {
     "name": "Instagram",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Instagram Business/Creator integration for managing posts, comments, and insights",
     "supports_connected_account": true,
     "entry_point": "instagram.py",
@@ -339,6 +339,10 @@
                             "null"
                         ],
                         "description": "Pagination cursor to fetch the next page. Null if no more results."
+                    },
+                    "total_count": {
+                        "type": "integer",
+                        "description": "Total number of comments on the post"
                     }
                 },
                 "required": [
