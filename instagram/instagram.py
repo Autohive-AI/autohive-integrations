@@ -15,6 +15,8 @@ from helpers import INSTAGRAM_GRAPH_API_BASE
 
 instagram = Integration.load(os.path.join(os.path.dirname(__file__), "config.json"))
 
+sys.modules.setdefault("instagram", sys.modules[__name__])
+
 import actions  # noqa: F401, E402 - registers action handlers
 
 
