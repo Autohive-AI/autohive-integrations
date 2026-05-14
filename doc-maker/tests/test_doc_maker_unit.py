@@ -1820,7 +1820,7 @@ class TestMidListNonMarkerTextInParagraph:
     def test_no_blank_line_indented_paragraph_belongs_to_item(self):
         """When there is no blank line between a list item and a following
         indented paragraph, the paragraph text should be preserved as part of
-        the preceding list item (continuation text)."""
+        the preceding list item on a new line (continuation text)."""
         from docx import Document
 
         md = "(1) first item\nsome trailing note\n(2) second item"
@@ -1828,10 +1828,16 @@ class TestMidListNonMarkerTextInParagraph:
         parse_markdown_to_docx(doc, md)
 
         texts = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-        combined = " ".join(texts)
-        assert "some trailing note" in combined, (
+        # The continuation text should be part of the first list item paragraph
+        assert any("some trailing note" in t for t in texts), (
             f"Expected 'some trailing note' to be preserved as continuation text "
             f"of the first list item, but it was lost. Paragraphs: {texts}"
+        )
+        # It should be on a new line within the same paragraph, not concatenated
+        first_item_text = texts[0]
+        assert "first item\nsome trailing note" == first_item_text, (
+            f"Expected continuation text on a new line within the list item, "
+            f"got: {first_item_text!r}"
         )
 
     def test_blank_line_paragraph_is_standalone(self):

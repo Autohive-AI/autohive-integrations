@@ -633,6 +633,17 @@ def _reconcile_ambiguous_markers(
     return result
 
 
+def _set_li_text_with_breaks(soup, li_tag, text: str) -> None:
+    """Set the text of a ``<li>`` element, inserting ``<br>`` tags for newlines."""
+    from bs4 import NavigableString
+
+    parts = text.split("\n")
+    li_tag.append(NavigableString(parts[0]))
+    for part in parts[1:]:
+        li_tag.append(soup.new_tag("br"))
+        li_tag.append(NavigableString(part))
+
+
 def _post_process_paren_lists(soup) -> None:
     """Walk the soup and convert parenthesized numbering in text into nested <ol> elements.
 
@@ -674,7 +685,7 @@ def _post_process_paren_lists(soup) -> None:
                     list_items[-1] = (
                         last[0],
                         last[1],
-                        last[2] + " " + stripped,
+                        last[2] + "\n" + stripped,
                         last[3],
                     )
 
@@ -707,7 +718,7 @@ def _post_process_paren_lists(soup) -> None:
                     current_ol["start"] = str(start_val)
                 li.append(current_ol)
             new_li = soup.new_tag("li")
-            new_li.string = item_text
+            _set_li_text_with_breaks(soup, new_li, item_text)
             current_ol.append(new_li)
 
     # Also handle standalone <p> elements with (a)/(1)/(i) patterns (not inside a list)
@@ -730,6 +741,14 @@ def _post_process_paren_lists(soup) -> None:
                 list_items.append((ol_type, start_val, stripped[m.end() :], indent_spaces))
             elif not list_items:
                 leading_lines.append(stripped)
+            else:
+                last = list_items[-1]
+                list_items[-1] = (
+                    last[0],
+                    last[1],
+                    last[2] + "\n" + stripped,
+                    last[3],
+                )
         if not list_items:
             continue
 
@@ -759,7 +778,7 @@ def _post_process_paren_lists(soup) -> None:
                     current_ol["start"] = str(start_val)
                 p.insert_before(current_ol)
             new_li = soup.new_tag("li")
-            new_li.string = item_text
+            _set_li_text_with_breaks(soup, new_li, item_text)
             current_ol.append(new_li)
         p.decompose()
 
@@ -1231,7 +1250,9 @@ def _add_formatted_text_to_paragraph(paragraph, html_element, skip_nested_lists:
             continue
         if hasattr(content, "name") and content.name:
             # This is an HTML tag
-            if content.name == "strong" or content.name == "b":
+            if content.name == "br":
+                paragraph.add_run().add_break()
+            elif content.name == "strong" or content.name == "b":
                 run = paragraph.add_run(content.get_text())
                 run.bold = True
             elif content.name == "em" or content.name == "i":
