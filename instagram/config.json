@@ -339,6 +339,10 @@
                             "null"
                         ],
                         "description": "Pagination cursor to fetch the next page. Null if no more results."
+                    },
+                    "total_count": {
+                        "type": "integer",
+                        "description": "Total number of comments on the post"
                     }
                 },
                 "required": [
