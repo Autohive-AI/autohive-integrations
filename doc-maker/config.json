@@ -1,6 +1,6 @@
 {
     "name": "Doc Maker",
-    "version": "3.0.0",
+    "version": "2.1.0",
     "description": "Word document automation integration using python-docx with markdown-first content creation. AI agents should use markdown syntax for most content creation - headings (#), paragraphs, lists (- or 1.), formatting (**bold**, *italic*), tables, blockquotes (>), and code blocks. Only use non-markdown actions for images, page breaks, or when you need direct table creation with structured data arrays.",
     "entry_point": "doc_maker.py",
     "actions": {
