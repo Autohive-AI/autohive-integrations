@@ -8,7 +8,11 @@ from count.count import count
 
 
 def make_response(data, status=200):
-    return FetchResponse(status=status, headers={}, data={"status": "success", "message": "ok", "data": data})
+    return FetchResponse(
+        status=status,
+        headers={},
+        data={"status": "success", "message": "ok", "data": data},
+    )
 
 
 @pytest.fixture
@@ -189,7 +193,9 @@ async def test_list_transactions(ctx):
 async def test_create_transaction(ctx):
     ctx.fetch = AsyncMock(return_value=make_response({"uuid": "txn-2", "amount": 500}))
     result = await count.execute_action(
-        "create_transaction", {"date": "2026-01-01", "amount": 500, "accountUuid": "acc-1"}, ctx
+        "create_transaction",
+        {"date": "2026-01-01", "amount": 500, "accountUuid": "acc-1"},
+        ctx,
     )
     assert result.type == ResultType.ACTION
     assert result.result.data["transaction"]["uuid"] == "txn-2"
@@ -325,7 +331,9 @@ async def test_create_journal_entry(ctx):
 async def test_update_journal_entry(ctx):
     ctx.fetch = AsyncMock(return_value=make_response({"uuid": "je-1"}))
     result = await count.execute_action(
-        "update_journal_entry", {"journal_entry_uuid": "je-1", "description": "Updated"}, ctx
+        "update_journal_entry",
+        {"journal_entry_uuid": "je-1", "description": "Updated"},
+        ctx,
     )
     assert result.type == ResultType.ACTION
     assert result.result.data["result"] is True
