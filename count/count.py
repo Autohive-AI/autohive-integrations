@@ -42,8 +42,8 @@ async def _fetch(context: Any, url: str, *, method: str = "GET", json: Any = Non
     return resp.data
 
 
-def _data(resp: Any) -> Any:
-    return resp.get("data", resp) if isinstance(resp, dict) else resp
+def _data(payload: Any) -> Any:
+    return payload.get("data", payload) if isinstance(payload, dict) else payload
 
 
 @count.action("list_accounts")
@@ -82,7 +82,11 @@ class UpdateAccountAction(ActionHandler):
 class DeleteAccountAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: Any):
         try:
-            await _fetch(context, f"{BASE_URL}/accounts/{inputs['account_uuid']}", method="DELETE")
+            await _fetch(
+                context,
+                f"{BASE_URL}/accounts/{inputs['account_uuid']}",
+                method="DELETE",
+            )
             return ActionResult(data={"result": True, "deleted": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "deleted": False, "error": str(e)}, cost_usd=0.0)
@@ -113,7 +117,11 @@ class GetCustomerAction(ActionHandler):
 class FindCustomerByEmailAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: Any):
         try:
-            resp = await _fetch(context, f"{BASE_URL}/customers/find-by-email", params={"email": inputs["email"]})
+            resp = await _fetch(
+                context,
+                f"{BASE_URL}/customers/find-by-email",
+                params={"email": inputs["email"]},
+            )
             return ActionResult(data={"result": True, "customer": _data(resp)}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "customer": {}, "error": str(e)}, cost_usd=0.0)
@@ -144,7 +152,11 @@ class UpdateCustomerAction(ActionHandler):
 class DeleteCustomerAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: Any):
         try:
-            await _fetch(context, f"{BASE_URL}/customers/{inputs['customer_uuid']}", method="DELETE")
+            await _fetch(
+                context,
+                f"{BASE_URL}/customers/{inputs['customer_uuid']}",
+                method="DELETE",
+            )
             return ActionResult(data={"result": True, "deleted": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "deleted": False, "error": str(e)}, cost_usd=0.0)
@@ -217,7 +229,11 @@ class GetProductAction(ActionHandler):
 class FindProductByNameAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: Any):
         try:
-            resp = await _fetch(context, f"{BASE_URL}/products/find-by-name", params={"name": inputs["name"]})
+            resp = await _fetch(
+                context,
+                f"{BASE_URL}/products/find-by-name",
+                params={"name": inputs["name"]},
+            )
             return ActionResult(data={"result": True, "product": _data(resp)}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "product": {}, "error": str(e)}, cost_usd=0.0)
@@ -248,7 +264,11 @@ class UpdateProductAction(ActionHandler):
 class DeleteProductAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: Any):
         try:
-            await _fetch(context, f"{BASE_URL}/products/{inputs['product_uuid']}", method="DELETE")
+            await _fetch(
+                context,
+                f"{BASE_URL}/products/{inputs['product_uuid']}",
+                method="DELETE",
+            )
             return ActionResult(data={"result": True, "deleted": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "deleted": False, "error": str(e)}, cost_usd=0.0)
@@ -262,7 +282,10 @@ class ListTransactionsAction(ActionHandler):
             resp = await _fetch(context, f"{BASE_URL}/transactions", params=params)
             return ActionResult(data={"result": True, "transactions": _data(resp)}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "transactions": [], "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "transactions": [], "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @count.action("create_transaction")
@@ -290,7 +313,11 @@ class UpdateTransactionAction(ActionHandler):
 class DeleteTransactionAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: Any):
         try:
-            await _fetch(context, f"{BASE_URL}/transactions/{inputs['transaction_uuid']}", method="DELETE")
+            await _fetch(
+                context,
+                f"{BASE_URL}/transactions/{inputs['transaction_uuid']}",
+                method="DELETE",
+            )
             return ActionResult(data={"result": True, "deleted": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "deleted": False, "error": str(e)}, cost_usd=0.0)
@@ -331,7 +358,11 @@ class UpdateInvoiceAction(ActionHandler):
 class DeleteInvoiceAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: Any):
         try:
-            await _fetch(context, f"{BASE_URL}/invoices/{inputs['invoice_uuid']}", method="DELETE")
+            await _fetch(
+                context,
+                f"{BASE_URL}/invoices/{inputs['invoice_uuid']}",
+                method="DELETE",
+            )
             return ActionResult(data={"result": True, "deleted": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "deleted": False, "error": str(e)}, cost_usd=0.0)
@@ -372,7 +403,11 @@ class DeleteBillAction(ActionHandler):
 class ApproveBillAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: Any):
         try:
-            resp = await _fetch(context, f"{BASE_URL}/bills/{inputs['bill_uuid']}/approve", method="POST")
+            resp = await _fetch(
+                context,
+                f"{BASE_URL}/bills/{inputs['bill_uuid']}/approve",
+                method="POST",
+            )
             return ActionResult(data={"result": True, "bill": _data(resp)}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "bill": {}, "error": str(e)}, cost_usd=0.0)
@@ -386,7 +421,10 @@ class ListJournalEntriesAction(ActionHandler):
             resp = await _fetch(context, f"{BASE_URL}/journal-entries", params=params)
             return ActionResult(data={"result": True, "journal_entries": _data(resp)}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "journal_entries": [], "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "journal_entries": [], "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @count.action("create_journal_entry")
@@ -396,7 +434,10 @@ class CreateJournalEntryAction(ActionHandler):
             resp = await _fetch(context, f"{BASE_URL}/journal-entries", method="POST", json=inputs)
             return ActionResult(data={"result": True, "journal_entry": _data(resp)}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "journal_entry": {}, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "journal_entry": {}, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @count.action("update_journal_entry")
@@ -404,17 +445,29 @@ class UpdateJournalEntryAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: Any):
         try:
             uuid = inputs.pop("journal_entry_uuid")
-            resp = await _fetch(context, f"{BASE_URL}/journal-entries/{uuid}", method="PATCH", json=inputs)
+            resp = await _fetch(
+                context,
+                f"{BASE_URL}/journal-entries/{uuid}",
+                method="PATCH",
+                json=inputs,
+            )
             return ActionResult(data={"result": True, "journal_entry": _data(resp)}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "journal_entry": {}, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"result": False, "journal_entry": {}, "error": str(e)},
+                cost_usd=0.0,
+            )
 
 
 @count.action("delete_journal_entry")
 class DeleteJournalEntryAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: Any):
         try:
-            await _fetch(context, f"{BASE_URL}/journal-entries/{inputs['journal_entry_uuid']}", method="DELETE")
+            await _fetch(
+                context,
+                f"{BASE_URL}/journal-entries/{inputs['journal_entry_uuid']}",
+                method="DELETE",
+            )
             return ActionResult(data={"result": True, "deleted": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "deleted": False, "error": str(e)}, cost_usd=0.0)
