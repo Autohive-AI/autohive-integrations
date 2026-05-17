@@ -136,26 +136,33 @@ class YouTubeParser:
 class Search(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = {"part": "snippet", "q": inputs["query"]}
+            params = {
+                "part": "snippet",
+                "q": inputs["query"],
+                "maxResults": inputs.get("max_results", 5),
+            }
 
-            if "type" in inputs:
-                params["type"] = inputs["type"]
-            if "max_results" in inputs:
-                params["maxResults"] = inputs["max_results"]
-            else:
-                params["maxResults"] = 5
-            if "order" in inputs:
-                params["order"] = inputs["order"]
-            if "published_after" in inputs:
-                params["publishedAfter"] = inputs["published_after"]
-            if "published_before" in inputs:
-                params["publishedBefore"] = inputs["published_before"]
-            if "channel_id" in inputs:
-                params["channelId"] = inputs["channel_id"]
-            if "region_code" in inputs:
-                params["regionCode"] = inputs["region_code"]
-            if "page_token" in inputs:
-                params["pageToken"] = inputs["page_token"]
+            resource_type = inputs.get("type")
+            if resource_type:
+                params["type"] = resource_type
+            order = inputs.get("order")
+            if order:
+                params["order"] = order
+            published_after = inputs.get("published_after")
+            if published_after:
+                params["publishedAfter"] = published_after
+            published_before = inputs.get("published_before")
+            if published_before:
+                params["publishedBefore"] = published_before
+            channel_id = inputs.get("channel_id")
+            if channel_id:
+                params["channelId"] = channel_id
+            region_code = inputs.get("region_code")
+            if region_code:
+                params["regionCode"] = region_code
+            page_token = inputs.get("page_token")
+            if page_token:
+                params["pageToken"] = page_token
 
             response = await context.fetch(service_endpoint + "search", method="GET", params=params)
             body = response.data
@@ -226,18 +233,24 @@ class UpdateVideo(ActionHandler):
             snippet = existing_video.get("snippet", {})
             status = existing_video.get("status", {})
 
-            if "title" in inputs:
-                snippet["title"] = inputs["title"]
-            if "description" in inputs:
-                snippet["description"] = inputs["description"]
-            if "category_id" in inputs:
-                snippet["categoryId"] = inputs["category_id"]
-            if "tags" in inputs:
-                snippet["tags"] = inputs["tags"]
-            if "privacy_status" in inputs:
-                status["privacyStatus"] = inputs["privacy_status"]
-            if "made_for_kids" in inputs:
-                status["selfDeclaredMadeForKids"] = inputs["made_for_kids"]
+            title = inputs.get("title")
+            if title is not None:
+                snippet["title"] = title
+            description = inputs.get("description")
+            if description is not None:
+                snippet["description"] = description
+            category_id = inputs.get("category_id")
+            if category_id is not None:
+                snippet["categoryId"] = category_id
+            tags = inputs.get("tags")
+            if tags is not None:
+                snippet["tags"] = tags
+            privacy_status = inputs.get("privacy_status")
+            if privacy_status is not None:
+                status["privacyStatus"] = privacy_status
+            made_for_kids = inputs.get("made_for_kids")
+            if made_for_kids is not None:
+                status["selfDeclaredMadeForKids"] = made_for_kids
 
             update_data = {"id": video_id, "snippet": snippet, "status": status}
 
@@ -382,12 +395,15 @@ class GetChannel(ActionHandler):
         try:
             params = {"part": "snippet,statistics,contentDetails"}
 
+            channel_id = inputs.get("channel_id")
+            channel_handle = inputs.get("channel_handle")
+
             if inputs.get("mine"):
                 params["mine"] = "true"
-            elif "channel_id" in inputs:
-                params["id"] = inputs["channel_id"]
-            elif "channel_handle" in inputs:
-                params["forHandle"] = inputs["channel_handle"]
+            elif channel_id:
+                params["id"] = channel_id
+            elif channel_handle:
+                params["forHandle"] = channel_handle
             else:
                 return ActionError(message="Must provide channel_id, channel_handle, or set mine=true")
 
@@ -417,15 +433,17 @@ class ListPlaylists(ActionHandler):
                 "maxResults": inputs.get("max_results", 5),
             }
 
+            channel_id = inputs.get("channel_id")
             if inputs.get("mine"):
                 params["mine"] = "true"
-            elif "channel_id" in inputs:
-                params["channelId"] = inputs["channel_id"]
+            elif channel_id:
+                params["channelId"] = channel_id
             else:
                 return ActionError(message="Must provide channel_id or set mine=true")
 
-            if "page_token" in inputs:
-                params["pageToken"] = inputs["page_token"]
+            page_token = inputs.get("page_token")
+            if page_token:
+                params["pageToken"] = page_token
 
             response = await context.fetch(service_endpoint + "playlists", method="GET", params=params)
             body = response.data
@@ -454,8 +472,9 @@ class CreatePlaylist(ActionHandler):
                 "status": {"privacyStatus": inputs["privacy_status"]},
             }
 
-            if "description" in inputs:
-                playlist_data["snippet"]["description"] = inputs["description"]
+            description = inputs.get("description")
+            if description is not None:
+                playlist_data["snippet"]["description"] = description
 
             response = await context.fetch(
                 service_endpoint + "playlists",
@@ -493,12 +512,15 @@ class UpdatePlaylist(ActionHandler):
             snippet = existing_playlist.get("snippet", {})
             status = existing_playlist.get("status", {})
 
-            if "title" in inputs:
-                snippet["title"] = inputs["title"]
-            if "description" in inputs:
-                snippet["description"] = inputs["description"]
-            if "privacy_status" in inputs:
-                status["privacyStatus"] = inputs["privacy_status"]
+            title = inputs.get("title")
+            if title is not None:
+                snippet["title"] = title
+            description = inputs.get("description")
+            if description is not None:
+                snippet["description"] = description
+            privacy_status = inputs.get("privacy_status")
+            if privacy_status is not None:
+                status["privacyStatus"] = privacy_status
 
             update_data = {"id": playlist_id, "snippet": snippet, "status": status}
 
@@ -544,8 +566,9 @@ class ListPlaylistItems(ActionHandler):
                 "maxResults": inputs.get("max_results", 5),
             }
 
-            if "page_token" in inputs:
-                params["pageToken"] = inputs["page_token"]
+            page_token = inputs.get("page_token")
+            if page_token:
+                params["pageToken"] = page_token
 
             response = await context.fetch(service_endpoint + "playlistItems", method="GET", params=params)
             body = response.data
@@ -591,8 +614,9 @@ class AddVideoToPlaylist(ActionHandler):
                 }
             }
 
-            if "position" in inputs:
-                playlist_item_data["snippet"]["position"] = inputs["position"]
+            position = inputs.get("position")
+            if position is not None:
+                playlist_item_data["snippet"]["position"] = position
 
             response = await context.fetch(
                 service_endpoint + "playlistItems",
@@ -637,10 +661,12 @@ class ListComments(ActionHandler):
                 "textFormat": "plainText",
             }
 
-            if "order" in inputs:
-                params["order"] = inputs["order"]
-            if "page_token" in inputs:
-                params["pageToken"] = inputs["page_token"]
+            order = inputs.get("order")
+            if order:
+                params["order"] = order
+            page_token = inputs.get("page_token")
+            if page_token:
+                params["pageToken"] = page_token
 
             response = await context.fetch(service_endpoint + "commentThreads", method="GET", params=params)
             body = response.data
@@ -671,8 +697,9 @@ class ListCommentReplies(ActionHandler):
                 "textFormat": "plainText",
             }
 
-            if "page_token" in inputs:
-                params["pageToken"] = inputs["page_token"]
+            page_token = inputs.get("page_token")
+            if page_token:
+                params["pageToken"] = page_token
 
             response = await context.fetch(service_endpoint + "comments", method="GET", params=params)
             body = response.data
