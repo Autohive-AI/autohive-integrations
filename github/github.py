@@ -1754,6 +1754,7 @@ class CreatePullRequestReview(ActionHandler):
             inputs["owner"],
             inputs["repo"],
             inputs["pull_number"],
+            commit_id=inputs.get("commit_id"),
             body=inputs.get("body"),
             event=inputs.get("event"),
             comments=inputs.get("comments"),
