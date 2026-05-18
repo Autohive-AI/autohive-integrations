@@ -418,7 +418,13 @@ class TestUploadThumbnail:
             live_context,
         )
         data = result.result.data
-        assert "thumbnail" in data
+        thumbnail = data["thumbnail"]
+        # Response is normalized — should be the size-keyed dict, not the raw API envelope
+        assert "items" not in thumbnail
+        assert "kind" not in thumbnail
+        # At least one size variant should have a URL
+        size_keys = ("default", "medium", "high", "standard", "maxres")
+        assert any(thumbnail.get(size, {}).get("url") for size in size_keys)
 
 
 @pytest.mark.destructive

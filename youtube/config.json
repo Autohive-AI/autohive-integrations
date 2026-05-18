@@ -268,7 +268,54 @@
                 "properties": {
                     "thumbnail": {
                         "type": "object",
-                        "description": "Thumbnail details"
+                        "description": "Thumbnail details for the uploaded image. Keys are size names (default, medium, high, standard, maxres); each value has url/width/height. Empty object if YouTube returned no items.",
+                        "properties": {
+                            "default": {
+                                "type": "object",
+                                "description": "Default-size thumbnail (typically 120x90)",
+                                "properties": {
+                                    "url": {"type": "string"},
+                                    "width": {"type": "integer"},
+                                    "height": {"type": "integer"}
+                                }
+                            },
+                            "medium": {
+                                "type": "object",
+                                "description": "Medium-size thumbnail (typically 320x180)",
+                                "properties": {
+                                    "url": {"type": "string"},
+                                    "width": {"type": "integer"},
+                                    "height": {"type": "integer"}
+                                }
+                            },
+                            "high": {
+                                "type": "object",
+                                "description": "High-size thumbnail (typically 480x360)",
+                                "properties": {
+                                    "url": {"type": "string"},
+                                    "width": {"type": "integer"},
+                                    "height": {"type": "integer"}
+                                }
+                            },
+                            "standard": {
+                                "type": "object",
+                                "description": "Standard-size thumbnail (typically 640x480)",
+                                "properties": {
+                                    "url": {"type": "string"},
+                                    "width": {"type": "integer"},
+                                    "height": {"type": "integer"}
+                                }
+                            },
+                            "maxres": {
+                                "type": "object",
+                                "description": "Max-resolution thumbnail (typically 1280x720)",
+                                "properties": {
+                                    "url": {"type": "string"},
+                                    "width": {"type": "integer"},
+                                    "height": {"type": "integer"}
+                                }
+                            }
+                        }
                     },
                     "compression_info": {
                         "type": "object",

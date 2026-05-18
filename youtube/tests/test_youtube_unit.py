@@ -427,12 +427,21 @@ class TestUploadThumbnail:
     @pytest.mark.asyncio
     async def test_uploads_small_jpeg_from_url(self):
         jpeg_bytes = b"\xff\xd8" + b"\x00" * 100  # JPEG magic + tiny payload
-        ctx = make_ctx_multi([jpeg_bytes, {"items": [{"default": {"url": "thumb"}}]}])
+        api_response = {
+            "kind": "youtube#thumbnailSetResponse",
+            "items": [
+                {
+                    "default": {"url": "https://i.ytimg.com/vi/v1/default.jpg", "width": 120, "height": 90},
+                    "high": {"url": "https://i.ytimg.com/vi/v1/hqdefault.jpg", "width": 480, "height": 360},
+                }
+            ],
+        }
+        ctx = make_ctx_multi([jpeg_bytes, api_response])
         # First fetch (image_url) returns bytes; wrap manually because make_ctx_multi assumes dict
         ctx.fetch = AsyncMock(
             side_effect=[
                 FetchResponse(status=200, headers={}, data=jpeg_bytes),
-                FetchResponse(status=200, headers={}, data={"items": [{"default": {"url": "thumb"}}]}),
+                FetchResponse(status=200, headers={}, data=api_response),
             ]
         )
 
@@ -442,7 +451,12 @@ class TestUploadThumbnail:
             ctx,
         )
         data = result.result.data
-        assert "thumbnail" in data
+        # thumbnail should be the unwrapped first items[] entry, not the raw envelope
+        assert "items" not in data["thumbnail"]
+        assert "kind" not in data["thumbnail"]
+        assert data["thumbnail"]["default"]["url"] == "https://i.ytimg.com/vi/v1/default.jpg"
+        assert data["thumbnail"]["default"]["width"] == 120
+        assert data["thumbnail"]["high"]["url"] == "https://i.ytimg.com/vi/v1/hqdefault.jpg"
         # Upload call uses POST with image/jpeg content type
         upload_call = ctx.fetch.call_args_list[1]
         assert upload_call.kwargs["method"] == "POST"
@@ -484,6 +498,8 @@ class TestUploadThumbnail:
             ctx,
         )
         assert result.type != ResultType.ACTION_ERROR
+        # empty items[] from API → normalized to empty dict, not the raw envelope
+        assert result.result.data["thumbnail"] == {}
         # only one fetch call (the upload itself; no URL fetch)
         assert ctx.fetch.call_count == 1
         assert ctx.fetch.call_args.kwargs["headers"]["Content-Type"] == "image/png"

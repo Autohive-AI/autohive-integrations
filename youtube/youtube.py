@@ -128,6 +128,20 @@ class YouTubeParser:
             "total_reply_count": snippet.get("totalReplyCount", 0),
         }
 
+    @staticmethod
+    def parse_thumbnail_set(body: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the thumbnails.set response into the first thumbnail item.
+
+        The raw API returns {"kind", "etag", "items": [ThumbnailDetails]}. Callers
+        only care about the ThumbnailDetails (a dict keyed by size: default,
+        medium, high, standard, maxres — each with url/width/height), which also
+        matches the shape used by parse_video/parse_channel for thumbnails.
+        """
+        items = body.get("items", [])
+        if not items:
+            return {}
+        return items[0]
+
 
 # ---- Search ----
 
@@ -375,7 +389,7 @@ class UploadThumbnail(ActionHandler):
                 headers={"Content-Type": mimetype},
             )
 
-            result = {"thumbnail": response.data}
+            result = {"thumbnail": YouTubeParser.parse_thumbnail_set(response.data)}
 
             if compression_info:
                 result["compression_info"] = compression_info
