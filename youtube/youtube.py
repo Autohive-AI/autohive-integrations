@@ -819,7 +819,10 @@ class UpdateComment(ActionHandler):
                 json=update_data,
             )
 
-            return ActionResult(data={"comment": response.data}, cost_usd=0.0)
+            return ActionResult(
+                data={"comment": YouTubeParser.parse_comment(response.data)},
+                cost_usd=0.0,
+            )
 
         except Exception as e:
             return ActionError(message=str(e))

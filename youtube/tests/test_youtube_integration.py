@@ -345,12 +345,15 @@ class TestCommentLifecycle:
 
         try:
             # Update
+            updated_text = f"Updated test comment {os.getpid()}"
             update_result = await youtube.execute_action(
                 "update_comment",
-                {"comment_id": comment_id, "text": f"Updated test comment {os.getpid()}"},
+                {"comment_id": comment_id, "text": updated_text},
                 live_context,
             )
-            assert "comment" in update_result.result.data
+            updated_comment = update_result.result.data["comment"]
+            assert updated_comment["id"] == comment_id
+            assert updated_text in updated_comment["text"]
         finally:
             # Cleanup
             delete_result = await youtube.execute_action("delete_comment", {"comment_id": comment_id}, live_context)

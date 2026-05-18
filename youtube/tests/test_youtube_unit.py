@@ -879,12 +879,22 @@ class TestUpdateComment:
         ctx = make_ctx_multi(
             [
                 {"items": [{"id": "c1", "snippet": {"textOriginal": "old"}}]},
-                {"id": "c1", "snippet": {"textOriginal": "new"}},
+                {
+                    "id": "c1",
+                    "snippet": {
+                        "textDisplay": "new",
+                        "textOriginal": "new",
+                        "authorDisplayName": "Tester",
+                    },
+                },
             ]
         )
         result = await youtube.execute_action("update_comment", {"comment_id": "c1", "text": "new"}, ctx)
         data = result.result.data
         assert data["comment"]["id"] == "c1"
+        assert data["comment"]["text"] == "new"
+        assert data["comment"]["text_original"] == "new"
+        assert data["comment"]["author_display_name"] == "Tester"
         body = ctx.fetch.call_args_list[1].kwargs["json"]
         assert body["id"] == "c1"
         assert body["snippet"]["textOriginal"] == "new"
