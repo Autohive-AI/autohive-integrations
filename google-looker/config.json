@@ -1,6 +1,6 @@
 {
     "name": "Google Looker",
-    "version": "1.0.1",
+    "version": "2.0.0",
     "description": "Looker integration with custom authentication",
     "entry_point": "google_looker.py",
     "auth": {
@@ -59,19 +59,10 @@
                         "items": {
                             "type": "object"
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Operation success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
                 "required": [
-                    "dashboards",
-                    "result"
+                    "dashboards"
                 ]
             }
         },
@@ -100,19 +91,10 @@
                     "dashboard": {
                         "type": "object",
                         "description": "Complete dashboard object containing title, description, elements, filters, layout, and other dashboard metadata"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Operation success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
                 "required": [
-                    "dashboard",
-                    "result"
+                    "dashboard"
                 ]
             }
         },
@@ -184,19 +166,10 @@
                     "query_results": {
                         "type": "string",
                         "description": "Query results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Operation success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
                 "required": [
-                    "query_results",
-                    "result"
+                    "query_results"
                 ]
             }
         },
@@ -222,19 +195,10 @@
                         "items": {
                             "type": "object"
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Operation success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
                 "required": [
-                    "models",
-                    "result"
+                    "models"
                 ]
             }
         },
@@ -263,19 +227,10 @@
                     "model": {
                         "type": "object",
                         "description": "Model data"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Operation success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
                 "required": [
-                    "model",
-                    "result"
+                    "model"
                 ]
             }
         },
@@ -329,20 +284,11 @@
                     "query_results": {
                         "type": "string",
                         "description": "Query execution results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Operation success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
                 "required": [
                     "slug",
-                    "query_results",
-                    "result"
+                    "query_results"
                 ]
             }
         },
@@ -368,19 +314,10 @@
                         "items": {
                             "type": "object"
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Operation success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
                 "required": [
-                    "connections",
-                    "result"
+                    "connections"
                 ]
             }
         }
