@@ -578,6 +578,7 @@ class GitHubAPI:
         owner: str,
         repo: str,
         pull_number: int,
+        commit_id: str = None,
         body: str = None,
         event: str = None,
         comments: List[Dict[str, Any]] = None,
@@ -586,6 +587,8 @@ class GitHubAPI:
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/pulls/{pull_number}/reviews"
         data = {}
 
+        if commit_id:
+            data["commit_id"] = commit_id
         if body:
             data["body"] = body
         if event:
@@ -1751,6 +1754,7 @@ class CreatePullRequestReview(ActionHandler):
             inputs["owner"],
             inputs["repo"],
             inputs["pull_number"],
+            commit_id=inputs.get("commit_id"),
             body=inputs.get("body"),
             event=inputs.get("event"),
             comments=inputs.get("comments"),
