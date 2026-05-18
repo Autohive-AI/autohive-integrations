@@ -3,6 +3,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
 )
 from typing import Dict, Any, Optional
 
@@ -34,33 +35,21 @@ class LookerAPIHelper:
         if self.access_token and self.token_expires_at and datetime.now() < self.token_expires_at:
             return self.access_token
 
-        auth_url = f"{self.base_url}/api/4.0/login"
-        auth_data = {"client_id": self.client_id, "client_secret": self.client_secret}
+        response = await self.context.fetch(
+            f"{self.base_url}/api/4.0/login",
+            method="POST",
+            data={"client_id": self.client_id, "client_secret": self.client_secret},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
 
-        try:
-            response = await self.context.fetch(
-                url=auth_url,
-                method="POST",
-                data=auth_data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
+        token_data = response.data
+        self.access_token = token_data.get("access_token")
+        if not self.access_token:
+            raise Exception("No access_token in authentication response")
 
-            if response.status != 200:
-                raise Exception(f"Authentication failed with status {response.status}")
-
-            token_data = response.data
-
-            self.access_token = token_data.get("access_token")
-            expires_in = token_data.get("expires_in", 3600)
-            self.token_expires_at = datetime.now() + timedelta(seconds=expires_in - 60)
-
-            if not self.access_token:
-                raise Exception("No access_token received in authentication response")
-
-            return self.access_token
-
-        except Exception as e:
-            raise Exception(f"Authentication failed: {str(e)}")
+        expires_in = token_data.get("expires_in", 3600)
+        self.token_expires_at = datetime.now() + timedelta(seconds=expires_in - 60)
+        return self.access_token
 
     async def _get_headers(self) -> Dict[str, str]:
         token = await self._get_access_token()
@@ -75,49 +64,34 @@ class LookerAPIHelper:
     ) -> Dict[str, Any]:
         url = f"{self.base_url}/api/4.0{endpoint}"
         headers = await self._get_headers()
-
-        try:
-            response = await self.context.fetch(
-                url=url,
-                method=method.upper(),
-                json=data if method.upper() in ["POST", "PUT"] else None,
-                params=params,
-                headers=headers,
-            )
-
-            if response.status not in [200, 201, 202, 204]:
-                raise Exception(f"API request failed: {response.status}")
-
-            return response.data or {}
-
-        except Exception:
-            raise
+        response = await self.context.fetch(
+            url,
+            method=method.upper(),
+            json=data if method.upper() in ["POST", "PUT"] else None,
+            params=params or None,
+            headers=headers,
+        )
+        return response.data if response.data is not None else {}
 
 
 def build_looker_helper(context: ExecutionContext) -> LookerAPIHelper:
-    try:
-        if hasattr(context, "auth") and context.auth:
-            credentials = context.auth.get("credentials", {})
-            base_url = credentials.get("base_url")
-            client_id = credentials.get("client_id")
-            client_secret = credentials.get("client_secret")
-        else:
-            raise ValueError("No authentication credentials provided in context")
+    if not (hasattr(context, "auth") and context.auth):
+        raise ValueError("No authentication credentials provided in context")
 
-        if not all([base_url, client_id, client_secret]):
-            missing = []
-            if not base_url:
-                missing.append("base_url")
-            if not client_id:
-                missing.append("client_id")
-            if not client_secret:
-                missing.append("client_secret")
-            raise ValueError(f"Missing required configuration: {', '.join(missing)}")
+    credentials = context.auth.get("credentials", {})
+    base_url = credentials.get("base_url")
+    client_id = credentials.get("client_id")
+    client_secret = credentials.get("client_secret")
 
-        return LookerAPIHelper(context, base_url, client_id, client_secret)
+    if not all([base_url, client_id, client_secret]):
+        missing = [
+            k
+            for k, v in {"base_url": base_url, "client_id": client_id, "client_secret": client_secret}.items()
+            if not v
+        ]  # noqa: E501
+        raise ValueError(f"Missing required configuration: {', '.join(missing)}")
 
-    except Exception as e:
-        raise Exception(f"Failed to build Looker helper: {str(e)}")
+    return LookerAPIHelper(context, base_url, client_id, client_secret)
 
 
 @google_looker.action("list_dashboards")
@@ -136,10 +110,10 @@ class ListDashboards(ActionHandler):
 
             dashboards = await helper.make_request("GET", "/dashboards", params=params)
 
-            return ActionResult(data={"dashboards": dashboards, "result": True}, cost_usd=0)
+            return ActionResult(data={"dashboards": dashboards}, cost_usd=0)
 
         except Exception as e:
-            return ActionResult(data={"dashboards": [], "result": False, "error": str(e)}, cost_usd=0)
+            return ActionError(message=str(e))
 
 
 @google_looker.action("get_dashboard")
@@ -155,10 +129,10 @@ class GetDashboard(ActionHandler):
 
             dashboard = await helper.make_request("GET", f"/dashboards/{dashboard_id}", params=params)
 
-            return ActionResult(data={"dashboard": dashboard, "result": True}, cost_usd=0)
+            return ActionResult(data={"dashboard": dashboard}, cost_usd=0)
 
         except Exception as e:
-            return ActionResult(data={"dashboard": {}, "result": False, "error": str(e)}, cost_usd=0)
+            return ActionError(message=str(e))
 
 
 @google_looker.action("execute_lookml_query")
@@ -197,16 +171,12 @@ class ExecuteLookMLQuery(ActionHandler):
             return ActionResult(
                 data={
                     "query_results": json.dumps(results) if isinstance(results, (dict, list)) else str(results),
-                    "result": True,
                 },
                 cost_usd=0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"query_results": "[]", "result": False, "error": str(e)},
-                cost_usd=0,
-            )
+            return ActionError(message=str(e))
 
 
 @google_looker.action("list_models")
@@ -221,10 +191,10 @@ class ListModels(ActionHandler):
 
             models = await helper.make_request("GET", "/lookml_models", params=params)
 
-            return ActionResult(data={"models": models, "result": True}, cost_usd=0)
+            return ActionResult(data={"models": models}, cost_usd=0)
 
         except Exception as e:
-            return ActionResult(data={"models": [], "result": False, "error": str(e)}, cost_usd=0)
+            return ActionError(message=str(e))
 
 
 @google_looker.action("get_model")
@@ -240,10 +210,10 @@ class GetModel(ActionHandler):
 
             model = await helper.make_request("GET", f"/lookml_models/{model_name}", params=params)
 
-            return ActionResult(data={"model": model, "result": True}, cost_usd=0)
+            return ActionResult(data={"model": model}, cost_usd=0)
 
         except Exception as e:
-            return ActionResult(data={"model": {}, "result": False, "error": str(e)}, cost_usd=0)
+            return ActionError(message=str(e))
 
 
 @google_looker.action("execute_sql_query")
@@ -283,21 +253,12 @@ class ExecuteSQLQuery(ActionHandler):
                 data={
                     "slug": slug,
                     "query_results": json.dumps(results) if isinstance(results, (dict, list)) else str(results),
-                    "result": True,
                 },
                 cost_usd=0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={
-                    "slug": "",
-                    "query_results": "",
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0,
-            )
+            return ActionError(message=str(e))
 
 
 @google_looker.action("list_connections")
@@ -312,7 +273,7 @@ class ListConnections(ActionHandler):
 
             connections = await helper.make_request("GET", "/connections", params=params)
 
-            return ActionResult(data={"connections": connections, "result": True}, cost_usd=0)
+            return ActionResult(data={"connections": connections}, cost_usd=0)
 
         except Exception as e:
-            return ActionResult(data={"connections": [], "result": False, "error": str(e)}, cost_usd=0)
+            return ActionError(message=str(e))
