@@ -240,7 +240,7 @@
         },
         "upload_thumbnail": {
             "display_name": "Upload Thumbnail",
-            "description": "Upload custom thumbnail for a video. Automatically compresses images larger than 2MB. Accepts JPEG/PNG formats. Quota cost: 50 units. Supports URLs, local file paths, and chat-uploaded files.",
+            "description": "Upload custom thumbnail for a video. Automatically compresses images larger than 2MB. Accepts JPEG/PNG formats. Quota cost: 50 units. Supports URLs and chat-uploaded files.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -251,10 +251,6 @@
                     "image_url": {
                         "type": "string",
                         "description": "URL of the thumbnail image (JPEG/PNG). Will be auto-compressed if larger than 2MB"
-                    },
-                    "image_path": {
-                        "type": "string",
-                        "description": "Local file path of the thumbnail image to upload (JPEG/PNG). Will be auto-compressed if larger than 2MB"
                     },
                     "file": {
                         "type": "object",

@@ -327,7 +327,7 @@ class UploadThumbnail(ActionHandler):
         try:
             video_id = inputs["video_id"]
 
-            image_url = inputs.get("image_url") or inputs.get("image_path")
+            image_url = inputs.get("image_url")
             file_obj = inputs.get("file")
             files_arr = inputs.get("files")
 
@@ -353,7 +353,7 @@ class UploadThumbnail(ActionHandler):
                 else:
                     image_data = str(body).encode()
             else:
-                return ActionError(message="Either image_url, image_path, file, or files must be provided")
+                return ActionError(message="Either image_url, file, or files must be provided")
 
             original_size = len(image_data)
             image_data, mimetype = self._compress_image(image_data, max_size_mb=2.0)

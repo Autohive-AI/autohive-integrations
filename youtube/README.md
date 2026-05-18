@@ -83,7 +83,9 @@ No additional configuration fields are required as authentication is handled thr
 - **Description:** Upload a custom thumbnail image for a video
 - **Inputs:**
   - `video_id`: YouTube video ID (required)
-  - `image_url`: URL or path to thumbnail image in JPEG or PNG format, max 2MB (required)
+  - `image_url`: URL of thumbnail image in JPEG or PNG format, max 2MB (one of `image_url`, `file`, or `files` is required)
+  - `file`: Chat-uploaded file object containing image data
+  - `files`: Array of chat-uploaded file objects (first file is used)
 - **Outputs:**
   - `thumbnail`: Thumbnail details object
   - `result`: Success status boolean
