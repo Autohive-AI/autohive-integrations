@@ -1,7 +1,7 @@
 {
     "name": "WhatsApp Business",
     "display_name": "WhatsApp Business",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "WhatsApp Business API integration for sending messages and managing conversations",
     "entry_point": "whatsapp.py",
     "auth": {
@@ -34,11 +34,9 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "message_id": {"type": ["string", "null"]},
-                    "success": {"type": "boolean"},
-                    "error": {"type": "string"}
+                    "message_id": {"type": ["string", "null"]}
                 },
-                "required": ["message_id", "success"]
+                "required": ["message_id"]
             }
         },
         "send_template_message": {
@@ -76,11 +74,9 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "message_id": {"type": ["string", "null"]},
-                    "success": {"type": "boolean"},
-                    "error": {"type": "string"}
+                    "message_id": {"type": ["string", "null"]}
                 },
-                "required": ["message_id", "success"]
+                "required": ["message_id"]
             }
         },
         "send_media_message": {
@@ -120,11 +116,9 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "message_id": {"type": ["string", "null"]},
-                    "success": {"type": "boolean"},
-                    "error": {"type": "string"}
+                    "message_id": {"type": ["string", "null"]}
                 },
-                "required": ["message_id", "success"]
+                "required": ["message_id"]
             }
         },
         "get_phone_number_health": {
@@ -144,11 +138,9 @@
                 "type": "object",
                 "properties": {
                     "status": {"type": "string"},
-                    "quality_rating": {"type": "string"},
-                    "success": {"type": "boolean"},
-                    "error": {"type": "string"}
+                    "quality_rating": {"type": "string"}
                 },
-                "required": ["status", "success"]
+                "required": ["status"]
             }
         }
     }

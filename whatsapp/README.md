@@ -11,23 +11,23 @@ This integration provides comprehensive WhatsApp Business API functionality, ena
 Configure the integration within Autohive using platform authentication for WhatsApp Business API access through Meta Business Manager.
 
 **Authentication Type:** Platform (OAuth2)
-**Provider:** WhatsApp
+**Provider:** WhatsApp Business
 **Required Scopes:**
 - `whatsapp_business_messaging`
 - `whatsapp_business_management`
 
-**Authentication Fields:**
-- `access_token`: Meta Graph API access token with WhatsApp permissions
-- `phone_number_id`: Phone Number ID from Meta Business Manager WhatsApp settings
+Authentication itself is handled by Autohive's platform OAuth flow — the access token is injected at execution time, not configured by the user. Every action additionally takes a `phone_number_id` input (the Phone Number ID from Meta Business Manager) to route messages from the correct WhatsApp Business number.
 
 **Setup Steps:**
 1. Create a WhatsApp Business Account through Meta Business Manager
 2. Configure WhatsApp Business API access in your Meta Business Account
 3. Set up and verify a phone number for business messaging
-4. Generate an access token with the required WhatsApp permissions
-5. Copy the Phone Number ID from WhatsApp Business API settings
+4. Connect the WhatsApp Business provider in Autohive (grants the required scopes)
+5. Copy the Phone Number ID from WhatsApp Business API settings — you'll pass it as the `phone_number_id` input on each action
 
 ## Actions
+
+**Error handling:** On failure, actions return an `ActionError` with a `message` field (e.g. `"Invalid phone number format"`, `"Object does not exist"`). On success, `data` contains only the documented output fields listed below — there is no `success` boolean or `error` string in the payload.
 
 ### Action: `send_message`
 
@@ -37,9 +37,7 @@ Configure the integration within Autohive using platform authentication for What
   - `message` (required): Text content of the message to send
   - `phone_number_id` (required): The Phone Number ID associated with the WhatsApp Business account
 - **Outputs:**
-  - `message_id`: Unique WhatsApp message identifier if successful
-  - `success`: Boolean indicating if the message was sent successfully
-  - `error`: Error description if the operation failed
+  - `message_id`: Unique WhatsApp message identifier
 
 ### Action: `send_template_message`
 
@@ -51,9 +49,7 @@ Configure the integration within Autohive using platform authentication for What
   - `language_code` (optional): Template language code (default: "en")
   - `parameters` (optional): Array of string parameters for template substitution
 - **Outputs:**
-  - `message_id`: Unique WhatsApp message identifier if successful
-  - `success`: Boolean indicating if the template message was sent
-  - `error`: Error description if the operation failed
+  - `message_id`: Unique WhatsApp message identifier
 
 ### Action: `send_media_message`
 
@@ -66,9 +62,7 @@ Configure the integration within Autohive using platform authentication for What
   - `caption` (optional): Text caption for the media (images, videos, documents)
   - `filename` (optional): Custom filename for document type media
 - **Outputs:**
-  - `message_id`: Unique WhatsApp message identifier if successful
-  - `success`: Boolean indicating if the media message was sent
-  - `error`: Error description if the operation failed
+  - `message_id`: Unique WhatsApp message identifier
 
 ### Action: `get_phone_number_health`
 
@@ -78,8 +72,6 @@ Configure the integration within Autohive using platform authentication for What
 - **Outputs:**
   - `status`: Connection status of the phone number (e.g., "CONNECTED", "PENDING", "OFFLINE").
   - `quality_rating`: Quality rating of the phone number (e.g., "GREEN", "YELLOW", "RED", "UNKNOWN").
-  - `success`: Boolean indicating if the operation completed successfully.
-  - `error`: Error description if the operation failed.
 
 ## Requirements
 
@@ -126,19 +118,38 @@ Note: Only media via a Public URL is supported through the WhatsApp API. Not loc
 
 ## Testing
 
-To run the tests:
+The integration ships with two test suites:
 
-1. Navigate to the integration's directory: `cd whatsapp`
-2. Install dependencies: `pip install -r requirements.txt -t dependencies`
-3. Run the tests: `python tests/test_whatsapp.py`
+- **Unit tests** (`tests/test_whatsapp_unit.py`) — no network, no credentials. Use `FetchResponse` to fake Graph API responses. Safe to run anywhere, including CI.
+- **Integration tests** (`tests/test_whatsapp_integration.py`) — hit the real WhatsApp Cloud (Facebook Graph) API. Require a valid Meta access token and a business phone number ID (see `.env.example`).
 
-The test suite includes:
-- Message sending validation
-- Template message functionality
-- Media message handling
-- Contact information retrieval
-- Phone number health check
-- Phone number format validation
+Install dependencies first:
+
+```bash
+pip install -r requirements.txt
+```
+
+### Run unit tests
+
+```bash
+pytest whatsapp/tests/test_whatsapp_unit.py -v
+```
+
+The repo's default pytest filter (`-m unit`) excludes integration tests, and `test_*_integration.py` is not matched by `python_files`, so integration tests never run in CI by accident.
+
+### Run integration tests
+
+Set the `WHATSAPP_*` environment variables (see `.env.example` for the full list — at minimum `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`, plus `WHATSAPP_RECIPIENT_PHONE` / `WHATSAPP_MEDIA_URL` for destructive tests). Then:
+
+```bash
+# Read-only tests (safe — phone number health + validation paths only)
+pytest whatsapp/tests/test_whatsapp_integration.py -m "integration and not destructive"
+
+# Destructive tests (sends real messages to WHATSAPP_RECIPIENT_PHONE — review first!)
+pytest whatsapp/tests/test_whatsapp_integration.py -m "integration and destructive"
+```
+
+Tests that need a specific env var will be `skip`-ed automatically when the var is missing, so you can run a subset by exporting only the vars you care about.
 
 ## Error Handling
 
