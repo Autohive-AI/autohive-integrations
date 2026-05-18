@@ -1290,7 +1290,20 @@
             }
           },
           "head": {
-            "type": "object"
+            "type": "object",
+            "description": "The head branch info. head.sha is the latest commit SHA — pass this as commit_id when calling create_pull_request_review.",
+            "properties": {
+              "sha": {
+                "type": "string",
+                "description": "The latest commit SHA on the PR head branch. Use as commit_id in create_pull_request_review."
+              },
+              "ref": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            }
           },
           "base": {
             "type": "object"
@@ -1734,7 +1747,7 @@
     },
     "create_pull_request_review": {
       "display_name": "Create Pull Request Review",
-      "description": "Create a review for a pull request",
+      "description": "Create a review for a pull request, optionally with inline comments on specific lines of changed files. Use get_pull_request first to obtain the head commit SHA (head.sha) required for commit_id.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1750,9 +1763,13 @@
             "type": "integer",
             "description": "Pull request number"
           },
+          "commit_id": {
+            "type": "string",
+            "description": "The SHA of the latest commit on the PR head branch. Required when posting inline comments. Obtain this from get_pull_request → head.sha."
+          },
           "body": {
             "type": "string",
-            "description": "Review body"
+            "description": "Overall review body text. Required when event is REQUEST_CHANGES or COMMENT."
           },
           "event": {
             "type": "string",
@@ -1761,25 +1778,21 @@
               "REQUEST_CHANGES",
               "COMMENT"
             ],
-            "description": "Review action"
+            "description": "Review action: APPROVE, REQUEST_CHANGES, or COMMENT."
           },
           "comments": {
             "type": "array",
-            "description": "Line comments",
+            "description": "Inline comments to post on specific lines of the diff. Each comment must target a line that actually appears in the PR diff — use diff_branch_to_branch or the patch field from get_pull_request to find valid line numbers.",
             "items": {
               "type": "object",
               "properties": {
                 "path": {
                   "type": "string",
-                  "description": "File path"
-                },
-                "position": {
-                  "type": "integer",
-                  "description": "Diff position (deprecated)"
+                  "description": "File path relative to the repo root (e.g. 'src/main.py')"
                 },
                 "line": {
                   "type": "integer",
-                  "description": "Line number"
+                  "description": "Line number in the file to comment on. Must be a line present in the PR diff — GitHub rejects comments on lines not in the diff."
                 },
                 "side": {
                   "type": "string",
@@ -1787,13 +1800,26 @@
                     "LEFT",
                     "RIGHT"
                   ],
-                  "description": "Side of diff"
+                  "description": "Which side of the diff to comment on. RIGHT for the new version (added/unchanged lines), LEFT for the old version (removed lines). Use RIGHT for almost all cases."
                 },
                 "body": {
                   "type": "string",
-                  "description": "Comment text"
+                  "description": "The inline comment text."
+                },
+                "start_line": {
+                  "type": "integer",
+                  "description": "First line of a multi-line comment range. Only set this when the comment spans multiple lines; omit for single-line comments."
+                },
+                "start_side": {
+                  "type": "string",
+                  "enum": [
+                    "LEFT",
+                    "RIGHT"
+                  ],
+                  "description": "Side for the start_line when making a multi-line comment. Usually matches side."
                 }
-              }
+              },
+              "required": ["path", "line", "body"]
             }
           }
         },
