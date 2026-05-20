@@ -659,7 +659,13 @@ class TestUpdatePlaylist:
         assert body["status"]["privacyStatus"] == "public"
 
     @pytest.mark.asyncio
-    async def test_not_found_returns_error(self):
+    async def test_not_found_returns_error(self, monkeypatch):
+        # Disable the eventual-consistency retry delays so the test runs fast.
+        # Use sys.modules because the package's __init__.py shadows the submodule
+        # name (`from .youtube import youtube`), so `import youtube.youtube`
+        # would return the Integration instance, not the module.
+        import sys
+        monkeypatch.setattr(sys.modules["youtube.youtube"], "PLAYLIST_LIST_RETRY_DELAYS", ())
         ctx = make_ctx({"items": []})
         result = await youtube.execute_action("update_playlist", {"playlist_id": "x", "title": "y"}, ctx)
         assert result.type == ResultType.ACTION_ERROR
@@ -892,18 +898,15 @@ class TestReplyToComment:
 class TestUpdateComment:
     @pytest.mark.asyncio
     async def test_updates(self):
-        ctx = make_ctx_multi(
-            [
-                {"items": [{"id": "c1", "snippet": {"textOriginal": "old"}}]},
-                {
-                    "id": "c1",
-                    "snippet": {
-                        "textDisplay": "new",
-                        "textOriginal": "new",
-                        "authorDisplayName": "Tester",
-                    },
+        ctx = make_ctx(
+            {
+                "id": "c1",
+                "snippet": {
+                    "textDisplay": "new",
+                    "textOriginal": "new",
+                    "authorDisplayName": "Tester",
                 },
-            ]
+            }
         )
         result = await youtube.execute_action("update_comment", {"comment_id": "c1", "text": "new"}, ctx)
         data = result.result.data
@@ -911,16 +914,12 @@ class TestUpdateComment:
         assert data["comment"]["text"] == "new"
         assert data["comment"]["text_original"] == "new"
         assert data["comment"]["author_display_name"] == "Tester"
-        body = ctx.fetch.call_args_list[1].kwargs["json"]
-        assert body["id"] == "c1"
-        assert body["snippet"]["textOriginal"] == "new"
 
-    @pytest.mark.asyncio
-    async def test_not_found_returns_error(self):
-        ctx = make_ctx({"items": []})
-        result = await youtube.execute_action("update_comment", {"comment_id": "missing", "text": "x"}, ctx)
-        assert result.type == ResultType.ACTION_ERROR
-        assert "Comment not found" in result.result.message
+        ctx.fetch.assert_awaited_once()
+        call = ctx.fetch.call_args
+        assert call.kwargs["method"] == "PUT"
+        assert call.kwargs["params"] == {"part": "snippet"}
+        assert call.kwargs["json"] == {"id": "c1", "snippet": {"textOriginal": "new"}}
 
 
 class TestDeleteComment:

@@ -6,6 +6,7 @@ from autohive_integrations_sdk import (
     ActionError,
 )
 from typing import Dict, Any
+import asyncio
 import base64
 from io import BytesIO
 from PIL import Image
@@ -15,6 +16,11 @@ youtube = Integration.load()
 
 # Base endpoint for YouTube Data API v3
 service_endpoint = "https://www.googleapis.com/youtube/v3/"
+
+# playlists.list is eventually consistent — a just-created playlist may return
+# zero items for a few seconds. Retry with backoff before declaring it missing.
+# Exposed at module level so tests can monkeypatch to a no-wait variant.
+PLAYLIST_LIST_RETRY_DELAYS = (0.5, 1.0, 2.0)
 
 
 class YouTubeParser:
@@ -512,13 +518,23 @@ class UpdatePlaylist(ActionHandler):
         try:
             playlist_id = inputs["playlist_id"]
 
-            existing_response = await context.fetch(
-                service_endpoint + "playlists",
-                method="GET",
-                params={"part": "snippet,status", "id": playlist_id},
-            )
+            # playlists.update requires the full snippet — fields omitted from
+            # the body get cleared — so we must fetch the existing snippet to
+            # merge in. Retry the GET on empty results to ride out YouTube's
+            # eventual consistency on freshly-created playlists.
+            items = []
+            for delay in (0, *PLAYLIST_LIST_RETRY_DELAYS):
+                if delay:
+                    await asyncio.sleep(delay)
+                existing_response = await context.fetch(
+                    service_endpoint + "playlists",
+                    method="GET",
+                    params={"part": "snippet,status", "id": playlist_id},
+                )
+                items = existing_response.data.get("items", [])
+                if items:
+                    break
 
-            items = existing_response.data.get("items", [])
             if not items:
                 return ActionError(message="Playlist not found")
 
@@ -808,23 +824,14 @@ class ReplyToComment(ActionHandler):
 class UpdateComment(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            comment_id = inputs["comment_id"]
-
-            existing_response = await context.fetch(
-                service_endpoint + "comments",
-                method="GET",
-                params={"part": "snippet", "id": comment_id},
-            )
-
-            items = existing_response.data.get("items", [])
-            if not items:
-                return ActionError(message="Comment not found")
-
-            existing_comment = items[0]
-            snippet = existing_comment.get("snippet", {})
-            snippet["textOriginal"] = inputs["text"]
-
-            update_data = {"id": comment_id, "snippet": snippet}
+            # comments.update only accepts snippet.textOriginal — no need to
+            # echo back the existing snippet. A pre-GET via comments.list is
+            # also unsafe right after creation: that endpoint is eventually
+            # consistent and may return zero items for a comment that exists.
+            update_data = {
+                "id": inputs["comment_id"],
+                "snippet": {"textOriginal": inputs["text"]},
+            }
 
             response = await context.fetch(
                 service_endpoint + "comments",
