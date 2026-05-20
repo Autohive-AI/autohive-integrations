@@ -665,6 +665,7 @@ class TestUpdatePlaylist:
         # name (`from .youtube import youtube`), so `import youtube.youtube`
         # would return the Integration instance, not the module.
         import sys
+
         monkeypatch.setattr(sys.modules["youtube.youtube"], "PLAYLIST_LIST_RETRY_DELAYS", ())
         ctx = make_ctx({"items": []})
         result = await youtube.execute_action("update_playlist", {"playlist_id": "x", "title": "y"}, ctx)
