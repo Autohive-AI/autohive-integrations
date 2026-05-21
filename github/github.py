@@ -2688,11 +2688,18 @@ class GitHubConnectedAccountHandler(ConnectedAccountHandler):
 
         Returns:
             ConnectedAccountInfo with user's email, username, name, avatar, etc.
+            Falls back to an empty ConnectedAccountInfo when the GitHub API call
+            fails (e.g., revoked/expired token, 5xx outage). The SDK does not
+            catch exceptions raised from this handler, so letting one propagate
+            crashes the Lambda with "Unhandled". Auth failures surface to the
+            user the next time they run an action.
         """
-        # Fetch authenticated user info
-        user_data = await GitHubAPI.get_user(context)
+        try:
+            user_data = await GitHubAPI.get_user(context)
+        except Exception as e:
+            context.logger.warning(f"Failed to fetch GitHub account info: {e}")
+            return ConnectedAccountInfo()
 
-        # Parse name into first/last
         name = user_data.get("name", "")
         name_parts = name.split(maxsplit=1) if name else []
 

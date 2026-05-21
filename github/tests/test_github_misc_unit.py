@@ -11,7 +11,7 @@ sys.path.insert(0, _deps)
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
+from autohive_integrations_sdk.integration import HTTPError, ResultType  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("github_mod", os.path.join(_parent, "github.py"))
 _mod = importlib.util.module_from_spec(_spec)
@@ -519,3 +519,56 @@ class TestGetReleaseByTag:
 
         url = mock_context.fetch.call_args.args[0]
         assert "release%2F2024-01" in url
+
+
+# ---- Connected Account ----
+
+
+class TestConnectedAccount:
+    @pytest.mark.asyncio
+    async def test_returns_populated_account_info(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "login": "octocat",
+                "id": 1,
+                "name": "The Octocat",
+                "company": "@github",
+                "email": "octocat@github.com",
+                "avatar_url": "https://github.com/images/error/octocat.gif",
+            },
+        )
+
+        result = await github.get_connected_account(mock_context)
+
+        assert result.type == ResultType.CONNECTED_ACCOUNT
+        assert result.result.username == "octocat"
+        assert result.result.email == "octocat@github.com"
+        assert result.result.first_name == "The"
+        assert result.result.last_name == "Octocat"
+        assert result.result.user_id == "1"
+
+    @pytest.mark.asyncio
+    async def test_http_error_returns_empty_info_instead_of_crashing(self, mock_context):
+        # Reproduces the Raygun "Unhandled" Lambda crash: an HTTPError raised by
+        # context.fetch (e.g., revoked/expired token) used to propagate out of the
+        # handler and crash the Lambda. Handler must absorb it and return a valid
+        # (empty) ConnectedAccountInfo so the Lambda returns normally.
+        mock_context.fetch.side_effect = HTTPError(401, "Bad credentials")
+
+        result = await github.get_connected_account(mock_context)
+
+        assert result.type == ResultType.CONNECTED_ACCOUNT
+        assert result.result.username is None
+        assert result.result.email is None
+        assert result.result.user_id is None
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_returns_empty_info(self, mock_context):
+        mock_context.fetch.side_effect = Exception("network unreachable")
+
+        result = await github.get_connected_account(mock_context)
+
+        assert result.type == ResultType.CONNECTED_ACCOUNT
+        assert result.result.username is None
