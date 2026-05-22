@@ -9,7 +9,9 @@ Required env vars:
     WHATSAPP_PHONE_NUMBER_ID — Phone number ID of the business sender
     WHATSAPP_RECIPIENT_PHONE — (destructive only) E.164 recipient number
     WHATSAPP_TEMPLATE_NAME   — (destructive only) approved template name
-    WHATSAPP_TEMPLATE_LANG   — (destructive only) approved-template locale, default "en_US" (matches Meta's stock hello_world template). Must match the locale the template was approved in.
+    WHATSAPP_TEMPLATE_LANG   — (destructive only) approved-template locale, default "en_US"
+                              (matches Meta's stock hello_world template). Must match the locale
+                              the template was approved in.
     WHATSAPP_MEDIA_URL       — (destructive only) public HTTPS image URL
 
 Run read-only tests (safe — recommended default):
