@@ -21,9 +21,10 @@ from autohive_integrations_sdk import (
     ConnectedAccountHandler,
     ConnectedAccountInfo,
 )
-from typing import Dict, Any, List, Callable, TypeVar
+from typing import Dict, Any, List, Callable, Optional, TypeVar
 from urllib.parse import quote
 from functools import wraps
+import asyncio
 import base64
 
 github = Integration.load()
@@ -60,6 +61,16 @@ def handle_github_errors(action_name: str):
 
                 return await func(self, inputs, context)
 
+            except asyncio.CancelledError:
+                # Lambda runtime / async machinery cancelled the task (e.g., timeout).
+                # CancelledError inherits from BaseException, so a bare `except Exception`
+                # would not catch it and the Lambda would crash with "Unhandled".
+                return ActionError(
+                    message=(
+                        f"Action '{action_name}' was cancelled before completing. "
+                        "If listing a large dataset, try narrowing the request with filters."
+                    )
+                )
             except Exception as e:
                 return ActionError(message=str(e))
 
@@ -1154,6 +1165,24 @@ class DeleteRepository(ActionHandler):
 # ---- Commit Actions ----
 
 
+def _commit_signature(sig: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    # GitHub may return a null author/committer for commits whose email isn't
+    # linked to a GitHub user (deleted accounts, bot-authored commits, etc.).
+    sig = sig or {}
+    return {"name": sig.get("name"), "email": sig.get("email"), "date": sig.get("date")}
+
+
+def _commit_summary(commit: Dict[str, Any]) -> Dict[str, Any]:
+    inner = commit.get("commit") or {}
+    return {
+        "sha": commit.get("sha"),
+        "author": _commit_signature(inner.get("author")),
+        "committer": _commit_signature(inner.get("committer")),
+        "message": inner.get("message"),
+        "url": commit.get("html_url"),
+    }
+
+
 @github.action("list_commits")
 class ListCommits(ActionHandler):
     """List commits for a repository"""
@@ -1171,24 +1200,7 @@ class ListCommits(ActionHandler):
         )
 
         return ActionResult(
-            data=[
-                {
-                    "sha": commit["sha"],
-                    "author": {
-                        "name": commit["commit"]["author"]["name"],
-                        "email": commit["commit"]["author"]["email"],
-                        "date": commit["commit"]["author"]["date"],
-                    },
-                    "committer": {
-                        "name": commit["commit"]["committer"]["name"],
-                        "email": commit["commit"]["committer"]["email"],
-                        "date": commit["commit"]["committer"]["date"],
-                    },
-                    "message": commit["commit"]["message"],
-                    "url": commit["html_url"],
-                }
-                for commit in commits
-            ],
+            data=[_commit_summary(commit) for commit in commits],
             cost_usd=0.0,
         )
 
@@ -1203,21 +1215,9 @@ class GetCommit(ActionHandler):
 
         return ActionResult(
             data={
-                "sha": commit["sha"],
-                "author": {
-                    "name": commit["commit"]["author"]["name"],
-                    "email": commit["commit"]["author"]["email"],
-                    "date": commit["commit"]["author"]["date"],
-                },
-                "committer": {
-                    "name": commit["commit"]["committer"]["name"],
-                    "email": commit["commit"]["committer"]["email"],
-                    "date": commit["commit"]["committer"]["date"],
-                },
-                "message": commit["commit"]["message"],
+                **_commit_summary(commit),
                 "stats": commit.get("stats", {}),
                 "files": commit.get("files", []),
-                "url": commit["html_url"],
             },
             cost_usd=0.0,
         )

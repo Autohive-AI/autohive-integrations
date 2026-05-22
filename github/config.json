@@ -478,7 +478,10 @@
                   ]
                 },
                 "date": {
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               }
             },
@@ -498,7 +501,10 @@
                   ]
                 },
                 "date": {
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               }
             },
