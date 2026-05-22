@@ -1,0 +1,570 @@
+{
+  "name": "Google Forms",
+  "display_name": "Google Forms",
+  "version": "1.0.0",
+  "entry_point": "google_forms.py",
+  "description": "Create and manage Google Forms, add questions, and read responses.",
+  "auth": {
+    "type": "platform",
+    "provider": "Google Forms",
+    "scopes": [
+      "https://www.googleapis.com/auth/forms.body",
+      "https://www.googleapis.com/auth/forms.responses.readonly"
+    ]
+  },
+  "actions": {
+    "create_form": {
+      "display_name": "Create Form",
+      "description": "Creates a new Google Form. Sets the forms.create unpublished query parameter from auto_publish (default true) so the returned responder_uri accepts submissions immediately. Pass auto_publish=false to create a draft \u2014 this works correctly both before and after Google's 2026-06-30 cutoff when the API default flips from published to unpublished. To set body content beyond the title, use update_form_info or add_*_question after creation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The form's visible title (shown to respondents)."
+          },
+          "document_title": {
+            "type": "string",
+            "description": "Internal Drive-side document title. Defaults to title if omitted."
+          },
+          "auto_publish": {
+            "type": "boolean",
+            "description": "If true (default), publish the form before returning so respondents can submit via the returned responder_uri. Set to false to create as a draft \u2014 the responder_uri will not accept submissions until set_publish_settings is called."
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "description": "The newly created Form resource."
+          },
+          "form_id": {
+            "type": "string",
+            "description": "The ID of the new form."
+          },
+          "responder_uri": {
+            "type": "string",
+            "description": "Public URL respondents use to fill in the form."
+          },
+          "result": {
+            "type": "boolean",
+            "description": "The result of the operation"
+          },
+          "auto_published": {
+            "type": "boolean",
+            "description": "Whether the form was auto-published as part of creation."
+          },
+          "publish_settings": {
+            "type": "object",
+            "description": "PublishSettings returned by the publish step (only populated when auto_published=true)."
+          }
+        },
+        "required": [
+          "form",
+          "form_id",
+          "result"
+        ]
+      }
+    },
+    "get_form": {
+      "display_name": "Get Form",
+      "description": "Retrieves a Google Form's full structure: info, settings, items (questions), and metadata.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The ID of the form to fetch."
+          }
+        },
+        "required": [
+          "form_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "description": "The Form resource."
+          },
+          "result": {
+            "type": "boolean",
+            "description": "The result of the operation"
+          }
+        },
+        "required": [
+          "form",
+          "result"
+        ]
+      }
+    },
+    "update_form_info": {
+      "display_name": "Update Form Info",
+      "description": "Updates the form's visible title and/or description. Internally a batchUpdate request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The ID of the form to update."
+          },
+          "title": {
+            "type": "string",
+            "description": "New visible title."
+          },
+          "description": {
+            "type": "string",
+            "description": "New description."
+          }
+        },
+        "required": [
+          "form_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "description": "Updated form returned by batchUpdate."
+          },
+          "result": {
+            "type": "boolean",
+            "description": "The result of the operation"
+          }
+        },
+        "required": [
+          "form",
+          "result"
+        ]
+      }
+    },
+    "set_publish_settings": {
+      "display_name": "Set Publish Settings",
+      "description": "Publishes or unpublishes a form. When unpublished, the responder URI returns a not-found error.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The ID of the form."
+          },
+          "is_published": {
+            "type": "boolean",
+            "description": "Whether the form is published and accepting responses."
+          },
+          "is_accepting_responses": {
+            "type": "boolean",
+            "description": "Whether the (published) form is currently accepting new responses."
+          }
+        },
+        "required": [
+          "form_id",
+          "is_published"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "publish_settings": {
+            "type": "object",
+            "description": "The updated PublishSettings resource."
+          },
+          "result": {
+            "type": "boolean",
+            "description": "The result of the operation"
+          }
+        },
+        "required": [
+          "publish_settings",
+          "result"
+        ]
+      }
+    },
+    "add_text_question": {
+      "display_name": "Add Text Question",
+      "description": "Appends a short-answer or paragraph text question to the form.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The ID of the form."
+          },
+          "title": {
+            "type": "string",
+            "description": "The question text shown to respondents."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional help text below the question."
+          },
+          "paragraph": {
+            "type": "boolean",
+            "description": "If true, render as multi-line paragraph. If false or omitted, short-answer."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether respondents must answer this question."
+          },
+          "index": {
+            "type": "integer",
+            "description": "Position to insert at. Omit to append to the end."
+          }
+        },
+        "required": [
+          "form_id",
+          "title"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "description": "Updated form returned by batchUpdate."
+          },
+          "result": {
+            "type": "boolean",
+            "description": "The result of the operation"
+          }
+        },
+        "required": [
+          "form",
+          "result"
+        ]
+      }
+    },
+    "add_multiple_choice_question": {
+      "display_name": "Add Multiple Choice Question",
+      "description": "Appends a radio, checkbox, or dropdown question.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The ID of the form."
+          },
+          "title": {
+            "type": "string",
+            "description": "The question text shown to respondents."
+          },
+          "options": {
+            "type": "array",
+            "description": "Choice values, in order. Each becomes a selectable option.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "type": {
+            "type": "string",
+            "description": "Question style.",
+            "enum": [
+              "RADIO",
+              "CHECKBOX",
+              "DROP_DOWN"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional help text below the question."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether respondents must answer this question."
+          },
+          "shuffle": {
+            "type": "boolean",
+            "description": "Randomize option order per respondent."
+          },
+          "index": {
+            "type": "integer",
+            "description": "Position to insert at. Omit to append to the end."
+          }
+        },
+        "required": [
+          "form_id",
+          "title",
+          "options",
+          "type"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "description": "Updated form returned by batchUpdate."
+          },
+          "result": {
+            "type": "boolean",
+            "description": "The result of the operation"
+          }
+        },
+        "required": [
+          "form",
+          "result"
+        ]
+      }
+    },
+    "add_scale_question": {
+      "display_name": "Add Scale Question",
+      "description": "Appends a linear-scale question (e.g. 1\u20135) with optional anchor labels.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The ID of the form."
+          },
+          "title": {
+            "type": "string",
+            "description": "The question text shown to respondents."
+          },
+          "low": {
+            "type": "integer",
+            "description": "The lowest scale value (typically 0 or 1)."
+          },
+          "high": {
+            "type": "integer",
+            "description": "The highest scale value (max 10)."
+          },
+          "low_label": {
+            "type": "string",
+            "description": "Label shown next to the lowest value."
+          },
+          "high_label": {
+            "type": "string",
+            "description": "Label shown next to the highest value."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional help text below the question."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether respondents must answer this question."
+          },
+          "index": {
+            "type": "integer",
+            "description": "Position to insert at. Omit to append to the end."
+          }
+        },
+        "required": [
+          "form_id",
+          "title",
+          "low",
+          "high"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "description": "Updated form returned by batchUpdate."
+          },
+          "result": {
+            "type": "boolean",
+            "description": "The result of the operation"
+          }
+        },
+        "required": [
+          "form",
+          "result"
+        ]
+      }
+    },
+    "delete_item": {
+      "display_name": "Delete Item",
+      "description": "Removes a question or other item from the form by its 0-based index.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The ID of the form."
+          },
+          "index": {
+            "type": "integer",
+            "description": "0-based index of the item to remove."
+          }
+        },
+        "required": [
+          "form_id",
+          "index"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "description": "Updated form returned by batchUpdate."
+          },
+          "result": {
+            "type": "boolean",
+            "description": "The result of the operation"
+          }
+        },
+        "required": [
+          "form",
+          "result"
+        ]
+      }
+    },
+    "batch_update_form": {
+      "display_name": "Batch Update Form",
+      "description": "Escape hatch for advanced edits: applies a raw list of batchUpdate Request objects (see Forms API docs).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The ID of the form to update."
+          },
+          "requests": {
+            "type": "array",
+            "description": "Array of Request objects per the Forms batchUpdate API.",
+            "items": {
+              "type": "object",
+              "description": "A single Request object (createItem, updateItem, deleteItem, moveItem, updateFormInfo, updateSettings)."
+            }
+          },
+          "include_form_in_response": {
+            "type": "boolean",
+            "description": "If true, include the updated form in the response (default: true)."
+          },
+          "write_control": {
+            "type": "object",
+            "description": "Optional WriteControl object for optimistic concurrency (requiredRevisionId or targetRevisionId)."
+          }
+        },
+        "required": [
+          "form_id",
+          "requests"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "form": {
+            "type": "object",
+            "description": "Updated form (if include_form_in_response was true)."
+          },
+          "replies": {
+            "type": "array",
+            "description": "Per-request replies.",
+            "items": {
+              "type": "object"
+            }
+          },
+          "result": {
+            "type": "boolean",
+            "description": "The result of the operation"
+          }
+        },
+        "required": [
+          "replies",
+          "result"
+        ]
+      }
+    },
+    "list_responses": {
+      "display_name": "List Responses",
+      "description": "Lists responses submitted to a form. Results are paginated.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The ID of the form."
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Maximum responses to return per page (1\u20135000)."
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Page token from a previous response."
+          },
+          "filter": {
+            "type": "string",
+            "description": "Optional filter expression (e.g. \"timestamp >= 2024-01-01T00:00:00Z\")."
+          }
+        },
+        "required": [
+          "form_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "responses": {
+            "type": "array",
+            "description": "List of FormResponse objects.",
+            "items": {
+              "type": "object"
+            }
+          },
+          "next_page_token": {
+            "type": "string",
+            "description": "Page token for the next page (only present if there are more)."
+          },
+          "result": {
+            "type": "boolean",
+            "description": "The result of the operation"
+          }
+        },
+        "required": [
+          "responses",
+          "result"
+        ]
+      }
+    },
+    "get_response": {
+      "display_name": "Get Response",
+      "description": "Retrieves a single form response by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "The ID of the form."
+          },
+          "response_id": {
+            "type": "string",
+            "description": "The ID of the response to fetch."
+          }
+        },
+        "required": [
+          "form_id",
+          "response_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "response": {
+            "type": "object",
+            "description": "The FormResponse resource."
+          },
+          "result": {
+            "type": "boolean",
+            "description": "The result of the operation"
+          }
+        },
+        "required": [
+          "response",
+          "result"
+        ]
+      }
+    }
+  }
+}
