@@ -102,7 +102,7 @@ class SendTemplateMessageAction(ActionHandler):
         to = inputs["to"]
         template_name = inputs["template_name"]
         phone_number_id = inputs["phone_number_id"]
-        language_code = inputs.get("language_code", "en")
+        language_code = inputs["language_code"]
         parameters = inputs.get("parameters", [])
 
         if not validate_phone_number_id(phone_number_id):

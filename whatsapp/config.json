@@ -2,7 +2,7 @@
     "name": "WhatsApp Business",
     "display_name": "WhatsApp Business",
     "version": "2.0.0",
-    "description": "WhatsApp Business API integration for sending messages and managing conversations",
+    "description": "WhatsApp Business API integration for sending text messages, pre-approved templates, and media, and checking WhatsApp Business phone-number health",
     "entry_point": "whatsapp.py",
     "auth": {
         "type": "platform",
@@ -59,8 +59,7 @@
                     },
                     "language_code": {
                         "type": "string",
-                        "description": "Language code for the template (e.g., 'en', 'es', 'en_US')",
-                        "default": "en"
+                        "description": "Language code matching the approved template locale (e.g., 'en_US', 'es', 'pt_BR'). Templates are approved per-locale, so this must match the locale you submitted to Meta."
                     },
                     "parameters": {
                         "type": "array",
@@ -69,7 +68,7 @@
                         "default": []
                     }
                 },
-                "required": ["phone_number_id", "to", "template_name"]
+                "required": ["phone_number_id", "to", "template_name", "language_code"]
             },
             "output_schema": {
                 "type": "object",

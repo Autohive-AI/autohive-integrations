@@ -398,6 +398,7 @@ class TestSendTemplateMessage:
                 "to": VALID_PHONE,
                 "template_name": "order_update",
                 "phone_number_id": VALID_PHONE_NUMBER_ID,
+                "language_code": "en_US",
                 "parameters": ["Alice", "ORD-42"],
             },
             ctx,
@@ -412,9 +413,10 @@ class TestSendTemplateMessage:
         ]
 
     @pytest.mark.asyncio
-    async def test_default_language_code_is_en(self):
+    async def test_missing_language_code_returns_validation_error(self):
+        # language_code is required by config.json — SDK rejects the call at validation before execute() runs.
         ctx = make_ctx({"messages": [{"id": "m1"}]})
-        await whatsapp_integration.execute_action(
+        result = await whatsapp_integration.execute_action(
             "send_template_message",
             {
                 "to": VALID_PHONE,
@@ -423,15 +425,20 @@ class TestSendTemplateMessage:
             },
             ctx,
         )
-        payload = ctx.fetch.call_args.kwargs["json"]
-        assert payload["template"]["language"]["code"] == "en"
+        assert result.type == ResultType.VALIDATION_ERROR
+        assert "language_code" in result.result["message"]
 
     @pytest.mark.asyncio
     async def test_invalid_phone_number_returns_action_error(self):
         ctx = make_ctx({"messages": [{"id": "m1"}]})
         result = await whatsapp_integration.execute_action(
             "send_template_message",
-            {"to": "bad", "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID},
+            {
+                "to": "bad",
+                "template_name": "hello",
+                "phone_number_id": VALID_PHONE_NUMBER_ID,
+                "language_code": "en_US",
+            },
             ctx,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -442,7 +449,7 @@ class TestSendTemplateMessage:
         ctx = make_ctx({"messages": [{"id": "m1"}]})
         result = await whatsapp_integration.execute_action(
             "send_template_message",
-            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": "abc"},
+            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": "abc", "language_code": "en_US"},
             ctx,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -453,7 +460,7 @@ class TestSendTemplateMessage:
         ctx = make_ctx({"error": {"message": "Template not found"}}, status=404)
         result = await whatsapp_integration.execute_action(
             "send_template_message",
-            {"to": VALID_PHONE, "template_name": "missing", "phone_number_id": VALID_PHONE_NUMBER_ID},
+            {"to": VALID_PHONE, "template_name": "missing", "phone_number_id": VALID_PHONE_NUMBER_ID, "language_code": "en_US"},
             ctx,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -465,7 +472,7 @@ class TestSendTemplateMessage:
         ctx.fetch.side_effect = Exception("Boom")
         result = await whatsapp_integration.execute_action(
             "send_template_message",
-            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID},
+            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID, "language_code": "en_US"},
             ctx,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -476,7 +483,7 @@ class TestSendTemplateMessage:
         ctx = make_ctx({"messages": [{"id": "m1"}]})
         await whatsapp_integration.execute_action(
             "send_template_message",
-            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID},
+            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID, "language_code": "en_US"},
             ctx,
         )
         call = ctx.fetch.call_args
@@ -488,7 +495,7 @@ class TestSendTemplateMessage:
         ctx = make_ctx({"messages": [{"id": "m1"}]})
         await whatsapp_integration.execute_action(
             "send_template_message",
-            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID},
+            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID, "language_code": "en_US"},
             ctx,
         )
         headers = ctx.fetch.call_args.kwargs["headers"]
@@ -500,7 +507,7 @@ class TestSendTemplateMessage:
         ctx = make_ctx({"messages": [{"id": "m1"}]})
         await whatsapp_integration.execute_action(
             "send_template_message",
-            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID},
+            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID, "language_code": "en_US"},
             ctx,
         )
         payload = ctx.fetch.call_args.kwargs["json"]
@@ -515,6 +522,7 @@ class TestSendTemplateMessage:
                 "to": VALID_PHONE,
                 "template_name": "hello",
                 "phone_number_id": VALID_PHONE_NUMBER_ID,
+                "language_code": "en_US",
                 "parameters": [],
             },
             ctx,
@@ -527,7 +535,7 @@ class TestSendTemplateMessage:
         ctx = make_ctx({"messages": [{"id": "m1"}]}, auth={"credentials": {}})
         result = await whatsapp_integration.execute_action(
             "send_template_message",
-            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID},
+            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID, "language_code": "en_US"},
             ctx,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -538,7 +546,7 @@ class TestSendTemplateMessage:
         ctx = make_ctx("Service Unavailable")
         result = await whatsapp_integration.execute_action(
             "send_template_message",
-            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID},
+            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID, "language_code": "en_US"},
             ctx,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -549,7 +557,7 @@ class TestSendTemplateMessage:
         ctx = make_ctx({"messages": []})
         result = await whatsapp_integration.execute_action(
             "send_template_message",
-            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID},
+            {"to": VALID_PHONE, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID, "language_code": "en_US"},
             ctx,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -559,7 +567,7 @@ class TestSendTemplateMessage:
         ctx = make_ctx({"messages": [{"id": "wamid.TMPL"}]})
         result = await whatsapp_integration.execute_action(
             "send_template_message",
-            {"to": VALID_PHONE_NO_PLUS, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID},
+            {"to": VALID_PHONE_NO_PLUS, "template_name": "hello", "phone_number_id": VALID_PHONE_NUMBER_ID, "language_code": "en_US"},
             ctx,
         )
         assert result.result.data["message_id"] == "wamid.TMPL"

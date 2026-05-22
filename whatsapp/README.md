@@ -1,10 +1,10 @@
 # WhatsApp Business Integration for Autohive
 
-Connects Autohive to the WhatsApp Business API to allow users to send messages, templates, media content, and manage conversations through Meta's Graph API.
+Connects Autohive to the WhatsApp Business API to send text messages, pre-approved templates, and media content, and to read WhatsApp Business phone-number health, through Meta's Graph API.
 
 ## Description
 
-This integration provides comprehensive WhatsApp Business API functionality, enabling automated messaging capabilities through Autohive workflows. It supports text messages, pre-approved templates, media sharing (images, documents, audio, video), and contact validation. The integration uses Meta's Graph API v18.0 and requires a WhatsApp Business Account with proper API access.
+This integration provides WhatsApp Business API functionality for automated messaging through Autohive workflows. It supports text messages, pre-approved templates, media sharing (images, documents, audio, video), and retrieving the connection status and quality rating of a WhatsApp Business phone number. The integration uses Meta's Graph API v18.0 and requires a WhatsApp Business Account with proper API access.
 
 ## Setup & Authentication
 
@@ -46,7 +46,7 @@ Authentication itself is handled by Autohive's platform OAuth flow — the acces
   - `to` (required): Recipient's phone number in E.164 format
   - `template_name` (required): Name of the approved message template
   - `phone_number_id` (required): The Phone Number ID associated with the WhatsApp Business account
-  - `language_code` (optional): Template language code (default: "en")
+  - `language_code` (required): Language code matching the approved template locale (e.g., `en_US`, `es`, `pt_BR`). Templates are approved per-locale on Meta, so this must match the locale you submitted (Meta's built-in `hello_world` template, for example, only exists in `en_US`).
   - `parameters` (optional): Array of string parameters for template substitution
 - **Outputs:**
   - `message_id`: Unique WhatsApp message identifier
@@ -96,7 +96,7 @@ Authentication itself is handled by Autohive's platform OAuth flow — the acces
   "to": "+1234567890",
   "template_name": "customer_welcome",
   "phone_number_id": "123456789012345",
-  "language_code": "en",
+  "language_code": "en_US",
   "parameters": ["John Doe", "Premium"]
 }
 ```
