@@ -32,6 +32,8 @@ No additional configuration fields are required as authentication is handled thr
 
 ## Actions
 
+**Error handling:** On failure, actions return an `ActionError` with a `message` field (e.g. `"Comment not found"`, `"Video not found"`). On success, `data` contains only the documented output fields listed below — there is no `result` boolean or `error` string in the payload.
+
 ### Search & Discovery
 
 #### Action: `search`
@@ -50,8 +52,6 @@ No additional configuration fields are required as authentication is handled thr
   - `items`: Array of search results with id, title, description, thumbnail, published date
   - `next_page_token`: Token for retrieving next page of results
   - `total_results`: Total number of results available
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 ### Video Management
 
@@ -61,8 +61,6 @@ No additional configuration fields are required as authentication is handled thr
   - `video_id`: YouTube video ID (required)
 - **Outputs:**
   - `video`: Complete video object with id, title, description, channel info, statistics (view_count, like_count, comment_count), duration, tags, and thumbnails
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 #### Action: `update_video`
 - **Description:** Update video metadata including title, description, tags, and privacy settings
@@ -76,18 +74,17 @@ No additional configuration fields are required as authentication is handled thr
   - `made_for_kids`: Boolean indicating if video is made for kids (optional)
 - **Outputs:**
   - `video`: Updated video object with all changes reflected
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 #### Action: `upload_thumbnail`
 - **Description:** Upload a custom thumbnail image for a video
 - **Inputs:**
   - `video_id`: YouTube video ID (required)
-  - `image_url`: URL or path to thumbnail image in JPEG or PNG format, max 2MB (required)
+  - `image_url`: URL of thumbnail image in JPEG or PNG format, max 2MB (one of `image_url`, `file`, or `files` is required)
+  - `file`: Chat-uploaded file object containing image data
+  - `files`: Array of chat-uploaded file objects (first file is used)
 - **Outputs:**
-  - `thumbnail`: Thumbnail details object
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
+  - `thumbnail`: Object with thumbnail variants keyed by size (`default`, `medium`, `high`, `standard`, `maxres`). Each value has `url`, `width`, `height`. Empty `{}` if YouTube returned no items.
+  - `compression_info`: (only present if the image was auto-compressed) `original_size_mb`, `compressed_size_mb`, `reduction_percent`
 
 ### Channel Management
 
@@ -99,8 +96,6 @@ No additional configuration fields are required as authentication is handled thr
   - `mine`: Boolean to get authenticated user's channel (optional)
 - **Outputs:**
   - `channel`: Complete channel object with id, title, description, custom_url, statistics (subscriber_count, video_count, view_count), thumbnails, and publication date
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 ### Playlist Management
 
@@ -114,8 +109,6 @@ No additional configuration fields are required as authentication is handled thr
 - **Outputs:**
   - `playlists`: Array of playlist objects with id, title, description, and item count
   - `next_page_token`: Token for retrieving next page of results
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 #### Action: `create_playlist`
 - **Description:** Create a new YouTube playlist
@@ -125,8 +118,6 @@ No additional configuration fields are required as authentication is handled thr
   - `privacy_status`: Privacy setting - private, public, unlisted (required)
 - **Outputs:**
   - `playlist`: Created playlist object with details
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 #### Action: `update_playlist`
 - **Description:** Update playlist title, description, or privacy status
@@ -137,16 +128,13 @@ No additional configuration fields are required as authentication is handled thr
   - `privacy_status`: Updated privacy setting - private, public, unlisted (optional)
 - **Outputs:**
   - `playlist`: Updated playlist object with changes reflected
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 #### Action: `delete_playlist`
 - **Description:** Delete a YouTube playlist permanently
 - **Inputs:**
   - `playlist_id`: Playlist ID to delete (required)
 - **Outputs:**
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
+  - `success`: Boolean indicating the operation completed
 
 #### Action: `list_playlist_items`
 - **Description:** List all videos in a playlist
@@ -157,8 +145,6 @@ No additional configuration fields are required as authentication is handled thr
 - **Outputs:**
   - `items`: Array of playlist items with video details and position information
   - `next_page_token`: Token for retrieving next page of results
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 #### Action: `add_video_to_playlist`
 - **Description:** Add a video to a playlist
@@ -168,16 +154,13 @@ No additional configuration fields are required as authentication is handled thr
   - `position`: Position in playlist, 0-based index (optional)
 - **Outputs:**
   - `playlist_item`: Added playlist item object with details
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 #### Action: `remove_video_from_playlist`
 - **Description:** Remove a video from a playlist
 - **Inputs:**
   - `playlist_item_id`: Playlist item ID to remove, not the video ID (required)
 - **Outputs:**
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
+  - `success`: Boolean indicating the operation completed
 
 ### Comment Management
 
@@ -191,8 +174,6 @@ No additional configuration fields are required as authentication is handled thr
 - **Outputs:**
   - `comments`: Array of comment objects with id, text, author info, like count, and timestamps
   - `next_page_token`: Token for retrieving next page of results
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 #### Action: `list_comment_replies`
 - **Description:** List all replies to a specific comment
@@ -203,8 +184,6 @@ No additional configuration fields are required as authentication is handled thr
 - **Outputs:**
   - `replies`: Array of reply comment objects
   - `next_page_token`: Token for retrieving next page of results
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 #### Action: `post_comment`
 - **Description:** Post a top-level comment on a video
@@ -213,8 +192,6 @@ No additional configuration fields are required as authentication is handled thr
   - `text`: Comment text (required)
 - **Outputs:**
   - `comment`: Posted comment object with details
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 #### Action: `reply_to_comment`
 - **Description:** Reply to an existing comment
@@ -223,8 +200,6 @@ No additional configuration fields are required as authentication is handled thr
   - `text`: Reply text (required)
 - **Outputs:**
   - `comment`: Posted reply object with details
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 #### Action: `update_comment`
 - **Description:** Update your own comment text
@@ -233,16 +208,13 @@ No additional configuration fields are required as authentication is handled thr
   - `text`: Updated comment text (required)
 - **Outputs:**
   - `comment`: Updated comment object with changes reflected
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
 
 #### Action: `delete_comment`
 - **Description:** Delete a comment you own or moderate
 - **Inputs:**
   - `comment_id`: Comment ID to delete (required)
 - **Outputs:**
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
+  - `success`: Boolean indicating the operation completed
 
 #### Action: `moderate_comment`
 - **Description:** Set comment moderation status, channel owner only
@@ -251,8 +223,7 @@ No additional configuration fields are required as authentication is handled thr
   - `moderation_status`: Moderation status - published, heldForReview, rejected (required)
   - `ban_author`: Boolean to ban comment author from channel (optional)
 - **Outputs:**
-  - `result`: Success status boolean
-  - `error`: Error message (if operation failed)
+  - `success`: Boolean indicating the operation completed
 
 ## Requirements
 
@@ -386,10 +357,35 @@ Step 2 - List replies to your comment:
 
 ## Testing
 
-To run the tests:
+The integration ships with two test suites:
 
-1. Navigate to the integration's directory: `cd youtube`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Run the tests: `python tests/test_youtube.py`
+- **Unit tests** (`tests/test_youtube_unit.py`) — no network, no credentials. Use `FetchResponse` to fake YouTube API responses. Safe to run anywhere, including CI.
+- **Integration tests** (`tests/test_youtube_integration.py`) — hit the real YouTube Data API. Require valid OAuth credentials and test resources (see `.env.example`).
 
-Note: The tests use mock authentication and are designed for development validation. For production testing, ensure you have valid Google OAuth2 credentials configured with appropriate YouTube API scopes.
+Install dependencies first:
+
+```bash
+pip install -r requirements.txt
+```
+
+### Run unit tests
+
+```bash
+pytest youtube/tests/test_youtube_unit.py -v
+```
+
+The repo's default pytest filter (`-m unit`) excludes integration tests, and `test_*_integration.py` is not matched by `python_files`, so integration tests never run in CI by accident.
+
+### Run integration tests
+
+Set the `YOUTUBE_*` environment variables (see `.env.example` for the full list — at minimum `YOUTUBE_ACCESS_TOKEN`, plus resource IDs like `YOUTUBE_TEST_VIDEO_ID` for any test that mutates real data). Then:
+
+```bash
+# Read-only tests (safe — list/search/get operations only)
+pytest youtube/tests/test_youtube_integration.py -m "integration and not destructive"
+
+# Destructive tests (creates/updates/deletes on your real YouTube account — review first!)
+pytest youtube/tests/test_youtube_integration.py -m "integration and destructive"
+```
+
+Tests that need a specific env var will be `skip`-ed automatically when the var is missing, so you can run a subset by exporting only the vars you care about.

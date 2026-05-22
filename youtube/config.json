@@ -1,7 +1,7 @@
 {
     "name": "YouTube",
     "display_name": "YouTube",
-    "version": "1.0.2",
+    "version": "2.0.0",
     "description": "Complete YouTube Data API v3 integration for managing videos, channels, playlists, comments, and more.",
     "entry_point": "youtube.py",
     "auth": {
@@ -104,17 +104,9 @@
                     "total_results": {
                         "type": "integer",
                         "description": "Total number of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["items", "result"]
+                "required": ["items"]
             }
         },
         "get_video": {
@@ -189,17 +181,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["video", "result"]
+                "required": ["video"]
             }
         },
         "update_video": {
@@ -249,22 +233,14 @@
                     "video": {
                         "type": "object",
                         "description": "Updated video details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["video", "result"]
+                "required": ["video"]
             }
         },
         "upload_thumbnail": {
             "display_name": "Upload Thumbnail",
-            "description": "Upload custom thumbnail for a video. Automatically compresses images larger than 2MB. Accepts JPEG/PNG formats. Quota cost: 50 units. Supports URLs, local file paths, and chat-uploaded files.",
+            "description": "Upload custom thumbnail for a video. Automatically compresses images larger than 2MB. Accepts JPEG/PNG formats. Quota cost: 50 units. Supports URLs and chat-uploaded files.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -275,10 +251,6 @@
                     "image_url": {
                         "type": "string",
                         "description": "URL of the thumbnail image (JPEG/PNG). Will be auto-compressed if larger than 2MB"
-                    },
-                    "image_path": {
-                        "type": "string",
-                        "description": "Local file path of the thumbnail image to upload (JPEG/PNG). Will be auto-compressed if larger than 2MB"
                     },
                     "file": {
                         "type": "object",
@@ -296,7 +268,54 @@
                 "properties": {
                     "thumbnail": {
                         "type": "object",
-                        "description": "Thumbnail details"
+                        "description": "Thumbnail details for the uploaded image. Keys are size names (default, medium, high, standard, maxres); each value has url/width/height. Empty object if YouTube returned no items.",
+                        "properties": {
+                            "default": {
+                                "type": "object",
+                                "description": "Default-size thumbnail (typically 120x90)",
+                                "properties": {
+                                    "url": {"type": "string"},
+                                    "width": {"type": "integer"},
+                                    "height": {"type": "integer"}
+                                }
+                            },
+                            "medium": {
+                                "type": "object",
+                                "description": "Medium-size thumbnail (typically 320x180)",
+                                "properties": {
+                                    "url": {"type": "string"},
+                                    "width": {"type": "integer"},
+                                    "height": {"type": "integer"}
+                                }
+                            },
+                            "high": {
+                                "type": "object",
+                                "description": "High-size thumbnail (typically 480x360)",
+                                "properties": {
+                                    "url": {"type": "string"},
+                                    "width": {"type": "integer"},
+                                    "height": {"type": "integer"}
+                                }
+                            },
+                            "standard": {
+                                "type": "object",
+                                "description": "Standard-size thumbnail (typically 640x480)",
+                                "properties": {
+                                    "url": {"type": "string"},
+                                    "width": {"type": "integer"},
+                                    "height": {"type": "integer"}
+                                }
+                            },
+                            "maxres": {
+                                "type": "object",
+                                "description": "Max-resolution thumbnail (typically 1280x720)",
+                                "properties": {
+                                    "url": {"type": "string"},
+                                    "width": {"type": "integer"},
+                                    "height": {"type": "integer"}
+                                }
+                            }
+                        }
                     },
                     "compression_info": {
                         "type": "object",
@@ -315,17 +334,9 @@
                                 "description": "Percentage reduction in file size"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["result"]
+                "required": ["thumbnail"]
             }
         },
         "get_channel": {
@@ -392,17 +403,9 @@
                                 "description": "Channel thumbnails"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["channel", "result"]
+                "required": ["channel"]
             }
         },
         "list_playlists": {
@@ -439,17 +442,9 @@
                     "next_page_token": {
                         "type": "string",
                         "description": "Token for next page"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["playlists", "result"]
+                "required": ["playlists"]
             }
         },
         "create_playlist": {
@@ -480,17 +475,9 @@
                     "playlist": {
                         "type": "object",
                         "description": "Created playlist details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["playlist", "result"]
+                "required": ["playlist"]
             }
         },
         "update_playlist": {
@@ -525,17 +512,9 @@
                     "playlist": {
                         "type": "object",
                         "description": "Updated playlist details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["playlist", "result"]
+                "required": ["playlist"]
             }
         },
         "delete_playlist": {
@@ -554,16 +533,12 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "success": {
                         "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
+                        "description": "True if playlist was deleted"
                     }
                 },
-                "required": ["result"]
+                "required": ["success"]
             }
         },
         "list_playlist_items": {
@@ -597,17 +572,9 @@
                     "next_page_token": {
                         "type": "string",
                         "description": "Token for next page"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["items", "result"]
+                "required": ["items"]
             }
         },
         "add_video_to_playlist": {
@@ -637,17 +604,9 @@
                     "playlist_item": {
                         "type": "object",
                         "description": "Added playlist item"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["result"]
+                "required": ["playlist_item"]
             }
         },
         "remove_video_from_playlist": {
@@ -666,16 +625,12 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "success": {
                         "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
+                        "description": "True if removed from playlist"
                     }
                 },
-                "required": ["result"]
+                "required": ["success"]
             }
         },
         "list_comments": {
@@ -714,17 +669,9 @@
                     "next_page_token": {
                         "type": "string",
                         "description": "Token for next page"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["comments", "result"]
+                "required": ["comments"]
             }
         },
         "list_comment_replies": {
@@ -758,17 +705,9 @@
                     "next_page_token": {
                         "type": "string",
                         "description": "Token for next page"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["replies", "result"]
+                "required": ["replies"]
             }
         },
         "post_comment": {
@@ -794,17 +733,9 @@
                     "comment": {
                         "type": "object",
                         "description": "Posted comment details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["result"]
+                "required": ["comment"]
             }
         },
         "reply_to_comment": {
@@ -830,17 +761,9 @@
                     "comment": {
                         "type": "object",
                         "description": "Posted reply details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["result"]
+                "required": ["comment"]
             }
         },
         "update_comment": {
@@ -866,17 +789,9 @@
                     "comment": {
                         "type": "object",
                         "description": "Updated comment details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
                     }
                 },
-                "required": ["result"]
+                "required": ["comment"]
             }
         },
         "delete_comment": {
@@ -895,16 +810,12 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "success": {
                         "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
+                        "description": "True if comment was deleted"
                     }
                 },
-                "required": ["result"]
+                "required": ["success"]
             }
         },
         "moderate_comment": {
@@ -932,16 +843,12 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "success": {
                         "type": "boolean",
-                        "description": "Success status"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if failed"
+                        "description": "True if moderation was applied"
                     }
                 },
-                "required": ["result"]
+                "required": ["success"]
             }
         }
     }
