@@ -220,6 +220,29 @@ class TestListCommits:
         assert result.type == ResultType.ACTION_ERROR
         assert mock_context.fetch.call_count == 10
 
+    @pytest.mark.asyncio
+    async def test_completes_under_cap_without_firing(self, mock_context):
+        # Regression guard: 3 pages of data with cap of 10 must complete
+        # naturally and return all items. Catches off-by-one bugs where the
+        # cap fires one iteration too early and silently returns short data.
+        full_page = [SAMPLE_COMMIT] * 100
+        last_partial = [SAMPLE_COMMIT] * 30
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data=full_page),
+            FetchResponse(status=200, headers={}, data=full_page),
+            FetchResponse(status=200, headers={}, data=last_partial),
+        ]
+
+        result = await github.execute_action(
+            "list_commits",
+            {"owner": "octocat", "repo": "Hello-World"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        assert len(result.result.data) == 230
+        assert mock_context.fetch.call_count == 3
+
 
 # ---- Branch Actions ----
 
