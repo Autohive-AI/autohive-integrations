@@ -26,6 +26,9 @@ from urllib.parse import quote
 from functools import wraps
 import asyncio
 import base64
+import logging
+
+logger = logging.getLogger(__name__)
 
 github = Integration.load()
 
@@ -62,9 +65,14 @@ def handle_github_errors(action_name: str):
                 return await func(self, inputs, context)
 
             except asyncio.CancelledError:
-                # Lambda runtime / async machinery cancelled the task (e.g., timeout).
-                # CancelledError inherits from BaseException, so a bare `except Exception`
-                # would not catch it and the Lambda would crash with "Unhandled".
+                # Defensive: convert Python-side task cancellation into an
+                # ActionError if cancellation reaches the action coroutine.
+                # This does not catch Lambda hard timeouts or caller-side
+                # invocation cancellation.
+                logger.warning(
+                    "CancelledError caught in action %s — cooperative cancellation reached the action coroutine",
+                    action_name,
+                )
                 return ActionError(
                     message=(
                         f"Action '{action_name}' was cancelled before completing. "
@@ -106,15 +114,21 @@ class GitHubAPI:
         url: str,
         params: Dict[str, Any] = None,
         data_key: str = None,
+        max_pages: int = 10,
     ) -> List[Dict[str, Any]]:
         """
         Generic paginated fetch that handles GitHub's pagination automatically.
+
+        Bounded by max_pages to prevent unbounded loops on large datasets
+        (e.g. list_commits on a repo with thousands of commits) from running
+        until the Lambda runtime cancels the task.
 
         Args:
             context: ExecutionContext
             url: API endpoint URL
             params: Query parameters
             data_key: Key to extract from response (e.g., 'workflows', 'workflow_runs')
+            max_pages: Hard cap on pages fetched. Raises TimeoutError when exceeded.
         """
         if params is None:
             params = {}
@@ -124,8 +138,23 @@ class GitHubAPI:
 
         all_items = []
         headers = GitHubAPI.get_headers(context)
+        pages_fetched = 0
         while True:
+            if pages_fetched >= max_pages:
+                logger.warning(
+                    "paginated_fetch hit max_pages cap (url=%s, max_pages=%d, items_collected=%d)",
+                    url,
+                    max_pages,
+                    len(all_items),
+                )
+                raise TimeoutError(
+                    f"GitHub pagination stopped after {max_pages} pages "
+                    f"({len(all_items)} items). Narrow the request with filters "
+                    "(e.g. sha, path, since, until) or raise max_pages."
+                )
+
             fetch_result = await context.fetch(url, params=params, headers=headers)
+            pages_fetched += 1
             response = fetch_result.data
 
             # Extract items from response
@@ -272,8 +301,9 @@ class GitHubAPI:
         path: str = None,
         since: str = None,
         until: str = None,
+        max_pages: int = 10,
     ) -> List[Dict[str, Any]]:
-        """Get commits for a repository"""
+        """Get commits for a repository (bounded by max_pages)"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/commits"
         params = {}
 
@@ -286,7 +316,7 @@ class GitHubAPI:
         if until:
             params["until"] = until
 
-        return await GitHubAPI.paginated_fetch(context, url, params)
+        return await GitHubAPI.paginated_fetch(context, url, params, max_pages=max_pages)
 
     @staticmethod
     async def get_commit(context: ExecutionContext, owner: str, repo: str, sha: str) -> Dict[str, Any]:
@@ -1197,6 +1227,7 @@ class ListCommits(ActionHandler):
             path=inputs.get("path"),
             since=inputs.get("since"),
             until=inputs.get("until"),
+            max_pages=inputs.get("max_pages", 10),
         )
 
         return ActionResult(

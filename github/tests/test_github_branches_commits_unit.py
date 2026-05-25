@@ -187,6 +187,39 @@ class TestListCommits:
         assert result.type == ResultType.ACTION_ERROR
         assert "cancelled" in result.result.message.lower()
 
+    @pytest.mark.asyncio
+    async def test_max_pages_cap_stops_unbounded_pagination(self, mock_context):
+        # Each page returns a full 100 items so paginated_fetch would keep going
+        # forever; the max_pages cap must stop it and surface a TimeoutError
+        # which the decorator turns into an ActionError.
+        full_page = [SAMPLE_COMMIT] * 100
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=full_page)
+
+        result = await github.execute_action(
+            "list_commits",
+            {"owner": "octocat", "repo": "Hello-World", "max_pages": 2},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "2 pages" in result.result.message
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_default_max_pages_is_ten(self, mock_context):
+        # When the caller omits max_pages, the default cap of 10 must apply.
+        full_page = [SAMPLE_COMMIT] * 100
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=full_page)
+
+        result = await github.execute_action(
+            "list_commits",
+            {"owner": "octocat", "repo": "Hello-World"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 10
+
 
 # ---- Branch Actions ----
 
