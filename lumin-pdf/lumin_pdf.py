@@ -131,7 +131,15 @@ class SendSignatureRequestAction(ActionHandler):
                 body["file_url"] = inputs["file_url"]
             if inputs.get("message"):
                 body["message"] = inputs["message"]
-            body["expires_at"] = inputs.get("due_date") or int((time.time() + 30 * 86400) * 1000)
+            due_date = inputs.get("due_date")
+            if due_date:
+                from datetime import datetime, timezone
+
+                body["expires_at"] = int(
+                    datetime.fromisoformat(due_date).replace(tzinfo=timezone.utc).timestamp() * 1000
+                )
+            else:
+                body["expires_at"] = int((time.time() + 30 * 86400) * 1000)
             response = await context.fetch(
                 f"{BASE_URL}/signature_request/send",
                 method="POST",
