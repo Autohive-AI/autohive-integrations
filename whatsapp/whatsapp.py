@@ -1,14 +1,15 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any
 import re
 from urllib.parse import urlparse
 
 whatsapp = Integration.load()
 
+GRAPH_API_BASE = "https://graph.facebook.com/v18.0"
+
 
 def get_whatsapp_creds(auth: Dict[str, Any]) -> Dict[str, str]:
     """Helper to extract credentials handling multiple naming conventions."""
-    # Check if credentials are nested under 'credentials' key (common in some SDK versions)
     creds_source = auth.get("credentials", auth)
 
     access_token = creds_source.get("access_token") or creds_source.get("accessToken") or creds_source.get("token")
@@ -38,6 +39,13 @@ def validate_phone_number_id(phone_number_id: str) -> bool:
     return phone_number_id.isdigit()
 
 
+def _extract_api_error(data: Any) -> str:
+    """Pull a human-readable error message out of a Graph API response body."""
+    if isinstance(data, dict):
+        return data.get("error", {}).get("message", "Unknown error")
+    return f"Unexpected response: {data}"
+
+
 # ---- Action Handlers ----
 
 
@@ -52,59 +60,35 @@ class SendMessageAction(ActionHandler):
         message = inputs["message"]
         phone_number_id = inputs["phone_number_id"]
 
-        # Validate phone number ID
         if not validate_phone_number_id(phone_number_id):
-            return ActionResult(
-                data={
-                    "message_id": None,
-                    "success": False,
-                    "error": "Invalid phone number ID. Must be a numeric string.",
-                }
-            )
+            return ActionError(message="Invalid phone number ID. Must be a numeric string.")
 
-        # Validate phone number format to ensure it meets E.164 standards
         if not validate_phone_number(to):
-            return ActionResult(
-                data={
-                    "message_id": None,
-                    "success": False,
-                    "error": "Invalid phone number format. Use format: +1234567890 or 1234567890",
-                }
-            )
+            return ActionError(message="Invalid phone number format. Use format: +1234567890 or 1234567890")
 
         try:
             creds = get_whatsapp_creds(context.auth)
 
-            # Call WhatsApp Business API endpoint for sending messages
             response = await context.fetch(
-                f"https://graph.facebook.com/v18.0/{phone_number_id}/messages",
+                f"{GRAPH_API_BASE}/{phone_number_id}/messages",
                 method="POST",
                 headers={"Authorization": f"Bearer {creds['access_token']}", "Content-Type": "application/json"},
                 json={
                     "messaging_product": "whatsapp",
-                    "to": to.lstrip("+"),  # WhatsApp API requires phone numbers without the '+' prefix
+                    "to": to.lstrip("+"),
                     "type": "text",
                     "text": {"body": message},
                 },
             )
 
-            # Check for successful response containing message ID
-            if isinstance(response, dict) and "messages" in response and response["messages"]:
-                message_id = response["messages"][0]["id"]
-                return ActionResult(data={"message_id": message_id, "success": True})
-            else:
-                # Handle API errors or unexpected response structure
-                if isinstance(response, dict):
-                    error_msg = response.get("error", {}).get("message", "Unknown error")
-                else:
-                    error_msg = f"Unexpected response: {response}"
+            data = response.data
+            if isinstance(data, dict) and data.get("messages"):
+                return ActionResult(data={"message_id": data["messages"][0]["id"]})
 
-                return ActionResult(data={"message_id": None, "success": False, "error": error_msg})
+            return ActionError(message=_extract_api_error(data))
 
         except Exception as e:
-            return ActionResult(
-                data={"message_id": None, "success": False, "error": f"Failed to send message: {str(e)}"}
-            )
+            return ActionError(message=f"Failed to send message: {str(e)}")
 
 
 @whatsapp.action("send_template_message")
@@ -118,70 +102,45 @@ class SendTemplateMessageAction(ActionHandler):
         to = inputs["to"]
         template_name = inputs["template_name"]
         phone_number_id = inputs["phone_number_id"]
-        language_code = inputs.get("language_code", "en")
+        language_code = inputs["language_code"]
         parameters = inputs.get("parameters", [])
 
-        # Validate phone number ID
         if not validate_phone_number_id(phone_number_id):
-            return ActionResult(
-                data={
-                    "message_id": None,
-                    "success": False,
-                    "error": "Invalid phone number ID. Must be a numeric string.",
-                }
-            )
+            return ActionError(message="Invalid phone number ID. Must be a numeric string.")
 
-        # Validate phone number format
         if not validate_phone_number(to):
-            return ActionResult(
-                data={
-                    "message_id": None,
-                    "success": False,
-                    "error": "Invalid phone number format. Use format: +1234567890 or 1234567890",
-                }
-            )
+            return ActionError(message="Invalid phone number format. Use format: +1234567890 or 1234567890")
 
         try:
             creds = get_whatsapp_creds(context.auth)
 
-            # Build template message payload
-            template_payload = {
+            template_payload: Dict[str, Any] = {
                 "messaging_product": "whatsapp",
                 "to": to.lstrip("+"),
                 "type": "template",
                 "template": {"name": template_name, "language": {"code": language_code}},
             }
 
-            # Add parameters if provided (for variable substitution in the template)
             if parameters:
                 template_payload["template"]["components"] = [
                     {"type": "body", "parameters": [{"type": "text", "text": param} for param in parameters]}
                 ]
 
-            # Send the request
             response = await context.fetch(
-                f"https://graph.facebook.com/v18.0/{phone_number_id}/messages",
+                f"{GRAPH_API_BASE}/{phone_number_id}/messages",
                 method="POST",
                 headers={"Authorization": f"Bearer {creds['access_token']}", "Content-Type": "application/json"},
                 json=template_payload,
             )
 
-            if "messages" in response and response["messages"]:
-                message_id = response["messages"][0]["id"]
-                return ActionResult(data={"message_id": message_id, "success": True})
-            else:
-                return ActionResult(
-                    data={
-                        "message_id": None,
-                        "success": False,
-                        "error": response.get("error", {}).get("message", "Unknown error"),
-                    }
-                )
+            data = response.data
+            if isinstance(data, dict) and data.get("messages"):
+                return ActionResult(data={"message_id": data["messages"][0]["id"]})
+
+            return ActionError(message=_extract_api_error(data))
 
         except Exception as e:
-            return ActionResult(
-                data={"message_id": None, "success": False, "error": f"Failed to send template message: {str(e)}"}
-            )
+            return ActionError(message=f"Failed to send template message: {str(e)}")
 
 
 @whatsapp.action("send_media_message")
@@ -198,79 +157,49 @@ class SendMediaMessageAction(ActionHandler):
         caption = inputs.get("caption", "")
         filename = inputs.get("filename", "")
 
-        # Validate phone number ID
         if not validate_phone_number_id(phone_number_id):
-            return ActionResult(
-                data={
-                    "message_id": None,
-                    "success": False,
-                    "error": "Invalid phone number ID. Must be a numeric string.",
-                }
-            )
+            return ActionError(message="Invalid phone number ID. Must be a numeric string.")
 
-        # Validate phone number format
         if not validate_phone_number(to):
-            return ActionResult(
-                data={
-                    "message_id": None,
-                    "success": False,
-                    "error": "Invalid phone number format. Use format: +1234567890 or 1234567890",
-                }
-            )
+            return ActionError(message="Invalid phone number format. Use format: +1234567890 or 1234567890")
 
-        # Validate media URL
         if not validate_media_url(media_url):
-            return ActionResult(
-                data={
-                    "message_id": None,
-                    "success": False,
-                    "error": "Invalid media URL. Must be a publicly accessible HTTPS URL.",
-                }
-            )
+            return ActionError(message="Invalid media URL. Must be a publicly accessible HTTPS URL.")
 
         try:
             creds = get_whatsapp_creds(context.auth)
 
-            # Build basic media message payload
-            media_payload = {"messaging_product": "whatsapp", "to": to.lstrip("+"), "type": media_type}
+            media_payload: Dict[str, Any] = {
+                "messaging_product": "whatsapp",
+                "to": to.lstrip("+"),
+                "type": media_type,
+            }
 
-            # Configure media object based on type
-            media_object = {"link": media_url}
+            media_object: Dict[str, Any] = {"link": media_url}
 
-            # Add filename for documents
             if media_type == "document" and filename:
                 media_object["filename"] = filename
 
-            # Add caption if supported for the media type
             if caption and media_type in ["image", "video", "document"]:
                 media_object["caption"] = caption
 
             media_payload[media_type] = media_object
 
-            # Send the request
             response = await context.fetch(
-                f"https://graph.facebook.com/v18.0/{phone_number_id}/messages",
+                f"{GRAPH_API_BASE}/{phone_number_id}/messages",
                 method="POST",
                 headers={"Authorization": f"Bearer {creds['access_token']}", "Content-Type": "application/json"},
                 json=media_payload,
             )
 
-            if "messages" in response and response["messages"]:
-                message_id = response["messages"][0]["id"]
-                return ActionResult(data={"message_id": message_id, "success": True})
-            else:
-                return ActionResult(
-                    data={
-                        "message_id": None,
-                        "success": False,
-                        "error": response.get("error", {}).get("message", "Unknown error"),
-                    }
-                )
+            data = response.data
+            if isinstance(data, dict) and data.get("messages"):
+                return ActionResult(data={"message_id": data["messages"][0]["id"]})
+
+            return ActionError(message=_extract_api_error(data))
 
         except Exception as e:
-            return ActionResult(
-                data={"message_id": None, "success": False, "error": f"Failed to send media message: {str(e)}"}
-            )
+            return ActionError(message=f"Failed to send media message: {str(e)}")
 
 
 @whatsapp.action("get_phone_number_health")
@@ -282,52 +211,29 @@ class GetPhoneNumberHealthAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         phone_number_id = inputs["phone_number_id"]
 
-        # Validate phone number ID
         if not validate_phone_number_id(phone_number_id):
-            return ActionResult(
-                data={
-                    "status": "UNKNOWN",
-                    "quality_rating": "UNKNOWN",
-                    "success": False,
-                    "error": "Invalid phone number ID. Must be a numeric string.",
-                }
-            )
+            return ActionError(message="Invalid phone number ID. Must be a numeric string.")
 
         try:
             creds = get_whatsapp_creds(context.auth)
 
-            # Get phone number status and quality rating from Graph API
             response = await context.fetch(
-                f"https://graph.facebook.com/v18.0/{phone_number_id}",
+                f"{GRAPH_API_BASE}/{phone_number_id}",
                 method="GET",
                 params={"fields": "status,quality_rating"},
                 headers={"Authorization": f"Bearer {creds['access_token']}", "Content-Type": "application/json"},
             )
 
-            if "status" in response:
+            data = response.data
+            if isinstance(data, dict) and "status" in data:
                 return ActionResult(
                     data={
-                        "status": response.get("status", "UNKNOWN"),
-                        "quality_rating": response.get("quality_rating", "UNKNOWN"),
-                        "success": True,
+                        "status": data.get("status", "UNKNOWN"),
+                        "quality_rating": data.get("quality_rating", "UNKNOWN"),
                     }
                 )
-            else:
-                if isinstance(response, dict):
-                    error_msg = response.get("error", {}).get("message", "Unknown error")
-                else:
-                    error_msg = f"Unexpected response: {response}"
 
-                return ActionResult(
-                    data={"status": "UNKNOWN", "quality_rating": "UNKNOWN", "success": False, "error": error_msg}
-                )
+            return ActionError(message=_extract_api_error(data))
 
         except Exception as e:
-            return ActionResult(
-                data={
-                    "status": "UNKNOWN",
-                    "quality_rating": "UNKNOWN",
-                    "success": False,
-                    "error": f"Failed to get phone number health: {str(e)}",
-                }
-            )
+            return ActionError(message=f"Failed to get phone number health: {str(e)}")

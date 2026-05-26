@@ -1,8 +1,8 @@
 {
     "name": "WhatsApp Business",
     "display_name": "WhatsApp Business",
-    "version": "1.0.0",
-    "description": "WhatsApp Business API integration for sending messages and managing conversations",
+    "version": "2.0.0",
+    "description": "WhatsApp Business API integration for sending text messages, pre-approved templates, and media, and checking WhatsApp Business phone-number health",
     "entry_point": "whatsapp.py",
     "auth": {
         "type": "platform",
@@ -34,11 +34,9 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "message_id": {"type": ["string", "null"]},
-                    "success": {"type": "boolean"},
-                    "error": {"type": "string"}
+                    "message_id": {"type": ["string", "null"]}
                 },
-                "required": ["message_id", "success"]
+                "required": ["message_id"]
             }
         },
         "send_template_message": {
@@ -61,8 +59,7 @@
                     },
                     "language_code": {
                         "type": "string",
-                        "description": "Language code for the template (e.g., 'en', 'es', 'en_US')",
-                        "default": "en"
+                        "description": "Language code matching the approved template locale (e.g., 'en_US', 'es', 'pt_BR'). Templates are approved per-locale, so this must match the locale you submitted to Meta."
                     },
                     "parameters": {
                         "type": "array",
@@ -71,16 +68,14 @@
                         "default": []
                     }
                 },
-                "required": ["phone_number_id", "to", "template_name"]
+                "required": ["phone_number_id", "to", "template_name", "language_code"]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "message_id": {"type": ["string", "null"]},
-                    "success": {"type": "boolean"},
-                    "error": {"type": "string"}
+                    "message_id": {"type": ["string", "null"]}
                 },
-                "required": ["message_id", "success"]
+                "required": ["message_id"]
             }
         },
         "send_media_message": {
@@ -120,11 +115,9 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "message_id": {"type": ["string", "null"]},
-                    "success": {"type": "boolean"},
-                    "error": {"type": "string"}
+                    "message_id": {"type": ["string", "null"]}
                 },
-                "required": ["message_id", "success"]
+                "required": ["message_id"]
             }
         },
         "get_phone_number_health": {
@@ -144,11 +137,9 @@
                 "type": "object",
                 "properties": {
                     "status": {"type": "string"},
-                    "quality_rating": {"type": "string"},
-                    "success": {"type": "boolean"},
-                    "error": {"type": "string"}
+                    "quality_rating": {"type": "string"}
                 },
-                "required": ["status", "success"]
+                "required": ["status"]
             }
         }
     }
