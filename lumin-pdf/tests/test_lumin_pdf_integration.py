@@ -102,7 +102,7 @@ class TestListTemplates:
 
 class TestGetTemplate:
     async def test_fetches_template_by_id(self, live_context):
-        list_result = await lumin_pdf.execute_action("list_templates", {"limit": 1}, live_context)
+        list_result = await lumin_pdf.execute_action("list_templates", {"limit": 10}, live_context)
         templates = list_result.result.data["templates"]
 
         if not templates:
@@ -200,7 +200,7 @@ class TestUploadDocument:
 
 class TestSendFromTemplate:
     async def test_skipped_if_no_templates(self, live_context):
-        list_result = await lumin_pdf.execute_action("list_templates", {"limit": 1}, live_context)
+        list_result = await lumin_pdf.execute_action("list_templates", {"limit": 10}, live_context)
         templates = list_result.result.data["templates"]
 
         if not templates:
@@ -307,7 +307,7 @@ class TestDownloadSignedDocument:
 
 class TestGenerateDocumentFromTemplate:
     async def test_skipped_if_no_templates(self, live_context):
-        list_result = await lumin_pdf.execute_action("list_templates", {"limit": 1}, live_context)
+        list_result = await lumin_pdf.execute_action("list_templates", {"limit": 10}, live_context)
         templates = list_result.result.data["templates"]
 
         if not templates:
@@ -330,7 +330,7 @@ class TestGenerateDocumentFromTemplate:
 
 class TestCreateAgreement:
     async def test_skipped_if_no_templates(self, live_context):
-        list_result = await lumin_pdf.execute_action("list_templates", {"limit": 1}, live_context)
+        list_result = await lumin_pdf.execute_action("list_templates", {"limit": 10}, live_context)
         templates = list_result.result.data["templates"]
 
         if not templates:
