@@ -13,12 +13,15 @@ lumin_pdf = Integration.load()
 BASE_URL = "https://api.luminpdf.com/v1"
 
 
-def _auth_headers(context: ExecutionContext) -> Dict[str, str]:
+def _auth_headers(context: ExecutionContext, api_version: str = "") -> Dict[str, str]:
     auth = context.auth or {}
     api_key = auth.get("api_key") or auth.get("credentials", {}).get("api_key")
+    headers = {}
     if api_key:
-        return {"X-API-KEY": api_key}
-    return {}
+        headers["X-API-KEY"] = api_key
+    if api_version:
+        headers["X-Lumin-API-Version"] = api_version
+    return headers
 
 
 # ---- User & Workspace ----
@@ -81,7 +84,7 @@ class ListTemplatesAction(ActionHandler):
             response = await context.fetch(
                 f"{BASE_URL}/templates",
                 method="GET",
-                headers=_auth_headers(context),
+                headers=_auth_headers(context, api_version="1.1"),
                 params=params,
             )
             data = response.data
@@ -99,7 +102,7 @@ class GetTemplateAction(ActionHandler):
             response = await context.fetch(
                 f"{BASE_URL}/templates/{template_id}",
                 method="GET",
-                headers=_auth_headers(context),
+                headers=_auth_headers(context, api_version="1.1"),
             )
             return ActionResult(data={"result": True, "template": response.data}, cost_usd=0.0)
         except Exception as e:
@@ -242,9 +245,14 @@ class SendFromTemplateAction(ActionHandler):
                 )
             else:
                 body["expires_at"] = int((time.time() + 30 * 86400) * 1000)
-            for opt in ("tags", "fields", "variables", "message"):
-                if inputs.get(opt):
-                    body[opt] = inputs[opt]
+            if inputs.get("tags"):
+                body["tags"] = inputs["tags"]
+            if inputs.get("fields"):
+                body["fields"] = inputs["fields"]
+            if inputs.get("variables"):
+                body["variables"] = inputs["variables"]
+            if inputs.get("message"):
+                body["message"] = inputs["message"]
             response = await context.fetch(
                 f"{BASE_URL}/signature_request/send-from-template",
                 method="POST",
@@ -330,9 +338,12 @@ class GenerateDocumentFromTemplateAction(ActionHandler):
         try:
             template_id = inputs["template_id"]
             body: Dict[str, Any] = {"document_name": inputs["document_name"]}
-            for opt in ("tags", "fields", "variables"):
-                if inputs.get(opt):
-                    body[opt] = inputs[opt]
+            if inputs.get("tags"):
+                body["tags"] = inputs["tags"]
+            if inputs.get("fields"):
+                body["fields"] = inputs["fields"]
+            if inputs.get("variables"):
+                body["variables"] = inputs["variables"]
             response = await context.fetch(
                 f"{BASE_URL}/templates/{template_id}/generate-document",
                 method="POST",
@@ -353,9 +364,12 @@ class CreateAgreementAction(ActionHandler):
                 "agreement_name": inputs["agreement_name"],
                 "agreement_data": {"template_id": inputs["template_id"]},
             }
-            for opt in ("variables", "fields", "linked_objects"):
-                if inputs.get(opt):
-                    body["agreement_data"][opt] = inputs[opt]
+            if inputs.get("variables"):
+                body["agreement_data"]["variables"] = inputs["variables"]
+            if inputs.get("fields"):
+                body["agreement_data"]["fields"] = inputs["fields"]
+            if inputs.get("linked_objects"):
+                body["agreement_data"]["linked_objects"] = inputs["linked_objects"]
             response = await context.fetch(
                 f"{BASE_URL}/agreements",
                 method="POST",

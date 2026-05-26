@@ -108,7 +108,7 @@ class TestGetTemplate:
         if not templates:
             pytest.skip("No templates in workspace")
 
-        template_id = templates[0].get("id")
+        template_id = templates[0].get("template_id") or templates[0].get("id")
         result = await lumin_pdf.execute_action("get_template", {"template_id": template_id}, live_context)
 
         data = result.result.data
@@ -206,7 +206,7 @@ class TestSendFromTemplate:
         if not templates:
             pytest.skip("No templates in workspace")
 
-        template_id = templates[0].get("id")
+        template_id = templates[0].get("template_id") or templates[0].get("id")
         result = await lumin_pdf.execute_action(
             "send_from_template",
             {
@@ -313,7 +313,7 @@ class TestGenerateDocumentFromTemplate:
         if not templates:
             pytest.skip("No templates in workspace")
 
-        template_id = templates[0].get("id")
+        template_id = templates[0].get("template_id") or templates[0].get("id")
         result = await lumin_pdf.execute_action(
             "generate_document_from_template",
             {"template_id": template_id, "document_name": "Autohive Generated Doc"},
@@ -336,7 +336,7 @@ class TestCreateAgreement:
         if not templates:
             pytest.skip("No templates in workspace")
 
-        template_id = templates[0].get("id")
+        template_id = templates[0].get("template_id") or templates[0].get("id")
         result = await lumin_pdf.execute_action(
             "create_agreement",
             {"agreement_name": "Autohive Test Agreement", "template_id": template_id},
