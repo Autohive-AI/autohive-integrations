@@ -1,0 +1,220 @@
+{
+  "name": "LuminPDF",
+  "display_name": "Lumin PDF",
+  "version": "1.0.0",
+  "description": "Integration with Lumin PDF for document management, eSignature workflows, and PDF generation.",
+  "entry_point": "lumin_pdf.py",
+  "auth": {
+    "type": "custom",
+    "title": "API Key",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "format": "password",
+          "label": "API Key",
+          "description": "Your Lumin PDF API key from the Developer settings in your Lumin account."
+        }
+      },
+      "required": ["api_key"]
+    }
+  },
+  "actions": {
+    "get_current_user": {
+      "display_name": "Get Current User",
+      "description": "Get information about the currently authenticated Lumin user.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "user": {"type": "object", "description": "Current user details"}
+        }
+      }
+    },
+    "get_workspace": {
+      "display_name": "Get Workspace",
+      "description": "Get information about the current workspace.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "workspace": {"type": "object", "description": "Workspace details"}
+        }
+      }
+    },
+    "list_workspace_members": {
+      "display_name": "List Workspace Members",
+      "description": "List all members in the current workspace.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer", "description": "Page number for pagination"},
+          "limit": {"type": "integer", "description": "Number of results per page"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "members": {"type": "array", "description": "List of workspace members"}
+        }
+      }
+    },
+    "list_templates": {
+      "display_name": "List Templates",
+      "description": "List all templates available in the workspace.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer", "description": "Page number for pagination"},
+          "limit": {"type": "integer", "description": "Number of results per page"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "templates": {"type": "array", "description": "List of templates"}
+        }
+      }
+    },
+    "get_template": {
+      "display_name": "Get Template",
+      "description": "Get details of a specific template by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "template_id": {"type": "string", "description": "The ID of the template"}
+        },
+        "required": ["template_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "template": {"type": "object", "description": "Template details"}
+        }
+      }
+    },
+    "send_signature_request": {
+      "display_name": "Send Signature Request",
+      "description": "Send a signature request with one or more documents to specified signers.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string", "description": "Title of the signature request"},
+          "file_urls": {"type": "array", "description": "List of PDF URLs to include in the request", "items": {"type": "string"}},
+          "file_url": {"type": "string", "description": "Single PDF URL to include in the request (use instead of file_urls for one document)"},
+          "signers": {
+            "type": "array",
+            "description": "List of signers. Each signer should have name and email.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string"},
+                "email": {"type": "string"}
+              }
+            }
+          },
+          "message": {"type": "string", "description": "Optional message to include with the request"},
+          "due_date": {"type": "string", "description": "Optional due date in ISO 8601 format"}
+        },
+        "required": ["title", "signers"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "signature_request": {"type": "object", "description": "Created signature request details including id and status"}
+        }
+      }
+    },
+    "get_signature_request": {
+      "display_name": "Get Signature Request",
+      "description": "Retrieve details of a specific signature request by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "signature_request_id": {"type": "string", "description": "The ID of the signature request"}
+        },
+        "required": ["signature_request_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "signature_request": {"type": "object", "description": "Signature request details including status and signers"}
+        }
+      }
+    },
+    "cancel_signature_request": {
+      "display_name": "Cancel Signature Request",
+      "description": "Cancel a pending signature request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "signature_request_id": {"type": "string", "description": "The ID of the signature request to cancel"}
+        },
+        "required": ["signature_request_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "canceled": {"type": "boolean", "description": "Whether the request was successfully canceled"}
+        }
+      }
+    },
+    "generate_signing_link": {
+      "display_name": "Generate Signing Link",
+      "description": "Generate an embedded signing link for a specific signer in a signature request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "signature_request_id": {"type": "string", "description": "The ID of the signature request"},
+          "signer_email": {"type": "string", "description": "Email of the signer to generate a link for"}
+        },
+        "required": ["signature_request_id", "signer_email"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "signing_link": {"type": "string", "description": "The embedded signing URL for the signer"}
+        }
+      }
+    },
+    "send_reminder": {
+      "display_name": "Send Reminder",
+      "description": "Send a reminder email to pending signers for a signature request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "signature_request_id": {"type": "string", "description": "The ID of the signature request"},
+          "emails": {"type": "array", "description": "Optional list of signer emails to remind. If omitted, all pending signers are reminded.", "items": {"type": "string"}}
+        },
+        "required": ["signature_request_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "sent": {"type": "boolean", "description": "Whether the reminder was sent successfully"}
+        }
+      }
+    }
+  }
+}
