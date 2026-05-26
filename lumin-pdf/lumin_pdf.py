@@ -222,3 +222,167 @@ class SendReminderAction(ActionHandler):
             return ActionResult(data={"result": True, "sent": True}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
+
+
+@lumin_pdf.action("send_from_template")
+class SendFromTemplateAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            body: Dict[str, Any] = {
+                "template_id": inputs["template_id"],
+                "title": inputs["title"],
+                "signers": inputs["signers"],
+            }
+            due_date = inputs.get("due_date")
+            if due_date:
+                from datetime import datetime, timezone
+
+                body["expires_at"] = int(
+                    datetime.fromisoformat(due_date).replace(tzinfo=timezone.utc).timestamp() * 1000
+                )
+            else:
+                body["expires_at"] = int((time.time() + 30 * 86400) * 1000)
+            for opt in ("tags", "fields", "variables", "message"):
+                if inputs.get(opt):
+                    body[opt] = inputs[opt]
+            response = await context.fetch(
+                f"{BASE_URL}/signature_request/send-from-template",
+                method="POST",
+                headers=_auth_headers(context),
+                json=body,
+            )
+            return ActionResult(data={"result": True, "signature_request": response.data}, cost_usd=0.0)
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@lumin_pdf.action("update_signature_request")
+class UpdateSignatureRequestAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            req_id = inputs["signature_request_id"]
+            due_date = inputs["due_date"]
+            from datetime import datetime, timezone
+
+            expires_at = int(datetime.fromisoformat(due_date).replace(tzinfo=timezone.utc).timestamp() * 1000)
+            response = await context.fetch(
+                f"{BASE_URL}/signature_request/{req_id}",
+                method="PATCH",
+                headers=_auth_headers(context),
+                json={"expires_at": expires_at},
+            )
+            return ActionResult(data={"result": True, "signature_request": response.data}, cost_usd=0.0)
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@lumin_pdf.action("download_signed_document")
+class DownloadSignedDocumentAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            req_id = inputs["signature_request_id"]
+            doc_type = inputs.get("type", "agreement")
+            response = await context.fetch(
+                f"{BASE_URL}/signature_request/{req_id}/file",
+                method="GET",
+                headers=_auth_headers(context),
+                params={"type": doc_type},
+            )
+            data = response.data
+            file_url = (
+                data.get("file_url") or data.get("url") or data.get("download_url", "")
+                if isinstance(data, dict)
+                else ""
+            )
+            return ActionResult(data={"result": True, "file_url": file_url, "file": data}, cost_usd=0.0)
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@lumin_pdf.action("upload_document")
+class UploadDocumentAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            body: Dict[str, Any] = {
+                "document_name": inputs["document_name"],
+                "location": inputs.get("location", "personal"),
+            }
+            if inputs.get("file_url"):
+                body["method"] = "file-upload"
+                body["document_data"] = {"file_url": inputs["file_url"]}
+            elif inputs.get("template_id"):
+                body["method"] = "template"
+                body["document_data"] = {"template_id": inputs["template_id"]}
+            response = await context.fetch(
+                f"{BASE_URL}/documents",
+                method="POST",
+                headers=_auth_headers(context),
+                json=body,
+            )
+            return ActionResult(data={"result": True, "document": response.data}, cost_usd=0.0)
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@lumin_pdf.action("generate_document_from_template")
+class GenerateDocumentFromTemplateAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            template_id = inputs["template_id"]
+            body: Dict[str, Any] = {"document_name": inputs["document_name"]}
+            for opt in ("tags", "fields", "variables"):
+                if inputs.get(opt):
+                    body[opt] = inputs[opt]
+            response = await context.fetch(
+                f"{BASE_URL}/templates/{template_id}/generate-document",
+                method="POST",
+                headers=_auth_headers(context),
+                json=body,
+            )
+            return ActionResult(data={"result": True, "document": response.data}, cost_usd=0.0)
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@lumin_pdf.action("create_agreement")
+class CreateAgreementAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            body: Dict[str, Any] = {
+                "method": "template",
+                "agreement_name": inputs["agreement_name"],
+                "agreement_data": {"template_id": inputs["template_id"]},
+            }
+            for opt in ("variables", "fields", "linked_objects"):
+                if inputs.get(opt):
+                    body["agreement_data"][opt] = inputs[opt]
+            response = await context.fetch(
+                f"{BASE_URL}/agreements",
+                method="POST",
+                headers=_auth_headers(context),
+                json=body,
+            )
+            return ActionResult(data={"result": True, "agreement": response.data}, cost_usd=0.0)
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@lumin_pdf.action("download_agreement")
+class DownloadAgreementAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            agreement_id = inputs["agreement_id"]
+            response = await context.fetch(
+                f"{BASE_URL}/agreements/{agreement_id}/file",
+                method="GET",
+                headers=_auth_headers(context),
+            )
+            data = response.data
+            file_url = (
+                data.get("file_url") or data.get("url") or data.get("download_url", "")
+                if isinstance(data, dict)
+                else ""
+            )
+            return ActionResult(data={"result": True, "file_url": file_url, "file": data}, cost_usd=0.0)
+        except Exception as e:
+            return ActionError(message=str(e))
