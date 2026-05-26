@@ -88,6 +88,26 @@ class TestGetCommit:
 
         assert result.type == ResultType.ACTION_ERROR
 
+    @pytest.mark.asyncio
+    async def test_null_author_does_not_crash(self, mock_context):
+        commit_with_null_author = {
+            "sha": "deadbeef",
+            "commit": {
+                "author": None,
+                "committer": {"name": "Octocat", "email": "octocat@github.com", "date": "2021-01-01T00:00:00Z"},
+                "message": "Orphan commit",
+            },
+            "html_url": "https://github.com/octocat/Hello-World/commit/deadbeef",
+        }
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=commit_with_null_author)
+
+        result = await github.execute_action(
+            "get_commit", {"owner": "octocat", "repo": "Hello-World", "sha": "deadbeef"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["author"] == {"name": None, "email": None, "date": None}
+
 
 class TestListCommits:
     @pytest.mark.asyncio
@@ -112,6 +132,116 @@ class TestListCommits:
         params = mock_context.fetch.call_args.kwargs["params"]
         assert params["sha"] == "main"
         assert params["since"] == "2021-01-01T00:00:00Z"
+
+    @pytest.mark.asyncio
+    async def test_null_author_does_not_crash(self, mock_context):
+        # Repro for the Raygun "Unhandled" Lambda error: GitHub returns
+        # commit.commit.author = null for commits whose email isn't linked
+        # to a GitHub user. Previously this raised TypeError mid-action.
+        commit_with_null_author = {
+            "sha": "deadbeef",
+            "commit": {
+                "author": None,
+                "committer": {"name": "Octocat", "email": "octocat@github.com", "date": "2021-01-01T00:00:00Z"},
+                "message": "Orphan commit",
+            },
+            "html_url": "https://github.com/octocat/Hello-World/commit/deadbeef",
+        }
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[commit_with_null_author])
+
+        result = await github.execute_action("list_commits", {"owner": "octocat", "repo": "Hello-World"}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data[0]["author"] == {"name": None, "email": None, "date": None}
+        assert result.result.data[0]["committer"]["name"] == "Octocat"
+
+    @pytest.mark.asyncio
+    async def test_null_committer_does_not_crash(self, mock_context):
+        commit_with_null_committer = {
+            "sha": "deadbeef",
+            "commit": {
+                "author": {"name": "Octocat", "email": "octocat@github.com", "date": "2021-01-01T00:00:00Z"},
+                "committer": None,
+                "message": "Bot commit",
+            },
+            "html_url": "https://github.com/octocat/Hello-World/commit/deadbeef",
+        }
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[commit_with_null_committer])
+
+        result = await github.execute_action("list_commits", {"owner": "octocat", "repo": "Hello-World"}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data[0]["committer"] == {"name": None, "email": None, "date": None}
+
+    @pytest.mark.asyncio
+    async def test_cancelled_error_returns_action_error(self, mock_context):
+        # Simulates the Lambda runtime cancelling the task (e.g., timeout).
+        # CancelledError is a BaseException, not Exception — without explicit
+        # handling it bypasses the decorator and the Lambda returns "Unhandled".
+        import asyncio as _asyncio
+
+        mock_context.fetch.side_effect = _asyncio.CancelledError()
+
+        result = await github.execute_action("list_commits", {"owner": "octocat", "repo": "Hello-World"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "cancelled" in result.result.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_max_pages_cap_stops_unbounded_pagination(self, mock_context):
+        # Each page returns a full 100 items so paginated_fetch would keep going
+        # forever; the max_pages cap must stop it and surface a TimeoutError
+        # which the decorator turns into an ActionError.
+        full_page = [SAMPLE_COMMIT] * 100
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=full_page)
+
+        result = await github.execute_action(
+            "list_commits",
+            {"owner": "octocat", "repo": "Hello-World", "max_pages": 2},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "2 pages" in result.result.message
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_default_max_pages_is_ten(self, mock_context):
+        # When the caller omits max_pages, the default cap of 10 must apply.
+        full_page = [SAMPLE_COMMIT] * 100
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=full_page)
+
+        result = await github.execute_action(
+            "list_commits",
+            {"owner": "octocat", "repo": "Hello-World"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 10
+
+    @pytest.mark.asyncio
+    async def test_completes_under_cap_without_firing(self, mock_context):
+        # Regression guard: 3 pages of data with cap of 10 must complete
+        # naturally and return all items. Catches off-by-one bugs where the
+        # cap fires one iteration too early and silently returns short data.
+        full_page = [SAMPLE_COMMIT] * 100
+        last_partial = [SAMPLE_COMMIT] * 30
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data=full_page),
+            FetchResponse(status=200, headers={}, data=full_page),
+            FetchResponse(status=200, headers={}, data=last_partial),
+        ]
+
+        result = await github.execute_action(
+            "list_commits",
+            {"owner": "octocat", "repo": "Hello-World"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        assert len(result.result.data) == 230
+        assert mock_context.fetch.call_count == 3
 
 
 # ---- Branch Actions ----

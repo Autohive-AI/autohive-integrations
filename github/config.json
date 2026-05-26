@@ -1,6 +1,6 @@
 {
   "name": "GitHub",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "GitHub API integration for complete repository management including CRUD operations for repos, branches, issues, PRs, files, and more.",
   "display_name": "GitHub",
   "supports_connected_account": true,
@@ -447,6 +447,12 @@
           "until": {
             "type": "string",
             "description": "ISO 8601 timestamp to filter commits before"
+          },
+          "max_pages": {
+            "type": "integer",
+            "description": "Maximum number of pages (100 commits per page) to fetch before stopping. Prevents Lambda timeouts on large repos. Narrow with sha/path/since/until for full coverage.",
+            "default": 10,
+            "minimum": 1
           }
         },
         "required": [
@@ -478,7 +484,10 @@
                   ]
                 },
                 "date": {
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               }
             },
@@ -498,7 +507,10 @@
                   ]
                 },
                 "date": {
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               }
             },

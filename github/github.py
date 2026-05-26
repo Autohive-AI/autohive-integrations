@@ -21,10 +21,14 @@ from autohive_integrations_sdk import (
     ConnectedAccountHandler,
     ConnectedAccountInfo,
 )
-from typing import Dict, Any, List, Callable, TypeVar
+from typing import Dict, Any, List, Callable, Optional, TypeVar
 from urllib.parse import quote
 from functools import wraps
+import asyncio
 import base64
+import logging
+
+logger = logging.getLogger(__name__)
 
 github = Integration.load()
 
@@ -60,6 +64,21 @@ def handle_github_errors(action_name: str):
 
                 return await func(self, inputs, context)
 
+            except asyncio.CancelledError:
+                # Defensive: convert Python-side task cancellation into an
+                # ActionError if cancellation reaches the action coroutine.
+                # This does not catch Lambda hard timeouts or caller-side
+                # invocation cancellation.
+                logger.warning(
+                    "CancelledError caught in action %s — cooperative cancellation reached the action coroutine",
+                    action_name,
+                )
+                return ActionError(
+                    message=(
+                        f"Action '{action_name}' was cancelled before completing. "
+                        "If listing a large dataset, try narrowing the request with filters."
+                    )
+                )
             except Exception as e:
                 return ActionError(message=str(e))
 
@@ -95,15 +114,21 @@ class GitHubAPI:
         url: str,
         params: Dict[str, Any] = None,
         data_key: str = None,
+        max_pages: int = 10,
     ) -> List[Dict[str, Any]]:
         """
         Generic paginated fetch that handles GitHub's pagination automatically.
+
+        Bounded by max_pages to prevent unbounded loops on large datasets
+        (e.g. list_commits on a repo with thousands of commits) from running
+        until the Lambda runtime cancels the task.
 
         Args:
             context: ExecutionContext
             url: API endpoint URL
             params: Query parameters
             data_key: Key to extract from response (e.g., 'workflows', 'workflow_runs')
+            max_pages: Hard cap on pages fetched. Raises TimeoutError when exceeded.
         """
         if params is None:
             params = {}
@@ -113,8 +138,23 @@ class GitHubAPI:
 
         all_items = []
         headers = GitHubAPI.get_headers(context)
+        pages_fetched = 0
         while True:
+            if pages_fetched >= max_pages:
+                logger.warning(
+                    "paginated_fetch hit max_pages cap (url=%s, max_pages=%d, items_collected=%d)",
+                    url,
+                    max_pages,
+                    len(all_items),
+                )
+                raise TimeoutError(
+                    f"GitHub pagination stopped after {max_pages} pages "
+                    f"({len(all_items)} items). Narrow the request with filters "
+                    "(e.g. sha, path, since, until) or raise max_pages."
+                )
+
             fetch_result = await context.fetch(url, params=params, headers=headers)
+            pages_fetched += 1
             response = fetch_result.data
 
             # Extract items from response
@@ -261,8 +301,9 @@ class GitHubAPI:
         path: str = None,
         since: str = None,
         until: str = None,
+        max_pages: int = 10,
     ) -> List[Dict[str, Any]]:
-        """Get commits for a repository"""
+        """Get commits for a repository (bounded by max_pages)"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/commits"
         params = {}
 
@@ -275,7 +316,7 @@ class GitHubAPI:
         if until:
             params["until"] = until
 
-        return await GitHubAPI.paginated_fetch(context, url, params)
+        return await GitHubAPI.paginated_fetch(context, url, params, max_pages=max_pages)
 
     @staticmethod
     async def get_commit(context: ExecutionContext, owner: str, repo: str, sha: str) -> Dict[str, Any]:
@@ -1154,6 +1195,24 @@ class DeleteRepository(ActionHandler):
 # ---- Commit Actions ----
 
 
+def _commit_signature(sig: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    # GitHub may return a null author/committer for commits whose email isn't
+    # linked to a GitHub user (deleted accounts, bot-authored commits, etc.).
+    sig = sig or {}
+    return {"name": sig.get("name"), "email": sig.get("email"), "date": sig.get("date")}
+
+
+def _commit_summary(commit: Dict[str, Any]) -> Dict[str, Any]:
+    inner = commit.get("commit") or {}
+    return {
+        "sha": commit.get("sha"),
+        "author": _commit_signature(inner.get("author")),
+        "committer": _commit_signature(inner.get("committer")),
+        "message": inner.get("message"),
+        "url": commit.get("html_url"),
+    }
+
+
 @github.action("list_commits")
 class ListCommits(ActionHandler):
     """List commits for a repository"""
@@ -1168,27 +1227,11 @@ class ListCommits(ActionHandler):
             path=inputs.get("path"),
             since=inputs.get("since"),
             until=inputs.get("until"),
+            max_pages=inputs.get("max_pages", 10),
         )
 
         return ActionResult(
-            data=[
-                {
-                    "sha": commit["sha"],
-                    "author": {
-                        "name": commit["commit"]["author"]["name"],
-                        "email": commit["commit"]["author"]["email"],
-                        "date": commit["commit"]["author"]["date"],
-                    },
-                    "committer": {
-                        "name": commit["commit"]["committer"]["name"],
-                        "email": commit["commit"]["committer"]["email"],
-                        "date": commit["commit"]["committer"]["date"],
-                    },
-                    "message": commit["commit"]["message"],
-                    "url": commit["html_url"],
-                }
-                for commit in commits
-            ],
+            data=[_commit_summary(commit) for commit in commits],
             cost_usd=0.0,
         )
 
@@ -1203,21 +1246,9 @@ class GetCommit(ActionHandler):
 
         return ActionResult(
             data={
-                "sha": commit["sha"],
-                "author": {
-                    "name": commit["commit"]["author"]["name"],
-                    "email": commit["commit"]["author"]["email"],
-                    "date": commit["commit"]["author"]["date"],
-                },
-                "committer": {
-                    "name": commit["commit"]["committer"]["name"],
-                    "email": commit["commit"]["committer"]["email"],
-                    "date": commit["commit"]["committer"]["date"],
-                },
-                "message": commit["commit"]["message"],
+                **_commit_summary(commit),
                 "stats": commit.get("stats", {}),
                 "files": commit.get("files", []),
-                "url": commit["html_url"],
             },
             cost_usd=0.0,
         )
@@ -2688,11 +2719,18 @@ class GitHubConnectedAccountHandler(ConnectedAccountHandler):
 
         Returns:
             ConnectedAccountInfo with user's email, username, name, avatar, etc.
+            Falls back to an empty ConnectedAccountInfo when the GitHub API call
+            fails (e.g., revoked/expired token, 5xx outage). The SDK does not
+            catch exceptions raised from this handler, so letting one propagate
+            crashes the Lambda with "Unhandled". Auth failures surface to the
+            user the next time they run an action.
         """
-        # Fetch authenticated user info
-        user_data = await GitHubAPI.get_user(context)
+        try:
+            user_data = await GitHubAPI.get_user(context)
+        except Exception as e:
+            context.logger.warning(f"Failed to fetch GitHub account info: {e}")
+            return ConnectedAccountInfo()
 
-        # Parse name into first/last
         name = user_data.get("name", "")
         name_parts = name.split(maxsplit=1) if name else []
 
