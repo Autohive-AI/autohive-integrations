@@ -138,7 +138,12 @@ class TestSignatureRequestLifecycle:
 
         # API returns {"signature_request": {"signature_request_id": "..."}}
         inner = sr_data.get("signature_request") if isinstance(sr_data.get("signature_request"), dict) else sr_data
-        sig_req_id = inner.get("signature_request_id") or inner.get("id") or sr_data.get("signature_request_id") or sr_data.get("id")
+        sig_req_id = (
+            inner.get("signature_request_id")
+            or inner.get("id")
+            or sr_data.get("signature_request_id")
+            or sr_data.get("id")
+        )
         assert sig_req_id, "No signature_request id returned"
 
         # Get
