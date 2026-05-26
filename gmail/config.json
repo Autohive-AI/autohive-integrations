@@ -56,6 +56,10 @@
                         "enum": ["text", "html"],
                         "default": "text"
                     },
+                    "signature": {
+                        "type": "string",
+                        "description": "Optional signature to append to the email body. The signature should use the same format as body_format (plain text for 'text', HTML fragment for 'html')."
+                    },
                     "files": {
                         "type": "array",
                         "description": "List of files to attach to the reply",
@@ -402,6 +406,10 @@
                         "description": "Format of the email body content. When set to 'html', the body parameter will be treated as HTML content and the email will be sent as a rich HTML email with automatic plain text fallback for maximum compatibility. When set to 'text' (default), the body will be sent as plain text. LLMs can use 'html' to generate well-formatted emails with styling, links, tables, headers, lists, and other rich formatting elements. When using 'html' format, NEVER include CSS rule blocks (like <style> tags) in the body - instead use the 'style' attribute directly on HTML tags for styling (e.g., <p style=\"color: red;\">).",
                         "enum": ["text", "html"],
                         "default": "text"
+                    },
+                    "signature": {
+                        "type": "string",
+                        "description": "Optional signature to append to the email body. The signature should use the same format as body_format (plain text for 'text', HTML fragment for 'html')."
                     },
                     "files": {
                         "type": "array",
@@ -1249,6 +1257,10 @@
                         "enum": ["text", "html"],
                         "default": "text"
                     },
+                    "signature": {
+                        "type": "string",
+                        "description": "Optional signature to append to the email body. The signature should use the same format as body_format (plain text for 'text', HTML fragment for 'html')."
+                    },
                     "files": {
                         "type": "array",
                         "description": "List of files to attach to the draft",
@@ -1369,6 +1381,10 @@
                         "description": "Format of the email body content. When set to 'html', the body parameter will be treated as HTML content. When set to 'text' (default), the body will be sent as plain text.",
                         "enum": ["text", "html"],
                         "default": "text"
+                    },
+                    "signature": {
+                        "type": "string",
+                        "description": "Optional signature to append to the email body. The signature should use the same format as body_format (plain text for 'text', HTML fragment for 'html')."
                     },
                     "files": {
                         "type": "array",
@@ -1740,6 +1756,63 @@
                 "required": [
                     "result"
                 ]
+            }
+        },
+
+        "list_send_as_signatures": {
+            "display_name": "List Send-As Signatures",
+            "description": "List the signature currently bound to each of the user's send-as addresses (their primary inbox plus any aliases). Important limitation: the Gmail API only exposes the signature that is set as the new-mail default on a given send-as address. If the user has signatures saved in Gmail's web UI but none is assigned as the default for a send-as address, that address's `signature` will come back as an empty string. The Gmail API does not expose the user's full saved-signatures library.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user.",
+                        "default": "me"
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "signatures": {
+                        "type": "array",
+                        "description": "One entry per send-as address the user can send from, with the signature currently bound to it as the new-mail default.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "send_as_email": {
+                                    "type": "string",
+                                    "description": "The send-as email address (e.g. the user's inbox address or an alias like support@example.com)."
+                                },
+                                "display_name": {
+                                    "type": "string",
+                                    "description": "Display name configured for this send-as address. Empty string if not set."
+                                },
+                                "is_primary": {
+                                    "type": "boolean",
+                                    "description": "True if this is the user's primary inbox address."
+                                },
+                                "is_default": {
+                                    "type": "boolean",
+                                    "description": "True if this send-as address is selected as the user's default sending address. (This is the 'default send-as', distinct from the per-address default signature returned in the `signature` field.)"
+                                },
+                                "signature": {
+                                    "type": "string",
+                                    "description": "HTML fragment of the signature currently bound as the new-mail default for this send-as address. Empty string if no signature is bound."
+                                },
+                                "reply_to_address": {
+                                    "type": "string",
+                                    "description": "Reply-to address configured for this send-as alias. Empty string if not set."
+                                }
+                            },
+                            "required": ["send_as_email", "is_primary", "is_default", "signature"]
+                        }
+                    },
+                    "result": { "type": "boolean", "description": "The result of the list operation" },
+                    "error":  { "type": "string",  "description": "Error message if the action failed" }
+                },
+                "required": ["signatures", "result"]
             }
         }
     }

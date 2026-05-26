@@ -1,5 +1,6 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 
+from pathlib import Path
 from typing import Dict, Any
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -7,11 +8,23 @@ from email.mime.base import MIMEBase
 from email import encoders
 import base64
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from google.oauth2.credentials import Credentials
 import html2text
 import bleach
 
-gmail = Integration.load()
+gmail = Integration.load(Path(__file__).with_name("config.json"))
+
+
+def append_signature(body: str, signature: str = "", is_html: bool = False) -> str:
+    """Append a signature to an email body using format-appropriate separators."""
+    body = body or ""
+    signature = signature or ""
+    if not signature:
+        return body
+    if is_html:
+        return f"{body}<br><br>-- <br>{signature}" if body else signature
+    return f"{body}\n\n-- \n{signature}" if body else signature
 
 
 def create_email_message(body: str, files: list = None, is_html: bool = False) -> MIMEMultipart:
@@ -361,8 +374,10 @@ class MarkEmailsAsUnread(ActionHandler):
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("mark_emails_as_read")
@@ -380,8 +395,10 @@ class MarkEmailsAsRead(ActionHandler):
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("get_user_info")
@@ -407,8 +424,10 @@ class GetUserInfo(ActionHandler):
                 cost_usd=0.0,
             )
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("read_email")
@@ -432,8 +451,10 @@ class ReadEmail(ActionHandler):
 
             return ActionResult(data={"email": email_object, "files": extracted_files, "result": True}, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("send_email")
@@ -454,8 +475,10 @@ class SendEmail(ActionHandler):
 
             return ActionResult(data={"id": response.get("id", ""), "result": True}, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
     def _create_raw_email(self, inputs: Dict[str, Any]) -> str:
         """Create base64 encoded email message."""
@@ -465,7 +488,8 @@ class SendEmail(ActionHandler):
 
         # Create message with optional files and HTML support
         input_files = inputs.get("files", [])
-        message = create_email_message(inputs["body"], input_files, is_html)
+        message_body = append_signature(inputs["body"], inputs.get("signature", ""), is_html)
+        message = create_email_message(message_body, input_files, is_html)
 
         # Handle multiple recipients in 'to' field
         if isinstance(inputs["to"], list):
@@ -517,6 +541,7 @@ class ReplyToThread(ActionHandler):
 
             # Create message with optional files and HTML support
             input_files = inputs.get("files", [])
+            body = append_signature(body, inputs.get("signature", ""), is_html)
             message = create_email_message(body, input_files, is_html)
 
             # Set recipients
@@ -548,8 +573,10 @@ class ReplyToThread(ActionHandler):
 
             return ActionResult(data={"id": response.get("id", ""), "result": True}, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("read_inbox")
@@ -594,8 +621,10 @@ class ReadInbox(ActionHandler):
 
             return ActionResult(data=response, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("read_all_mail")
@@ -643,8 +672,10 @@ class ReadAllMail(ActionHandler):
 
             return ActionResult(data=response, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("list_labels")
@@ -670,8 +701,10 @@ class ListLabels(ActionHandler):
 
             return ActionResult(data={"labels": labels, "result": True}, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("list_emails_by_label")
@@ -731,8 +764,10 @@ class ListEmailsByLabel(ActionHandler):
 
             return ActionResult(data=response, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("add_labels_to_emails")
@@ -751,8 +786,10 @@ class AddLabelsToEmails(ActionHandler):
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("remove_labels_from_emails")
@@ -771,8 +808,10 @@ class RemoveLabelsFromEmails(ActionHandler):
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("create_label")
@@ -816,8 +855,10 @@ class CreateLabel(ActionHandler):
                 cost_usd=0.0,
             )
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("get_thread_emails")
@@ -854,8 +895,10 @@ class GetThreadEmails(ActionHandler):
 
             return ActionResult(data={"thread_id": thread_id, "emails": thread_emails, "result": True}, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("archive_emails")
@@ -873,8 +916,10 @@ class ArchiveEmails(ActionHandler):
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("create_draft")
@@ -963,8 +1008,10 @@ class CreateDraft(ActionHandler):
                 cost_usd=0.0,
             )
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
     def _create_raw_email(self, inputs: Dict[str, Any], message_id_header: str = None, references: str = None) -> str:
         """Create base64 encoded email message for draft."""
@@ -974,7 +1021,7 @@ class CreateDraft(ActionHandler):
 
         # Create message with optional files and HTML support
         input_files = inputs.get("files", [])
-        body = inputs.get("body", "")
+        body = append_signature(inputs.get("body", ""), inputs.get("signature", ""), is_html)
         message = create_email_message(body, input_files, is_html)
 
         # Add From header (REQUIRED for drafts to display properly in Gmail)
@@ -1072,8 +1119,10 @@ class UpdateDraft(ActionHandler):
                 cost_usd=0.0,
             )
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
     def _create_raw_email(self, inputs: Dict[str, Any], message_id_header: str = None, references: str = None) -> str:
         """Create base64 encoded email message for draft."""
@@ -1083,7 +1132,7 @@ class UpdateDraft(ActionHandler):
 
         # Create message with optional files and HTML support
         input_files = inputs.get("files", [])
-        body = inputs.get("body", "")
+        body = append_signature(inputs.get("body", ""), inputs.get("signature", ""), is_html)
         message = create_email_message(body, input_files, is_html)
 
         # Add From header (REQUIRED for drafts to display properly in Gmail)
@@ -1168,8 +1217,10 @@ class ListDrafts(ActionHandler):
 
             return ActionResult(data=result, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("get_draft")
@@ -1225,8 +1276,10 @@ class GetDraft(ActionHandler):
 
             return ActionResult(data={"draft": draft_info, "files": extracted_files, "result": True}, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("send_draft")
@@ -1250,8 +1303,10 @@ class SendDraft(ActionHandler):
                 cost_usd=0.0,
             )
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gmail.action("delete_draft")
@@ -1268,5 +1323,37 @@ class DeleteDraft(ActionHandler):
 
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
         except Exception as e:
-            return ActionResult(data={"error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
+
+
+@gmail.action("list_send_as_signatures")
+class ListSendAsSignatures(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            service = build_gmail_service(context)
+            user_id = inputs.get("user_id", "me")
+
+            response = service.users().settings().sendAs().list(userId=user_id).execute()
+            aliases = response.get("sendAs", [])
+
+            signatures = [
+                {
+                    "send_as_email": alias.get("sendAsEmail", ""),
+                    "display_name": alias.get("displayName", ""),
+                    "is_primary": alias.get("isPrimary", False),
+                    "is_default": alias.get("isDefault", False),
+                    "signature": alias.get("signature") or "",
+                    "reply_to_address": alias.get("replyToAddress", ""),
+                }
+                for alias in aliases
+            ]
+
+            return ActionResult(data={"signatures": signatures, "result": True}, cost_usd=0.0)
+
+        except HttpError as e:
+            return ActionError(message=f"Gmail API error: {str(e)}")
+        except Exception as e:
+            return ActionError(message=str(e))

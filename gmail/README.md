@@ -11,11 +11,13 @@ HTML email bodies are sanitised with [`bleach`](https://github.com/mozilla/bleac
 Key features:
 
 - Send plain-text or rich-HTML email with attachments, CC, and BCC
+- Optional `signature` input on send/reply/draft actions appends a signature to the body using format-appropriate separators
 - Reply to threads with automatic recipient and subject handling
 - Draft lifecycle: create, update, list, get, send, delete
 - Read inbox / all mail with read/unread filtering and pagination
 - Read full threads and individual messages (with body, headers, and attachments)
 - Label management: list, create, apply, remove, list-by-label
+- List per-send-as default signatures via `list_send_as_signatures`
 - Archive and mark as read/unread in batch
 - Pagination via `nextPageToken` on all list endpoints
 
@@ -33,7 +35,7 @@ No additional configuration fields are required as authentication is handled thr
 
 ## Actions
 
-The integration exposes 21 actions across messages, threads, drafts, and labels.
+The integration exposes 22 actions across messages, threads, drafts, labels, and settings.
 
 ### Messages
 
@@ -76,6 +78,12 @@ The integration exposes 21 actions across messages, threads, drafts, and labels.
 | `remove_labels_from_emails` | Remove one or more labels from one or more messages |
 | `list_emails_by_label` | List messages with a given label, paginated |
 
+### Settings
+
+| Action | Description |
+|---|---|
+| `list_send_as_signatures` | List the user's send-as addresses (primary + aliases) with the signature bound to each as the new-mail default. The Gmail API does not expose the user's full saved-signatures library, only the per-send-as default. |
+
 See [`config.json`](config.json) for the full input/output schema of every action.
 
 ## HTML Email Notes
@@ -90,7 +98,7 @@ When `body_format` is `"html"` on `send_email` / `reply_to_thread` / `create_dra
 
 Pinned in [`requirements.txt`](requirements.txt):
 
-- `autohive-integrations-sdk~=1.0.2`
+- `autohive-integrations-sdk~=2.0.0`
 - `google-api-python-client`
 - `google-auth-httplib2`
 - `google-auth-oauthlib`
