@@ -219,7 +219,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Lumin PDF
 
-[lumin-pdf](lumin-pdf): Lumin PDF is a cloud-based PDF editing and eSignature platform. The integration provides 10 actions covering user and workspace management, template discovery, and the full signature request lifecycle — sending requests, tracking status, generating embedded signing links, sending reminders, and cancelling requests. Uses API Key authentication. Ideal for contract automation, eSignature workflows, and document signing processes.
+[lumin-pdf](lumin-pdf): Lumin PDF is a cloud-based PDF editing and eSignature platform. The integration provides 17 actions covering workspace management, document uploading (PDF, DOCX, XLSX, PPTX and more), template-based document generation, agreement creation, and the full signature request lifecycle — sending requests directly or from templates, tracking status, generating embedded signing links, sending reminders, downloading signed documents, and cancelling requests. Uses API Key authentication. Ideal for contract automation, eSignature workflows, and end-to-end document signing processes.
 
 ### Mailchimp
 

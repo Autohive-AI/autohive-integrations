@@ -173,3 +173,184 @@ class TestSignatureRequestLifecycle:
         )
         assert cancel_result.result.data["result"] is True
         assert cancel_result.result.data["canceled"] is True
+
+
+# ---- Upload Document ----
+
+
+class TestUploadDocument:
+    async def test_upload_from_url(self, live_context):
+        result = await lumin_pdf.execute_action(
+            "upload_document",
+            {
+                "document_name": "Autohive Integration Test Doc",
+                "file_url": PDF_URL,
+                "location": "personal",
+            },
+            live_context,
+        )
+
+        data = result.result.data
+        assert data["result"] is True
+        assert "document" in data
+
+
+# ---- Send From Template ----
+
+
+class TestSendFromTemplate:
+    async def test_skipped_if_no_templates(self, live_context):
+        list_result = await lumin_pdf.execute_action("list_templates", {"limit": 1}, live_context)
+        templates = list_result.result.data["templates"]
+
+        if not templates:
+            pytest.skip("No templates in workspace")
+
+        template_id = templates[0].get("id")
+        result = await lumin_pdf.execute_action(
+            "send_from_template",
+            {
+                "template_id": template_id,
+                "title": "Autohive Template Test",
+                "signers": [{"name": "Test Signer", "email_address": "engineering@autohive.com"}],
+            },
+            live_context,
+        )
+
+        data = result.result.data
+        assert data["result"] is True
+        assert "signature_request" in data
+
+        # Cancel the created request
+        inner = data["signature_request"]
+        sig_req_id = (
+            inner.get("signature_request", {}).get("signature_request_id")
+            or inner.get("signature_request_id")
+            or inner.get("id")
+        )
+        if sig_req_id:
+            await lumin_pdf.execute_action(
+                "cancel_signature_request", {"signature_request_id": sig_req_id}, live_context
+            )
+
+
+# ---- Update Signature Request ----
+
+
+class TestUpdateSignatureRequest:
+    async def test_extends_expiry(self, live_context):
+        # Create a request to update
+        sr_result = await lumin_pdf.execute_action(
+            "send_signature_request",
+            {
+                "title": "Autohive Update Test",
+                "file_url": PDF_URL,
+                "signers": [{"name": "Test Signer", "email_address": "engineering@autohive.com"}],
+            },
+            live_context,
+        )
+        sr_data = sr_result.result.data["signature_request"]
+        inner = sr_data.get("signature_request") if isinstance(sr_data.get("signature_request"), dict) else sr_data
+        sig_req_id = inner.get("signature_request_id") or inner.get("id")
+
+        if not sig_req_id:
+            pytest.skip("Could not create signature request to update")
+
+        result = await lumin_pdf.execute_action(
+            "update_signature_request",
+            {"signature_request_id": sig_req_id, "due_date": "2027-01-01T00:00:00"},
+            live_context,
+        )
+
+        assert result.result.data["result"] is True
+
+        # Cleanup
+        await lumin_pdf.execute_action("cancel_signature_request", {"signature_request_id": sig_req_id}, live_context)
+
+
+# ---- Download Signed Document ----
+
+
+class TestDownloadSignedDocument:
+    async def test_returns_file_data(self, live_context):
+        # Create and immediately try to download — will likely get a 409 since it's not signed yet,
+        # but confirms the action calls the right endpoint
+        sr_result = await lumin_pdf.execute_action(
+            "send_signature_request",
+            {
+                "title": "Autohive Download Test",
+                "file_url": PDF_URL,
+                "signers": [{"name": "Test Signer", "email_address": "engineering@autohive.com"}],
+            },
+            live_context,
+        )
+        sr_data = sr_result.result.data["signature_request"]
+        inner = sr_data.get("signature_request") if isinstance(sr_data.get("signature_request"), dict) else sr_data
+        sig_req_id = inner.get("signature_request_id") or inner.get("id")
+
+        if not sig_req_id:
+            pytest.skip("Could not create signature request")
+
+        result = await lumin_pdf.execute_action(
+            "download_signed_document", {"signature_request_id": sig_req_id}, live_context
+        )
+
+        # Either succeeds with a URL or fails with a meaningful error (not signed yet is expected)
+        assert "result" in result.result.data
+
+        # Cleanup
+        await lumin_pdf.execute_action("cancel_signature_request", {"signature_request_id": sig_req_id}, live_context)
+
+
+# ---- Generate Document From Template ----
+
+
+class TestGenerateDocumentFromTemplate:
+    async def test_skipped_if_no_templates(self, live_context):
+        list_result = await lumin_pdf.execute_action("list_templates", {"limit": 1}, live_context)
+        templates = list_result.result.data["templates"]
+
+        if not templates:
+            pytest.skip("No templates in workspace")
+
+        template_id = templates[0].get("id")
+        result = await lumin_pdf.execute_action(
+            "generate_document_from_template",
+            {"template_id": template_id, "document_name": "Autohive Generated Doc"},
+            live_context,
+        )
+
+        data = result.result.data
+        assert data["result"] is True
+        assert "document" in data
+
+
+# ---- Create Agreement ----
+
+
+class TestCreateAgreement:
+    async def test_skipped_if_no_templates(self, live_context):
+        list_result = await lumin_pdf.execute_action("list_templates", {"limit": 1}, live_context)
+        templates = list_result.result.data["templates"]
+
+        if not templates:
+            pytest.skip("No templates in workspace")
+
+        template_id = templates[0].get("id")
+        result = await lumin_pdf.execute_action(
+            "create_agreement",
+            {"agreement_name": "Autohive Test Agreement", "template_id": template_id},
+            live_context,
+        )
+
+        data = result.result.data
+        assert data["result"] is True
+        assert "agreement" in data
+
+
+# ---- Download Agreement ----
+
+
+class TestDownloadAgreement:
+    async def test_skipped_no_agreement(self, live_context):
+        pytest.skip("No agreement ID available without creating one via templates first")

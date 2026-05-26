@@ -347,3 +347,290 @@ class TestSendReminder:
         result = await lumin_pdf.execute_action("send_reminder", {"signature_request_id": "sr1"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
+
+
+# ---- New Actions ----
+
+
+class TestSendFromTemplate:
+    @pytest.mark.asyncio
+    async def test_send_with_required_fields(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr1", "status": "pending"})
+        inputs = {
+            "template_id": "tpl1",
+            "title": "Contract",
+            "signers": [{"name": "Alice", "signer_role": "signer"}],
+        }
+
+        result = await lumin_pdf.execute_action("send_from_template", inputs, mock_context)
+
+        assert result.result.data["result"] is True
+        assert result.result.data["signature_request"]["id"] == "sr1"
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["template_id"] == "tpl1"
+        assert body["title"] == "Contract"
+        assert "expires_at" in body
+
+    @pytest.mark.asyncio
+    async def test_send_with_optional_fields(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr2"})
+        inputs = {
+            "template_id": "tpl1",
+            "title": "Contract",
+            "signers": [{"name": "Bob", "signer_role": "signer"}],
+            "message": "Please sign",
+            "tags": {"company": "Acme"},
+            "fields": {"date": "2026-01-01"},
+        }
+
+        await lumin_pdf.execute_action("send_from_template", inputs, mock_context)
+
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["message"] == "Please sign"
+        assert body["tags"] == {"company": "Acme"}
+        assert body["fields"] == {"date": "2026-01-01"}
+
+    @pytest.mark.asyncio
+    async def test_due_date_converted_to_millis(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr3"})
+        inputs = {
+            "template_id": "tpl1",
+            "title": "Contract",
+            "signers": [],
+            "due_date": "2026-12-31T00:00:00",
+        }
+
+        await lumin_pdf.execute_action("send_from_template", inputs, mock_context)
+
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert isinstance(body["expires_at"], int)
+        assert body["expires_at"] > 1_000_000_000_000  # epoch millis
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Bad template")
+
+        result = await lumin_pdf.execute_action(
+            "send_from_template",
+            {"template_id": "bad", "title": "T", "signers": []},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestUpdateSignatureRequest:
+    @pytest.mark.asyncio
+    async def test_updates_expiry(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"id": "sr1", "expires_at": 9999999999000}
+        )
+        inputs = {"signature_request_id": "sr1", "due_date": "2026-12-31T00:00:00"}
+
+        result = await lumin_pdf.execute_action("update_signature_request", inputs, mock_context)
+
+        assert result.result.data["result"] is True
+        assert "signature_request" in result.result.data
+        call = mock_context.fetch.call_args
+        assert call.kwargs["method"] == "PATCH"
+        assert f"{BASE_URL}/signature_request/sr1" in call.args[0]
+        assert isinstance(call.kwargs["json"]["expires_at"], int)
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Not found")
+
+        result = await lumin_pdf.execute_action(
+            "update_signature_request",
+            {"signature_request_id": "bad", "due_date": "2026-01-01T00:00:00"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestDownloadSignedDocument:
+    @pytest.mark.asyncio
+    async def test_returns_file_url(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"file_url": "https://cdn.lumin.com/signed.pdf"}
+        )
+
+        result = await lumin_pdf.execute_action(
+            "download_signed_document", {"signature_request_id": "sr1"}, mock_context
+        )
+
+        assert result.result.data["result"] is True
+        assert result.result.data["file_url"] == "https://cdn.lumin.com/signed.pdf"
+        call = mock_context.fetch.call_args
+        assert call.kwargs["params"] == {"type": "agreement"}
+
+    @pytest.mark.asyncio
+    async def test_custom_type(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"file_url": "https://cdn.lumin.com/coc.pdf"}
+        )
+
+        await lumin_pdf.execute_action(
+            "download_signed_document",
+            {"signature_request_id": "sr1", "type": "coc"},
+            mock_context,
+        )
+
+        assert mock_context.fetch.call_args.kwargs["params"] == {"type": "coc"}
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Not signed yet")
+
+        result = await lumin_pdf.execute_action(
+            "download_signed_document", {"signature_request_id": "sr1"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestUploadDocument:
+    @pytest.mark.asyncio
+    async def test_upload_from_url(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "doc1", "name": "My Doc"})
+        inputs = {"document_name": "My Doc", "file_url": "https://example.com/doc.pdf"}
+
+        result = await lumin_pdf.execute_action("upload_document", inputs, mock_context)
+
+        assert result.result.data["result"] is True
+        assert result.result.data["document"]["id"] == "doc1"
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["method"] == "file-upload"
+        assert body["document_data"]["file_url"] == "https://example.com/doc.pdf"
+        assert body["location"] == "personal"
+
+    @pytest.mark.asyncio
+    async def test_upload_from_template(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "doc2"})
+        inputs = {"document_name": "From Template", "template_id": "tpl1", "location": "workspace"}
+
+        await lumin_pdf.execute_action("upload_document", inputs, mock_context)
+
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["method"] == "template"
+        assert body["document_data"]["template_id"] == "tpl1"
+        assert body["location"] == "workspace"
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("File too large")
+
+        result = await lumin_pdf.execute_action("upload_document", {"document_name": "Big File"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestGenerateDocumentFromTemplate:
+    @pytest.mark.asyncio
+    async def test_generates_document(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"id": "doc1", "name": "Generated"}
+        )
+        inputs = {
+            "template_id": "tpl1",
+            "document_name": "Generated Doc",
+            "fields": {"name": "Acme Corp"},
+        }
+
+        result = await lumin_pdf.execute_action("generate_document_from_template", inputs, mock_context)
+
+        assert result.result.data["result"] is True
+        assert result.result.data["document"]["id"] == "doc1"
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["document_name"] == "Generated Doc"
+        assert body["fields"] == {"name": "Acme Corp"}
+        assert f"{BASE_URL}/templates/tpl1/generate-document" in mock_context.fetch.call_args.args[0]
+
+    @pytest.mark.asyncio
+    async def test_without_optional_fields(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "doc2"})
+        inputs = {"template_id": "tpl1", "document_name": "Plain Doc"}
+
+        await lumin_pdf.execute_action("generate_document_from_template", inputs, mock_context)
+
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert "fields" not in body
+        assert "tags" not in body
+        assert "variables" not in body
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Template not found")
+
+        result = await lumin_pdf.execute_action(
+            "generate_document_from_template",
+            {"template_id": "bad", "document_name": "Doc"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestCreateAgreement:
+    @pytest.mark.asyncio
+    async def test_creates_agreement(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "agr1", "name": "NDA"})
+        inputs = {"agreement_name": "NDA", "template_id": "tpl1"}
+
+        result = await lumin_pdf.execute_action("create_agreement", inputs, mock_context)
+
+        assert result.result.data["result"] is True
+        assert result.result.data["agreement"]["id"] == "agr1"
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["method"] == "template"
+        assert body["agreement_name"] == "NDA"
+        assert body["agreement_data"]["template_id"] == "tpl1"
+
+    @pytest.mark.asyncio
+    async def test_with_optional_data(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "agr2"})
+        inputs = {
+            "agreement_name": "MSA",
+            "template_id": "tpl2",
+            "variables": {"party": "Acme"},
+            "fields": {"date": "2026-01-01"},
+        }
+
+        await lumin_pdf.execute_action("create_agreement", inputs, mock_context)
+
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["agreement_data"]["variables"] == {"party": "Acme"}
+        assert body["agreement_data"]["fields"] == {"date": "2026-01-01"}
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Forbidden")
+
+        result = await lumin_pdf.execute_action(
+            "create_agreement", {"agreement_name": "NDA", "template_id": "bad"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestDownloadAgreement:
+    @pytest.mark.asyncio
+    async def test_returns_file_url(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"file_url": "https://cdn.lumin.com/agreement.pdf"}
+        )
+
+        result = await lumin_pdf.execute_action("download_agreement", {"agreement_id": "agr1"}, mock_context)
+
+        assert result.result.data["result"] is True
+        assert result.result.data["file_url"] == "https://cdn.lumin.com/agreement.pdf"
+        assert f"{BASE_URL}/agreements/agr1/file" in mock_context.fetch.call_args.args[0]
+
+    @pytest.mark.asyncio
+    async def test_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Not found")
+
+        result = await lumin_pdf.execute_action("download_agreement", {"agreement_id": "bad"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
