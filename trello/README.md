@@ -6,7 +6,9 @@ Connects Autohive to the Trello API to enable board management, list organizatio
 
 This integration provides a comprehensive connection to Trello's project management platform. It allows users to automate card creation, board management, list organization, and workflow automation directly from Autohive.
 
-The integration uses Trello REST API v1 with API Key and Token authentication and implements 17 comprehensive actions covering members, boards, lists, cards, checklists, and comments.
+The integration uses Trello REST API v1 with API Key and Token authentication and implements 18 actions covering members, boards, lists, cards (including search), checklists, and comments.
+
+Built against `autohive-integrations-sdk ~= 2.0.0`. Handlers return an `ActionResult` on success and an `ActionError(message=...)` on failure — there is no more `result: false / error: "..."` envelope in the action output.
 
 ## Setup & Authentication
 
@@ -49,27 +51,21 @@ The integration will use these credentials for all API requests.
 
 ## Action Results
 
-All actions return a standardized response structure:
-- `result` (boolean): Indicates whether the action succeeded (true) or failed (false)
-- `error` (string, optional): Contains error message if the action failed
-- Additional action-specific data fields (e.g., `board`, `card`, `list`)
+Handlers return:
+- `ActionResult(data=...)` on success — the `data` payload contains only the action-specific fields (e.g. `board`, `card`, `cards`, `count`).
+- `ActionError(message="...")` on failure (non-2xx Trello responses, missing required inputs, network errors, etc.). The Autohive runtime surfaces `ActionError.message` to the caller; the action's `output_schema` describes only the success shape.
 
-Example successful response:
+Example successful response (`get_board`):
 ```json
-{
-  "result": true,
-  "board": { "id": "abc123", "name": "My Board" }
-}
+{ "board": { "id": "abc123", "name": "My Board" } }
 ```
 
-Example error response:
+Example successful list response (`list_cards`):
 ```json
-{
-  "result": false,
-  "error": "Board not found",
-  "board": {}
-}
+{ "cards": [{ "id": "c1", "name": "First card" }], "count": 1 }
 ```
+
+Example failure: an `ActionError` is returned with `message`, e.g. `"Board not found"`.
 
 ## Actions
 
@@ -83,8 +79,6 @@ Returns information about the authenticated member.
 
 **Outputs:**
 - `member`: Member object with details
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -102,8 +96,6 @@ Creates a new board in Trello.
 
 **Outputs:**
 - `board`: Created board object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -116,8 +108,6 @@ Retrieves details of a specific board by its ID.
 
 **Outputs:**
 - `board`: Board object with details
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -133,8 +123,6 @@ Updates an existing board's details.
 
 **Outputs:**
 - `board`: Updated board object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -146,8 +134,6 @@ Returns all boards for the authenticated member.
 
 **Outputs:**
 - `boards`: Array of board objects
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -163,8 +149,6 @@ Creates a new list on a board.
 
 **Outputs:**
 - `list`: Created list object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -176,8 +160,6 @@ Retrieves details of a specific list by its ID.
 
 **Outputs:**
 - `list`: List object with details
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -192,8 +174,6 @@ Updates a list's properties.
 
 **Outputs:**
 - `list`: Updated list object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -206,12 +186,10 @@ Returns all lists on a board.
 
 **Outputs:**
 - `lists`: Array of list objects
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
-### Cards (5 actions)
+### Cards (6 actions)
 
 #### `create_card`
 Creates a new card on a list.
@@ -227,8 +205,6 @@ Creates a new card on a list.
 
 **Outputs:**
 - `card`: Created card object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -241,8 +217,6 @@ Retrieves details of a specific card by its ID.
 
 **Outputs:**
 - `card`: Card object with details
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -261,8 +235,6 @@ Updates an existing card's details.
 
 **Outputs:**
 - `card`: Updated card object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -273,25 +245,61 @@ Deletes a card permanently.
 - `card_id` (required): The ID of the card to delete
 
 **Outputs:**
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
 #### `list_cards`
-Returns all cards on a list or board.
+Returns cards on a list or board with **cursor-based pagination**. Uses Trello's documented `limit` + `before`/`since` parameters on `/lists/{id}/cards` and `/boards/{id}/cards` (see [Atlassian's Paging guide](https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/#paging)). Cards are returned newest-first in reverse-creation order. Use `search_cards` for name-based lookups.
 
 **Inputs:**
 - `list_id` (optional): The ID of the list (use this or board_id)
 - `board_id` (optional): The ID of the board (use this or list_id)
 - `filter` (optional): Filter cards - "all", "open", "closed", "visible" (default: "open")
+- `limit` (optional): Server-side cap on cards per request, 1-1000 (default: 50)
+- `before` (optional): Cursor — only return cards created before this card ID or ISO 8601 date. Pass the previous response's `next_before` here to fetch the next page.
+- `since` (optional): Cursor — only return cards created after this card ID or ISO 8601 date.
+- `fields` (optional): Comma-separated card fields, or "all" (default: compact set). Enforced client-side as well as via the API.
 
 **Note:** Either `list_id` or `board_id` is required.
 
 **Outputs:**
 - `cards`: Array of card objects
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
+- `count`: Number of cards returned
+- `next_before` (optional): Cursor for the next page (the oldest card's ID in this response). Present only when a full page was returned, indicating more cards may exist. Pass back as `before` to paginate.
+
+**Pagination example:**
+```
+list_cards(board_id="b1", limit=50)         # → 50 cards + next_before="cZ"
+list_cards(board_id="b1", limit=50, before="cZ")  # → next 50 + maybe next_before
+# Continue until response has no next_before.
+```
+
+---
+
+#### `search_cards`
+Searches Trello cards by name/text or advanced Trello search query. Use this when you don't know which board or list contains the card. Backed by `GET /1/search?modelTypes=cards`.
+
+**Inputs:**
+- `card_name` (optional): Card name/text to search for (wrapped in Trello's `name:"..."` operator)
+- `query` (optional): Advanced Trello search query (e.g. `name:"Bug" list:"In Progress" label:red due:week`). Combined with `card_name` if both are given.
+- `board_id` (optional): Scope search to a board (sent as `idBoards`)
+- `organization_id` (optional): Scope search to a workspace/organization
+- `open_only` (optional): Restrict to open cards by appending `is:open` (default: true)
+- `partial` (optional): Enable prefix matching, e.g. "dev" matches "Development" (default: true)
+- `limit` (optional): Max cards to return, 1-1000 (default: 10)
+- `page` (optional): Page of card search results for pagination (default: 0)
+- `fields` (optional): Comma-separated card fields, or "all"
+- `include_board` (optional): Include board on each card (default: true)
+- `include_list` (optional): Include list on each card (default: true)
+- `include_members` (optional): Include members on each card (default: false)
+- `include_attachments` (optional): Include attachments on each card (default: false)
+
+**Note:** Either `card_name` or `query` is required.
+
+**Outputs:**
+- `cards`: Array of matching card objects
+- `count`: Number of cards returned
+- `options`: Trello search metadata/options
 
 ---
 
@@ -306,8 +314,6 @@ Creates a new checklist on a card.
 
 **Outputs:**
 - `checklist`: Created checklist object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -322,8 +328,6 @@ Adds a new item to a checklist.
 
 **Outputs:**
 - `checkItem`: Created checklist item object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -338,8 +342,6 @@ Adds a comment to a card.
 
 **Outputs:**
 - `comment`: Created comment object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -368,12 +370,21 @@ Adds a comment to a card.
 
 ## Testing
 
-To test the integration:
+Unit tests (mocked, CI-safe, no credentials required):
 
-1. Navigate to the integration directory: `cd trello`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Update test file with your credentials: `tests/test_trello.py`
-4. Run tests: `python tests/test_trello.py`
+```bash
+pytest trello/tests/test_trello_unit.py
+```
+
+Live integration smoke tests (opt-in; require real Trello credentials):
+
+```bash
+export TRELLO_API_KEY=your_api_key
+export TRELLO_API_TOKEN=your_api_token
+pytest trello/tests/test_trello_integration.py -m integration
+```
+
+The integration tests are skipped automatically if `TRELLO_API_KEY` / `TRELLO_API_TOKEN` are unset, and they never run in CI (the project's default pytest discovery only picks up `test_*_unit.py`).
 
 ## Common Use Cases
 
@@ -416,10 +427,18 @@ To test the integration:
 
 ## Version History
 
-- **1.0.0** - Initial release with 17 comprehensive actions
+- **2.0.0**
+  - Upgraded to `autohive-integrations-sdk ~= 2.0.0`.
+  - `context.fetch()` now returns a `FetchResponse`; all handlers were updated to read `response.data` and to check `response.status` so non-2xx responses no longer silently look successful.
+  - **Breaking:** handlers now return `ActionError(message=...)` on failure instead of `{ "result": false, "error": "..." }`. Success payloads no longer carry `result: true`. Output schemas were updated to match.
+  - Added `search_cards` action backed by `GET /1/search`. Translates `card_name` into Trello's `name:"..."` operator, accepts an advanced `query`, defaults to `is:open` (skipped when the user already specifies `is:open|closed|archived`), and limits results (default 10).
+  - `list_cards` now uses Trello's server-side `limit` + `before`/`since` cursor pagination on `/lists/{id}/cards` and `/boards/{id}/cards`, and returns a `next_before` cursor when more results are likely available. Default limit is 50; max 1000. Compact default field set; field projection is enforced client-side.
+  - `delete_card` now returns `{ "deleted": true, "card_id": "..." }` on success.
+  - Added unit test suite at `tests/test_trello_unit.py` covering the v2 contract, ActionError on non-2xx, the `is:open` injection logic, slicing, and field projection.
+- **1.0.0** - Initial release with 17 actions
   - Members: get_current_member (1 action)
   - Boards: create, get, update, list (4 actions)
   - Lists: create, get, update, list (4 actions)
-  - Cards: create, get, update, delete, list (6 actions)
+  - Cards: create, get, update, delete, list (5 actions)
   - Checklists: create_checklist, add_checklist_item (2 actions)
   - Comments: add_comment (1 action)

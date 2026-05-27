@@ -1,5 +1,13 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
-from typing import Dict, Any
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ActionError,
+    FetchResponse,
+)
+from typing import Any, Dict, List
+import re
 
 # Create the integration using the config.json
 trello = Integration.load()
@@ -7,20 +15,92 @@ trello = Integration.load()
 # Base URL for Trello API
 TRELLO_API_BASE_URL = "https://api.trello.com/1"
 
+# Defaults
+DEFAULT_CARD_FIELDS = "id,name,idList,idBoard,due,dueComplete,closed,url,shortUrl"
+DEFAULT_LIST_CARDS_LIMIT = 50
+DEFAULT_SEARCH_CARDS_LIMIT = 10
 
-# Helper function to build auth params
+# Detect explicit card-status operators in a user-supplied query so we don't
+# accidentally append `is:open` when they asked for `is:closed`/`is:archived`.
+_STATUS_QUERY_RE = re.compile(r"(^|\s)-?is:(open|closed|archived)\b", re.IGNORECASE)
+
+
+# ---- Helpers ----
+
+
 def get_auth_params(context: ExecutionContext) -> Dict[str, str]:
     """Get authentication parameters from context credentials."""
     credentials = context.auth.get("credentials", {})
     return {"key": credentials.get("api_key"), "token": credentials.get("token")}
 
 
-# Helper function to merge params with auth
 def merge_params(params: Dict[str, Any], auth_params: Dict[str, str]) -> Dict[str, Any]:
     """Merge request params with auth params."""
     merged = {**params}
     merged.update(auth_params)
     return merged
+
+
+def _bool_param(value: Any, default: bool = False) -> str:
+    """Render a value as Trello's lowercase boolean query string."""
+    if value is None:
+        coerced = default
+    elif isinstance(value, bool):
+        coerced = value
+    elif isinstance(value, str):
+        coerced = value.strip().lower() in {"true", "1", "yes", "y"}
+    else:
+        coerced = bool(value)
+    return "true" if coerced else "false"
+
+
+def _clamp_limit(value: Any, default: int, lo: int = 1, hi: int = 1000) -> int:
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        n = default
+    return max(lo, min(n, hi))
+
+
+def _quote_search_value(value: str) -> str:
+    """Quote a Trello search value and escape embedded quotes."""
+    escaped = value.replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _trello_error_message(response: FetchResponse) -> str:
+    """Build a useful error message from a Trello FetchResponse."""
+    body = response.data
+    if isinstance(body, dict):
+        for key in ("message", "error", "errorDescription"):
+            val = body.get(key)
+            if val:
+                return str(val)
+        return str(body)
+    if isinstance(body, str) and body.strip():
+        return body.strip()
+    return f"Trello API returned HTTP {response.status}"
+
+
+def _unwrap_trello_response(response: FetchResponse) -> Any:
+    """Raise if the Trello response is non-2xx; otherwise return its body."""
+    if response.status < 200 or response.status >= 300:
+        raise RuntimeError(_trello_error_message(response))
+    return response.data
+
+
+def _project_card_fields(cards: List[Any], fields: str) -> List[Any]:
+    """Client-side projection: keep only requested fields per card.
+
+    Guarantees compact output even if Trello ignores the ``fields`` query param.
+    Pass ``"all"`` (or empty) to disable projection.
+    """
+    if not fields or fields == "all":
+        return cards
+    wanted = {f.strip() for f in fields.split(",") if f.strip()}
+    if not wanted:
+        return cards
+    return [{k: v for k, v in card.items() if k in wanted} if isinstance(card, dict) else card for card in cards]
 
 
 # ---- Member Handlers ----
@@ -35,11 +115,12 @@ class GetCurrentMemberAction(ActionHandler):
             auth_params = get_auth_params(context)
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/members/me", method="GET", params=auth_params)
+            member = _unwrap_trello_response(response)
 
-            return ActionResult(data={"member": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"member": member}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"member": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Board Handlers ----
@@ -52,26 +133,26 @@ class CreateBoardAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             auth_params = get_auth_params(context)
-            params = {"name": inputs["name"]}
+            params: Dict[str, Any] = {"name": inputs["name"]}
 
-            # Add optional fields
-            if "desc" in inputs and inputs["desc"]:
+            if inputs.get("desc"):
                 params["desc"] = inputs["desc"]
-            if "defaultLists" in inputs and inputs["defaultLists"] is not None:
-                params["defaultLists"] = str(inputs["defaultLists"]).lower()
-            if "prefs_permissionLevel" in inputs and inputs["prefs_permissionLevel"]:
+            if inputs.get("defaultLists") is not None:
+                params["defaultLists"] = _bool_param(inputs["defaultLists"])
+            if inputs.get("prefs_permissionLevel"):
                 params["prefs_permissionLevel"] = inputs["prefs_permissionLevel"]
-            if "prefs_background" in inputs and inputs["prefs_background"]:
+            if inputs.get("prefs_background"):
                 params["prefs_background"] = inputs["prefs_background"]
 
             merged_params = merge_params(params, auth_params)
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/boards/", method="POST", params=merged_params)
+            board = _unwrap_trello_response(response)
 
-            return ActionResult(data={"board": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"board": board}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"board": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @trello.action("get_board")
@@ -82,9 +163,9 @@ class GetBoardAction(ActionHandler):
         try:
             board_id = inputs["board_id"]
             auth_params = get_auth_params(context)
-            params = {}
+            params: Dict[str, Any] = {}
 
-            if "fields" in inputs and inputs["fields"]:
+            if inputs.get("fields"):
                 params["fields"] = inputs["fields"]
 
             merged_params = merge_params(params, auth_params)
@@ -92,11 +173,12 @@ class GetBoardAction(ActionHandler):
             response = await context.fetch(
                 f"{TRELLO_API_BASE_URL}/boards/{board_id}", method="GET", params=merged_params
             )
+            board = _unwrap_trello_response(response)
 
-            return ActionResult(data={"board": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"board": board}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"board": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @trello.action("update_board")
@@ -107,16 +189,15 @@ class UpdateBoardAction(ActionHandler):
         try:
             board_id = inputs["board_id"]
             auth_params = get_auth_params(context)
-            params = {}
+            params: Dict[str, Any] = {}
 
-            # Add only provided fields
-            if "name" in inputs and inputs["name"]:
+            if inputs.get("name"):
                 params["name"] = inputs["name"]
-            if "desc" in inputs and inputs["desc"]:
+            if inputs.get("desc"):
                 params["desc"] = inputs["desc"]
-            if "closed" in inputs and inputs["closed"] is not None:
-                params["closed"] = str(inputs["closed"]).lower()
-            if "prefs_permissionLevel" in inputs and inputs["prefs_permissionLevel"]:
+            if inputs.get("closed") is not None:
+                params["closed"] = _bool_param(inputs["closed"])
+            if inputs.get("prefs_permissionLevel"):
                 params["prefs/permissionLevel"] = inputs["prefs_permissionLevel"]
 
             merged_params = merge_params(params, auth_params)
@@ -124,11 +205,12 @@ class UpdateBoardAction(ActionHandler):
             response = await context.fetch(
                 f"{TRELLO_API_BASE_URL}/boards/{board_id}", method="PUT", params=merged_params
             )
+            board = _unwrap_trello_response(response)
 
-            return ActionResult(data={"board": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"board": board}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"board": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @trello.action("list_boards")
@@ -138,9 +220,9 @@ class ListBoardsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             auth_params = get_auth_params(context)
-            params = {}
+            params: Dict[str, Any] = {}
 
-            if "filter" in inputs and inputs["filter"]:
+            if inputs.get("filter"):
                 params["filter"] = inputs["filter"]
 
             merged_params = merge_params(params, auth_params)
@@ -148,13 +230,13 @@ class ListBoardsAction(ActionHandler):
             response = await context.fetch(
                 f"{TRELLO_API_BASE_URL}/members/me/boards", method="GET", params=merged_params
             )
+            body = _unwrap_trello_response(response)
+            boards = body if isinstance(body, list) else []
 
-            # Response is already an array
-            boards = response if isinstance(response, list) else []
-            return ActionResult(data={"boards": boards, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"boards": boards, "count": len(boards)}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"boards": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- List Handlers ----
@@ -167,19 +249,20 @@ class CreateListAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             auth_params = get_auth_params(context)
-            params = {"name": inputs["name"], "idBoard": inputs["board_id"]}
+            params: Dict[str, Any] = {"name": inputs["name"], "idBoard": inputs["board_id"]}
 
-            if "pos" in inputs and inputs["pos"]:
+            if inputs.get("pos"):
                 params["pos"] = inputs["pos"]
 
             merged_params = merge_params(params, auth_params)
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/lists", method="POST", params=merged_params)
+            list_ = _unwrap_trello_response(response)
 
-            return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"list": list_}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @trello.action("get_list")
@@ -192,11 +275,12 @@ class GetListAction(ActionHandler):
             auth_params = get_auth_params(context)
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/lists/{list_id}", method="GET", params=auth_params)
+            list_ = _unwrap_trello_response(response)
 
-            return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"list": list_}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @trello.action("update_list")
@@ -207,23 +291,24 @@ class UpdateListAction(ActionHandler):
         try:
             list_id = inputs["list_id"]
             auth_params = get_auth_params(context)
-            params = {}
+            params: Dict[str, Any] = {}
 
-            if "name" in inputs and inputs["name"]:
+            if inputs.get("name"):
                 params["name"] = inputs["name"]
-            if "closed" in inputs and inputs["closed"] is not None:
-                params["closed"] = str(inputs["closed"]).lower()
-            if "pos" in inputs and inputs["pos"]:
+            if inputs.get("closed") is not None:
+                params["closed"] = _bool_param(inputs["closed"])
+            if inputs.get("pos"):
                 params["pos"] = inputs["pos"]
 
             merged_params = merge_params(params, auth_params)
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/lists/{list_id}", method="PUT", params=merged_params)
+            list_ = _unwrap_trello_response(response)
 
-            return ActionResult(data={"list": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"list": list_}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"list": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @trello.action("list_lists")
@@ -234,22 +319,25 @@ class ListListsAction(ActionHandler):
         try:
             board_id = inputs["board_id"]
             auth_params = get_auth_params(context)
-            params = {}
+            params: Dict[str, Any] = {}
 
-            if "filter" in inputs and inputs["filter"]:
+            if inputs.get("filter"):
                 params["filter"] = inputs["filter"]
 
             merged_params = merge_params(params, auth_params)
 
             response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/boards/{board_id}/lists", method="GET", params=merged_params
+                f"{TRELLO_API_BASE_URL}/boards/{board_id}/lists",
+                method="GET",
+                params=merged_params,
             )
+            body = _unwrap_trello_response(response)
+            lists = body if isinstance(body, list) else []
 
-            lists = response if isinstance(response, list) else []
-            return ActionResult(data={"lists": lists, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"lists": lists, "count": len(lists)}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"lists": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Card Handlers ----
@@ -262,28 +350,28 @@ class CreateCardAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             auth_params = get_auth_params(context)
-            params = {"name": inputs["name"], "idList": inputs["list_id"]}
+            params: Dict[str, Any] = {"name": inputs["name"], "idList": inputs["list_id"]}
 
-            # Add optional fields
-            if "desc" in inputs and inputs["desc"]:
+            if inputs.get("desc"):
                 params["desc"] = inputs["desc"]
-            if "pos" in inputs and inputs["pos"]:
+            if inputs.get("pos"):
                 params["pos"] = inputs["pos"]
-            if "due" in inputs and inputs["due"]:
+            if inputs.get("due"):
                 params["due"] = inputs["due"]
-            if "idMembers" in inputs and inputs["idMembers"]:
+            if inputs.get("idMembers"):
                 params["idMembers"] = ",".join(inputs["idMembers"])
-            if "idLabels" in inputs and inputs["idLabels"]:
+            if inputs.get("idLabels"):
                 params["idLabels"] = ",".join(inputs["idLabels"])
 
             merged_params = merge_params(params, auth_params)
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/cards", method="POST", params=merged_params)
+            card = _unwrap_trello_response(response)
 
-            return ActionResult(data={"card": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"card": card}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"card": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @trello.action("get_card")
@@ -294,19 +382,20 @@ class GetCardAction(ActionHandler):
         try:
             card_id = inputs["card_id"]
             auth_params = get_auth_params(context)
-            params = {}
+            params: Dict[str, Any] = {}
 
-            if "fields" in inputs and inputs["fields"]:
+            if inputs.get("fields"):
                 params["fields"] = inputs["fields"]
 
             merged_params = merge_params(params, auth_params)
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/cards/{card_id}", method="GET", params=merged_params)
+            card = _unwrap_trello_response(response)
 
-            return ActionResult(data={"card": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"card": card}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"card": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @trello.action("update_card")
@@ -317,32 +406,32 @@ class UpdateCardAction(ActionHandler):
         try:
             card_id = inputs["card_id"]
             auth_params = get_auth_params(context)
-            params = {}
+            params: Dict[str, Any] = {}
 
-            # Add only provided fields
-            if "name" in inputs and inputs["name"]:
+            if inputs.get("name"):
                 params["name"] = inputs["name"]
-            if "desc" in inputs and inputs["desc"]:
+            if inputs.get("desc"):
                 params["desc"] = inputs["desc"]
-            if "closed" in inputs and inputs["closed"] is not None:
-                params["closed"] = str(inputs["closed"]).lower()
-            if "idList" in inputs and inputs["idList"]:
+            if inputs.get("closed") is not None:
+                params["closed"] = _bool_param(inputs["closed"])
+            if inputs.get("idList"):
                 params["idList"] = inputs["idList"]
-            if "due" in inputs and inputs["due"]:
+            if inputs.get("due"):
                 params["due"] = inputs["due"]
-            if "dueComplete" in inputs and inputs["dueComplete"] is not None:
-                params["dueComplete"] = str(inputs["dueComplete"]).lower()
-            if "idMembers" in inputs and inputs["idMembers"]:
+            if inputs.get("dueComplete") is not None:
+                params["dueComplete"] = _bool_param(inputs["dueComplete"])
+            if inputs.get("idMembers"):
                 params["idMembers"] = ",".join(inputs["idMembers"])
 
             merged_params = merge_params(params, auth_params)
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/cards/{card_id}", method="PUT", params=merged_params)
+            card = _unwrap_trello_response(response)
 
-            return ActionResult(data={"card": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"card": card}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"card": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @trello.action("delete_card")
@@ -354,45 +443,177 @@ class DeleteCardAction(ActionHandler):
             card_id = inputs["card_id"]
             auth_params = get_auth_params(context)
 
-            await context.fetch(f"{TRELLO_API_BASE_URL}/cards/{card_id}", method="DELETE", params=auth_params)
+            response = await context.fetch(
+                f"{TRELLO_API_BASE_URL}/cards/{card_id}", method="DELETE", params=auth_params
+            )
+            _unwrap_trello_response(response)
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={"deleted": True, "card_id": card_id}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @trello.action("list_cards")
 class ListCardsAction(ActionHandler):
-    """List all cards on a list or board."""
+    """List cards on a list or board with cursor-based pagination.
+
+    Uses Trello's documented ``limit`` + ``before``/``since`` pagination on
+    ``/lists/{id}/cards`` and ``/boards/{id}/cards`` (per
+    https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/#paging).
+    Returns a ``next_before`` cursor when more results may exist, so callers can
+    paginate by passing that value back as ``before``. ``fields`` is also
+    enforced client-side so callers always get the compact shape.
+    """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             auth_params = get_auth_params(context)
-            params = {}
 
-            if "filter" in inputs and inputs["filter"]:
-                params["filter"] = inputs["filter"]
+            limit = _clamp_limit(inputs.get("limit"), DEFAULT_LIST_CARDS_LIMIT)
+            fields = inputs.get("fields") or DEFAULT_CARD_FIELDS
+
+            # Always request `id` from Trello so we can generate `next_before`,
+            # even when the user-requested projection excludes it. The user's
+            # projection is still enforced client-side after pagination.
+            api_fields = fields
+            if fields != "all":
+                parts = [f.strip() for f in fields.split(",") if f.strip()]
+                if parts and "id" not in parts:
+                    api_fields = ",".join([*parts, "id"])
+
+            # Trello caps /cards endpoints at 1000 per request; send limit
+            # server-side so we don't pull more than needed.
+            params: Dict[str, Any] = {"fields": api_fields, "limit": limit}
+
+            # Default filter to "open" so config, README, and runtime agree.
+            params["filter"] = inputs.get("filter") or "open"
+            if inputs.get("before"):
+                params["before"] = inputs["before"]
+            if inputs.get("since"):
+                params["since"] = inputs["since"]
 
             merged_params = merge_params(params, auth_params)
 
-            # Determine endpoint based on input
-            if "list_id" in inputs and inputs["list_id"]:
+            if inputs.get("list_id"):
                 url = f"{TRELLO_API_BASE_URL}/lists/{inputs['list_id']}/cards"
-            elif "board_id" in inputs and inputs["board_id"]:
+            elif inputs.get("board_id"):
                 url = f"{TRELLO_API_BASE_URL}/boards/{inputs['board_id']}/cards"
             else:
-                return ActionResult(
-                    data={"cards": [], "result": False, "error": "Either list_id or board_id is required"}, cost_usd=0.0
-                )
+                return ActionError(message="Either list_id or board_id is required")
 
             response = await context.fetch(url, method="GET", params=merged_params)
+            body = _unwrap_trello_response(response)
+            cards = body if isinstance(body, list) else []
 
-            cards = response if isinstance(response, list) else []
-            return ActionResult(data={"cards": cards, "result": True}, cost_usd=0.0)
+            # Defensive local cap in case Trello returns more than asked.
+            cards = cards[:limit]
+
+            # Compute next-page cursor BEFORE projection (need raw id).
+            # Trello returns cards in reverse-creation order (newest first), so
+            # the oldest card's id is the cursor to pass as `before` to fetch
+            # the next page. We only emit it when a full page came back, which
+            # is the standard "may have more" heuristic.
+            next_before = None
+            if len(cards) == limit and cards:
+                last = cards[-1]
+                if isinstance(last, dict):
+                    next_before = last.get("id")
+
+            cards = _project_card_fields(cards, fields)
+
+            data: Dict[str, Any] = {"cards": cards, "count": len(cards)}
+            if next_before:
+                data["next_before"] = next_before
+
+            return ActionResult(data=data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"cards": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
+
+
+@trello.action("search_cards")
+class SearchCardsAction(ActionHandler):
+    """Search for Trello cards by name/text or advanced Trello query.
+
+    Uses ``GET /1/search?modelTypes=cards``. Defaults to ``is:open`` unless the
+    user-supplied ``query`` already specifies a card status operator
+    (``is:open``, ``is:closed``, ``is:archived``, or their negations).
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            auth_params = get_auth_params(context)
+
+            card_name = inputs.get("card_name")
+            advanced_query = (inputs.get("query") or "").strip()
+
+            query_parts = []
+            if card_name:
+                query_parts.append(f"name:{_quote_search_value(card_name)}")
+            if advanced_query:
+                query_parts.append(advanced_query)
+
+            query_text = " ".join(query_parts).strip()
+            if not query_text:
+                return ActionError(message="Either card_name or query is required")
+
+            # Only inject is:open when the user's advanced query has no
+            # explicit card-status operator (avoids contradictions like
+            # `is:closed is:open`).
+            if _bool_param(inputs.get("open_only"), default=True) == "true" and not _STATUS_QUERY_RE.search(
+                advanced_query
+            ):
+                query_text = f"{query_text} is:open"
+
+            limit = _clamp_limit(inputs.get("limit"), DEFAULT_SEARCH_CARDS_LIMIT)
+
+            params: Dict[str, Any] = {
+                "query": query_text,
+                "modelTypes": "cards",
+                "cards_limit": limit,
+                "partial": _bool_param(inputs.get("partial"), default=True),
+                "card_fields": inputs.get("fields") or DEFAULT_CARD_FIELDS,
+                "card_board": _bool_param(inputs.get("include_board"), default=True),
+                "card_list": _bool_param(inputs.get("include_list"), default=True),
+                "card_members": _bool_param(inputs.get("include_members"), default=False),
+                "card_attachments": _bool_param(inputs.get("include_attachments"), default=False),
+            }
+
+            page = inputs.get("page")
+            if page is not None:
+                try:
+                    params["cards_page"] = max(0, int(page))
+                except (TypeError, ValueError):
+                    pass  # Invalid page value — fall back to Trello's default (first page)
+
+            if inputs.get("board_id"):
+                params["idBoards"] = inputs["board_id"]
+            if inputs.get("organization_id"):
+                params["idOrganizations"] = inputs["organization_id"]
+
+            merged_params = merge_params(params, auth_params)
+
+            response = await context.fetch(f"{TRELLO_API_BASE_URL}/search", method="GET", params=merged_params)
+            body = _unwrap_trello_response(response)
+
+            if isinstance(body, dict):
+                cards = body.get("cards") or []
+                options = body.get("options") or {}
+            elif isinstance(body, list):
+                cards = body
+                options = {}
+            else:
+                cards = []
+                options = {}
+
+            return ActionResult(
+                data={"cards": cards, "count": len(cards), "options": options},
+                cost_usd=0.0,
+            )
+
+        except Exception as e:
+            return ActionError(message=str(e))
 
 
 # ---- Checklist Handlers ----
@@ -405,16 +626,17 @@ class CreateChecklistAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             auth_params = get_auth_params(context)
-            params = {"idCard": inputs["card_id"], "name": inputs["name"]}
+            params: Dict[str, Any] = {"idCard": inputs["card_id"], "name": inputs["name"]}
 
             merged_params = merge_params(params, auth_params)
 
             response = await context.fetch(f"{TRELLO_API_BASE_URL}/checklists", method="POST", params=merged_params)
+            checklist = _unwrap_trello_response(response)
 
-            return ActionResult(data={"checklist": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"checklist": checklist}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"checklist": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @trello.action("add_checklist_item")
@@ -425,23 +647,26 @@ class AddChecklistItemAction(ActionHandler):
         try:
             checklist_id = inputs["checklist_id"]
             auth_params = get_auth_params(context)
-            params = {"name": inputs["name"]}
+            params: Dict[str, Any] = {"name": inputs["name"]}
 
-            if "checked" in inputs and inputs["checked"] is not None:
-                params["checked"] = str(inputs["checked"]).lower()
-            if "pos" in inputs and inputs["pos"]:
+            if inputs.get("checked") is not None:
+                params["checked"] = _bool_param(inputs["checked"])
+            if inputs.get("pos"):
                 params["pos"] = inputs["pos"]
 
             merged_params = merge_params(params, auth_params)
 
             response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/checklists/{checklist_id}/checkItems", method="POST", params=merged_params
+                f"{TRELLO_API_BASE_URL}/checklists/{checklist_id}/checkItems",
+                method="POST",
+                params=merged_params,
             )
+            check_item = _unwrap_trello_response(response)
 
-            return ActionResult(data={"checkItem": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"checkItem": check_item}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"checkItem": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Comment Handler ----
@@ -455,15 +680,18 @@ class AddCommentAction(ActionHandler):
         try:
             card_id = inputs["card_id"]
             auth_params = get_auth_params(context)
-            params = {"text": inputs["text"]}
+            params: Dict[str, Any] = {"text": inputs["text"]}
 
             merged_params = merge_params(params, auth_params)
 
             response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/cards/{card_id}/actions/comments", method="POST", params=merged_params
+                f"{TRELLO_API_BASE_URL}/cards/{card_id}/actions/comments",
+                method="POST",
+                params=merged_params,
             )
+            comment = _unwrap_trello_response(response)
 
-            return ActionResult(data={"comment": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"comment": comment}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"comment": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
