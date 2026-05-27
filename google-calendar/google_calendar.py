@@ -90,15 +90,15 @@ class ListEvents(ActionHandler):
                 "singleEvents": "true",
                 "orderBy": "startTime",
             }
-            if "time_min" in inputs:
+            if inputs.get("time_min") is not None:
                 params["timeMin"] = inputs["time_min"]
-            if "time_max" in inputs:
+            if inputs.get("time_max") is not None:
                 params["timeMax"] = inputs["time_max"]
-            if "max_results" in inputs:
+            if inputs.get("max_results") is not None:
                 params["maxResults"] = inputs["max_results"]
-            if "page_token" in inputs:
+            if inputs.get("page_token") is not None:
                 params["pageToken"] = inputs["page_token"]
-            if "query" in inputs:
+            if inputs.get("query") is not None:
                 params["q"] = inputs["query"]
 
             response = await context.fetch(
@@ -143,16 +143,16 @@ class CreateEvent(ActionHandler):
 
             event_data: Dict[str, Any] = {"summary": inputs["summary"]}
 
-            if "description" in inputs:
+            if inputs.get("description") is not None:
                 event_data["description"] = inputs["description"]
-            if "location" in inputs:
+            if inputs.get("location") is not None:
                 event_data["location"] = inputs["location"]
 
-            if "start_datetime" in inputs and "end_datetime" in inputs:
+            if inputs.get("start_datetime") is not None and inputs.get("end_datetime") is not None:
                 timezone = inputs.get("timezone", "UTC")
                 event_data["start"] = {"dateTime": inputs["start_datetime"], "timeZone": timezone}
                 event_data["end"] = {"dateTime": inputs["end_datetime"], "timeZone": timezone}
-            elif "start_date" in inputs and "end_date" in inputs:
+            elif inputs.get("start_date") is not None and inputs.get("end_date") is not None:
                 event_data["start"] = {"date": inputs["start_date"]}
                 event_data["end"] = {"date": inputs["end_date"]}
 
@@ -183,23 +183,23 @@ class UpdateEvent(ActionHandler):
             )
             event_data = dict(_unwrap(existing_response))
 
-            if "summary" in inputs:
+            if inputs.get("summary") is not None:
                 event_data["summary"] = inputs["summary"]
-            if "description" in inputs:
+            if inputs.get("description") is not None:
                 event_data["description"] = inputs["description"]
-            if "location" in inputs:
+            if inputs.get("location") is not None:
                 event_data["location"] = inputs["location"]
 
-            if "start_datetime" in inputs and "end_datetime" in inputs:
+            if inputs.get("start_datetime") is not None and inputs.get("end_datetime") is not None:
                 timezone = inputs.get("timezone", event_data.get("start", {}).get("timeZone", "UTC"))
                 event_data["start"] = {"dateTime": inputs["start_datetime"], "timeZone": timezone}
                 event_data["end"] = {"dateTime": inputs["end_datetime"], "timeZone": timezone}
-            elif "start_date" in inputs and "end_date" in inputs:
+            elif inputs.get("start_date") is not None and inputs.get("end_date") is not None:
                 event_data["start"] = {"date": inputs["start_date"]}
                 event_data["end"] = {"date": inputs["end_date"]}
 
             if "attendees" in inputs:
-                if inputs["attendees"]:
+                if inputs.get("attendees"):
                     event_data["attendees"] = [{"email": email} for email in inputs["attendees"]]
                 else:
                     event_data.pop("attendees", None)
