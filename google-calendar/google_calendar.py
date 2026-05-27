@@ -1,4 +1,11 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ActionError,
+    FetchResponse,
+)
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -6,51 +13,52 @@ google_calendar = Integration.load()
 service_endpoint = "https://www.googleapis.com/calendar/v3/"
 
 
+def _unwrap(response: FetchResponse) -> Dict:
+    """Raise RuntimeError on non-2xx; otherwise return response body as a dict."""
+    if response.status < 200 or response.status >= 300:
+        body = response.data
+        if isinstance(body, dict):
+            msg = body.get("message") or body.get("error") or str(body)
+        elif isinstance(body, str) and body.strip():
+            msg = body.strip()
+        else:
+            msg = f"Google Calendar API returned HTTP {response.status}"
+        raise RuntimeError(msg)
+    return response.data or {}
+
+
 class CalendarEventParser:
     @staticmethod
     def parse_event(raw_event: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse raw Google Calendar event into standardized format."""
         event = {
             "id": raw_event.get("id", ""),
             "summary": raw_event.get("summary", ""),
         }
-
-        # Add optional fields if they exist
-        if "description" in raw_event:
-            event["description"] = raw_event["description"]
-        if "location" in raw_event:
-            event["location"] = raw_event["location"]
-        if "start" in raw_event:
-            event["start"] = raw_event["start"]
-        if "end" in raw_event:
-            event["end"] = raw_event["end"]
-        if "attendees" in raw_event:
-            event["attendees"] = raw_event["attendees"]
-        if "created" in raw_event:
-            event["created"] = raw_event["created"]
-        if "updated" in raw_event:
-            event["updated"] = raw_event["updated"]
-        if "htmlLink" in raw_event:
-            event["htmlLink"] = raw_event["htmlLink"]
-
+        for field in (
+            "description",
+            "location",
+            "start",
+            "end",
+            "attendees",
+            "created",
+            "updated",
+            "htmlLink",
+            "recurringEventId",
+            "originalStartTime",
+        ):
+            if field in raw_event:
+                event[field] = raw_event[field]
         return event
 
     @staticmethod
     def parse_calendar(raw_calendar: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse raw Google Calendar into standardized format."""
         calendar_data = {
             "id": raw_calendar.get("id", ""),
             "summary": raw_calendar.get("summary", ""),
         }
-
-        # Add optional fields if they exist
-        if "description" in raw_calendar:
-            calendar_data["description"] = raw_calendar["description"]
-        if "primary" in raw_calendar:
-            calendar_data["primary"] = raw_calendar["primary"]
-        if "accessRole" in raw_calendar:
-            calendar_data["accessRole"] = raw_calendar["accessRole"]
-
+        for field in ("description", "primary", "accessRole"):
+            if field in raw_calendar:
+                calendar_data[field] = raw_calendar[field]
         return calendar_data
 
 
@@ -59,28 +67,29 @@ class CalendarEventParser:
 
 @google_calendar.action("list_calendars")
 class ListCalendars(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             response = await context.fetch(service_endpoint + "users/me/calendarList", method="GET")
+            data = _unwrap(response)
 
-            calendars = []
-            for raw_calendar in response.get("items", []):
-                calendars.append(CalendarEventParser.parse_calendar(raw_calendar))
-
-            return {"calendars": calendars, "result": True}
+            calendars = [CalendarEventParser.parse_calendar(c) for c in data.get("items", [])]
+            return ActionResult(data={"calendars": calendars})
 
         except Exception as e:
-            return {"calendars": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @google_calendar.action("list_events")
 class ListEvents(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             calendar_id = inputs["calendar_id"]
 
-            # Build query parameters
-            params = {}
+            params: Dict[str, Any] = {
+                # Expand recurring event instances so each occurrence is returned individually
+                "singleEvents": "true",
+                "orderBy": "startTime",
+            }
             if "time_min" in inputs:
                 params["timeMin"] = inputs["time_min"]
             if "time_max" in inputs:
@@ -89,31 +98,28 @@ class ListEvents(ActionHandler):
                 params["maxResults"] = inputs["max_results"]
             if "page_token" in inputs:
                 params["pageToken"] = inputs["page_token"]
+            if "query" in inputs:
+                params["q"] = inputs["query"]
 
             response = await context.fetch(
                 service_endpoint + f"calendars/{calendar_id}/events", method="GET", params=params
             )
+            data = _unwrap(response)
 
-            events = []
-            for raw_event in response.get("items", []):
-                events.append(CalendarEventParser.parse_event(raw_event))
+            events = [CalendarEventParser.parse_event(e) for e in data.get("items", [])]
+            result: Dict[str, Any] = {"events": events}
+            if "nextPageToken" in data:
+                result["nextPageToken"] = data["nextPageToken"]
 
-            # Prepare response with pagination support
-            result = {"events": events, "result": True}
-
-            # Add nextPageToken if present
-            if "nextPageToken" in response:
-                result["nextPageToken"] = response["nextPageToken"]
-
-            return result
+            return ActionResult(data=result)
 
         except Exception as e:
-            return {"events": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @google_calendar.action("get_event")
 class GetEvent(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             calendar_id = inputs["calendar_id"]
             event_id = inputs["event_id"]
@@ -121,66 +127,62 @@ class GetEvent(ActionHandler):
             response = await context.fetch(
                 service_endpoint + f"calendars/{calendar_id}/events/{event_id}", method="GET"
             )
+            data = _unwrap(response)
 
-            return {"event": CalendarEventParser.parse_event(response), "result": True}
+            return ActionResult(data={"event": CalendarEventParser.parse_event(data)})
 
         except Exception as e:
-            return {"event": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @google_calendar.action("create_event")
 class CreateEvent(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             calendar_id = inputs["calendar_id"]
 
-            # Build event data
-            event_data = {"summary": inputs["summary"]}
+            event_data: Dict[str, Any] = {"summary": inputs["summary"]}
 
-            # Add optional fields
             if "description" in inputs:
                 event_data["description"] = inputs["description"]
             if "location" in inputs:
                 event_data["location"] = inputs["location"]
 
-            # Handle start/end times
             if "start_datetime" in inputs and "end_datetime" in inputs:
-                event_data["start"] = {"dateTime": inputs["start_datetime"]}
-                event_data["end"] = {"dateTime": inputs["end_datetime"]}
+                timezone = inputs.get("timezone", "UTC")
+                event_data["start"] = {"dateTime": inputs["start_datetime"], "timeZone": timezone}
+                event_data["end"] = {"dateTime": inputs["end_datetime"], "timeZone": timezone}
             elif "start_date" in inputs and "end_date" in inputs:
                 event_data["start"] = {"date": inputs["start_date"]}
                 event_data["end"] = {"date": inputs["end_date"]}
 
-            # Handle attendees
-            if "attendees" in inputs and inputs["attendees"]:
+            if inputs.get("attendees"):
                 event_data["attendees"] = [{"email": email} for email in inputs["attendees"]]
 
             response = await context.fetch(
                 service_endpoint + f"calendars/{calendar_id}/events", method="POST", json=event_data
             )
+            data = _unwrap(response)
 
-            return {"event": CalendarEventParser.parse_event(response), "result": True}
+            return ActionResult(data={"event": CalendarEventParser.parse_event(data)})
 
         except Exception as e:
-            return {"event": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @google_calendar.action("update_event")
 class UpdateEvent(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             calendar_id = inputs["calendar_id"]
             event_id = inputs["event_id"]
 
-            # First, get the existing event to preserve fields not being updated
-            existing_event = await context.fetch(
+            # Fetch existing event first to preserve unmodified fields
+            existing_response = await context.fetch(
                 service_endpoint + f"calendars/{calendar_id}/events/{event_id}", method="GET"
             )
+            event_data = dict(_unwrap(existing_response))
 
-            # Build updated event data, starting with existing event
-            event_data = existing_event.copy()
-
-            # Update fields that were provided in inputs
             if "summary" in inputs:
                 event_data["summary"] = inputs["summary"]
             if "description" in inputs:
@@ -188,45 +190,51 @@ class UpdateEvent(ActionHandler):
             if "location" in inputs:
                 event_data["location"] = inputs["location"]
 
-            # Handle start/end times
             if "start_datetime" in inputs and "end_datetime" in inputs:
-                event_data["start"] = {"dateTime": inputs["start_datetime"]}
-                event_data["end"] = {"dateTime": inputs["end_datetime"]}
+                timezone = inputs.get("timezone", event_data.get("start", {}).get("timeZone", "UTC"))
+                event_data["start"] = {"dateTime": inputs["start_datetime"], "timeZone": timezone}
+                event_data["end"] = {"dateTime": inputs["end_datetime"], "timeZone": timezone}
             elif "start_date" in inputs and "end_date" in inputs:
                 event_data["start"] = {"date": inputs["start_date"]}
                 event_data["end"] = {"date": inputs["end_date"]}
 
-            # Handle attendees
             if "attendees" in inputs:
                 if inputs["attendees"]:
                     event_data["attendees"] = [{"email": email} for email in inputs["attendees"]]
                 else:
-                    # Remove attendees if empty list is provided
                     event_data.pop("attendees", None)
 
             response = await context.fetch(
                 service_endpoint + f"calendars/{calendar_id}/events/{event_id}", method="PUT", json=event_data
             )
+            data = _unwrap(response)
 
-            return {"event": CalendarEventParser.parse_event(response), "result": True}
+            return ActionResult(data={"event": CalendarEventParser.parse_event(data)})
 
         except Exception as e:
-            return {"event": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @google_calendar.action("delete_event")
 class DeleteEvent(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             calendar_id = inputs["calendar_id"]
             event_id = inputs["event_id"]
 
-            await context.fetch(service_endpoint + f"calendars/{calendar_id}/events/{event_id}", method="DELETE")
+            response = await context.fetch(
+                service_endpoint + f"calendars/{calendar_id}/events/{event_id}", method="DELETE"
+            )
+            # DELETE returns 204 No Content on success
+            if response.status not in (200, 204):
+                body = response.data
+                msg = (body.get("message") or body.get("error") or str(body)) if isinstance(body, dict) else str(body)
+                raise RuntimeError(msg)
 
-            return {"result": True}
+            return ActionResult(data={"deleted": True})
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 # ---- Polling Trigger Handlers ----
