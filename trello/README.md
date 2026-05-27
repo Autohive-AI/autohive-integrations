@@ -249,7 +249,7 @@ Deletes a card permanently.
 ---
 
 #### `list_cards`
-Returns cards on a list or board with **cursor-based pagination**. Uses Trello's documented `limit` + `before`/`since` parameters on `/lists/{id}/cards` and `/boards/{id}/cards` (see [Atlassian's Paging guide](https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/#paging)). Cards are returned newest-first in reverse-creation order. Use `search_cards` for name-based lookups.
+Returns cards on a list or board with **cursor-based pagination**. Uses Trello's documented `limit` + `before`/`since` parameters on `/lists/{id}/cards` and `/boards/{id}/cards` (see [Atlassian's Paging guide](https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/#paging)). Use `search_cards` for name-based lookups.
 
 **Inputs:**
 - `list_id` (optional): The ID of the list (use this or board_id)
@@ -265,7 +265,7 @@ Returns cards on a list or board with **cursor-based pagination**. Uses Trello's
 **Outputs:**
 - `cards`: Array of card objects
 - `count`: Number of cards returned
-- `next_before` (optional): Cursor for the next page (the oldest card's ID in this response). Present only when a full page was returned, indicating more cards may exist. Pass back as `before` to paginate.
+- `next_before` (optional): Cursor for the next page (the lexicographically smallest card ID in this response, i.e. the oldest-created card). Present only when a full page was returned, indicating more cards may exist. Pass back as `before` to paginate.
 
 **Pagination example:**
 ```

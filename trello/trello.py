@@ -510,15 +510,20 @@ class ListCardsAction(ActionHandler):
             cards = cards[:limit]
 
             # Compute next-page cursor BEFORE projection (need raw id).
-            # Trello returns cards in reverse-creation order (newest first), so
-            # the oldest card's id is the cursor to pass as `before` to fetch
-            # the next page. We only emit it when a full page came back, which
-            # is the standard "may have more" heuristic.
+            # Trello's before/since cursors operate on card creation time encoded
+            # in the ID (MongoDB ObjectId). Cards are NOT guaranteed to be sorted
+            # by creation time — they may be in board/list position order. Using
+            # the last element is unsafe when cards have been manually reordered.
+            # The correct cursor is the lexicographically smallest ID in the page,
+            # which corresponds to the oldest-created card.
             next_before = None
             if len(cards) == limit and cards:
-                last = cards[-1]
-                if isinstance(last, dict):
-                    next_before = last.get("id")
+                ids = [
+                    card.get("id")
+                    for card in cards
+                    if isinstance(card, dict) and isinstance(card.get("id"), str)
+                ]
+                next_before = min(ids) if ids else None
 
             cards = _project_card_fields(cards, fields)
 

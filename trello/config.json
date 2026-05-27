@@ -494,7 +494,7 @@
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "Server-side cap on cards per request (1-1000). Trello returns cards newest-first in reverse creation order.",
+                        "description": "Server-side cap on cards per request (1-1000).",
                         "default": 50,
                         "minimum": 1,
                         "maximum": 1000
@@ -528,7 +528,7 @@
                     },
                     "next_before": {
                         "type": "string",
-                        "description": "Cursor for the next page (the oldest card's ID in this response). Present only when a full page was returned, indicating more cards may exist. Pass this back as before."
+                        "description": "Cursor for the next page (the lexicographically smallest card ID in this response, i.e. the oldest-created card). Present only when a full page was returned, indicating more cards may exist. Pass this back as before."
                     }
                 },
                 "required": ["cards", "count"]

@@ -446,15 +446,49 @@ class TestListCards:
     @pytest.mark.asyncio
     async def test_returns_next_before_cursor_when_full_page(self, mock_context):
         _auth_ctx(mock_context)
-        # Limit=3, return exactly 3 cards -> caller should paginate via the
-        # oldest (last) card's id.
+        # Limit=3, return exactly 3 cards -> cursor is the min (oldest) id.
         raw = [{"id": f"c{i}", "name": f"c{i}"} for i in range(3)]
         mock_context.fetch.return_value = _fetch_response(raw)
 
         result = await ListCardsAction().execute({"board_id": "b1", "limit": 3}, mock_context)
 
         assert result.data["count"] == 3
-        assert result.data["next_before"] == "c2"
+        assert result.data["next_before"] == "c0"
+
+    @pytest.mark.asyncio
+    async def test_cursor_uses_oldest_id_not_last_element(self, mock_context):
+        """Cards may arrive in board/list position order, not creation order.
+
+        The cursor must be the lexicographically smallest ID (oldest ObjectId),
+        not cards[-1]["id"], which would produce a wrong cursor when cards have
+        been manually reordered.
+        """
+        _auth_ctx(mock_context)
+        # Simulate cards in board-position order (not creation order).
+        # ObjectId hex: smaller value = earlier creation time.
+        # Here "5f900000" is oldest, "63f00000" is newest, "61000000" is middle.
+        raw = [
+            {"id": "63f00000", "name": "newest"},   # position 1
+            {"id": "61000000", "name": "middle"},   # position 2
+            {"id": "5f900000", "name": "oldest"},   # position 3 (last element)
+        ]
+        mock_context.fetch.return_value = _fetch_response(raw)
+
+        result = await ListCardsAction().execute({"board_id": "b1", "limit": 3}, mock_context)
+
+        # Correct: oldest id (min), not last element "5f900000" == last here but
+        # the point is we derive it via min(), not index.
+        assert result.data["next_before"] == "5f900000"
+        # Verify it is NOT the last element's id when order differs.
+        reordered_raw = [
+            {"id": "5f900000", "name": "oldest"},   # position 1
+            {"id": "63f00000", "name": "newest"},   # position 2
+            {"id": "61000000", "name": "middle"},   # position 3 (last)
+        ]
+        mock_context.fetch.return_value = _fetch_response(reordered_raw)
+        result2 = await ListCardsAction().execute({"board_id": "b1", "limit": 3}, mock_context)
+        # last element is "61000000" but correct cursor is still "5f900000"
+        assert result2.data["next_before"] == "5f900000"
 
     @pytest.mark.asyncio
     async def test_no_next_before_when_partial_page(self, mock_context):
@@ -478,8 +512,8 @@ class TestListCards:
 
         assert result.data["count"] == 10
         assert len(result.data["cards"]) == 10
-        # Next-page cursor is the 10th id (oldest in the trimmed page).
-        assert result.data["next_before"] == "c9"
+        # Next-page cursor is the min (oldest) id in the trimmed page.
+        assert result.data["next_before"] == "c0"
 
     @pytest.mark.asyncio
     async def test_projects_compact_fields_client_side(self, mock_context):
@@ -593,8 +627,8 @@ class TestListCards:
 
         # User projection still applies to returned cards.
         assert result.data["cards"] == [{"name": f"n{i}"} for i in range(5)]
-        # Cursor was still derivable.
-        assert result.data["next_before"] == "c4"
+        # Cursor is the min (oldest) id across the page.
+        assert result.data["next_before"] == "c0"
 
     @pytest.mark.asyncio
     async def test_fields_all_passes_through_unchanged(self, mock_context):
