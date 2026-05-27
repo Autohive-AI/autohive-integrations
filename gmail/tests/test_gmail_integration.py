@@ -124,6 +124,38 @@ class TestReadInbox:
         )
         assert second.type == ResultType.ACTION
 
+    @pytest.mark.asyncio
+    async def test_after_filter_accepts_iso_datetime(self, live_context):
+        # ``after`` filters to messages received strictly after the given
+        # instant. Using "one hour ago" keeps the response small and avoids
+        # account-dependent assertions on specific message content.
+        from datetime import datetime, timedelta, timezone
+
+        one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        result = await gmail.execute_action(
+            "read_inbox",
+            {"user_id": "me", "scope": "all", "after": one_hour_ago},
+            live_context,
+        )
+        # Either zero results or some results — both are valid. We just want
+        # to confirm Gmail accepted the composed query and the integration
+        # returned a clean ActionResult, not an ActionError.
+        assert result.type == ResultType.ACTION
+        assert isinstance(result.result.data["emails"], list)
+
+    @pytest.mark.asyncio
+    async def test_raw_q_passthrough_is_anded(self, live_context):
+        # Raw ``q`` is ANDed into the query. ``label:INBOX`` is redundant with
+        # the scope clause but should not break anything — a no-op extra
+        # constraint that confirms the passthrough wiring.
+        result = await gmail.execute_action(
+            "read_inbox",
+            {"user_id": "me", "scope": "all", "q": "label:INBOX"},
+            live_context,
+        )
+        assert result.type == ResultType.ACTION
+        assert isinstance(result.result.data["emails"], list)
+
 
 class TestReadAllMail:
     """Lists messages across the entire mailbox."""
@@ -201,6 +233,36 @@ class TestListEmailsByLabelChained:
         )
         assert result.type == ResultType.ACTION
         assert isinstance(result.result.data["emails"], list)
+
+
+class TestListSendAsSignatures:
+    """Read-only — lists each send-as address (primary + aliases) and the
+    signature currently bound to it as the new-mail default. The Gmail API
+    does not expose the full saved-signature library, only this per-address
+    default."""
+
+    @pytest.mark.asyncio
+    async def test_returns_at_least_primary_address(self, live_context):
+        result = await gmail.execute_action("list_send_as_signatures", {"user_id": "me"}, live_context)
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert "signatures" in data
+        assert isinstance(data["signatures"], list)
+        # Every account has at least its own inbox address as a send-as.
+        assert len(data["signatures"]) >= 1
+        primary = next((s for s in data["signatures"] if s["is_primary"]), None)
+        assert primary is not None, "expected exactly one primary send-as address"
+
+    @pytest.mark.asyncio
+    async def test_each_entry_has_required_fields(self, live_context):
+        result = await gmail.execute_action("list_send_as_signatures", {"user_id": "me"}, live_context)
+        assert result.type == ResultType.ACTION
+        for entry in result.result.data["signatures"]:
+            # Required-by-schema fields with correct types.
+            assert isinstance(entry["send_as_email"], str) and entry["send_as_email"]
+            assert isinstance(entry["is_primary"], bool)
+            assert isinstance(entry["is_default"], bool)
+            assert isinstance(entry["signature"], str)  # may be empty if no default bound
 
 
 # ============================================================
@@ -334,6 +396,61 @@ class TestSendEmailLifecycle:
         assert read_result.type == ResultType.ACTION
 
         # 3. Cleanup: archive (remove from inbox)
+        archive_result = await gmail.execute_action(
+            "archive_emails",
+            {"user_id": "me", "ids": [sent_message_id]},
+            live_context,
+        )
+        assert archive_result.type == ResultType.ACTION
+
+
+@pytest.mark.destructive
+class TestSendEmailWithSignatureLifecycle:
+    """LIFECYCLE: sends a real email with the ``signature`` input set, reads
+    it back to confirm the signature was appended to the body, then archives
+    it.
+
+    What is created: 1 outbound email + 1 inbound email (same message, sent
+    and received by the same account). Subject: "[AH integration test {pid}]
+    gmail signature self-test". Cleanup: the inbound copy is archived.
+    """
+
+    @pytest.mark.asyncio
+    async def test_signature_appears_in_sent_body(self, live_context):
+        profile = await gmail.execute_action("get_user_info", {"user_id": "me"}, live_context)
+        my_address = profile.result.data["user_info"]["email_address"]
+
+        # Unique signature token so we can grep for it in the body unambiguously.
+        sig_token = f"sig-token-{os.getpid()}"
+        subject = f"[AH integration test {os.getpid()}] gmail signature self-test"
+
+        send_result = await gmail.execute_action(
+            "send_email",
+            {
+                "to": [my_address],
+                "subject": subject,
+                "body": "Signed message from the integration test suite.",
+                "signature": f"Best,\nIntegration Test {sig_token}",
+            },
+            live_context,
+        )
+        assert send_result.type == ResultType.ACTION, send_result
+        sent_message_id = send_result.result.data["id"]
+        assert sent_message_id
+
+        # Read the message back and confirm the signature landed in the body.
+        read_result = await gmail.execute_action(
+            "read_email",
+            {"user_id": "me", "email_id": sent_message_id},
+            live_context,
+        )
+        assert read_result.type == ResultType.ACTION
+        body = read_result.result.data["email"]["body"]
+        assert sig_token in body, f"signature token not found in body: {body!r}"
+        # Standard plain-text signature separator should also be present.
+        assert "-- " in body
+
+        # Cleanup: archive (remove from inbox).
         archive_result = await gmail.execute_action(
             "archive_emails",
             {"user_id": "me", "ids": [sent_message_id]},
