@@ -546,11 +546,7 @@ class ListCardsAction(ActionHandler):
             # which corresponds to the oldest-created card.
             next_before = None
             if len(cards) == limit and cards:
-                ids = [
-                    card.get("id")
-                    for card in cards
-                    if isinstance(card, dict) and isinstance(card.get("id"), str)
-                ]
+                ids = [card.get("id") for card in cards if isinstance(card, dict) and isinstance(card.get("id"), str)]
                 next_before = min(ids) if ids else None
 
             cards = _project_card_fields(cards, fields)
