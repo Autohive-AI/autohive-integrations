@@ -1,10 +1,5 @@
 import pytest
-import sys
-import os
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from google_calendar import google_calendar
 from autohive_integrations_sdk import ActionResult, ActionError
 
@@ -16,14 +11,6 @@ def make_fetch_response(data, status=200):
     resp.status = status
     resp.data = data
     return resp
-
-
-@pytest.fixture
-def mock_context():
-    ctx = MagicMock()
-    ctx.auth = {"credentials": {"access_token": "test_token"}}
-    ctx.fetch = AsyncMock()
-    return ctx
 
 
 # ---- list_calendars ----
