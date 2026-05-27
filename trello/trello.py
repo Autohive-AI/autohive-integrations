@@ -492,12 +492,21 @@ class ListCardsAction(ActionHandler):
             limit = _clamp_limit(inputs.get("limit"), DEFAULT_LIST_CARDS_LIMIT)
             fields = inputs.get("fields") or DEFAULT_CARD_FIELDS
 
+            # Always request `id` from Trello so we can generate `next_before`,
+            # even when the user-requested projection excludes it. The user's
+            # projection is still enforced client-side after pagination.
+            api_fields = fields
+            if fields != "all":
+                parts = [f.strip() for f in fields.split(",") if f.strip()]
+                if parts and "id" not in parts:
+                    api_fields = ",".join([*parts, "id"])
+
             # Trello caps /cards endpoints at 1000 per request; send limit
             # server-side so we don't pull more than needed.
-            params: Dict[str, Any] = {"fields": fields, "limit": limit}
+            params: Dict[str, Any] = {"fields": api_fields, "limit": limit}
 
-            if inputs.get("filter"):
-                params["filter"] = inputs["filter"]
+            # Default filter to "open" so config, README, and runtime agree.
+            params["filter"] = inputs.get("filter") or "open"
             if inputs.get("before"):
                 params["before"] = inputs["before"]
             if inputs.get("since"):

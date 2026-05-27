@@ -534,6 +534,89 @@ class TestListCards:
 
         assert _last_call_url(mock_context) == "https://api.trello.com/1/boards/b1/cards"
 
+    @pytest.mark.asyncio
+    async def test_default_filter_is_open(self, mock_context):
+        _auth_ctx(mock_context)
+        mock_context.fetch.return_value = _fetch_response([])
+
+        await ListCardsAction().execute({"board_id": "b1"}, mock_context)
+
+        assert _last_call_params(mock_context)["filter"] == "open"
+
+    @pytest.mark.asyncio
+    async def test_filter_and_before_are_both_forwarded(self, mock_context):
+        _auth_ctx(mock_context)
+        mock_context.fetch.return_value = _fetch_response([])
+
+        await ListCardsAction().execute(
+            {"board_id": "b1", "filter": "closed", "before": "card-zzz"},
+            mock_context,
+        )
+
+        params = _last_call_params(mock_context)
+        assert params["filter"] == "closed"
+        assert params["before"] == "card-zzz"
+
+    @pytest.mark.asyncio
+    async def test_empty_page_yields_no_cursor(self, mock_context):
+        _auth_ctx(mock_context)
+        mock_context.fetch.return_value = _fetch_response([])
+
+        result = await ListCardsAction().execute({"board_id": "b1"}, mock_context)
+
+        assert result.data["count"] == 0
+        assert result.data["cards"] == []
+        assert "next_before" not in result.data
+
+    @pytest.mark.asyncio
+    async def test_limit_1_full_page_emits_cursor(self, mock_context):
+        _auth_ctx(mock_context)
+        mock_context.fetch.return_value = _fetch_response([{"id": "only-one"}])
+
+        result = await ListCardsAction().execute(
+            {"board_id": "b1", "limit": 1}, mock_context
+        )
+
+        assert result.data["count"] == 1
+        assert result.data["next_before"] == "only-one"
+
+    @pytest.mark.asyncio
+    async def test_fields_without_id_still_emits_cursor(self, mock_context):
+        """User asks for fields='name' (no id); we must still produce next_before.
+
+        The handler must request `id` from Trello internally while preserving
+        the user's projection in the returned cards.
+        """
+        _auth_ctx(mock_context)
+        raw = [{"id": f"c{i}", "name": f"n{i}"} for i in range(5)]
+        mock_context.fetch.return_value = _fetch_response(raw)
+
+        result = await ListCardsAction().execute(
+            {"board_id": "b1", "limit": 5, "fields": "name"},
+            mock_context,
+        )
+
+        # Internal API request augments fields with id.
+        api_fields = _last_call_params(mock_context)["fields"]
+        assert "id" in [f.strip() for f in api_fields.split(",")]
+        assert "name" in [f.strip() for f in api_fields.split(",")]
+
+        # User projection still applies to returned cards.
+        assert result.data["cards"] == [{"name": f"n{i}"} for i in range(5)]
+        # Cursor was still derivable.
+        assert result.data["next_before"] == "c4"
+
+    @pytest.mark.asyncio
+    async def test_fields_all_passes_through_unchanged(self, mock_context):
+        _auth_ctx(mock_context)
+        mock_context.fetch.return_value = _fetch_response([])
+
+        await ListCardsAction().execute(
+            {"board_id": "b1", "fields": "all"}, mock_context
+        )
+
+        assert _last_call_params(mock_context)["fields"] == "all"
+
 
 # ---------------------------------------------------------------------------
 # search_cards behavior

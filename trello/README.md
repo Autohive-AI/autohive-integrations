@@ -79,8 +79,6 @@ Returns information about the authenticated member.
 
 **Outputs:**
 - `member`: Member object with details
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -98,8 +96,6 @@ Creates a new board in Trello.
 
 **Outputs:**
 - `board`: Created board object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -112,8 +108,6 @@ Retrieves details of a specific board by its ID.
 
 **Outputs:**
 - `board`: Board object with details
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -129,8 +123,6 @@ Updates an existing board's details.
 
 **Outputs:**
 - `board`: Updated board object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -142,8 +134,6 @@ Returns all boards for the authenticated member.
 
 **Outputs:**
 - `boards`: Array of board objects
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -159,8 +149,6 @@ Creates a new list on a board.
 
 **Outputs:**
 - `list`: Created list object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -172,8 +160,6 @@ Retrieves details of a specific list by its ID.
 
 **Outputs:**
 - `list`: List object with details
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -188,8 +174,6 @@ Updates a list's properties.
 
 **Outputs:**
 - `list`: Updated list object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -202,8 +186,6 @@ Returns all lists on a board.
 
 **Outputs:**
 - `lists`: Array of list objects
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -223,8 +205,6 @@ Creates a new card on a list.
 
 **Outputs:**
 - `card`: Created card object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -237,8 +217,6 @@ Retrieves details of a specific card by its ID.
 
 **Outputs:**
 - `card`: Card object with details
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -257,8 +235,6 @@ Updates an existing card's details.
 
 **Outputs:**
 - `card`: Updated card object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -269,8 +245,6 @@ Deletes a card permanently.
 - `card_id` (required): The ID of the card to delete
 
 **Outputs:**
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -326,8 +300,6 @@ Searches Trello cards by name/text or advanced Trello search query. Use this whe
 - `cards`: Array of matching card objects
 - `count`: Number of cards returned
 - `options`: Trello search metadata/options
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -342,8 +314,6 @@ Creates a new checklist on a card.
 
 **Outputs:**
 - `checklist`: Created checklist object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -358,8 +328,6 @@ Adds a new item to a checklist.
 
 **Outputs:**
 - `checkItem`: Created checklist item object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -374,8 +342,6 @@ Adds a comment to a card.
 
 **Outputs:**
 - `comment`: Created comment object
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
 
 ---
 
@@ -404,12 +370,21 @@ Adds a comment to a card.
 
 ## Testing
 
-To test the integration:
+Unit tests (mocked, CI-safe, no credentials required):
 
-1. Navigate to the integration directory: `cd trello`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Update test file with your credentials: `tests/test_trello.py`
-4. Run tests: `python tests/test_trello.py`
+```bash
+pytest trello/tests/test_trello_unit.py
+```
+
+Live integration smoke tests (opt-in; require real Trello credentials):
+
+```bash
+export TRELLO_API_KEY=your_api_key
+export TRELLO_API_TOKEN=your_api_token
+pytest trello/tests/test_trello_integration.py -m integration
+```
+
+The integration tests are skipped automatically if `TRELLO_API_KEY` / `TRELLO_API_TOKEN` are unset, and they never run in CI (the project's default pytest discovery only picks up `test_*_unit.py`).
 
 ## Common Use Cases
 
