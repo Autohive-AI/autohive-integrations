@@ -144,9 +144,7 @@ async def test_create_event(gcal_auth):
         assert data["event"]["summary"] == "[Autohive Test] Create Test"
 
         # Clean up
-        await google_calendar.execute_action(
-            "delete_event", {"calendar_id": CALENDAR_ID, "event_id": event_id}, ctx
-        )
+        await google_calendar.execute_action("delete_event", {"calendar_id": CALENDAR_ID, "event_id": event_id}, ctx)
 
 
 @pytest.mark.asyncio
@@ -168,9 +166,7 @@ async def test_create_all_day_event(gcal_auth):
         assert event_id
 
         # Clean up
-        await google_calendar.execute_action(
-            "delete_event", {"calendar_id": CALENDAR_ID, "event_id": event_id}, ctx
-        )
+        await google_calendar.execute_action("delete_event", {"calendar_id": CALENDAR_ID, "event_id": event_id}, ctx)
 
 
 @pytest.mark.asyncio
