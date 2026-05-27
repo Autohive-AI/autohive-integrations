@@ -331,6 +331,21 @@ Adds a new item to a checklist.
 
 ---
 
+### Attachments (1 action)
+
+#### `get_card_attachments`
+List all attachments on a Trello card.
+
+**Inputs:**
+- `card_id` (required): The ID of the card to retrieve attachments for
+- `filter` (optional): `false` returns all attachments (default), `cover` returns only the cover attachment
+
+**Outputs:**
+- `attachments`: Array of attachment objects (`id`, `name`, `url`, `mimeType`, `bytes`, `date`, `isUpload`, `idMember`, `edgeColor`, `pos`)
+- `count`: Number of attachments returned
+
+---
+
 ### Comments (1 action)
 
 #### `add_comment`
@@ -427,6 +442,9 @@ The integration tests are skipped automatically if `TRELLO_API_KEY` / `TRELLO_AP
 
 ## Version History
 
+- **2.1.0**
+  - Added `get_card_attachments` action — list all attachments on a card with optional `cover` filter.
+  - Fixed `list_cards` pagination cursor to use `min(ids)` instead of `cards[-1]["id"]`, preventing incorrect cursors when cards are in board/list position order rather than creation order.
 - **2.0.0**
   - Upgraded to `autohive-integrations-sdk ~= 2.0.0`.
   - `context.fetch()` now returns a `FetchResponse`; all handlers were updated to read `response.data` and to check `response.status` so non-2xx responses no longer silently look successful.
