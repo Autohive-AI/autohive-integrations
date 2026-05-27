@@ -437,6 +437,25 @@ class TestGetCardAttachments:
         assert result.data["attachments"][1]["name"] == "image.png"
 
     @pytest.mark.asyncio
+    async def test_bytes_field_is_integer(self, mock_context):
+        _auth_ctx(mock_context)
+        attachment = {
+            "id": "att1",
+            "name": "file.pdf",
+            "url": "https://example.com/file.pdf",
+            "mimeType": "application/pdf",
+            "bytes": 123456,
+            "isUpload": True,
+        }
+        mock_context.fetch.return_value = _fetch_response([attachment])
+
+        result = await GetCardAttachmentsAction().execute({"card_id": "c1"}, mock_context)
+
+        assert isinstance(result, ActionResult)
+        assert result.data["attachments"][0]["bytes"] == 123456
+        assert isinstance(result.data["attachments"][0]["bytes"], int)
+
+    @pytest.mark.asyncio
     async def test_empty_attachments(self, mock_context):
         _auth_ctx(mock_context)
         mock_context.fetch.return_value = _fetch_response([])

@@ -504,7 +504,7 @@
                                 "name": {"type": "string", "description": "Attachment file name"},
                                 "url": {"type": "string", "description": "URL to the attachment"},
                                 "mimeType": {"type": "string", "description": "MIME type of the attachment"},
-                                "bytes": {"type": "string", "description": "File size in bytes"},
+                                "bytes": {"type": "integer", "description": "File size in bytes"},
                                 "date": {"type": "string", "description": "Date the attachment was added (ISO 8601)"},
                                 "isUpload": {"type": "boolean", "description": "True if the attachment was directly uploaded"},
                                 "idMember": {"type": "string", "description": "ID of the member who added the attachment"},
