@@ -1,7 +1,7 @@
 {
     "name": "Trello",
     "display_name": "Trello",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Trello integration for managing boards, lists, cards, and team collaboration",
     "entry_point": "trello.py",
     "auth": {
@@ -39,17 +39,9 @@
                     "member": {
                         "type": "object",
                         "description": "Member details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["member", "result"]
+                "required": ["member"]
             }
         },
         "create_board": {
@@ -89,17 +81,9 @@
                     "board": {
                         "type": "object",
                         "description": "Created board details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["board", "result"]
+                "required": ["board"]
             }
         },
         "get_board": {
@@ -125,17 +109,9 @@
                     "board": {
                         "type": "object",
                         "description": "Board details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["board", "result"]
+                "required": ["board"]
             }
         },
         "update_board": {
@@ -173,17 +149,9 @@
                     "board": {
                         "type": "object",
                         "description": "Updated board details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["board", "result"]
+                "required": ["board"]
             }
         },
         "list_boards": {
@@ -207,16 +175,12 @@
                         "type": "array",
                         "description": "List of boards"
                     },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of boards returned"
                     }
                 },
-                "required": ["boards", "result"]
+                "required": ["boards", "count"]
             }
         },
         "create_list": {
@@ -246,17 +210,9 @@
                     "list": {
                         "type": "object",
                         "description": "Created list details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["list", "result"]
+                "required": ["list"]
             }
         },
         "get_list": {
@@ -278,17 +234,9 @@
                     "list": {
                         "type": "object",
                         "description": "List details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["list", "result"]
+                "required": ["list"]
             }
         },
         "update_list": {
@@ -322,21 +270,13 @@
                     "list": {
                         "type": "object",
                         "description": "Updated list details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["list", "result"]
+                "required": ["list"]
             }
         },
         "list_lists": {
-            "display_name": "List Board Lists",
+            "display_name": "List Lists",
             "description": "Returns all lists on a board.",
             "input_schema": {
                 "type": "object",
@@ -360,16 +300,12 @@
                         "type": "array",
                         "description": "List of lists"
                     },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of lists returned"
                     }
                 },
-                "required": ["lists", "result"]
+                "required": ["lists", "count"]
             }
         },
         "create_card": {
@@ -421,17 +357,9 @@
                     "card": {
                         "type": "object",
                         "description": "Created card details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["card", "result"]
+                "required": ["card"]
             }
         },
         "get_card": {
@@ -457,17 +385,9 @@
                     "card": {
                         "type": "object",
                         "description": "Card details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["card", "result"]
+                "required": ["card"]
             }
         },
         "update_card": {
@@ -520,17 +440,9 @@
                     "card": {
                         "type": "object",
                         "description": "Updated card details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["card", "result"]
+                "required": ["card"]
             }
         },
         "delete_card": {
@@ -549,21 +461,21 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "deleted": {
                         "type": "boolean",
-                        "description": "Whether the operation was successful"
+                        "description": "True when the card was successfully deleted"
                     },
-                    "error": {
+                    "card_id": {
                         "type": "string",
-                        "description": "Error message if the action failed"
+                        "description": "The ID of the card that was deleted"
                     }
                 },
-                "required": ["result"]
+                "required": ["deleted", "card_id"]
             }
         },
         "list_cards": {
             "display_name": "List Cards",
-            "description": "Returns all cards on a list or board.",
+            "description": "Returns cards on a list or board with cursor-based pagination. Uses Trello's server-side limit + before/since. Returns next_before when more results are likely available; pass it back as before to fetch the next page. Use search_cards for name-based lookups.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -579,6 +491,26 @@
                         "type": "string",
                         "description": "Filter cards: all, open, closed, visible",
                         "default": "open"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Server-side cap on cards per request (1-1000). Trello returns cards newest-first in reverse creation order.",
+                        "default": 50,
+                        "minimum": 1,
+                        "maximum": 1000
+                    },
+                    "before": {
+                        "type": "string",
+                        "description": "Cursor: only return cards created before this card ID or ISO 8601 date. Pass the next_before value from a previous response to paginate."
+                    },
+                    "since": {
+                        "type": "string",
+                        "description": "Cursor: only return cards created after this card ID or ISO 8601 date."
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Comma-separated card fields to return, or 'all'. Enforced client-side as well as via the API.",
+                        "default": "id,name,idList,idBoard,due,dueComplete,closed,url,shortUrl"
                     }
                 },
                 "required": []
@@ -590,16 +522,108 @@
                         "type": "array",
                         "description": "List of cards"
                     },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of cards returned"
                     },
-                    "error": {
+                    "next_before": {
                         "type": "string",
-                        "description": "Error message if the action failed"
+                        "description": "Cursor for the next page (the oldest card's ID in this response). Present only when a full page was returned, indicating more cards may exist. Pass this back as before."
                     }
                 },
-                "required": ["cards", "result"]
+                "required": ["cards", "count"]
+            }
+        },
+        "search_cards": {
+            "display_name": "Search Cards",
+            "description": "Searches Trello cards by name/text or advanced Trello search query. Use this when you don't know which board or list contains the card.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "card_name": {
+                        "type": "string",
+                        "description": "Card name/text to search for. The handler wraps this in Trello's name:\"...\" operator."
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Advanced Trello search query (e.g. 'name:\"Bug\" list:\"In Progress\" label:red due:week'). Combined with card_name if both are provided."
+                    },
+                    "board_id": {
+                        "type": "string",
+                        "description": "Optional board ID to scope the search (sent as idBoards)."
+                    },
+                    "organization_id": {
+                        "type": "string",
+                        "description": "Optional Workspace/organization ID to scope the search (sent as idOrganizations)."
+                    },
+                    "open_only": {
+                        "type": "boolean",
+                        "description": "Restrict to open cards by appending is:open. Skipped if the query already specifies a card-status operator (is:open|closed|archived).",
+                        "default": true
+                    },
+                    "partial": {
+                        "type": "boolean",
+                        "description": "Enable prefix matching, e.g. 'dev' matches 'Development'.",
+                        "default": true
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of cards to return (1-1000).",
+                        "default": 10,
+                        "minimum": 1,
+                        "maximum": 1000
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page of card search results for pagination.",
+                        "default": 0,
+                        "minimum": 0
+                    },
+                    "fields": {
+                        "type": "string",
+                        "description": "Comma-separated card fields to return, or 'all'.",
+                        "default": "id,name,idList,idBoard,due,dueComplete,closed,url,shortUrl"
+                    },
+                    "include_board": {
+                        "type": "boolean",
+                        "description": "Include board details with each card.",
+                        "default": true
+                    },
+                    "include_list": {
+                        "type": "boolean",
+                        "description": "Include list details with each card.",
+                        "default": true
+                    },
+                    "include_members": {
+                        "type": "boolean",
+                        "description": "Include member details with each card.",
+                        "default": false
+                    },
+                    "include_attachments": {
+                        "type": "boolean",
+                        "description": "Include attachments with each card.",
+                        "default": false
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "cards": {
+                        "type": "array",
+                        "description": "Matching Trello cards"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of cards returned"
+                    },
+                    "options": {
+                        "type": "object",
+                        "description": "Trello search metadata/options"
+                    }
+                },
+                "required": ["cards", "count", "options"]
             }
         },
         "create_checklist": {
@@ -625,17 +649,9 @@
                     "checklist": {
                         "type": "object",
                         "description": "Created checklist details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["checklist", "result"]
+                "required": ["checklist"]
             }
         },
         "add_checklist_item": {
@@ -670,17 +686,9 @@
                     "checkItem": {
                         "type": "object",
                         "description": "Created checklist item details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["checkItem", "result"]
+                "required": ["checkItem"]
             }
         },
         "add_comment": {
@@ -706,17 +714,9 @@
                     "comment": {
                         "type": "object",
                         "description": "Created comment details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["comment", "result"]
+                "required": ["comment"]
             }
         }
     }
