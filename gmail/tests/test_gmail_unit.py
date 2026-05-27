@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from autohive_integrations_sdk.integration import ResultType
 
-from gmail.gmail import gmail, create_email_message, build_raw_email
+from gmail.gmail import gmail, create_email_message, build_raw_email, build_date_clause, append_signature
 
 pytestmark = pytest.mark.unit
 
@@ -213,6 +213,123 @@ class TestBuildRawEmail:
             )
         )
         assert msg["References"] == "<old@example.com> <new@example.com>"
+
+
+class TestAppendSignature:
+    """Tests for the append_signature helper."""
+
+    def test_text_separator(self):
+        assert append_signature("Hello", "Best,\nMe", is_html=False) == "Hello\n\n-- \nBest,\nMe"
+
+    def test_html_separator(self):
+        result = append_signature("<p>Hi</p>", "<p>Best,<br>Me</p>", is_html=True)
+        assert result == "<p>Hi</p><br><br>-- <br><p>Best,<br>Me</p>"
+
+    def test_empty_signature_returns_body_unchanged(self):
+        assert append_signature("Hello", "", is_html=False) == "Hello"
+        assert append_signature("Hello", "", is_html=True) == "Hello"
+
+    def test_none_signature_returns_body_unchanged(self):
+        # Defensive: ``inputs.get("signature", "")`` could pass through ``None``
+        # if a caller sends ``"signature": null`` explicitly.
+        assert append_signature("Hello", None, is_html=False) == "Hello"
+
+    def test_empty_body_returns_signature_only(self):
+        assert append_signature("", "Best,\nMe", is_html=False) == "Best,\nMe"
+        assert append_signature("", "<p>Me</p>", is_html=True) == "<p>Me</p>"
+
+    def test_none_body_treated_as_empty(self):
+        assert append_signature(None, "Best,\nMe", is_html=False) == "Best,\nMe"
+
+    def test_both_empty_returns_empty(self):
+        assert append_signature("", "", is_html=False) == ""
+
+
+class TestBuildRawEmailSignature:
+    """End-to-end signature wiring through build_raw_email — every send/reply/
+    draft handler funnels through this helper, so a single point of coverage
+    here proves signatures land on all four actions."""
+
+    def test_plain_text_body_includes_signature(self):
+        msg = _decode_raw(
+            build_raw_email(
+                {
+                    "to": "alice@example.com",
+                    "subject": "Hi",
+                    "body": "Hello Alice",
+                    "signature": "Best,\nMe",
+                }
+            )
+        )
+        rendered = _decoded_text(msg)
+        assert "Hello Alice" in rendered
+        assert "-- " in rendered
+        assert "Best," in rendered
+
+    def test_html_body_includes_signature_in_html_part(self):
+        msg = _decode_raw(
+            build_raw_email(
+                {
+                    "to": "alice@example.com",
+                    "subject": "Hi",
+                    "body": "<p>Hello Alice</p>",
+                    "body_format": "html",
+                    "signature": "<p>Best, <b>Me</b></p>",
+                }
+            )
+        )
+        # Walk multipart, find the text/html part specifically.
+        html_payload = next(
+            part.get_payload(decode=True).decode("utf-8")
+            for part in msg.walk()
+            if part.get_content_type() == "text/html"
+        )
+        assert "Hello Alice" in html_payload
+        assert "<b>Me</b>" in html_payload
+
+    def test_no_signature_input_leaves_body_unchanged(self):
+        msg = _decode_raw(build_raw_email({"to": "alice@example.com", "subject": "Hi", "body": "Hello Alice"}))
+        rendered = _decoded_text(msg)
+        assert "Hello Alice" in rendered
+        assert "-- " not in rendered
+
+
+class TestBuildDateClause:
+    """Tests for the build_date_clause helper that translates ISO 8601 bounds
+    into Gmail's ``after:<unix> before:<unix>`` search-syntax fragment."""
+
+    def test_bare_date_after_only(self):
+        # 2024-01-01 00:00 UTC == 1704067200 seconds since the epoch.
+        assert build_date_clause(after="2024-01-01") == "after:1704067200"
+
+    def test_bare_date_before_only(self):
+        assert build_date_clause(before="2024-01-01") == "before:1704067200"
+
+    def test_full_datetime_with_z_suffix(self):
+        # 2024-01-01T12:00:00Z == 1704067200 + 43200 = 1704110400.
+        assert build_date_clause(after="2024-01-01T12:00:00Z") == "after:1704110400"
+
+    def test_full_datetime_with_offset(self):
+        assert build_date_clause(after="2024-01-01T12:00:00+00:00") == "after:1704110400"
+
+    def test_naive_datetime_treated_as_utc(self):
+        # No timezone in input — must be interpreted as UTC, not local.
+        assert build_date_clause(after="2024-01-01T12:00:00") == "after:1704110400"
+
+    def test_both_bounds_after_first(self):
+        result = build_date_clause(after="2024-01-01", before="2024-02-01")
+        assert result == "after:1704067200 before:1706745600"
+
+    def test_empty_inputs_return_empty(self):
+        assert build_date_clause() == ""
+        assert build_date_clause(after="", before="") == ""
+        assert build_date_clause(after=None, before=None) == ""
+
+    def test_malformed_input_raises_value_error(self):
+        with pytest.raises(ValueError, match="after"):
+            build_date_clause(after="not a date")
+        with pytest.raises(ValueError, match="before"):
+            build_date_clause(before="2024-13-99")
 
 
 # ============================================================
@@ -449,6 +566,83 @@ class TestReadInbox:
             result = await gmail.execute_action("read_inbox", {"user_id": "me", "scope": "all"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
 
+    @pytest.mark.asyncio
+    async def test_after_only_appends_date_clause(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "read_inbox",
+                {"user_id": "me", "scope": "all", "after": "2024-01-01"},
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        # Scope clause first, then date clause, no raw q.
+        assert call.kwargs["q"] == "in:inbox after:1704067200"
+
+    @pytest.mark.asyncio
+    async def test_before_only(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "read_inbox",
+                {"user_id": "me", "scope": "all", "before": "2024-02-01"},
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        assert call.kwargs["q"] == "in:inbox before:1706745600"
+
+    @pytest.mark.asyncio
+    async def test_raw_q_appended_to_scope(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "read_inbox",
+                {"user_id": "me", "scope": "unread", "q": "has:attachment"},
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        assert call.kwargs["q"] == "is:unread in:inbox has:attachment"
+
+    @pytest.mark.asyncio
+    async def test_combined_scope_date_and_raw_q(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "read_inbox",
+                {
+                    "user_id": "me",
+                    "scope": "unread",
+                    "after": "2024-01-01",
+                    "before": "2024-02-01",
+                    "q": "has:attachment",
+                },
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        # Order: scope, date, raw.
+        assert call.kwargs["q"] == "is:unread in:inbox after:1704067200 before:1706745600 has:attachment"
+
+    @pytest.mark.asyncio
+    async def test_malformed_after_returns_action_error(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            result = await gmail.execute_action(
+                "read_inbox",
+                {"user_id": "me", "scope": "all", "after": "not a date"},
+                mock_context,
+            )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "after" in result.result.message.lower()
+
 
 class TestReadAllMail:
     @pytest.mark.asyncio
@@ -470,6 +664,87 @@ class TestReadAllMail:
             service.users().messages().list().execute.side_effect = Exception("error")
             result = await gmail.execute_action("read_all_mail", {"user_id": "me", "scope": "all"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_no_filters_omits_q_entirely(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "read_all_mail",
+                {"user_id": "me", "scope": "all"},
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        # scope=all with no date/q → preserve existing behavior: no ``q`` kwarg.
+        assert "q" not in call.kwargs
+
+    @pytest.mark.asyncio
+    async def test_after_only(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "read_all_mail",
+                {"user_id": "me", "scope": "all", "after": "2024-01-01"},
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        assert call.kwargs["q"] == "after:1704067200"
+
+    @pytest.mark.asyncio
+    async def test_combined_scope_date_and_raw_q(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "read_all_mail",
+                {
+                    "user_id": "me",
+                    "scope": "read",
+                    "after": "2024-01-01",
+                    "q": "from:alice@example.com",
+                },
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        assert call.kwargs["q"] == "-is:unread after:1704067200 from:alice@example.com"
+
+    @pytest.mark.asyncio
+    async def test_include_spam_trash_passthrough_preserved(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "read_all_mail",
+                {
+                    "user_id": "me",
+                    "scope": "all",
+                    "include_spam_trash": True,
+                    "after": "2024-01-01",
+                },
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        assert call.kwargs["q"] == "after:1704067200"
+        assert call.kwargs["includeSpamTrash"] is True
+
+    @pytest.mark.asyncio
+    async def test_malformed_before_returns_action_error(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            result = await gmail.execute_action(
+                "read_all_mail",
+                {"user_id": "me", "scope": "all", "before": "not a date"},
+                mock_context,
+            )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "before" in result.result.message.lower()
 
 
 # ============================================================
@@ -724,6 +999,107 @@ class TestListEmailsByLabel:
             )
         assert result.type == ResultType.ACTION_ERROR
 
+    @pytest.mark.asyncio
+    async def test_single_label_with_after(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "list_emails_by_label",
+                {"user_id": "me", "label_names": "Work", "after": "2024-01-01"},
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        # Default behavior pins to inbox unless include_archived=True.
+        assert call.kwargs["q"] == "label:Work in:inbox after:1704067200"
+
+    @pytest.mark.asyncio
+    async def test_multiple_labels_with_date_range(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "list_emails_by_label",
+                {
+                    "user_id": "me",
+                    "label_names": ["Work", "STARRED"],
+                    "after": "2024-01-01",
+                    "before": "2024-02-01",
+                },
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        assert call.kwargs["q"] == "label:Work label:STARRED in:inbox after:1704067200 before:1706745600"
+
+    @pytest.mark.asyncio
+    async def test_include_archived_drops_inbox_clause(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "list_emails_by_label",
+                {
+                    "user_id": "me",
+                    "label_names": "Work",
+                    "include_archived": True,
+                    "after": "2024-01-01",
+                },
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        assert call.kwargs["q"] == "label:Work after:1704067200"
+
+    @pytest.mark.asyncio
+    async def test_explicit_inbox_label_avoids_double_inbox_clause(self, mock_context):
+        # Existing behavior: when the user explicitly asks for INBOX, the
+        # handler does NOT append ``in:inbox`` again. Confirm date still slots in.
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "list_emails_by_label",
+                {"user_id": "me", "label_names": "INBOX", "after": "2024-01-01"},
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        assert call.kwargs["q"] == "label:INBOX after:1704067200"
+
+    @pytest.mark.asyncio
+    async def test_combined_label_date_and_raw_q(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "list_emails_by_label",
+                {
+                    "user_id": "me",
+                    "label_names": "Work",
+                    "after": "2024-01-01",
+                    "q": "from:alice@example.com",
+                },
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        assert call.kwargs["q"] == "label:Work in:inbox after:1704067200 from:alice@example.com"
+
+    @pytest.mark.asyncio
+    async def test_malformed_after_returns_action_error(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            result = await gmail.execute_action(
+                "list_emails_by_label",
+                {"user_id": "me", "label_names": "Work", "after": "not a date"},
+                mock_context,
+            )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "after" in result.result.message.lower()
+
 
 # ============================================================
 #  Thread actions
@@ -955,3 +1331,137 @@ class TestDeleteDraft:
             service.users().drafts().delete().execute.side_effect = Exception("not found")
             result = await gmail.execute_action("delete_draft", {"user_id": "me", "draft_id": "x"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
+
+
+# ============================================================
+#  Send-as signature listing
+# ============================================================
+
+
+class TestListSendAsSignatures:
+    """Lists the signature currently bound as the new-mail default on each
+    of the user's send-as addresses. The Gmail API does not expose the full
+    saved-signatures library — only this per-address default."""
+
+    @pytest.mark.asyncio
+    async def test_happy_path_two_aliases(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().settings().sendAs().list().execute.return_value = {
+                "sendAs": [
+                    {
+                        "sendAsEmail": "me@example.com",
+                        "displayName": "Me",
+                        "isPrimary": True,
+                        "isDefault": True,
+                        "signature": "<p>Primary sig</p>",
+                        "replyToAddress": "reply@example.com",
+                    },
+                    {
+                        "sendAsEmail": "support@example.com",
+                        "displayName": "Support",
+                        "isPrimary": False,
+                        "isDefault": False,
+                        "signature": "<p>Support sig</p>",
+                        "replyToAddress": "",
+                    },
+                ]
+            }
+            result = await gmail.execute_action("list_send_as_signatures", {"user_id": "me"}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert len(data["signatures"]) == 2
+
+        primary = data["signatures"][0]
+        assert primary["send_as_email"] == "me@example.com"
+        assert primary["display_name"] == "Me"
+        assert primary["is_primary"] is True
+        assert primary["is_default"] is True
+        assert primary["signature"] == "<p>Primary sig</p>"
+        assert primary["reply_to_address"] == "reply@example.com"
+
+        alias = data["signatures"][1]
+        assert alias["is_primary"] is False
+        assert alias["is_default"] is False
+
+    @pytest.mark.asyncio
+    async def test_missing_optional_fields_default_to_empty(self, mock_context):
+        # Gmail omits ``displayName``, ``replyToAddress``, ``signature`` etc.
+        # when they're not configured. Confirm we surface defaults rather than
+        # ``None`` or ``KeyError``.
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().settings().sendAs().list().execute.return_value = {
+                "sendAs": [
+                    {
+                        "sendAsEmail": "me@example.com",
+                        "isPrimary": True,
+                        "isDefault": True,
+                    }
+                ]
+            }
+            result = await gmail.execute_action("list_send_as_signatures", {"user_id": "me"}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        entry = result.result.data["signatures"][0]
+        assert entry["display_name"] == ""
+        assert entry["signature"] == ""
+        assert entry["reply_to_address"] == ""
+        assert entry["is_primary"] is True
+        assert entry["is_default"] is True
+
+    @pytest.mark.asyncio
+    async def test_empty_send_as_list(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().settings().sendAs().list().execute.return_value = {}
+            result = await gmail.execute_action("list_send_as_signatures", {"user_id": "me"}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data == {"signatures": []}
+
+    @pytest.mark.asyncio
+    async def test_null_signature_becomes_empty_string(self, mock_context):
+        # Gmail can return ``"signature": null`` for a send-as that has no
+        # default signature bound. The handler must coerce to ``""`` — not the
+        # string ``"None"``, and not leave it as ``None``.
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().settings().sendAs().list().execute.return_value = {
+                "sendAs": [
+                    {
+                        "sendAsEmail": "me@example.com",
+                        "isPrimary": True,
+                        "isDefault": True,
+                        "signature": None,
+                    }
+                ]
+            }
+            result = await gmail.execute_action("list_send_as_signatures", {"user_id": "me"}, mock_context)
+        entry = result.result.data["signatures"][0]
+        assert entry["signature"] == ""
+        assert entry["signature"] != "None"
+
+    @pytest.mark.asyncio
+    async def test_defaults_user_id_to_me(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().settings().sendAs().list().execute.return_value = {"sendAs": []}
+            await gmail.execute_action("list_send_as_signatures", {}, mock_context)
+        call = service.users().settings().sendAs().list.call_args
+        assert call.kwargs == {"userId": "me"}
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().settings().sendAs().list().execute.side_effect = Exception("403")
+            result = await gmail.execute_action("list_send_as_signatures", {"user_id": "me"}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "403" in result.result.message

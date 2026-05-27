@@ -1,5 +1,6 @@
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -12,6 +13,38 @@ import html2text
 import bleach
 
 gmail = Integration.load()
+
+
+def build_date_clause(after: str = "", before: str = "") -> str:
+    """Translate ISO 8601 datetime bounds into a Gmail-search-syntax fragment.
+
+    Returns an empty string when both inputs are empty/None. Raises ValueError
+    on a malformed input — the calling handler wraps that in ``ActionError``.
+
+    Why unix-seconds and not Gmail's ``YYYY/MM/DD`` form: the date form is
+    interpreted in the account's local timezone, which is opaque to the caller.
+    Unix timestamps are unambiguous UTC, and give second-level precision for free.
+    """
+
+    def _to_unix_seconds(value: str, which: str) -> int:
+        # ``datetime.fromisoformat`` accepts a bare ``Z`` suffix only on Python
+        # 3.11+. Normalize to ``+00:00`` so we run on older runtimes too.
+        normalized = value.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(normalized)
+        except ValueError as exc:
+            raise ValueError(f"Invalid '{which}' datetime '{value}': {exc}") from exc
+        # Treat naive datetimes as UTC for caller predictability.
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp())
+
+    fragments = []
+    if after:
+        fragments.append(f"after:{_to_unix_seconds(after, 'after')}")
+    if before:
+        fragments.append(f"before:{_to_unix_seconds(before, 'before')}")
+    return " ".join(fragments)
 
 
 def create_email_message(body: str, files: list = None, is_html: bool = False) -> MIMEMultipart:
@@ -159,6 +192,22 @@ def create_email_message(body: str, files: list = None, is_html: bool = False) -
     return message
 
 
+def append_signature(body: str, signature: str = "", is_html: bool = False) -> str:
+    """Append a signature to an email body using format-appropriate separators.
+
+    Plain text uses the conventional ``\\n\\n-- \\n`` separator (RFC 3676);
+    HTML uses ``<br><br>-- <br>`` so the separator survives rendering. Returns
+    the body unchanged when no signature is provided.
+    """
+    body = body or ""
+    signature = signature or ""
+    if not signature:
+        return body
+    if is_html:
+        return f"{body}<br><br>-- <br>{signature}" if body else signature
+    return f"{body}\n\n-- \n{signature}" if body else signature
+
+
 def _normalize_addresses(value) -> str:
     """Accept either a string or a list of strings and return a comma-joined header value.
 
@@ -201,7 +250,7 @@ def build_raw_email(
     body_format = inputs.get("body_format", "text")
     is_html = body_format == "html"
     input_files = inputs.get("files", [])
-    body = inputs.get("body", "")
+    body = append_signature(inputs.get("body", ""), inputs.get("signature", ""), is_html)
     message = create_email_message(body, input_files, is_html)
 
     # From — skip the "me" sentinel used by SendEmail
@@ -594,11 +643,15 @@ class ReadInbox(ActionHandler):
             scope = inputs.get("scope", "all")
 
             if scope == "unread":
-                query = "is:unread in:inbox"
+                scope_clause = "is:unread in:inbox"
             elif scope == "read":
-                query = "-is:unread in:inbox"
+                scope_clause = "-is:unread in:inbox"
             else:  # 'all'
-                query = "in:inbox"
+                scope_clause = "in:inbox"
+
+            date_clause = build_date_clause(inputs.get("after", ""), inputs.get("before", ""))
+            raw_q = inputs.get("q", "")
+            query = " ".join(part for part in (scope_clause, date_clause, raw_q) if part)
 
             request_params = {"userId": user_id, "q": query}
             if "pageToken" in inputs:
@@ -641,11 +694,15 @@ class ReadAllMail(ActionHandler):
             scope = inputs.get("scope", "all")
 
             if scope == "unread":
-                query = "is:unread"
+                scope_clause = "is:unread"
             elif scope == "read":
-                query = "-is:unread"
+                scope_clause = "-is:unread"
             else:  # 'all'
-                query = ""
+                scope_clause = ""
+
+            date_clause = build_date_clause(inputs.get("after", ""), inputs.get("before", ""))
+            raw_q = inputs.get("q", "")
+            query = " ".join(part for part in (scope_clause, date_clause, raw_q) if part)
 
             request_params = {"userId": user_id, "includeSpamTrash": include_spam_trash}
             if query:
@@ -732,8 +789,12 @@ class ListEmailsByLabel(ActionHandler):
                 if not inbox_already_specified:
                     label_query += " in:inbox"
 
+            date_clause = build_date_clause(inputs.get("after", ""), inputs.get("before", ""))
+            raw_q = inputs.get("q", "")
+            query = " ".join(part for part in (label_query, date_clause, raw_q) if part)
+
             # Build request parameters
-            request_params = {"userId": user_id, "q": label_query}
+            request_params = {"userId": user_id, "q": query}
 
             if "pageToken" in inputs:
                 request_params["pageToken"] = inputs["pageToken"]
@@ -1204,6 +1265,34 @@ class DeleteDraft(ActionHandler):
             request.execute()
 
             return ActionResult(data={}, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@gmail.action("list_send_as_signatures")
+class ListSendAsSignatures(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            service = build_gmail_service(context)
+            user_id = inputs.get("user_id", "me")
+
+            response = service.users().settings().sendAs().list(userId=user_id).execute()
+            aliases = response.get("sendAs", [])
+
+            signatures = [
+                {
+                    "send_as_email": alias.get("sendAsEmail", ""),
+                    "display_name": alias.get("displayName", ""),
+                    "is_primary": alias.get("isPrimary", False),
+                    "is_default": alias.get("isDefault", False),
+                    "signature": alias.get("signature") or "",
+                    "reply_to_address": alias.get("replyToAddress", ""),
+                }
+                for alias in aliases
+            ]
+
+            return ActionResult(data={"signatures": signatures}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
