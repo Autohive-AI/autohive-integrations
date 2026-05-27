@@ -454,6 +454,34 @@ class DeleteCardAction(ActionHandler):
             return ActionError(message=str(e))
 
 
+@trello.action("get_card_attachments")
+class GetCardAttachmentsAction(ActionHandler):
+    """List all attachments on a Trello card."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            card_id = inputs["card_id"]
+            auth_params = get_auth_params(context)
+            params: Dict[str, Any] = {}
+
+            if inputs.get("filter"):
+                params["filter"] = inputs["filter"]
+
+            merged_params = merge_params(params, auth_params)
+
+            response = await context.fetch(
+                f"{TRELLO_API_BASE_URL}/cards/{card_id}/attachments", method="GET", params=merged_params
+            )
+            attachments = _unwrap_trello_response(response)
+            if not isinstance(attachments, list):
+                attachments = []
+
+            return ActionResult(data={"attachments": attachments, "count": len(attachments)}, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
 @trello.action("list_cards")
 class ListCardsAction(ActionHandler):
     """List cards on a list or board with cursor-based pagination.

@@ -15,7 +15,7 @@ import os
 import sys
 
 import pytest
-from autohive_integrations_sdk import ActionError, FetchResponse
+from autohive_integrations_sdk import ActionError, ActionResult, FetchResponse
 
 # Ensure the trello package is importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -32,6 +32,7 @@ from trello.trello import (  # noqa: E402
     DEFAULT_CARD_FIELDS,
     GetBoardAction,
     GetCardAction,
+    GetCardAttachmentsAction,
     GetCurrentMemberAction,
     GetListAction,
     ListBoardsAction,
@@ -396,6 +397,60 @@ class TestCardCrudHandlers:
         mock_context.fetch.return_value = _fetch_response({"message": "not found"}, status=404)
 
         result = await DeleteCardAction().execute({"card_id": "c1"}, mock_context)
+
+        assert isinstance(result, ActionError)
+        assert "not found" in result.message
+
+
+# ---------------------------------------------------------------------------
+# get_card_attachments behavior
+# ---------------------------------------------------------------------------
+
+
+class TestGetCardAttachments:
+    @pytest.mark.asyncio
+    async def test_returns_attachments(self, mock_context):
+        _auth_ctx(mock_context)
+        attachments = [
+            {"id": "att1", "name": "file.pdf", "url": "https://example.com/file.pdf", "mimeType": "application/pdf", "isUpload": True},
+            {"id": "att2", "name": "image.png", "url": "https://example.com/image.png", "mimeType": "image/png", "isUpload": True},
+        ]
+        mock_context.fetch.return_value = _fetch_response(attachments)
+
+        result = await GetCardAttachmentsAction().execute({"card_id": "c1"}, mock_context)
+
+        assert isinstance(result, ActionResult)
+        assert result.data["count"] == 2
+        assert result.data["attachments"][0]["id"] == "att1"
+        assert result.data["attachments"][1]["name"] == "image.png"
+
+    @pytest.mark.asyncio
+    async def test_empty_attachments(self, mock_context):
+        _auth_ctx(mock_context)
+        mock_context.fetch.return_value = _fetch_response([])
+
+        result = await GetCardAttachmentsAction().execute({"card_id": "c1"}, mock_context)
+
+        assert isinstance(result, ActionResult)
+        assert result.data["attachments"] == []
+        assert result.data["count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_forwards_filter_param(self, mock_context):
+        _auth_ctx(mock_context)
+        mock_context.fetch.return_value = _fetch_response([])
+
+        await GetCardAttachmentsAction().execute({"card_id": "c1", "filter": "cover"}, mock_context)
+
+        params = _last_call_params(mock_context)
+        assert params["filter"] == "cover"
+
+    @pytest.mark.asyncio
+    async def test_error_returns_action_error(self, mock_context):
+        _auth_ctx(mock_context)
+        mock_context.fetch.return_value = _fetch_response({"message": "not found"}, status=404)
+
+        result = await GetCardAttachmentsAction().execute({"card_id": "bad"}, mock_context)
 
         assert isinstance(result, ActionError)
         assert "not found" in result.message
