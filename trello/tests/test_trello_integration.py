@@ -60,9 +60,7 @@ async def test_get_current_member(trello_auth):
 @pytest.mark.asyncio
 async def test_list_boards(trello_auth):
     async with ExecutionContext(auth=trello_auth) as context:
-        result = await trello_integration.execute_action(
-            "list_boards", {"filter": "open"}, context
-        )
+        result = await trello_integration.execute_action("list_boards", {"filter": "open"}, context)
     data = _assert_ok(result)
     assert "boards" in data and "count" in data
     assert data["count"] == len(data["boards"])

@@ -191,9 +191,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_non_2xx_returns_action_error_with_trello_message(self, mock_context):
         _auth_ctx(mock_context)
-        mock_context.fetch.return_value = _fetch_response(
-            {"message": "invalid token"}, status=401
-        )
+        mock_context.fetch.return_value = _fetch_response({"message": "invalid token"}, status=401)
 
         result = await GetCurrentMemberAction().execute({}, mock_context)
 
@@ -236,7 +234,7 @@ class TestMemberAndBoardHandlers:
 
         assert result.data == {"member": {"id": "m1", "fullName": "Alice"}}
         assert _last_call_url(mock_context) == "https://api.trello.com/1/members/me"
-        assert _last_call_params(mock_context) == {"key": "k", "token": "t"}
+        assert _last_call_params(mock_context) == {"key": "k", "token": "t"}  # nosec B105
 
     @pytest.mark.asyncio
     async def test_create_board_sends_required_and_optional_params(self, mock_context):
@@ -453,9 +451,7 @@ class TestListCards:
         raw = [{"id": f"c{i}", "name": f"c{i}"} for i in range(3)]
         mock_context.fetch.return_value = _fetch_response(raw)
 
-        result = await ListCardsAction().execute(
-            {"board_id": "b1", "limit": 3}, mock_context
-        )
+        result = await ListCardsAction().execute({"board_id": "b1", "limit": 3}, mock_context)
 
         assert result.data["count"] == 3
         assert result.data["next_before"] == "c2"
@@ -467,9 +463,7 @@ class TestListCards:
         raw = [{"id": "c1"}, {"id": "c2"}]
         mock_context.fetch.return_value = _fetch_response(raw)
 
-        result = await ListCardsAction().execute(
-            {"list_id": "l1", "limit": 50}, mock_context
-        )
+        result = await ListCardsAction().execute({"list_id": "l1", "limit": 50}, mock_context)
 
         assert "next_before" not in result.data
 
@@ -504,9 +498,7 @@ class TestListCards:
     @pytest.mark.asyncio
     async def test_all_fields_passthrough(self, mock_context):
         _auth_ctx(mock_context)
-        mock_context.fetch.return_value = _fetch_response(
-            [{"id": "c1", "name": "x", "desc": "kept", "extra": "kept"}]
-        )
+        mock_context.fetch.return_value = _fetch_response([{"id": "c1", "name": "x", "desc": "kept", "extra": "kept"}])
 
         result = await ListCardsAction().execute(
             {"list_id": "l1", "fields": "all"},
@@ -573,9 +565,7 @@ class TestListCards:
         _auth_ctx(mock_context)
         mock_context.fetch.return_value = _fetch_response([{"id": "only-one"}])
 
-        result = await ListCardsAction().execute(
-            {"board_id": "b1", "limit": 1}, mock_context
-        )
+        result = await ListCardsAction().execute({"board_id": "b1", "limit": 1}, mock_context)
 
         assert result.data["count"] == 1
         assert result.data["next_before"] == "only-one"
@@ -611,9 +601,7 @@ class TestListCards:
         _auth_ctx(mock_context)
         mock_context.fetch.return_value = _fetch_response([])
 
-        await ListCardsAction().execute(
-            {"board_id": "b1", "fields": "all"}, mock_context
-        )
+        await ListCardsAction().execute({"board_id": "b1", "fields": "all"}, mock_context)
 
         assert _last_call_params(mock_context)["fields"] == "all"
 
@@ -752,9 +740,7 @@ class TestSearchCards:
     @pytest.mark.asyncio
     async def test_non_2xx_returns_action_error(self, mock_context):
         _auth_ctx(mock_context)
-        mock_context.fetch.return_value = _fetch_response(
-            {"message": "unauthorized"}, status=401
-        )
+        mock_context.fetch.return_value = _fetch_response({"message": "unauthorized"}, status=401)
 
         result = await SearchCardsAction().execute({"card_name": "x"}, mock_context)
 
@@ -786,9 +772,7 @@ class TestChecklistAndCommentHandlers:
         _auth_ctx(mock_context)
         mock_context.fetch.return_value = _fetch_response({"id": "cl1"})
 
-        result = await CreateChecklistAction().execute(
-            {"card_id": "c1", "name": "Steps"}, mock_context
-        )
+        result = await CreateChecklistAction().execute({"card_id": "c1", "name": "Steps"}, mock_context)
 
         params = _last_call_params(mock_context)
         assert params["idCard"] == "c1"
@@ -814,9 +798,7 @@ class TestChecklistAndCommentHandlers:
         _auth_ctx(mock_context)
         mock_context.fetch.return_value = _fetch_response({"id": "ac1"})
 
-        result = await AddCommentAction().execute(
-            {"card_id": "c1", "text": "hi"}, mock_context
-        )
+        result = await AddCommentAction().execute({"card_id": "c1", "text": "hi"}, mock_context)
 
         params = _last_call_params(mock_context)
         assert params["text"] == "hi"

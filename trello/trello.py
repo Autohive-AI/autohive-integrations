@@ -100,10 +100,7 @@ def _project_card_fields(cards: List[Any], fields: str) -> List[Any]:
     wanted = {f.strip() for f in fields.split(",") if f.strip()}
     if not wanted:
         return cards
-    return [
-        {k: v for k, v in card.items() if k in wanted} if isinstance(card, dict) else card
-        for card in cards
-    ]
+    return [{k: v for k, v in card.items() if k in wanted} if isinstance(card, dict) else card for card in cards]
 
 
 # ---- Member Handlers ----
@@ -117,9 +114,7 @@ class GetCurrentMemberAction(ActionHandler):
         try:
             auth_params = get_auth_params(context)
 
-            response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/members/me", method="GET", params=auth_params
-            )
+            response = await context.fetch(f"{TRELLO_API_BASE_URL}/members/me", method="GET", params=auth_params)
             member = _unwrap_trello_response(response)
 
             return ActionResult(data={"member": member}, cost_usd=0.0)
@@ -151,9 +146,7 @@ class CreateBoardAction(ActionHandler):
 
             merged_params = merge_params(params, auth_params)
 
-            response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/boards/", method="POST", params=merged_params
-            )
+            response = await context.fetch(f"{TRELLO_API_BASE_URL}/boards/", method="POST", params=merged_params)
             board = _unwrap_trello_response(response)
 
             return ActionResult(data={"board": board}, cost_usd=0.0)
@@ -263,9 +256,7 @@ class CreateListAction(ActionHandler):
 
             merged_params = merge_params(params, auth_params)
 
-            response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/lists", method="POST", params=merged_params
-            )
+            response = await context.fetch(f"{TRELLO_API_BASE_URL}/lists", method="POST", params=merged_params)
             list_ = _unwrap_trello_response(response)
 
             return ActionResult(data={"list": list_}, cost_usd=0.0)
@@ -283,9 +274,7 @@ class GetListAction(ActionHandler):
             list_id = inputs["list_id"]
             auth_params = get_auth_params(context)
 
-            response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/lists/{list_id}", method="GET", params=auth_params
-            )
+            response = await context.fetch(f"{TRELLO_API_BASE_URL}/lists/{list_id}", method="GET", params=auth_params)
             list_ = _unwrap_trello_response(response)
 
             return ActionResult(data={"list": list_}, cost_usd=0.0)
@@ -313,9 +302,7 @@ class UpdateListAction(ActionHandler):
 
             merged_params = merge_params(params, auth_params)
 
-            response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/lists/{list_id}", method="PUT", params=merged_params
-            )
+            response = await context.fetch(f"{TRELLO_API_BASE_URL}/lists/{list_id}", method="PUT", params=merged_params)
             list_ = _unwrap_trello_response(response)
 
             return ActionResult(data={"list": list_}, cost_usd=0.0)
@@ -378,9 +365,7 @@ class CreateCardAction(ActionHandler):
 
             merged_params = merge_params(params, auth_params)
 
-            response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/cards", method="POST", params=merged_params
-            )
+            response = await context.fetch(f"{TRELLO_API_BASE_URL}/cards", method="POST", params=merged_params)
             card = _unwrap_trello_response(response)
 
             return ActionResult(data={"card": card}, cost_usd=0.0)
@@ -404,9 +389,7 @@ class GetCardAction(ActionHandler):
 
             merged_params = merge_params(params, auth_params)
 
-            response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/cards/{card_id}", method="GET", params=merged_params
-            )
+            response = await context.fetch(f"{TRELLO_API_BASE_URL}/cards/{card_id}", method="GET", params=merged_params)
             card = _unwrap_trello_response(response)
 
             return ActionResult(data={"card": card}, cost_usd=0.0)
@@ -442,9 +425,7 @@ class UpdateCardAction(ActionHandler):
 
             merged_params = merge_params(params, auth_params)
 
-            response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/cards/{card_id}", method="PUT", params=merged_params
-            )
+            response = await context.fetch(f"{TRELLO_API_BASE_URL}/cards/{card_id}", method="PUT", params=merged_params)
             card = _unwrap_trello_response(response)
 
             return ActionResult(data={"card": card}, cost_usd=0.0)
@@ -580,9 +561,8 @@ class SearchCardsAction(ActionHandler):
             # Only inject is:open when the user's advanced query has no
             # explicit card-status operator (avoids contradictions like
             # `is:closed is:open`).
-            if (
-                _bool_param(inputs.get("open_only"), default=True) == "true"
-                and not _STATUS_QUERY_RE.search(advanced_query)
+            if _bool_param(inputs.get("open_only"), default=True) == "true" and not _STATUS_QUERY_RE.search(
+                advanced_query
             ):
                 query_text = f"{query_text} is:open"
 
@@ -614,9 +594,7 @@ class SearchCardsAction(ActionHandler):
 
             merged_params = merge_params(params, auth_params)
 
-            response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/search", method="GET", params=merged_params
-            )
+            response = await context.fetch(f"{TRELLO_API_BASE_URL}/search", method="GET", params=merged_params)
             body = _unwrap_trello_response(response)
 
             if isinstance(body, dict):
@@ -652,9 +630,7 @@ class CreateChecklistAction(ActionHandler):
 
             merged_params = merge_params(params, auth_params)
 
-            response = await context.fetch(
-                f"{TRELLO_API_BASE_URL}/checklists", method="POST", params=merged_params
-            )
+            response = await context.fetch(f"{TRELLO_API_BASE_URL}/checklists", method="POST", params=merged_params)
             checklist = _unwrap_trello_response(response)
 
             return ActionResult(data={"checklist": checklist}, cost_usd=0.0)
