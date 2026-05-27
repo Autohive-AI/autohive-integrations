@@ -67,7 +67,7 @@
                     },
                     "time_min": {
                         "type": "string",
-                        "description": "Lower bound (inclusive) for an event's start time in RFC3339 format (e.g. '2026-06-01T00:00:00Z')"
+                        "description": "Lower bound (exclusive) for an event's end time in RFC3339 format (e.g. '2026-06-01T00:00:00Z'). Events whose end time is after this value are returned, including long events that started before it."
                     },
                     "time_max": {
                         "type": "string",
