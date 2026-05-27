@@ -400,7 +400,9 @@ class TestListFolderContents:
             data={"entries": [], "total_count": 0},
         )
 
-        await box.execute_action("list_folder_contents", {"folder_id": "0", "pageToken": "20", "pageSize": 10}, mock_context)
+        await box.execute_action(
+            "list_folder_contents", {"folder_id": "0", "pageToken": "20", "pageSize": 10}, mock_context
+        )
 
         params = mock_context.fetch.call_args.kwargs.get("params", {})
         assert params.get("offset") == "20"

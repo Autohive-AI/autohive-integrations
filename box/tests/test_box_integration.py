@@ -114,7 +114,9 @@ async def test_pagination_list_files(live_context):
     if "nextPageToken" in data:
         assert data["nextPageToken"] == "2"
         # Fetch page 2 and confirm we get a different (or empty) set
-        result2 = await box.execute_action("list_files", {"pageSize": 2, "pageToken": data["nextPageToken"]}, live_context)
+        result2 = await box.execute_action(
+            "list_files", {"pageSize": 2, "pageToken": data["nextPageToken"]}, live_context
+        )
         assert result2.type == ResultType.ACTION
 
 
