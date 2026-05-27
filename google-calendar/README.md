@@ -71,7 +71,7 @@ No additional configuration fields are required as authentication is handled thr
   - `start_datetime`: Start time for timed events (RFC3339 format, optional)
   - `end_datetime`: End time for timed events (RFC3339 format, optional)
   - `start_date`: Start date for all-day events (YYYY-MM-DD format, optional)
-  - `end_date`: End date for all-day events (YYYY-MM-DD format, optional)
+  - `end_date`: End date for all-day events (YYYY-MM-DD, **exclusive**). For a single-day event on 2026-06-15, pass `end_date="2026-06-16"` (optional)
   - `location`: Event location (optional)
   - `attendees`: Array of attendee email addresses (optional)
 - **Outputs:**
@@ -90,7 +90,7 @@ No additional configuration fields are required as authentication is handled thr
   - `start_datetime`: Updated start time for timed events (optional)
   - `end_datetime`: Updated end time for timed events (optional)
   - `start_date`: Updated start date for all-day events (optional)
-  - `end_date`: Updated end date for all-day events (optional)
+  - `end_date`: Updated end date for all-day events (YYYY-MM-DD, **exclusive** — same convention as create_event, optional)
   - `location`: Updated event location (optional)
   - `attendees`: Updated attendee list (optional)
 - **Outputs:**

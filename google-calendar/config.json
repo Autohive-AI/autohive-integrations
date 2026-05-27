@@ -267,7 +267,7 @@
                     },
                     "end_date": {
                         "type": "string",
-                        "description": "Event end date in YYYY-MM-DD format. Use with start_date for all-day events."
+                        "description": "Event end date in YYYY-MM-DD format (exclusive). For a single-day event on 2026-06-15, pass '2026-06-16'. Use with start_date for all-day events."
                     },
                     "location": {
                         "type": "string",
@@ -341,7 +341,7 @@
                     },
                     "end_date": {
                         "type": "string",
-                        "description": "New event end date in YYYY-MM-DD format for all-day events. Use with start_date."
+                        "description": "New event end date in YYYY-MM-DD format (exclusive). For a single-day event on 2026-06-15, pass '2026-06-16'. Use with start_date for all-day events."
                     },
                     "location": {
                         "type": "string",
