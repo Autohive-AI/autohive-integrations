@@ -1,6 +1,6 @@
 {
     "name": "Box",
-    "version": "0.0.1",
+    "version": "2.0.0",
     "description": "Box integration for managing files and folders",
     "entry_point": "box.py",
     "auth": {
@@ -39,19 +39,10 @@
                     "nextPageToken": {
                         "type": "string",
                         "description": "Page token for the next page of folders (only present if there are more folders)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "folders",
-                    "result"
+                    "folders"
                 ]
             }
         },
@@ -125,19 +116,10 @@
                     "nextPageToken": {
                         "type": "string",
                         "description": "Page token for the next page of files (only present if there are more files)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "files",
-                    "result"
+                    "files"
                 ]
             }
         },
@@ -207,19 +189,10 @@
                     "nextPageToken": {
                         "type": "string",
                         "description": "Page token for the next page of items (only present if there are more items)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "items",
-                    "result"
+                    "items"
                 ]
             }
         },
@@ -242,8 +215,7 @@
                 "type": "object",
                 "required": [
                     "file",
-                    "metadata",
-                    "result"
+                    "metadata"
                 ],
                 "properties": {
                     "file": {
@@ -305,14 +277,6 @@
                             }
                         },
                         "description": "The complete file metadata from Box API"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }
@@ -377,19 +341,8 @@
                     "upload_url": {
                         "type": "string",
                         "description": "URL to access the uploaded file"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "The result of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
-                },
-                "required": [
-                    "result"
-                ]
+                }
             }
         }
     },

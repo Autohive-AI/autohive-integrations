@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any
 import json
 import base64
@@ -10,6 +10,23 @@ box = Integration.load()
 # Box API Base URLs
 BOX_API_BASE = "https://api.box.com/2.0"
 BOX_UPLOAD_BASE = "https://upload.box.com/api/2.0"
+
+# ---- Helpers ----
+
+
+def _unwrap(response) -> Dict:
+    """Raise RuntimeError on non-2xx; otherwise return response body as a dict."""
+    if response.status < 200 or response.status >= 300:
+        body = response.data
+        if isinstance(body, dict):
+            msg = body.get("message") or body.get("error") or str(body)
+        elif isinstance(body, str) and body.strip():
+            msg = body.strip()
+        else:
+            msg = f"Box API returned HTTP {response.status}"
+        raise RuntimeError(msg)
+    return response.data or {}
+
 
 # ---- Action Handlers ----
 
@@ -27,7 +44,8 @@ class ListSharedFolders(ActionHandler):
             if page_token:
                 params["offset"] = page_token
 
-            data = await context.fetch(url, method="GET", params=params)
+            response = await context.fetch(url, method="GET", params=params)
+            data = _unwrap(response)
 
             # Filter for folders only
             folders = []
@@ -44,7 +62,7 @@ class ListSharedFolders(ActionHandler):
                         }
                     )
 
-            response_data = {"folders": folders, "result": True}
+            response_data = {"folders": folders}
 
             # Add pagination token if there are more items
             total_count = data.get("total_count", 0)
@@ -52,10 +70,10 @@ class ListSharedFolders(ActionHandler):
             if current_offset + page_size < total_count:
                 response_data["nextPageToken"] = str(current_offset + page_size)
 
-            return response_data
+            return ActionResult(data=response_data, cost_usd=0.0)
 
         except Exception as e:
-            return {"folders": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @box.action("list_files")
@@ -66,9 +84,10 @@ class ListFiles(ActionHandler):
             file_extensions = inputs.get("file_extensions", [])
             folder_id = inputs.get("folder_id")
             page_size = inputs.get("pageSize", 100)
+            page_token = inputs.get("pageToken")
 
             if query or file_extensions or folder_id:
-                # Use search API
+                # Use search API — offset/limit pagination
                 url = f"{BOX_API_BASE}/search"
 
                 # Build search query
@@ -85,12 +104,17 @@ class ListFiles(ActionHandler):
                     "type": "file",
                     "fields": "id,name,type,size,modified_at,created_at",
                 }
+                if page_token:
+                    params["offset"] = page_token
             else:
-                # List recent files from root
+                # List recent files from root — offset/limit pagination
                 url = f"{BOX_API_BASE}/folders/0/items"
                 params = {"limit": page_size, "fields": "id,name,type,size,modified_at,created_at"}
+                if page_token:
+                    params["offset"] = page_token
 
-            data = await context.fetch(url, method="GET", params=params)
+            response = await context.fetch(url, method="GET", params=params)
+            data = _unwrap(response)
 
             # Format the files response
             files = []
@@ -108,16 +132,18 @@ class ListFiles(ActionHandler):
                         }
                     )
 
-            response_data = {"files": files, "result": True}
+            response_data = {"files": files}
 
-            # Add pagination if available
-            if "next_marker" in data:
-                response_data["nextPageToken"] = data["next_marker"]
+            # Offset-based next page token
+            total_count = data.get("total_count", 0)
+            current_offset = int(page_token) if page_token else 0
+            if current_offset + page_size < total_count:
+                response_data["nextPageToken"] = str(current_offset + page_size)
 
-            return response_data
+            return ActionResult(data=response_data, cost_usd=0.0)
 
         except Exception as e:
-            return {"files": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @box.action("list_folder_contents")
@@ -127,11 +153,15 @@ class ListFolderContents(ActionHandler):
             folder_id = inputs["folder_id"]
             recursive = inputs.get("recursive", False)
             page_size = inputs.get("pageSize", 100)
+            page_token = inputs.get("pageToken")
 
             url = f"{BOX_API_BASE}/folders/{folder_id}/items"
             params = {"limit": page_size, "fields": "id,name,type,size,created_at,modified_at"}
+            if page_token:
+                params["offset"] = page_token
 
-            data = await context.fetch(url, method="GET", params=params)
+            response = await context.fetch(url, method="GET", params=params)
+            data = _unwrap(response)
 
             # Format the items response
             items = []
@@ -154,7 +184,10 @@ class ListFolderContents(ActionHandler):
                 if recursive and item.get("type") == "folder":
                     try:
                         subfolder_url = f"{BOX_API_BASE}/folders/{item['id']}/items"
-                        sub_data = await context.fetch(subfolder_url, method="GET", params=params)
+                        # Fresh params — never inherit the parent page offset for subfolders
+                        subfolder_params = {"limit": page_size, "fields": "id,name,type,size,created_at,modified_at"}
+                        sub_response = await context.fetch(subfolder_url, method="GET", params=subfolder_params)
+                        sub_data = sub_response.data
 
                         for sub_item in sub_data.get("entries", []):
                             sub_formatted_item = {
@@ -170,16 +203,18 @@ class ListFolderContents(ActionHandler):
                     except Exception:  # nosec B110
                         pass  # Skip subfolders that can't be read
 
-            response_data = {"items": items, "result": True}
+            response_data = {"items": items}
 
-            # Add pagination if available
-            if "next_marker" in data:
-                response_data["nextPageToken"] = data["next_marker"]
+            # Offset-based next page token
+            total_count = data.get("total_count", 0)
+            current_offset = int(page_token) if page_token else 0
+            if current_offset + page_size < total_count:
+                response_data["nextPageToken"] = str(current_offset + page_size)
 
-            return response_data
+            return ActionResult(data=response_data, cost_usd=0.0)
 
         except Exception as e:
-            return {"items": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @box.action("get_file")
@@ -190,7 +225,8 @@ class GetFile(ActionHandler):
 
             # First get file metadata
             metadata_url = f"{BOX_API_BASE}/files/{file_id}"
-            metadata = await context.fetch(metadata_url, method="GET")
+            metadata_response = await context.fetch(metadata_url, method="GET")
+            metadata = _unwrap(metadata_response)
 
             # For file content download, we need to handle binary data manually
             # since context.fetch() calls response.text() which fails for binary content
@@ -209,18 +245,13 @@ class GetFile(ActionHandler):
                     if "access_token" in credentials:
                         headers["Authorization"] = f"Bearer {credentials['access_token']}"
 
-                async with session.get(content_url, headers=headers) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        return {
-                            "file": {"name": "", "content": "", "contentType": ""},
-                            "metadata": {"id": file_id},
-                            "result": False,
-                            "error": f"Box API error getting content: {response.status} - {error_text}",
-                        }
+                async with session.get(content_url, headers=headers) as resp:
+                    if resp.status != 200:
+                        error_text = await resp.text()
+                        return ActionError(message=f"Box API error getting content: {resp.status} - {error_text}")
 
                     # Read binary content and encode as base64
-                    file_content = await response.read()
+                    file_content = await resp.read()
                     content_base64 = base64.b64encode(file_content).decode("utf-8")
 
             # Extract information from metadata
@@ -238,19 +269,16 @@ class GetFile(ActionHandler):
                 "parents": [metadata.get("parent", {}).get("id", "")] if metadata.get("parent") else [],
             }
 
-            return {
-                "file": {"name": file_name, "content": content_base64, "contentType": content_type},
-                "metadata": structured_metadata,
-                "result": True,
-            }
+            return ActionResult(
+                data={
+                    "file": {"name": file_name, "content": content_base64, "contentType": content_type},
+                    "metadata": structured_metadata,
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {
-                "file": {"name": "", "content": "", "contentType": ""},
-                "metadata": {"id": file_id},
-                "result": False,
-                "error": str(e),
-            }
+            return ActionError(message=str(e))
 
 
 @box.action("upload_file")
@@ -276,13 +304,13 @@ class UploadFile(ActionHandler):
             # We'll need to use a different approach for uploads
             async with context:  # Use context as async context manager
                 # Prepare multipart form data for upload
-                data = aiohttp.FormData()
-                data.add_field(
+                form_data = aiohttp.FormData()
+                form_data.add_field(
                     "attributes",
                     json.dumps({"name": file_name, "parent": {"id": folder_id}}),
                     content_type="application/json",
                 )
-                data.add_field("file", file_content, filename=file_name, content_type=content_type)
+                form_data.add_field("file", file_content, filename=file_name, content_type=content_type)
 
                 # Use context's session directly with authentication handled
                 session = context._session
@@ -297,34 +325,37 @@ class UploadFile(ActionHandler):
                     if "access_token" in credentials:
                         headers["Authorization"] = f"Bearer {credentials['access_token']}"
 
-                async with session.post(url, headers=headers, data=data) as response:
-                    if response.status not in [200, 201]:
-                        error_text = await response.text()
-                        return {"result": False, "error": f"Box upload error: {response.status} - {error_text}"}
+                async with session.post(url, headers=headers, data=form_data) as resp:
+                    if resp.status not in [200, 201]:
+                        error_text = await resp.text()
+                        return ActionError(message=f"Box upload error: {resp.status} - {error_text}")
 
-                    upload_result = await response.json()
+                    upload_result = await resp.json()
 
                     # Extract file information from response
                     entries = upload_result.get("entries", [])
                     if entries:
                         uploaded_file = entries[0]
-                        return {
-                            "file_id": uploaded_file.get("id"),
-                            "file_name": uploaded_file.get("name"),
-                            "file_size": uploaded_file.get("size"),
-                            "content_type": content_type,
-                            "result": True,
-                        }
+                        return ActionResult(
+                            data={
+                                "file_id": uploaded_file.get("id"),
+                                "file_name": uploaded_file.get("name"),
+                                "file_size": uploaded_file.get("size"),
+                                "content_type": content_type,
+                            },
+                            cost_usd=0.0,
+                        )
                     else:
-                        return {
-                            "file_name": file_name,
-                            "content_type": content_type,
-                            "result": True,
-                            "error": "Upload succeeded but no file details returned",
-                        }
+                        return ActionResult(
+                            data={
+                                "file_name": file_name,
+                                "content_type": content_type,
+                            },
+                            cost_usd=0.0,
+                        )
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 # ---- Polling Trigger Handlers ----
