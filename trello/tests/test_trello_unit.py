@@ -412,8 +412,20 @@ class TestGetCardAttachments:
     async def test_returns_attachments(self, mock_context):
         _auth_ctx(mock_context)
         attachments = [
-            {"id": "att1", "name": "file.pdf", "url": "https://example.com/file.pdf", "mimeType": "application/pdf", "isUpload": True},
-            {"id": "att2", "name": "image.png", "url": "https://example.com/image.png", "mimeType": "image/png", "isUpload": True},
+            {
+                "id": "att1",
+                "name": "file.pdf",
+                "url": "https://example.com/file.pdf",
+                "mimeType": "application/pdf",
+                "isUpload": True,
+            },
+            {
+                "id": "att2",
+                "name": "image.png",
+                "url": "https://example.com/image.png",
+                "mimeType": "image/png",
+                "isUpload": True,
+            },
         ]
         mock_context.fetch.return_value = _fetch_response(attachments)
 
@@ -523,9 +535,9 @@ class TestListCards:
         # ObjectId hex: smaller value = earlier creation time.
         # Here "5f900000" is oldest, "63f00000" is newest, "61000000" is middle.
         raw = [
-            {"id": "63f00000", "name": "newest"},   # position 1
-            {"id": "61000000", "name": "middle"},   # position 2
-            {"id": "5f900000", "name": "oldest"},   # position 3 (last element)
+            {"id": "63f00000", "name": "newest"},  # position 1
+            {"id": "61000000", "name": "middle"},  # position 2
+            {"id": "5f900000", "name": "oldest"},  # position 3 (last element)
         ]
         mock_context.fetch.return_value = _fetch_response(raw)
 
@@ -536,9 +548,9 @@ class TestListCards:
         assert result.data["next_before"] == "5f900000"
         # Verify it is NOT the last element's id when order differs.
         reordered_raw = [
-            {"id": "5f900000", "name": "oldest"},   # position 1
-            {"id": "63f00000", "name": "newest"},   # position 2
-            {"id": "61000000", "name": "middle"},   # position 3 (last)
+            {"id": "5f900000", "name": "oldest"},  # position 1
+            {"id": "63f00000", "name": "newest"},  # position 2
+            {"id": "61000000", "name": "middle"},  # position 3 (last)
         ]
         mock_context.fetch.return_value = _fetch_response(reordered_raw)
         result2 = await ListCardsAction().execute({"board_id": "b1", "limit": 3}, mock_context)
