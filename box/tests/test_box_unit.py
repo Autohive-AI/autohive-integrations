@@ -213,15 +213,57 @@ class TestListFiles:
 
     @pytest.mark.asyncio
     async def test_next_page_token_included(self, mock_context):
+        # Box /search and /folders/:id/items both use offset pagination.
+        # nextPageToken is derived from total_count, not next_marker.
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={"entries": [SAMPLE_FILE], "next_marker": "marker-abc"},
+            data={"entries": [SAMPLE_FILE], "total_count": 50},
         )
 
-        result = await box.execute_action("list_files", {}, mock_context)
+        result = await box.execute_action("list_files", {"pageSize": 10}, mock_context)
 
-        assert result.result.data["nextPageToken"] == "marker-abc"
+        assert result.result.data["nextPageToken"] == "10"
+
+    @pytest.mark.asyncio
+    async def test_no_next_page_token_when_all_fit(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"entries": [SAMPLE_FILE], "total_count": 1},
+        )
+
+        result = await box.execute_action("list_files", {"pageSize": 10}, mock_context)
+
+        assert "nextPageToken" not in result.result.data
+
+    @pytest.mark.asyncio
+    async def test_search_uses_offset_not_marker(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"entries": [], "total_count": 0},
+        )
+
+        await box.execute_action("list_files", {"query": "report", "pageToken": "20", "pageSize": 10}, mock_context)
+
+        params = mock_context.fetch.call_args.kwargs.get("params", {})
+        assert params.get("offset") == "20"
+        assert "marker" not in params
+
+    @pytest.mark.asyncio
+    async def test_root_folder_uses_offset_not_marker(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"entries": [], "total_count": 0},
+        )
+
+        await box.execute_action("list_files", {"pageToken": "30", "pageSize": 10}, mock_context)
+
+        params = mock_context.fetch.call_args.kwargs.get("params", {})
+        assert params.get("offset") == "30"
+        assert "marker" not in params
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
@@ -326,15 +368,62 @@ class TestListFolderContents:
 
     @pytest.mark.asyncio
     async def test_next_page_token(self, mock_context):
+        # Box /folders/:id/items uses offset pagination by default.
+        # nextPageToken is derived from total_count arithmetic.
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={"entries": [SAMPLE_FILE], "next_marker": "marker-xyz"},
+            data={"entries": [SAMPLE_FILE], "total_count": 50},
         )
 
-        result = await box.execute_action("list_folder_contents", {"folder_id": "0"}, mock_context)
+        result = await box.execute_action("list_folder_contents", {"folder_id": "0", "pageSize": 10}, mock_context)
 
-        assert result.result.data["nextPageToken"] == "marker-xyz"
+        assert result.result.data["nextPageToken"] == "10"
+
+    @pytest.mark.asyncio
+    async def test_no_next_page_token_when_all_fit(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"entries": [SAMPLE_FILE], "total_count": 1},
+        )
+
+        result = await box.execute_action("list_folder_contents", {"folder_id": "0", "pageSize": 10}, mock_context)
+
+        assert "nextPageToken" not in result.result.data
+
+    @pytest.mark.asyncio
+    async def test_uses_offset_not_marker(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"entries": [], "total_count": 0},
+        )
+
+        await box.execute_action("list_folder_contents", {"folder_id": "0", "pageToken": "20", "pageSize": 10}, mock_context)
+
+        params = mock_context.fetch.call_args.kwargs.get("params", {})
+        assert params.get("offset") == "20"
+        assert "marker" not in params
+
+    @pytest.mark.asyncio
+    async def test_recursive_subfolder_does_not_inherit_parent_offset(self, mock_context):
+        # Parent is fetched at offset=20; subfolder must start at offset=0, not 20.
+        sub_file = {**SAMPLE_FILE, "id": "sub-file-1", "name": "sub_doc.pdf"}
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data={"entries": [SAMPLE_FOLDER], "total_count": 1}),
+            FetchResponse(status=200, headers={}, data={"entries": [sub_file], "total_count": 1}),
+        ]
+
+        await box.execute_action(
+            "list_folder_contents",
+            {"folder_id": "0", "recursive": True, "pageToken": "20", "pageSize": 10},
+            mock_context,
+        )
+
+        # Second call is the subfolder fetch — must NOT have offset=20
+        subfolder_call_params = mock_context.fetch.call_args_list[1].kwargs.get("params", {})
+        assert subfolder_call_params.get("offset", "0") == "0" or "offset" not in subfolder_call_params
 
 
 # ---- get_file ----

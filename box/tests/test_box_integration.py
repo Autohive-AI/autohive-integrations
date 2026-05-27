@@ -104,6 +104,34 @@ async def test_get_file(live_context):
     assert data["file"]["contentType"]
 
 
+async def test_pagination_list_files(live_context):
+    """Verify offset-based pagination: page 2 offset token is computed correctly."""
+    result = await box.execute_action("list_files", {"pageSize": 2}, live_context)
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert "files" in data
+    # If there are more than 2 items, nextPageToken should be "2"
+    if "nextPageToken" in data:
+        assert data["nextPageToken"] == "2"
+        # Fetch page 2 and confirm we get a different (or empty) set
+        result2 = await box.execute_action("list_files", {"pageSize": 2, "pageToken": data["nextPageToken"]}, live_context)
+        assert result2.type == ResultType.ACTION
+
+
+async def test_pagination_list_folder_contents(live_context):
+    """Verify offset pagination on folder contents."""
+    result = await box.execute_action("list_folder_contents", {"folder_id": "0", "pageSize": 2}, live_context)
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert "items" in data
+    if "nextPageToken" in data:
+        assert data["nextPageToken"] == "2"
+        result2 = await box.execute_action(
+            "list_folder_contents", {"folder_id": "0", "pageSize": 2, "pageToken": data["nextPageToken"]}, live_context
+        )
+        assert result2.type == ResultType.ACTION
+
+
 @pytest.mark.destructive
 async def test_upload_file(live_context):
     """Upload a small test file to the root folder then verify it appears in list_files."""

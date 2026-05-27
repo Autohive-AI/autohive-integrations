@@ -11,6 +11,23 @@ box = Integration.load()
 BOX_API_BASE = "https://api.box.com/2.0"
 BOX_UPLOAD_BASE = "https://upload.box.com/api/2.0"
 
+# ---- Helpers ----
+
+
+def _unwrap(response) -> Dict:
+    """Raise RuntimeError on non-2xx; otherwise return response body as a dict."""
+    if response.status < 200 or response.status >= 300:
+        body = response.data
+        if isinstance(body, dict):
+            msg = body.get("message") or body.get("error") or str(body)
+        elif isinstance(body, str) and body.strip():
+            msg = body.strip()
+        else:
+            msg = f"Box API returned HTTP {response.status}"
+        raise RuntimeError(msg)
+    return response.data or {}
+
+
 # ---- Action Handlers ----
 
 
@@ -28,7 +45,7 @@ class ListSharedFolders(ActionHandler):
                 params["offset"] = page_token
 
             response = await context.fetch(url, method="GET", params=params)
-            data = response.data
+            data = _unwrap(response)
 
             # Filter for folders only
             folders = []
@@ -70,7 +87,7 @@ class ListFiles(ActionHandler):
             page_token = inputs.get("pageToken")
 
             if query or file_extensions or folder_id:
-                # Use search API
+                # Use search API — offset/limit pagination
                 url = f"{BOX_API_BASE}/search"
 
                 # Build search query
@@ -88,16 +105,16 @@ class ListFiles(ActionHandler):
                     "fields": "id,name,type,size,modified_at,created_at",
                 }
                 if page_token:
-                    params["marker"] = page_token
+                    params["offset"] = page_token
             else:
-                # List recent files from root
+                # List recent files from root — offset/limit pagination
                 url = f"{BOX_API_BASE}/folders/0/items"
                 params = {"limit": page_size, "fields": "id,name,type,size,modified_at,created_at"}
                 if page_token:
-                    params["marker"] = page_token
+                    params["offset"] = page_token
 
             response = await context.fetch(url, method="GET", params=params)
-            data = response.data
+            data = _unwrap(response)
 
             # Format the files response
             files = []
@@ -117,9 +134,11 @@ class ListFiles(ActionHandler):
 
             response_data = {"files": files}
 
-            # Add pagination if available
-            if "next_marker" in data:
-                response_data["nextPageToken"] = data["next_marker"]
+            # Offset-based next page token
+            total_count = data.get("total_count", 0)
+            current_offset = int(page_token) if page_token else 0
+            if current_offset + page_size < total_count:
+                response_data["nextPageToken"] = str(current_offset + page_size)
 
             return ActionResult(data=response_data, cost_usd=0.0)
 
@@ -139,10 +158,10 @@ class ListFolderContents(ActionHandler):
             url = f"{BOX_API_BASE}/folders/{folder_id}/items"
             params = {"limit": page_size, "fields": "id,name,type,size,created_at,modified_at"}
             if page_token:
-                params["marker"] = page_token
+                params["offset"] = page_token
 
             response = await context.fetch(url, method="GET", params=params)
-            data = response.data
+            data = _unwrap(response)
 
             # Format the items response
             items = []
@@ -165,7 +184,9 @@ class ListFolderContents(ActionHandler):
                 if recursive and item.get("type") == "folder":
                     try:
                         subfolder_url = f"{BOX_API_BASE}/folders/{item['id']}/items"
-                        sub_response = await context.fetch(subfolder_url, method="GET", params=params)
+                        # Fresh params — never inherit the parent page offset for subfolders
+                        subfolder_params = {"limit": page_size, "fields": "id,name,type,size,created_at,modified_at"}
+                        sub_response = await context.fetch(subfolder_url, method="GET", params=subfolder_params)
                         sub_data = sub_response.data
 
                         for sub_item in sub_data.get("entries", []):
@@ -184,9 +205,11 @@ class ListFolderContents(ActionHandler):
 
             response_data = {"items": items}
 
-            # Add pagination if available
-            if "next_marker" in data:
-                response_data["nextPageToken"] = data["next_marker"]
+            # Offset-based next page token
+            total_count = data.get("total_count", 0)
+            current_offset = int(page_token) if page_token else 0
+            if current_offset + page_size < total_count:
+                response_data["nextPageToken"] = str(current_offset + page_size)
 
             return ActionResult(data=response_data, cost_usd=0.0)
 
@@ -203,7 +226,7 @@ class GetFile(ActionHandler):
             # First get file metadata
             metadata_url = f"{BOX_API_BASE}/files/{file_id}"
             metadata_response = await context.fetch(metadata_url, method="GET")
-            metadata = metadata_response.data
+            metadata = _unwrap(metadata_response)
 
             # For file content download, we need to handle binary data manually
             # since context.fetch() calls response.text() which fails for binary content
