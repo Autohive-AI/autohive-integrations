@@ -585,7 +585,7 @@ class SearchCardsAction(ActionHandler):
                 try:
                     params["cards_page"] = max(0, int(page))
                 except (TypeError, ValueError):
-                    pass
+                    pass  # Invalid page value — fall back to Trello's default (first page)
 
             if inputs.get("board_id"):
                 params["idBoards"] = inputs["board_id"]
