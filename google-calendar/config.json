@@ -1,7 +1,7 @@
 {
     "name": "Google Calendar",
     "display_name": "Google Calendar",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Google Calendar integration for managing calendars, events, and recurring event instances.",
     "entry_point": "google_calendar.py",
     "auth": {
