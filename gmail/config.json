@@ -1,7 +1,7 @@
 {
     "name": "Gmail",
     "display_name": "Gmail",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Send, read, and manage emails with labels and threads.",
     "entry_point": "gmail.py",
     "auth": {
@@ -58,6 +58,10 @@
                             "html"
                         ],
                         "default": "text"
+                    },
+                    "signature": {
+                        "type": "string",
+                        "description": "Optional signature to append to the reply body. The signature should use the same format as body_format (plain text for 'text', HTML fragment for 'html')."
                     },
                     "files": {
                         "type": "array",
@@ -361,6 +365,10 @@
                         ],
                         "default": "text"
                     },
+                    "signature": {
+                        "type": "string",
+                        "description": "Optional signature to append to the email body. The signature should use the same format as body_format (plain text for 'text', HTML fragment for 'html')."
+                    },
                     "files": {
                         "type": "array",
                         "description": "List of files to attach to the email",
@@ -429,6 +437,18 @@
                     "pageToken": {
                         "type": "string",
                         "description": "An optional parameter: The page token to get the next page of results. Use the nextPageToken from a previous response."
+                    },
+                    "after": {
+                        "type": "string",
+                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly after this instant. Accepted formats: 'YYYY-MM-DD' (interpreted as midnight UTC), full datetime with 'Z' (e.g. '2026-05-27T12:00:00Z'), or with an explicit offset (e.g. '2026-05-28T00:00:00+12:00').\n\nIMPORTANT — timezone caveat: Gmail evaluates this bound in UTC, NOT in the user's local timezone. When filtering by a user-local calendar day (e.g. 'yesterday in the user's timezone'), convert both bounds to UTC first; do not pass the user-local bare date. Example for a UTC+12 user filtering local-day 2026-05-28: after='2026-05-27T12:00:00Z', before='2026-05-28T12:00:00Z'. Passing the bare local dates '2026-05-28' / '2026-05-29' would catch messages from adjacent local-time days because of the offset."
+                    },
+                    "before": {
+                        "type": "string",
+                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly before this instant. Same accepted formats as 'after'. The same UTC-evaluation caveat applies — see the 'after' description for the full timezone-conversion guidance. For relative-date queries, always pass UTC-converted bounds derived from the user's local timezone."
+                    },
+                    "q": {
+                        "type": "string",
+                        "description": "Optional: raw Gmail search-syntax string (e.g. 'has:attachment from:alice@example.com'). ANDed with all other filters. Use for operators not exposed as structured inputs."
                     }
                 },
                 "required": [
@@ -529,6 +549,18 @@
                     "include_spam_trash": {
                         "type": "boolean",
                         "description": "An optional parameter: Whether to include emails from spam and trash. When false, emails in trash and spam are excluded. When true, returns all emails including those in trash and spam."
+                    },
+                    "after": {
+                        "type": "string",
+                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly after this instant. Accepted formats: 'YYYY-MM-DD' (interpreted as midnight UTC), full datetime with 'Z' (e.g. '2026-05-27T12:00:00Z'), or with an explicit offset (e.g. '2026-05-28T00:00:00+12:00').\n\nIMPORTANT — timezone caveat: Gmail evaluates this bound in UTC, NOT in the user's local timezone. When filtering by a user-local calendar day (e.g. 'yesterday in the user's timezone'), convert both bounds to UTC first; do not pass the user-local bare date. Example for a UTC+12 user filtering local-day 2026-05-28: after='2026-05-27T12:00:00Z', before='2026-05-28T12:00:00Z'. Passing the bare local dates '2026-05-28' / '2026-05-29' would catch messages from adjacent local-time days because of the offset."
+                    },
+                    "before": {
+                        "type": "string",
+                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly before this instant. Same accepted formats as 'after'. The same UTC-evaluation caveat applies — see the 'after' description for the full timezone-conversion guidance. For relative-date queries, always pass UTC-converted bounds derived from the user's local timezone."
+                    },
+                    "q": {
+                        "type": "string",
+                        "description": "Optional: raw Gmail search-syntax string (e.g. 'has:attachment from:alice@example.com'). ANDed with all other filters. Use for operators not exposed as structured inputs."
                     }
                 },
                 "required": [
@@ -707,6 +739,18 @@
                         "type": "boolean",
                         "description": "An optional parameter: Whether to include archived emails. When false (default), only returns emails in the inbox. When true, returns all emails with the specified labels including archived ones.",
                         "default": false
+                    },
+                    "after": {
+                        "type": "string",
+                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly after this instant. Accepted formats: 'YYYY-MM-DD' (interpreted as midnight UTC), full datetime with 'Z' (e.g. '2026-05-27T12:00:00Z'), or with an explicit offset (e.g. '2026-05-28T00:00:00+12:00').\n\nIMPORTANT — timezone caveat: Gmail evaluates this bound in UTC, NOT in the user's local timezone. When filtering by a user-local calendar day (e.g. 'yesterday in the user's timezone'), convert both bounds to UTC first; do not pass the user-local bare date. Example for a UTC+12 user filtering local-day 2026-05-28: after='2026-05-27T12:00:00Z', before='2026-05-28T12:00:00Z'. Passing the bare local dates '2026-05-28' / '2026-05-29' would catch messages from adjacent local-time days because of the offset."
+                    },
+                    "before": {
+                        "type": "string",
+                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly before this instant. Same accepted formats as 'after'. The same UTC-evaluation caveat applies — see the 'after' description for the full timezone-conversion guidance. For relative-date queries, always pass UTC-converted bounds derived from the user's local timezone."
+                    },
+                    "q": {
+                        "type": "string",
+                        "description": "Optional: raw Gmail search-syntax string (e.g. 'has:attachment from:alice@example.com'). ANDed with all other filters. Use for operators not exposed as structured inputs."
                     }
                 },
                 "required": [
@@ -1123,6 +1167,10 @@
                         ],
                         "default": "text"
                     },
+                    "signature": {
+                        "type": "string",
+                        "description": "Optional signature to append to the draft body. The signature should use the same format as body_format (plain text for 'text', HTML fragment for 'html')."
+                    },
                     "files": {
                         "type": "array",
                         "description": "List of files to attach to the draft",
@@ -1240,6 +1288,10 @@
                             "html"
                         ],
                         "default": "text"
+                    },
+                    "signature": {
+                        "type": "string",
+                        "description": "Optional signature to append to the draft body. The signature should use the same format as body_format (plain text for 'text', HTML fragment for 'html')."
                     },
                     "files": {
                         "type": "array",
@@ -1572,6 +1624,67 @@
             "output_schema": {
                 "type": "object",
                 "properties": {}
+            }
+        },
+        "list_send_as_signatures": {
+            "display_name": "List Send-As Signatures",
+            "description": "List the signature currently bound to each of the user's send-as addresses (their primary inbox plus any aliases). Important limitation: the Gmail API only exposes the signature that is set as the new-mail default on a given send-as address. If the user has signatures saved in Gmail's web UI but none is assigned as the default for a send-as address, that address's `signature` will come back as an empty string. The Gmail API does not expose the user's full saved-signatures library.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "description": "The user's email address. Special value 'me' indicates the authenticated user.",
+                        "default": "me"
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "signatures": {
+                        "type": "array",
+                        "description": "One entry per send-as address the user can send from, with the signature currently bound to it as the new-mail default.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "send_as_email": {
+                                    "type": "string",
+                                    "description": "The send-as email address (e.g. the user's inbox address or an alias like support@example.com)."
+                                },
+                                "display_name": {
+                                    "type": "string",
+                                    "description": "Display name configured for this send-as address. Empty string if not set."
+                                },
+                                "is_primary": {
+                                    "type": "boolean",
+                                    "description": "True if this is the user's primary inbox address."
+                                },
+                                "is_default": {
+                                    "type": "boolean",
+                                    "description": "True if this send-as address is selected as the user's default sending address. (This is the 'default send-as', distinct from the per-address default signature returned in the `signature` field.)"
+                                },
+                                "signature": {
+                                    "type": "string",
+                                    "description": "HTML fragment of the signature currently bound as the new-mail default for this send-as address. Empty string if no signature is bound."
+                                },
+                                "reply_to_address": {
+                                    "type": "string",
+                                    "description": "Reply-to address configured for this send-as alias. Empty string if not set."
+                                }
+                            },
+                            "required": [
+                                "send_as_email",
+                                "is_primary",
+                                "is_default",
+                                "signature"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "signatures"
+                ]
             }
         }
     }
