@@ -15,7 +15,7 @@ import os
 import sys
 
 import pytest
-from autohive_integrations_sdk import ActionError, FetchResponse
+from autohive_integrations_sdk import ActionError, ActionResult, FetchResponse
 
 # Ensure the trello package is importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -32,6 +32,7 @@ from trello.trello import (  # noqa: E402
     DEFAULT_CARD_FIELDS,
     GetBoardAction,
     GetCardAction,
+    GetCardAttachmentsAction,
     GetCurrentMemberAction,
     GetListAction,
     ListBoardsAction,
@@ -99,10 +100,10 @@ class TestConfigValidation:
             f"Extra handlers: {registered - defined}."
         )
 
-    def test_version_is_2_0_0(self):
+    def test_version_is_2_1_0(self):
         with open(CONFIG_PATH, "r") as f:
             config = json.load(f)
-        assert config["version"] == "2.0.0"
+        assert config["version"] == "2.1.0"
 
     def test_search_cards_action_present(self):
         with open(CONFIG_PATH, "r") as f:
@@ -402,6 +403,91 @@ class TestCardCrudHandlers:
 
 
 # ---------------------------------------------------------------------------
+# get_card_attachments behavior
+# ---------------------------------------------------------------------------
+
+
+class TestGetCardAttachments:
+    @pytest.mark.asyncio
+    async def test_returns_attachments(self, mock_context):
+        _auth_ctx(mock_context)
+        attachments = [
+            {
+                "id": "att1",
+                "name": "file.pdf",
+                "url": "https://example.com/file.pdf",
+                "mimeType": "application/pdf",
+                "isUpload": True,
+            },
+            {
+                "id": "att2",
+                "name": "image.png",
+                "url": "https://example.com/image.png",
+                "mimeType": "image/png",
+                "isUpload": True,
+            },
+        ]
+        mock_context.fetch.return_value = _fetch_response(attachments)
+
+        result = await GetCardAttachmentsAction().execute({"card_id": "c1"}, mock_context)
+
+        assert isinstance(result, ActionResult)
+        assert result.data["count"] == 2
+        assert result.data["attachments"][0]["id"] == "att1"
+        assert result.data["attachments"][1]["name"] == "image.png"
+
+    @pytest.mark.asyncio
+    async def test_bytes_field_is_integer(self, mock_context):
+        _auth_ctx(mock_context)
+        attachment = {
+            "id": "att1",
+            "name": "file.pdf",
+            "url": "https://example.com/file.pdf",
+            "mimeType": "application/pdf",
+            "bytes": 123456,
+            "isUpload": True,
+        }
+        mock_context.fetch.return_value = _fetch_response([attachment])
+
+        result = await GetCardAttachmentsAction().execute({"card_id": "c1"}, mock_context)
+
+        assert isinstance(result, ActionResult)
+        assert result.data["attachments"][0]["bytes"] == 123456
+        assert isinstance(result.data["attachments"][0]["bytes"], int)
+
+    @pytest.mark.asyncio
+    async def test_empty_attachments(self, mock_context):
+        _auth_ctx(mock_context)
+        mock_context.fetch.return_value = _fetch_response([])
+
+        result = await GetCardAttachmentsAction().execute({"card_id": "c1"}, mock_context)
+
+        assert isinstance(result, ActionResult)
+        assert result.data["attachments"] == []
+        assert result.data["count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_forwards_filter_param(self, mock_context):
+        _auth_ctx(mock_context)
+        mock_context.fetch.return_value = _fetch_response([])
+
+        await GetCardAttachmentsAction().execute({"card_id": "c1", "filter": "cover"}, mock_context)
+
+        params = _last_call_params(mock_context)
+        assert params["filter"] == "cover"
+
+    @pytest.mark.asyncio
+    async def test_error_returns_action_error(self, mock_context):
+        _auth_ctx(mock_context)
+        mock_context.fetch.return_value = _fetch_response({"message": "not found"}, status=404)
+
+        result = await GetCardAttachmentsAction().execute({"card_id": "bad"}, mock_context)
+
+        assert isinstance(result, ActionError)
+        assert "not found" in result.message
+
+
+# ---------------------------------------------------------------------------
 # list_cards behavior
 # ---------------------------------------------------------------------------
 
@@ -446,15 +532,57 @@ class TestListCards:
     @pytest.mark.asyncio
     async def test_returns_next_before_cursor_when_full_page(self, mock_context):
         _auth_ctx(mock_context)
-        # Limit=3, return exactly 3 cards -> caller should paginate via the
-        # oldest (last) card's id.
-        raw = [{"id": f"c{i}", "name": f"c{i}"} for i in range(3)]
+        # Limit=3, return exactly 3 cards -> cursor is the min (oldest) id.
+        # Use realistic 24-char ObjectId hex so lexicographic order matches creation time.
+        ids = [
+            "5f4dcc3b5aa765d61d8327de",  # oldest
+            "61a2bc45d9e4f1a0b3c78901",  # middle
+            "63f00000aaaaaaaaaaaaaaaa",  # newest
+        ]
+        raw = [{"id": id_, "name": id_} for id_ in ids]
         mock_context.fetch.return_value = _fetch_response(raw)
 
         result = await ListCardsAction().execute({"board_id": "b1", "limit": 3}, mock_context)
 
         assert result.data["count"] == 3
-        assert result.data["next_before"] == "c2"
+        assert result.data["next_before"] == "5f4dcc3b5aa765d61d8327de"
+
+    @pytest.mark.asyncio
+    async def test_cursor_uses_oldest_id_not_last_element(self, mock_context):
+        """Cards may arrive in board/list position order, not creation order.
+
+        The cursor must be the lexicographically smallest ID (oldest ObjectId),
+        not cards[-1]["id"], which would produce a wrong cursor when cards have
+        been manually reordered.
+        """
+        _auth_ctx(mock_context)
+        # Simulate cards in board-position order (not creation order).
+        # ObjectId hex: smaller value = earlier creation time.
+        # 24-char hex IDs so lexicographic ordering correctly reflects ObjectId creation time.
+        OLDEST = "5f900000aaaaaaaaaaaa0001"
+        MIDDLE = "61000000aaaaaaaaaaaa0002"
+        NEWEST = "63f00000aaaaaaaaaaaa0003"
+        raw = [
+            {"id": NEWEST, "name": "newest"},  # position 1
+            {"id": MIDDLE, "name": "middle"},  # position 2
+            {"id": OLDEST, "name": "oldest"},  # position 3 (last element)
+        ]
+        mock_context.fetch.return_value = _fetch_response(raw)
+
+        result = await ListCardsAction().execute({"board_id": "b1", "limit": 3}, mock_context)
+
+        # Correct: oldest id (min), not last element — derived via min(), not index.
+        assert result.data["next_before"] == OLDEST
+        # Verify it is NOT the last element's id when order differs.
+        reordered_raw = [
+            {"id": OLDEST, "name": "oldest"},  # position 1
+            {"id": NEWEST, "name": "newest"},  # position 2
+            {"id": MIDDLE, "name": "middle"},  # position 3 (last)
+        ]
+        mock_context.fetch.return_value = _fetch_response(reordered_raw)
+        result2 = await ListCardsAction().execute({"board_id": "b1", "limit": 3}, mock_context)
+        # last element is MIDDLE but correct cursor is still OLDEST
+        assert result2.data["next_before"] == OLDEST
 
     @pytest.mark.asyncio
     async def test_no_next_before_when_partial_page(self, mock_context):
@@ -471,15 +599,16 @@ class TestListCards:
     async def test_slices_defensively_if_trello_returns_too_many(self, mock_context):
         _auth_ctx(mock_context)
         # Trello returned 80 even though we asked for 10 — slice locally.
-        raw = [{"id": f"c{i}", "name": f"c{i}"} for i in range(80)]
+        # IDs are zero-padded 24-char hex so lexicographic order matches creation time.
+        raw = [{"id": f"{i:024x}", "name": f"card-{i}"} for i in range(80)]
         mock_context.fetch.return_value = _fetch_response(raw)
 
         result = await ListCardsAction().execute({"board_id": "b1", "limit": 10}, mock_context)
 
         assert result.data["count"] == 10
         assert len(result.data["cards"]) == 10
-        # Next-page cursor is the 10th id (oldest in the trimmed page).
-        assert result.data["next_before"] == "c9"
+        # Next-page cursor is the min (oldest) id in the trimmed page.
+        assert result.data["next_before"] == f"{0:024x}"
 
     @pytest.mark.asyncio
     async def test_projects_compact_fields_client_side(self, mock_context):
@@ -578,7 +707,7 @@ class TestListCards:
         the user's projection in the returned cards.
         """
         _auth_ctx(mock_context)
-        raw = [{"id": f"c{i}", "name": f"n{i}"} for i in range(5)]
+        raw = [{"id": f"{i:024x}", "name": f"n{i}"} for i in range(5)]
         mock_context.fetch.return_value = _fetch_response(raw)
 
         result = await ListCardsAction().execute(
@@ -593,8 +722,8 @@ class TestListCards:
 
         # User projection still applies to returned cards.
         assert result.data["cards"] == [{"name": f"n{i}"} for i in range(5)]
-        # Cursor was still derivable.
-        assert result.data["next_before"] == "c4"
+        # Cursor is the min (oldest) id across the page.
+        assert result.data["next_before"] == f"{0:024x}"
 
     @pytest.mark.asyncio
     async def test_fields_all_passes_through_unchanged(self, mock_context):

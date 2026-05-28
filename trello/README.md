@@ -249,7 +249,7 @@ Deletes a card permanently.
 ---
 
 #### `list_cards`
-Returns cards on a list or board with **cursor-based pagination**. Uses Trello's documented `limit` + `before`/`since` parameters on `/lists/{id}/cards` and `/boards/{id}/cards` (see [Atlassian's Paging guide](https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/#paging)). Cards are returned newest-first in reverse-creation order. Use `search_cards` for name-based lookups.
+Returns cards on a list or board with **cursor-based pagination**. Uses Trello's documented `limit` + `before`/`since` parameters on `/lists/{id}/cards` and `/boards/{id}/cards` (see [Atlassian's Paging guide](https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/#paging)). Use `search_cards` for name-based lookups.
 
 **Inputs:**
 - `list_id` (optional): The ID of the list (use this or board_id)
@@ -265,7 +265,7 @@ Returns cards on a list or board with **cursor-based pagination**. Uses Trello's
 **Outputs:**
 - `cards`: Array of card objects
 - `count`: Number of cards returned
-- `next_before` (optional): Cursor for the next page (the oldest card's ID in this response). Present only when a full page was returned, indicating more cards may exist. Pass back as `before` to paginate.
+- `next_before` (optional): Cursor for the next page (the lexicographically smallest card ID in this response, i.e. the oldest-created card). Present only when a full page was returned, indicating more cards may exist. Pass back as `before` to paginate.
 
 **Pagination example:**
 ```
@@ -328,6 +328,21 @@ Adds a new item to a checklist.
 
 **Outputs:**
 - `checkItem`: Created checklist item object
+
+---
+
+### Attachments (1 action)
+
+#### `get_card_attachments`
+List all attachments on a Trello card.
+
+**Inputs:**
+- `card_id` (required): The ID of the card to retrieve attachments for
+- `filter` (optional): `false` returns all attachments (default), `cover` returns only the cover attachment
+
+**Outputs:**
+- `attachments`: Array of attachment objects (`id`, `name`, `url`, `mimeType`, `bytes`, `date`, `isUpload`, `idMember`, `edgeColor`, `pos`)
+- `count`: Number of attachments returned
 
 ---
 
@@ -427,6 +442,9 @@ The integration tests are skipped automatically if `TRELLO_API_KEY` / `TRELLO_AP
 
 ## Version History
 
+- **2.1.0**
+  - Added `get_card_attachments` action — list all attachments on a card with optional `cover` filter.
+  - Fixed `list_cards` pagination cursor to use `min(ids)` instead of `cards[-1]["id"]`, preventing incorrect cursors when cards are in board/list position order rather than creation order.
 - **2.0.0**
   - Upgraded to `autohive-integrations-sdk ~= 2.0.0`.
   - `context.fetch()` now returns a `FetchResponse`; all handlers were updated to read `response.data` and to check `response.status` so non-2xx responses no longer silently look successful.

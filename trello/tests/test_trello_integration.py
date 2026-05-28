@@ -349,3 +349,22 @@ async def test_add_comment(trello_auth, card_id):
     data = _assert_ok(result)
     assert "comment" in data
     assert data["comment"].get("id")
+
+
+# ---------------------------------------------------------------------------
+# Card attachments
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_card_attachments(trello_auth, card_id):
+    async with ExecutionContext(auth=trello_auth) as context:
+        result = await trello_integration.execute_action(
+            "get_card_attachments",
+            {"card_id": card_id},
+            context,
+        )
+    data = _assert_ok(result)
+    assert "attachments" in data
+    assert isinstance(data["attachments"], list)
+    assert isinstance(data["count"], int)

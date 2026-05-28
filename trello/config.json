@@ -1,7 +1,7 @@
 {
     "name": "Trello",
     "display_name": "Trello",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Trello integration for managing boards, lists, cards, and team collaboration",
     "entry_point": "trello.py",
     "auth": {
@@ -473,6 +473,54 @@
                 "required": ["deleted", "card_id"]
             }
         },
+        "get_card_attachments": {
+            "display_name": "Get Card Attachments",
+            "description": "List all attachments on a Trello card.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "card_id": {
+                        "type": "string",
+                        "description": "The ID of the card to retrieve attachments for"
+                    },
+                    "filter": {
+                        "type": "string",
+                        "description": "Filter attachments: 'false' returns all, 'cover' returns only the cover attachment",
+                        "default": "false"
+                    }
+                },
+                "required": ["card_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "attachments": {
+                        "type": "array",
+                        "description": "List of attachment objects",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "description": "Attachment ID"},
+                                "name": {"type": "string", "description": "Attachment file name"},
+                                "url": {"type": "string", "description": "URL to the attachment"},
+                                "mimeType": {"type": ["string", "null"], "description": "MIME type of the attachment"},
+                                "bytes": {"type": ["integer", "null"], "description": "File size in bytes when available"},
+                                "date": {"type": "string", "description": "Date the attachment was added (ISO 8601)"},
+                                "isUpload": {"type": "boolean", "description": "True if the attachment was directly uploaded"},
+                                "idMember": {"type": ["string", "null"], "description": "ID of the member who added the attachment"},
+                                "edgeColor": {"type": ["string", "null"], "description": "Edge colour derived from the attachment image"},
+                                "pos": {"type": "number", "description": "Position of the attachment"}
+                            }
+                        }
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of attachments returned"
+                    }
+                },
+                "required": ["attachments", "count"]
+            }
+        },
         "list_cards": {
             "display_name": "List Cards",
             "description": "Returns cards on a list or board with cursor-based pagination. Uses Trello's server-side limit + before/since. Returns next_before when more results are likely available; pass it back as before to fetch the next page. Use search_cards for name-based lookups.",
@@ -494,7 +542,7 @@
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "Server-side cap on cards per request (1-1000). Trello returns cards newest-first in reverse creation order.",
+                        "description": "Server-side cap on cards per request (1-1000).",
                         "default": 50,
                         "minimum": 1,
                         "maximum": 1000
@@ -528,7 +576,7 @@
                     },
                     "next_before": {
                         "type": "string",
-                        "description": "Cursor for the next page (the oldest card's ID in this response). Present only when a full page was returned, indicating more cards may exist. Pass this back as before."
+                        "description": "Cursor for the next page (the lexicographically smallest card ID in this response, i.e. the oldest-created card). Present only when a full page was returned, indicating more cards may exist. Pass this back as before."
                     }
                 },
                 "required": ["cards", "count"]
