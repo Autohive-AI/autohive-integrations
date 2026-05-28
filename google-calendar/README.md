@@ -40,8 +40,8 @@ No additional configuration fields are required as authentication is handled thr
 - **Description:** List events from a specified Google Calendar with optional filtering and pagination
 - **Inputs:**
   - `calendar_id`: Calendar ID to list events from (use 'primary' for user's main calendar)
-  - `time_min`: Filter events after this time (RFC3339 timestamp, optional)
-  - `time_max`: Filter events before this time (RFC3339 timestamp, optional)
+  - `time_min`: Exclusive lower bound on event **end time** (RFC3339, optional). Events whose end time is after this value are included — long events that started before the bound but end after it will still appear.
+  - `time_max`: Exclusive upper bound on event **start time** (RFC3339, optional). Only events that start before this value are returned.
   - `max_results`: Maximum number of events to return (1-2500, optional)
   - `page_token`: Pagination token for retrieving next page (optional)
 - **Outputs:**
@@ -71,7 +71,7 @@ No additional configuration fields are required as authentication is handled thr
   - `start_datetime`: Start time for timed events (RFC3339 format, optional)
   - `end_datetime`: End time for timed events (RFC3339 format, optional)
   - `start_date`: Start date for all-day events (YYYY-MM-DD format, optional)
-  - `end_date`: End date for all-day events (YYYY-MM-DD format, optional)
+  - `end_date`: End date for all-day events (YYYY-MM-DD, **exclusive**). For a single-day event on 2026-06-15, pass `end_date="2026-06-16"` (optional)
   - `location`: Event location (optional)
   - `attendees`: Array of attendee email addresses (optional)
 - **Outputs:**
@@ -90,7 +90,7 @@ No additional configuration fields are required as authentication is handled thr
   - `start_datetime`: Updated start time for timed events (optional)
   - `end_datetime`: Updated end time for timed events (optional)
   - `start_date`: Updated start date for all-day events (optional)
-  - `end_date`: Updated end date for all-day events (optional)
+  - `end_date`: Updated end date for all-day events (YYYY-MM-DD, **exclusive** — same convention as create_event, optional)
   - `location`: Updated event location (optional)
   - `attendees`: Updated attendee list (optional)
 - **Outputs:**

@@ -157,7 +157,7 @@ async def test_create_all_day_event(gcal_auth):
                 "calendar_id": CALENDAR_ID,
                 "summary": "[Autohive Test] All Day",
                 "start_date": "2026-07-20",
-                "end_date": "2026-07-20",
+                "end_date": "2026-07-21",
             },
             ctx,
         )

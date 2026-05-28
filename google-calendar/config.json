@@ -1,7 +1,7 @@
 {
     "name": "Google Calendar",
     "display_name": "Google Calendar",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Google Calendar integration for managing calendars, events, and recurring event instances.",
     "entry_point": "google_calendar.py",
     "auth": {
@@ -67,7 +67,7 @@
                     },
                     "time_min": {
                         "type": "string",
-                        "description": "Lower bound (inclusive) for an event's start time in RFC3339 format (e.g. '2026-06-01T00:00:00Z')"
+                        "description": "Lower bound (exclusive) for an event's end time in RFC3339 format (e.g. '2026-06-01T00:00:00Z'). Events whose end time is after this value are returned, including long events that started before it."
                     },
                     "time_max": {
                         "type": "string",
@@ -267,7 +267,7 @@
                     },
                     "end_date": {
                         "type": "string",
-                        "description": "Event end date in YYYY-MM-DD format. Use with start_date for all-day events."
+                        "description": "Event end date in YYYY-MM-DD format (exclusive). For a single-day event on 2026-06-15, pass '2026-06-16'. Use with start_date for all-day events."
                     },
                     "location": {
                         "type": "string",
@@ -341,7 +341,7 @@
                     },
                     "end_date": {
                         "type": "string",
-                        "description": "New event end date in YYYY-MM-DD format for all-day events. Use with start_date."
+                        "description": "New event end date in YYYY-MM-DD format (exclusive). For a single-day event on 2026-06-15, pass '2026-06-16'. Use with start_date for all-day events."
                     },
                     "location": {
                         "type": "string",

@@ -209,6 +209,8 @@ class TestCreateEvent:
 
     @pytest.mark.asyncio
     async def test_all_day_event(self, mock_context):
+        # Google Calendar end.date is exclusive: a single-day event on 2026-06-15
+        # requires end.date = 2026-06-16.
         mock_context.fetch.return_value = make_fetch_response({"id": "e1", "summary": "All Day"})
         await google_calendar.execute_action(
             "create_event",
@@ -216,13 +218,13 @@ class TestCreateEvent:
                 "calendar_id": "primary",
                 "summary": "All Day",
                 "start_date": "2026-06-15",
-                "end_date": "2026-06-15",
+                "end_date": "2026-06-16",
             },
             mock_context,
         )
         body = mock_context.fetch.call_args[1]["json"]
         assert body["start"] == {"date": "2026-06-15"}
-        assert body["end"] == {"date": "2026-06-15"}
+        assert body["end"] == {"date": "2026-06-16"}
 
     @pytest.mark.asyncio
     async def test_adds_attendees(self, mock_context):
