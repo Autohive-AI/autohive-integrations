@@ -440,11 +440,11 @@
                     },
                     "after": {
                         "type": "string",
-                        "description": "Optional: ISO 8601 datetime (e.g. '2024-01-01' or '2024-01-01T15:30:00Z'). Filters to emails received strictly after this instant. UTC is assumed when no timezone offset is supplied."
+                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly after this instant. Accepted formats: 'YYYY-MM-DD' (interpreted as midnight UTC), full datetime with 'Z' (e.g. '2026-05-27T12:00:00Z'), or with an explicit offset (e.g. '2026-05-28T00:00:00+12:00').\n\nIMPORTANT — timezone caveat: Gmail evaluates this bound in UTC, NOT in the user's local timezone. When filtering by a user-local calendar day (e.g. 'yesterday in the user's timezone'), convert both bounds to UTC first; do not pass the user-local bare date. Example for a UTC+12 user filtering local-day 2026-05-28: after='2026-05-27T12:00:00Z', before='2026-05-28T12:00:00Z'. Passing the bare local dates '2026-05-28' / '2026-05-29' would catch messages from adjacent local-time days because of the offset."
                     },
                     "before": {
                         "type": "string",
-                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly before this instant. Same format and timezone behavior as 'after'."
+                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly before this instant. Same accepted formats as 'after'. The same UTC-evaluation caveat applies — see the 'after' description for the full timezone-conversion guidance. For relative-date queries, always pass UTC-converted bounds derived from the user's local timezone."
                     },
                     "q": {
                         "type": "string",
@@ -552,11 +552,11 @@
                     },
                     "after": {
                         "type": "string",
-                        "description": "Optional: ISO 8601 datetime (e.g. '2024-01-01' or '2024-01-01T15:30:00Z'). Filters to emails received strictly after this instant. UTC is assumed when no timezone offset is supplied."
+                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly after this instant. Accepted formats: 'YYYY-MM-DD' (interpreted as midnight UTC), full datetime with 'Z' (e.g. '2026-05-27T12:00:00Z'), or with an explicit offset (e.g. '2026-05-28T00:00:00+12:00').\n\nIMPORTANT — timezone caveat: Gmail evaluates this bound in UTC, NOT in the user's local timezone. When filtering by a user-local calendar day (e.g. 'yesterday in the user's timezone'), convert both bounds to UTC first; do not pass the user-local bare date. Example for a UTC+12 user filtering local-day 2026-05-28: after='2026-05-27T12:00:00Z', before='2026-05-28T12:00:00Z'. Passing the bare local dates '2026-05-28' / '2026-05-29' would catch messages from adjacent local-time days because of the offset."
                     },
                     "before": {
                         "type": "string",
-                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly before this instant. Same format and timezone behavior as 'after'."
+                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly before this instant. Same accepted formats as 'after'. The same UTC-evaluation caveat applies — see the 'after' description for the full timezone-conversion guidance. For relative-date queries, always pass UTC-converted bounds derived from the user's local timezone."
                     },
                     "q": {
                         "type": "string",
@@ -742,11 +742,11 @@
                     },
                     "after": {
                         "type": "string",
-                        "description": "Optional: ISO 8601 datetime (e.g. '2024-01-01' or '2024-01-01T15:30:00Z'). Filters to emails received strictly after this instant. UTC is assumed when no timezone offset is supplied."
+                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly after this instant. Accepted formats: 'YYYY-MM-DD' (interpreted as midnight UTC), full datetime with 'Z' (e.g. '2026-05-27T12:00:00Z'), or with an explicit offset (e.g. '2026-05-28T00:00:00+12:00').\n\nIMPORTANT — timezone caveat: Gmail evaluates this bound in UTC, NOT in the user's local timezone. When filtering by a user-local calendar day (e.g. 'yesterday in the user's timezone'), convert both bounds to UTC first; do not pass the user-local bare date. Example for a UTC+12 user filtering local-day 2026-05-28: after='2026-05-27T12:00:00Z', before='2026-05-28T12:00:00Z'. Passing the bare local dates '2026-05-28' / '2026-05-29' would catch messages from adjacent local-time days because of the offset."
                     },
                     "before": {
                         "type": "string",
-                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly before this instant. Same format and timezone behavior as 'after'."
+                        "description": "Optional: ISO 8601 datetime. Filters to emails received strictly before this instant. Same accepted formats as 'after'. The same UTC-evaluation caveat applies — see the 'after' description for the full timezone-conversion guidance. For relative-date queries, always pass UTC-converted bounds derived from the user's local timezone."
                     },
                     "q": {
                         "type": "string",
