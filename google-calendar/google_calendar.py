@@ -149,7 +149,7 @@ class CreateEvent(ActionHandler):
                 event_data["location"] = inputs["location"]
 
             if inputs.get("start_datetime") is not None and inputs.get("end_datetime") is not None:
-                timezone = inputs.get("timezone", "UTC")
+                timezone = inputs.get("timezone") or "UTC"
                 event_data["start"] = {"dateTime": inputs["start_datetime"], "timeZone": timezone}
                 event_data["end"] = {"dateTime": inputs["end_datetime"], "timeZone": timezone}
             elif inputs.get("start_date") is not None and inputs.get("end_date") is not None:
@@ -191,15 +191,15 @@ class UpdateEvent(ActionHandler):
                 event_data["location"] = inputs["location"]
 
             if inputs.get("start_datetime") is not None and inputs.get("end_datetime") is not None:
-                timezone = inputs.get("timezone", event_data.get("start", {}).get("timeZone", "UTC"))
+                timezone = inputs.get("timezone") or event_data.get("start", {}).get("timeZone", "UTC")
                 event_data["start"] = {"dateTime": inputs["start_datetime"], "timeZone": timezone}
                 event_data["end"] = {"dateTime": inputs["end_datetime"], "timeZone": timezone}
             elif inputs.get("start_date") is not None and inputs.get("end_date") is not None:
                 event_data["start"] = {"date": inputs["start_date"]}
                 event_data["end"] = {"date": inputs["end_date"]}
 
-            if "attendees" in inputs:
-                if inputs.get("attendees"):
+            if inputs.get("attendees") is not None:
+                if inputs["attendees"]:
                     event_data["attendees"] = [{"email": email} for email in inputs["attendees"]]
                 else:
                     event_data.pop("attendees", None)
