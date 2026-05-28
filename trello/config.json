@@ -503,12 +503,12 @@
                                 "id": {"type": "string", "description": "Attachment ID"},
                                 "name": {"type": "string", "description": "Attachment file name"},
                                 "url": {"type": "string", "description": "URL to the attachment"},
-                                "mimeType": {"type": "string", "description": "MIME type of the attachment"},
-                                "bytes": {"type": "integer", "description": "File size in bytes"},
+                                "mimeType": {"type": ["string", "null"], "description": "MIME type of the attachment"},
+                                "bytes": {"type": ["integer", "null"], "description": "File size in bytes when available"},
                                 "date": {"type": "string", "description": "Date the attachment was added (ISO 8601)"},
                                 "isUpload": {"type": "boolean", "description": "True if the attachment was directly uploaded"},
-                                "idMember": {"type": "string", "description": "ID of the member who added the attachment"},
-                                "edgeColor": {"type": "string", "description": "Edge colour derived from the attachment image"},
+                                "idMember": {"type": ["string", "null"], "description": "ID of the member who added the attachment"},
+                                "edgeColor": {"type": ["string", "null"], "description": "Edge colour derived from the attachment image"},
                                 "pos": {"type": "number", "description": "Position of the attachment"}
                             }
                         }
