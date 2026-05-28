@@ -11,7 +11,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 from autohive_integrations_sdk.integration import ResultType
 
-from gmail.gmail import gmail, create_email_message, build_raw_email, build_date_clause, append_signature
+from gmail.gmail import (
+    gmail,
+    create_email_message,
+    build_raw_email,
+    build_date_clause,
+    append_signature,
+    compose_messages_query,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -330,6 +337,40 @@ class TestBuildDateClause:
             build_date_clause(after="not a date")
         with pytest.raises(ValueError, match="before"):
             build_date_clause(before="2024-13-99")
+
+
+class TestComposeMessagesQuery:
+    """Shared composer for the three list-action ``q`` values. Verifies the
+    AND-join order (base → date → raw) and empty-fragment dropping."""
+
+    def test_base_only(self):
+        assert compose_messages_query("in:inbox", {}) == "in:inbox"
+
+    def test_base_plus_after(self):
+        assert compose_messages_query("in:inbox", {"after": "2024-01-01"}) == "in:inbox after:1704067200"
+
+    def test_base_plus_raw_q(self):
+        assert compose_messages_query("in:inbox", {"q": "has:attachment"}) == "in:inbox has:attachment"
+
+    def test_all_three_fragments_in_order(self):
+        result = compose_messages_query(
+            "is:unread in:inbox",
+            {"after": "2024-01-01", "before": "2024-02-01", "q": "has:attachment"},
+        )
+        assert result == "is:unread in:inbox after:1704067200 before:1706745600 has:attachment"
+
+    def test_empty_base_with_filters(self):
+        # ``read_all_mail`` scope="all" passes ``base_clause=""`` — date and raw
+        # should still slot in without a leading space.
+        assert compose_messages_query("", {"after": "2024-01-01"}) == "after:1704067200"
+
+    def test_all_empty_returns_empty_string(self):
+        # All-empty case lets ``read_all_mail`` drop the ``q`` kwarg entirely.
+        assert compose_messages_query("", {}) == ""
+
+    def test_malformed_after_propagates_value_error(self):
+        with pytest.raises(ValueError, match="after"):
+            compose_messages_query("in:inbox", {"after": "not a date"})
 
 
 # ============================================================

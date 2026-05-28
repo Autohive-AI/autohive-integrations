@@ -47,6 +47,20 @@ def build_date_clause(after: str = "", before: str = "") -> str:
     return " ".join(fragments)
 
 
+def compose_messages_query(base_clause: str, inputs: Dict[str, Any]) -> str:
+    """Compose the ``q`` value for ``messages.list`` from a per-action base
+    clause plus the shared optional ``after`` / ``before`` / ``q`` inputs.
+
+    Shared by ``read_inbox``, ``read_all_mail``, and ``list_emails_by_label``
+    so the AND-join order (base → date → raw) and empty-fragment handling
+    stay consistent. Returns an empty string when every fragment is empty —
+    callers decide whether to drop the ``q`` kwarg entirely in that case.
+    """
+    date_clause = build_date_clause(inputs.get("after", ""), inputs.get("before", ""))
+    raw_q = inputs.get("q", "")
+    return " ".join(part for part in (base_clause, date_clause, raw_q) if part)
+
+
 def create_email_message(body: str, files: list = None, is_html: bool = False) -> MIMEMultipart:
     """Create email message with optional files and HTML support.
 
@@ -649,9 +663,7 @@ class ReadInbox(ActionHandler):
             else:  # 'all'
                 scope_clause = "in:inbox"
 
-            date_clause = build_date_clause(inputs.get("after", ""), inputs.get("before", ""))
-            raw_q = inputs.get("q", "")
-            query = " ".join(part for part in (scope_clause, date_clause, raw_q) if part)
+            query = compose_messages_query(scope_clause, inputs)
 
             request_params = {"userId": user_id, "q": query}
             if "pageToken" in inputs:
@@ -700,9 +712,7 @@ class ReadAllMail(ActionHandler):
             else:  # 'all'
                 scope_clause = ""
 
-            date_clause = build_date_clause(inputs.get("after", ""), inputs.get("before", ""))
-            raw_q = inputs.get("q", "")
-            query = " ".join(part for part in (scope_clause, date_clause, raw_q) if part)
+            query = compose_messages_query(scope_clause, inputs)
 
             request_params = {"userId": user_id, "includeSpamTrash": include_spam_trash}
             if query:
@@ -789,9 +799,7 @@ class ListEmailsByLabel(ActionHandler):
                 if not inbox_already_specified:
                     label_query += " in:inbox"
 
-            date_clause = build_date_clause(inputs.get("after", ""), inputs.get("before", ""))
-            raw_q = inputs.get("q", "")
-            query = " ".join(part for part in (label_query, date_clause, raw_q) if part)
+            query = compose_messages_query(label_query, inputs)
 
             # Build request parameters
             request_params = {"userId": user_id, "q": query}
