@@ -1132,6 +1132,12 @@
           "limit": {
             "type": "integer",
             "description": "Maximum number of PRs to return"
+          },
+          "max_pages": {
+            "type": "integer",
+            "description": "Maximum number of pages (100 PRs per page) to fetch before stopping. Prevents Lambda timeouts on large repos. Narrow with state/author/after/before for full coverage.",
+            "default": 10,
+            "minimum": 1
           }
         },
         "required": [

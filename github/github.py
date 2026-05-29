@@ -451,56 +451,39 @@ class GitHubAPI:
         before: str = None,
         author: str = None,
         limit: int = None,
+        max_pages: int = 10,
     ) -> List[Dict[str, Any]]:
-        """Get pull requests for a repository using GitHub Search API"""
-        url = f"{GitHubAPI.BASE_URL}/search/issues"
+        """Get pull requests for a repository via the REST List Pull Requests endpoint.
 
-        q_parts = [f"is:pr repo:{owner}/{repo}"]
-        if state == "open":
-            q_parts.append("is:open")
-        elif state == "closed":
-            q_parts.append("is:closed")
+        Uses ``GET /repos/{owner}/{repo}/pulls`` rather than the Search API
+        (``/search/issues``). The Search API matches ``repo:owner/repo`` against
+        GitHub's search index and returns ``HTTP 422`` ("the listed users and
+        repositories cannot be searched...") for any repo missing from that index,
+        which excludes many private repos the token can still read via the REST
+        API. This endpoint has no such restriction.
+
+        ``state``/``sort``/``direction`` are sent natively (the config ``sort``
+        enum values are exactly this endpoint's accepted values). ``author``/
+        ``after``/``before`` are not query qualifiers on this endpoint, so they
+        are applied client-side after fetching. Pagination is delegated to
+        ``paginated_fetch`` and bounded by ``max_pages`` (raises ``TimeoutError``
+        when exceeded); narrow with ``state``/``author``/``after``/``before`` for
+        full coverage on large repos. ``limit`` caps the returned list.
+        """
+        url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/pulls"
+        params = {"state": state, "sort": sort, "direction": direction}
+
+        prs = await GitHubAPI.paginated_fetch(context, url, params, max_pages=max_pages)
+
         if author:
-            q_parts.append(f"author:{author}")
+            author_lower = author.lower()
+            prs = [pr for pr in prs if pr.get("user", {}).get("login", "").lower() == author_lower]
         if after:
-            q_parts.append(f"created:>={after}")
+            prs = [pr for pr in prs if pr.get("created_at") and pr["created_at"] >= after]
         if before:
-            q_parts.append(f"created:<={before}")
+            prs = [pr for pr in prs if pr.get("created_at") and pr["created_at"] <= before]
 
-        sort_map = {
-            "updated": "updated",
-            "created": "created",
-            "popularity": "comments",
-            "long-running": "created",
-        }
-        params = {
-            "q": " ".join(q_parts),
-            "sort": sort_map.get(sort, "updated"),
-            "order": direction,
-            "per_page": min(limit, 100) if limit else 100,
-            "page": 1,
-        }
-
-        headers = GitHubAPI.get_headers(context)
-        all_prs: List[Dict[str, Any]] = []
-
-        while True:
-            fetch_result = await context.fetch(url, params=params, headers=headers)
-            items = fetch_result.data.get("items", [])
-            if not items:
-                break
-
-            all_prs.extend(items)
-
-            if limit and len(all_prs) >= limit:
-                return all_prs[:limit]
-
-            if len(items) < params["per_page"]:
-                break
-
-            params["page"] += 1
-
-        return all_prs
+        return prs[:limit] if limit else prs
 
     @staticmethod
     async def get_pull_request(context: ExecutionContext, owner: str, repo: str, pull_number: int) -> Dict[str, Any]:
@@ -1482,6 +1465,7 @@ class ListPullRequests(ActionHandler):
             before=inputs.get("before"),
             author=inputs.get("author"),
             limit=inputs.get("limit"),
+            max_pages=inputs.get("max_pages", 10),
         )
 
         return ActionResult(
