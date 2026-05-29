@@ -1,5 +1,12 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ActionError,
+)
 from typing import Dict, Any
+import binascii
 import json
 import base64
 
@@ -13,6 +20,32 @@ DROPBOX_CONTENT_BASE_URL = "https://content.dropboxapi.com/2"
 
 # Note: Authentication is handled automatically by the platform OAuth integration.
 # The context.fetch method automatically includes the OAuth token in requests.
+
+
+def _build_upload_path(path: str, file_name: str) -> str:
+    """Combine an optional folder ``path`` with ``file_name`` into a Dropbox path.
+
+    - Empty / ``"/"`` path → ``/<file_name>``
+    - Ensures a leading ``/``
+    - Strips trailing slashes
+    - Backwards compatible: if ``path`` already ends with the same ``file_name``
+      (the previous flat-path schema), it is returned unchanged so callers
+      migrating from the 1.x shape do not get ``/folder/a.txt/a.txt``.
+    """
+    destination = (path or "").strip()
+
+    if destination in ("", "/"):
+        return f"/{file_name}"
+
+    if not destination.startswith("/"):
+        destination = f"/{destination}"
+
+    destination = destination.rstrip("/")
+
+    if destination.rsplit("/", 1)[-1] == file_name:
+        return destination
+
+    return f"{destination}/{file_name}"
 
 
 # ---- Action Handlers ----
@@ -43,23 +76,25 @@ class ListFolderAction(ActionHandler):
                     "include_mounted_folders": inputs.get("include_mounted_folders", True),
                 }
 
-                if "limit" in inputs:
-                    data["limit"] = inputs["limit"]
+                limit = inputs.get("limit")
+                if limit is not None:
+                    data["limit"] = limit
 
                 response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/list_folder", method="POST", json=data)
 
-            entries = response.get("entries", [])
-            new_cursor = response.get("cursor")
-            has_more = response.get("has_more", False)
+            body = response.data or {}
+            entries = body.get("entries", [])
+            new_cursor = body.get("cursor")
+            has_more = body.get("has_more", False)
 
-            return ActionResult(
-                data={"entries": entries, "cursor": new_cursor, "has_more": has_more, "result": True}, cost_usd=0.0
-            )
+            data = {"entries": entries, "has_more": has_more}
+            if new_cursor is not None:
+                data["cursor"] = new_cursor
+
+            return ActionResult(data=data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"entries": [], "cursor": None, "has_more": False, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionError(message=str(e))
 
 
 # ---- Metadata Handlers ----
@@ -79,10 +114,10 @@ class GetMetadataAction(ActionHandler):
 
             response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/get_metadata", method="POST", json=data)
 
-            return ActionResult(data={"metadata": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"metadata": response.data or {}}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"metadata": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Download Handlers ----
@@ -98,13 +133,14 @@ class GetTemporaryLinkAction(ActionHandler):
 
             response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/get_temporary_link", method="POST", json=data)
 
-            link = response.get("link")
-            metadata = response.get("metadata", {})
+            body = response.data or {}
+            link = body.get("link")
+            metadata = body.get("metadata", {})
 
-            return ActionResult(data={"link": link, "metadata": metadata, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"link": link, "metadata": metadata}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"link": None, "metadata": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Write Operations ----
@@ -116,34 +152,39 @@ class UploadFileAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            # Build Dropbox-API-Arg header with upload parameters
+            file_obj = inputs.get("file") or {}
+            # Treat only missing/None content as an error — zero-byte files (base64 == "") are valid.
+            if "content" not in file_obj or file_obj.get("content") is None:
+                return ActionError(message="File content is required")
+
+            file_name = file_obj.get("name")
+            if not file_name:
+                return ActionError(message="File name is required")
+
+            try:
+                content = base64.b64decode(file_obj["content"], validate=True)
+            except (binascii.Error, ValueError) as e:
+                return ActionError(message=f"File content must be valid base64: {e}")
+
+            dropbox_path = _build_upload_path(inputs.get("path") or "", file_name)
+
             api_arg = {
-                "path": inputs["path"],
+                "path": dropbox_path,
                 "mode": inputs.get("mode", "add"),
                 "autorename": inputs.get("autorename", False),
                 "mute": inputs.get("mute", False),
             }
 
-            # Get file content - expected as base64 or bytes
-            content = inputs.get("content")
-            if not content:
-                return ActionResult(
-                    data={"file": {}, "result": False, "error": "File content is required"}, cost_usd=0.0
-                )
-            if isinstance(content, str):
-                content = base64.b64decode(content)
-
-            # Upload using context.fetch with custom headers for Dropbox content API
             headers = {"Dropbox-API-Arg": json.dumps(api_arg), "Content-Type": "application/octet-stream"}
 
             response = await context.fetch(
                 f"{DROPBOX_CONTENT_BASE_URL}/files/upload", method="POST", headers=headers, data=content
             )
 
-            return ActionResult(data={"file": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"file": response.data or {}}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"file": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @dropbox.action("create_folder")
@@ -156,10 +197,11 @@ class CreateFolderAction(ActionHandler):
 
             response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/create_folder_v2", method="POST", json=data)
 
-            return ActionResult(data={"folder": response.get("metadata", {}), "result": True}, cost_usd=0.0)
+            body = response.data or {}
+            return ActionResult(data={"folder": body.get("metadata", {})}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"folder": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @dropbox.action("delete")
@@ -172,10 +214,11 @@ class DeleteAction(ActionHandler):
 
             response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/delete_v2", method="POST", json=data)
 
-            return ActionResult(data={"metadata": response.get("metadata", {}), "result": True}, cost_usd=0.0)
+            body = response.data or {}
+            return ActionResult(data={"metadata": body.get("metadata", {})}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"metadata": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @dropbox.action("move")
@@ -193,10 +236,11 @@ class MoveAction(ActionHandler):
 
             response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/move_v2", method="POST", json=data)
 
-            return ActionResult(data={"metadata": response.get("metadata", {}), "result": True}, cost_usd=0.0)
+            body = response.data or {}
+            return ActionResult(data={"metadata": body.get("metadata", {})}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"metadata": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @dropbox.action("copy")
@@ -213,7 +257,8 @@ class CopyAction(ActionHandler):
 
             response = await context.fetch(f"{DROPBOX_API_BASE_URL}/files/copy_v2", method="POST", json=data)
 
-            return ActionResult(data={"metadata": response.get("metadata", {}), "result": True}, cost_usd=0.0)
+            body = response.data or {}
+            return ActionResult(data={"metadata": body.get("metadata", {})}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"metadata": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))

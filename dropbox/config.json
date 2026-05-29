@@ -1,14 +1,13 @@
 {
     "name": "Dropbox",
     "display_name": "Dropbox",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Dropbox integration for reading and modifying files, folders, and account information",
     "entry_point": "dropbox.py",
     "auth": {
         "type": "platform",
         "provider": "Dropbox",
         "scopes": [
-            "account_info.read",
             "files.metadata.read",
             "files.content.read",
             "files.content.write"
@@ -68,22 +67,14 @@
                     },
                     "cursor": {
                         "type": "string",
-                        "description": "Cursor for pagination (use with list_folder_continue)"
+                        "description": "Cursor for pagination. Pass back to list_folder to fetch the next page when has_more is true."
                     },
                     "has_more": {
                         "type": "boolean",
                         "description": "Whether there are more entries to fetch"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["entries", "has_more", "result"]
+                "required": ["entries", "has_more"]
             }
         },
         "get_metadata": {
@@ -115,17 +106,9 @@
                     "metadata": {
                         "type": "object",
                         "description": "File or folder metadata (includes .tag, name, path_display, id, etc.)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["metadata", "result"]
+                "required": ["metadata"]
             }
         },
         "get_temporary_link": {
@@ -151,32 +134,38 @@
                     "metadata": {
                         "type": "object",
                         "description": "Metadata for the file"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
-                },
-                "required": ["result"]
+                }
             }
         },
         "upload_file": {
             "display_name": "Upload File",
-            "description": "Upload a file to Dropbox.",
+            "description": "Upload a file to Dropbox from a structured file object containing base64 content.",
             "input_schema": {
                 "type": "object",
                 "properties": {
+                    "file": {
+                        "type": "object",
+                        "description": "The file to upload",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the file"
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "The file content encoded as base64"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "The MIME type of the file"
+                            }
+                        },
+                        "required": ["content", "name", "contentType"]
+                    },
                     "path": {
                         "type": "string",
-                        "description": "Path where the file should be saved (e.g., '/folder/file.txt')"
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "File content as a base64-encoded string"
+                        "description": "Destination folder path in Dropbox (e.g., '/folder'). The file's name will be appended. Defaults to the root folder."
                     },
                     "mode": {
                         "type": "string",
@@ -195,7 +184,7 @@
                         "default": false
                     }
                 },
-                "required": ["path", "content"]
+                "required": ["file"]
             },
             "output_schema": {
                 "type": "object",
@@ -203,17 +192,8 @@
                     "file": {
                         "type": "object",
                         "description": "Uploaded file metadata"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
-                },
-                "required": ["result"]
+                }
             }
         },
         "create_folder": {
@@ -240,17 +220,8 @@
                     "folder": {
                         "type": "object",
                         "description": "Created folder metadata"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
-                },
-                "required": ["result"]
+                }
             }
         },
         "delete": {
@@ -272,17 +243,8 @@
                     "metadata": {
                         "type": "object",
                         "description": "Metadata of the deleted item"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
-                },
-                "required": ["result"]
+                }
             }
         },
         "move": {
@@ -318,17 +280,8 @@
                     "metadata": {
                         "type": "object",
                         "description": "Metadata of the moved item"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
-                },
-                "required": ["result"]
+                }
             }
         },
         "copy": {
@@ -359,17 +312,8 @@
                     "metadata": {
                         "type": "object",
                         "description": "Metadata of the copied item"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
-                },
-                "required": ["result"]
+                }
             }
         }
     }
