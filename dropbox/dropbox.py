@@ -23,14 +23,11 @@ DROPBOX_CONTENT_BASE_URL = "https://content.dropboxapi.com/2"
 
 
 def _build_upload_path(path: str, file_name: str) -> str:
-    """Combine an optional folder ``path`` with ``file_name`` into a Dropbox path.
+    """Combine a folder ``path`` with ``file_name`` into a Dropbox path.
 
     - Empty / ``"/"`` path → ``/<file_name>``
     - Ensures a leading ``/``
     - Strips trailing slashes
-    - Backwards compatible: if ``path`` already ends with the same ``file_name``
-      (the previous flat-path schema), it is returned unchanged so callers
-      migrating from the 1.x shape do not get ``/folder/a.txt/a.txt``.
     """
     destination = (path or "").strip()
 
@@ -41,10 +38,6 @@ def _build_upload_path(path: str, file_name: str) -> str:
         destination = f"/{destination}"
 
     destination = destination.rstrip("/")
-
-    if destination.rsplit("/", 1)[-1] == file_name:
-        return destination
-
     return f"{destination}/{file_name}"
 
 

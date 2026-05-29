@@ -307,21 +307,6 @@ class TestUploadFile:
         assert api_arg["path"] == "/folder/sub/a.txt"
 
     @pytest.mark.asyncio
-    async def test_legacy_full_path_is_not_double_appended(self, mock_context):
-        # Backwards compat: pre-2.0 callers passed the full file path in `path`.
-        # If the basename matches the file's name, treat it as the destination.
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={})
-
-        await dropbox.execute_action(
-            "upload_file",
-            {"file": _file_input("a.txt"), "path": "/folder/a.txt"},
-            mock_context,
-        )
-
-        api_arg = json.loads(mock_context.fetch.call_args.kwargs["headers"]["Dropbox-API-Arg"])
-        assert api_arg["path"] == "/folder/a.txt"
-
-    @pytest.mark.asyncio
     async def test_zero_byte_file_uploads_successfully(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={})
 
@@ -368,9 +353,9 @@ class TestUploadFile:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_legacy_flat_input_shape_is_rejected_by_schema(self, mock_context):
-        # The pre-fix shape (flat `content` + `path` as full file path, no `file` object)
-        # must be caught by SDK schema validation before the handler runs.
+    async def test_flat_content_input_is_rejected_by_schema(self, mock_context):
+        # `file` is required; a flat `content` string at the top level must be
+        # rejected by SDK schema validation before the handler runs.
         result = await dropbox.execute_action(
             "upload_file",
             {"content": base64.b64encode(b"x").decode("utf-8"), "path": "/a.txt"},

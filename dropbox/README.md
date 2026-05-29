@@ -116,7 +116,7 @@ Upload a file to Dropbox. Files are supplied as a structured object so the actio
   - `name` — File name (used as the destination filename).
   - `content` — File content encoded as base64. Zero-byte content (`""`) is allowed.
   - `contentType` — MIME type.
-- `path` (optional, default root) — Destination folder. The file's `name` is appended to this. A leading `/` is added automatically and trailing slashes are stripped. For backwards compatibility with the previous flat-path schema, if `path` already ends in the same `name` (e.g. `"/folder/a.txt"` with `file.name = "a.txt"`) the path is used as-is.
+- `path` (optional, default root) — Destination folder. The file's `name` is appended to this. A leading `/` is added automatically and trailing slashes are stripped.
 - `mode` (optional, default `"add"`) — `"add"` (rename on conflict), `"overwrite"`, or `"update"`.
 - `autorename` (optional, default `false`)
 - `mute` (optional, default `false`)
@@ -258,7 +258,7 @@ Environment variables (documented in repo-root `.env.example`):
 
 - **2.0.0**
   - Upgraded to `autohive-integrations-sdk~=2.0.0` (uses `FetchResponse` and `ActionError`).
-  - **Breaking**: `upload_file` now takes a structured `file` object (`{ name, content, contentType }`) instead of a flat `content` string, so the platform's file inputs can be wired in directly. The `path` input is now an optional destination folder; the file name comes from `file.name`. Callers passing the previous full-file-path `path` continue to work via a backwards-compatibility fallback when the basename matches `file.name`.
+  - **Breaking**: `upload_file` now takes a structured `file` object (`{ name, content, contentType }`) instead of a flat `content` string, so the platform's file inputs can be wired in directly. The `path` input is now an optional destination folder; the file name comes from `file.name`.
   - Errors are now returned as `ActionError`. Output schemas no longer carry `result`/`error` keys.
   - Removed the redundant `list_folder_continue` action — `list_folder` already handles cursor-based pagination.
   - Added `pytest` unit and integration test suites.
