@@ -115,6 +115,7 @@ class GitHubAPI:
         params: Dict[str, Any] = None,
         data_key: str = None,
         max_pages: int = 10,
+        limit: int = None,
     ) -> List[Dict[str, Any]]:
         """
         Generic paginated fetch that handles GitHub's pagination automatically.
@@ -129,17 +130,28 @@ class GitHubAPI:
             params: Query parameters
             data_key: Key to extract from response (e.g., 'workflows', 'workflow_runs')
             max_pages: Hard cap on pages fetched. Raises TimeoutError when exceeded.
+            limit: Stop and return as soon as this many items are collected,
+                without fetching (or raising on) further pages. Only correct for
+                endpoints that return results in the order the caller wants the
+                first N of; do not use when results need client-side filtering
+                before the limit applies.
         """
         if params is None:
             params = {}
 
         params.setdefault("per_page", 100)
         params.setdefault("page", 1)
+        # Don't request more per page than we ultimately need.
+        if limit:
+            params["per_page"] = min(params["per_page"], limit)
 
         all_items = []
         headers = GitHubAPI.get_headers(context)
         pages_fetched = 0
         while True:
+            if limit and len(all_items) >= limit:
+                return all_items[:limit]
+
             if pages_fetched >= max_pages:
                 logger.warning(
                     "paginated_fetch hit max_pages cap (url=%s, max_pages=%d, items_collected=%d)",
@@ -469,11 +481,18 @@ class GitHubAPI:
         ``paginated_fetch`` and bounded by ``max_pages`` (raises ``TimeoutError``
         when exceeded); narrow with ``state``/``author``/``after``/``before`` for
         full coverage on large repos. ``limit`` caps the returned list.
+
+        When no client-side filter is requested the endpoint already returns PRs
+        in the requested order, so ``limit`` is pushed into ``paginated_fetch`` to
+        stop early — a plain ``limit`` (e.g. 10) on a huge repo returns the first
+        N rather than exhausting pages and raising the ``max_pages`` TimeoutError.
+        With a client-side filter we must scan up to ``max_pages`` before slicing.
         """
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/pulls"
         params = {"state": state, "sort": sort, "direction": direction}
 
-        prs = await GitHubAPI.paginated_fetch(context, url, params, max_pages=max_pages)
+        fetch_limit = limit if not (author or after or before) else None
+        prs = await GitHubAPI.paginated_fetch(context, url, params, max_pages=max_pages, limit=fetch_limit)
 
         if author:
             author_lower = author.lower()

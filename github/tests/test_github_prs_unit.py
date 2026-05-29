@@ -171,6 +171,24 @@ class TestListPullRequests:
         assert len(result.result.data) == 2
 
     @pytest.mark.asyncio
+    async def test_limit_returns_first_n_without_exhausting_pages(self, mock_context):
+        # A plain limit on a huge repo must return the first N PRs, not raise the
+        # max_pages TimeoutError. Every page is full (100 items) so without early
+        # exit pagination would run to the cap and error.
+        full_page = [{**SAMPLE_PR, "number": i} for i in range(100)]
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=full_page)
+
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "limit": 10, "max_pages": 2},
+            mock_context,
+        )
+
+        assert result.type != ResultType.ACTION_ERROR
+        assert len(result.result.data) == 10
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
     async def test_max_pages_cap_stops_unbounded_pagination(self, mock_context):
         # Each page returns a full 100 items so paginated_fetch would keep going
         # forever; the max_pages cap must stop it and surface a TimeoutError
