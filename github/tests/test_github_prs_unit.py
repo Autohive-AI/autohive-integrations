@@ -189,6 +189,76 @@ class TestListPullRequests:
         assert mock_context.fetch.call_count == 1
 
     @pytest.mark.asyncio
+    async def test_author_filter_with_limit_stops_early(self, mock_context):
+        # A client-side filter must not defeat the limit early-exit: if page 1
+        # already has enough matching PRs, pagination must stop there instead of
+        # scanning to max_pages and raising a spurious TimeoutError.
+        full_page = [{**SAMPLE_PR, "number": i, "user": SAMPLE_USER} for i in range(100)]
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=full_page)
+
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "author": "octocat", "limit": 10, "max_pages": 2},
+            mock_context,
+        )
+
+        assert result.type != ResultType.ACTION_ERROR
+        assert len(result.result.data) == 10
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_author_filter_thins_pages_then_paginates(self, mock_context):
+        # When a full page is entirely filtered out, pagination must still detect
+        # it as a full page and advance, rather than mistaking the thinned result
+        # for a last (short) page and stopping early.
+        others = [{**SAMPLE_PR, "number": i, "user": {**SAMPLE_USER, "login": "someone-else"}} for i in range(100)]
+        match_page = [{**SAMPLE_PR, "number": 999, "user": SAMPLE_USER}]
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data=others),
+            FetchResponse(status=200, headers={}, data=match_page),
+        ]
+
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "author": "octocat", "max_pages": 5},
+            mock_context,
+        )
+
+        assert [pr["number"] for pr in result.result.data] == [999]
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_before_date_is_inclusive_of_whole_day(self, mock_context):
+        # before="2024-01-01" must include a PR created during that day
+        # (matching the old Search API created:<= semantics), not exclude it on
+        # a raw string comparison.
+        same_day = {**SAMPLE_PR, "number": 1, "created_at": "2024-01-01T09:00:00Z"}
+        next_day = {**SAMPLE_PR, "number": 2, "created_at": "2024-01-02T00:00:00Z"}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[same_day, next_day])
+
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "before": "2024-01-01"},
+            mock_context,
+        )
+
+        assert [pr["number"] for pr in result.result.data] == [1]
+
+    @pytest.mark.asyncio
+    async def test_after_date_is_inclusive_of_whole_day(self, mock_context):
+        before_day = {**SAMPLE_PR, "number": 1, "created_at": "2024-01-01T09:00:00Z"}
+        on_day = {**SAMPLE_PR, "number": 2, "created_at": "2024-01-02T09:00:00Z"}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[before_day, on_day])
+
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "after": "2024-01-02"},
+            mock_context,
+        )
+
+        assert [pr["number"] for pr in result.result.data] == [2]
+
+    @pytest.mark.asyncio
     async def test_max_pages_cap_stops_unbounded_pagination(self, mock_context):
         # Each page returns a full 100 items so paginated_fetch would keep going
         # forever; the max_pages cap must stop it and surface a TimeoutError

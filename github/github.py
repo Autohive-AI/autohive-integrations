@@ -24,6 +24,7 @@ from autohive_integrations_sdk import (
 from typing import Dict, Any, List, Callable, Optional, TypeVar
 from urllib.parse import quote
 from functools import wraps
+from datetime import datetime, timezone
 import asyncio
 import base64
 import logging
@@ -33,6 +34,31 @@ logger = logging.getLogger(__name__)
 github = Integration.load()
 
 T = TypeVar("T")
+
+
+def _parse_iso_utc(value: str, *, end_of_day: bool = False) -> Optional[datetime]:
+    """Parse an ISO 8601 date or datetime into an aware UTC datetime.
+
+    Handles a trailing ``Z`` and naive values (assumed UTC). A bare date
+    (``YYYY-MM-DD``) maps to the start of that day, or to the last microsecond
+    of it when ``end_of_day`` is set — preserving the inclusive whole-day
+    semantics of the Search API's ``created:>=`` / ``created:<=`` qualifiers
+    (e.g. ``before="2024-01-01"`` still matches a PR created at
+    ``2024-01-01T09:00:00Z``). Returns ``None`` for unparseable input.
+    """
+    if not value:
+        return None
+    text = value.strip()
+    date_only = "T" not in text and " " not in text
+    try:
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    if date_only and end_of_day:
+        dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+    return dt
 
 
 # =============================================================================
@@ -116,6 +142,7 @@ class GitHubAPI:
         data_key: str = None,
         max_pages: int = 10,
         limit: int = None,
+        filter_fn: Callable[[Dict[str, Any]], bool] = None,
     ) -> List[Dict[str, Any]]:
         """
         Generic paginated fetch that handles GitHub's pagination automatically.
@@ -130,19 +157,25 @@ class GitHubAPI:
             params: Query parameters
             data_key: Key to extract from response (e.g., 'workflows', 'workflow_runs')
             max_pages: Hard cap on pages fetched. Raises TimeoutError when exceeded.
-            limit: Stop and return as soon as this many items are collected,
-                without fetching (or raising on) further pages. Only correct for
-                endpoints that return results in the order the caller wants the
-                first N of; do not use when results need client-side filtering
-                before the limit applies.
+            limit: Stop and return as soon as this many (matching) items are
+                collected, without fetching (or raising on) further pages. Only
+                correct for endpoints that return results in the order the caller
+                wants the first N of.
+            filter_fn: Optional predicate applied to each item before it counts
+                toward ``limit``. This lets callers that filter client-side still
+                stop early — pagination ends as soon as ``limit`` *matching* items
+                are found, rather than scanning to ``max_pages`` and risking a
+                spurious TimeoutError when page 1 already satisfied the request.
         """
         if params is None:
             params = {}
 
         params.setdefault("per_page", 100)
         params.setdefault("page", 1)
-        # Don't request more per page than we ultimately need.
-        if limit:
+        # Don't request more per page than we ultimately need — but only when we
+        # return items verbatim. With a filter, pages get thinned post-fetch, so
+        # we keep full pages and let the limit count matches instead.
+        if limit and filter_fn is None:
             params["per_page"] = min(params["per_page"], limit)
 
         all_items = []
@@ -180,15 +213,21 @@ class GitHubAPI:
             if not items:
                 break
 
+            # Detect the last page from the raw page size, before filtering
+            # thins it (a full page with everything filtered out is still full).
+            page_size = len(items)
+            if filter_fn is not None:
+                items = [item for item in items if filter_fn(item)]
+
             all_items.extend(items)
 
             # Check if we got less than per_page items, meaning this is the last page
-            if len(items) < params["per_page"]:
+            if page_size < params["per_page"]:
                 break
 
             params["page"] += 1
 
-        return all_items
+        return all_items[:limit] if limit else all_items
 
     # ---- Repository Operations ----
 
@@ -482,25 +521,39 @@ class GitHubAPI:
         when exceeded); narrow with ``state``/``author``/``after``/``before`` for
         full coverage on large repos. ``limit`` caps the returned list.
 
-        When no client-side filter is requested the endpoint already returns PRs
-        in the requested order, so ``limit`` is pushed into ``paginated_fetch`` to
-        stop early — a plain ``limit`` (e.g. 10) on a huge repo returns the first
-        N rather than exhausting pages and raising the ``max_pages`` TimeoutError.
-        With a client-side filter we must scan up to ``max_pages`` before slicing.
+        ``limit`` is always pushed into ``paginated_fetch``, which stops as soon
+        as that many *matching* PRs are collected — even with a client-side
+        filter, since the filter runs per page during pagination. So a request
+        like ``author="kai", limit=10`` returns once page 1 yields 10 of kai's
+        PRs instead of scanning to ``max_pages`` and risking a spurious
+        TimeoutError. ``after``/``before`` are compared as parsed UTC datetimes
+        (not raw strings) so a bare date is inclusive of the whole day, matching
+        the old Search API ``created:>=`` / ``created:<=`` semantics.
         """
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/pulls"
         params = {"state": state, "sort": sort, "direction": direction}
 
-        fetch_limit = limit if not (author or after or before) else None
-        prs = await GitHubAPI.paginated_fetch(context, url, params, max_pages=max_pages, limit=fetch_limit)
+        author_lower = author.lower() if author else None
+        after_dt = _parse_iso_utc(after) if after else None
+        before_dt = _parse_iso_utc(before, end_of_day=True) if before else None
 
-        if author:
-            author_lower = author.lower()
-            prs = [pr for pr in prs if pr.get("user", {}).get("login", "").lower() == author_lower]
-        if after:
-            prs = [pr for pr in prs if pr.get("created_at") and pr["created_at"] >= after]
-        if before:
-            prs = [pr for pr in prs if pr.get("created_at") and pr["created_at"] <= before]
+        def matches(pr: Dict[str, Any]) -> bool:
+            if author_lower is not None and pr.get("user", {}).get("login", "").lower() != author_lower:
+                return False
+            if after_dt or before_dt:
+                created = _parse_iso_utc(pr.get("created_at"))
+                if created is None:
+                    return False
+                if after_dt and created < after_dt:
+                    return False
+                if before_dt and created > before_dt:
+                    return False
+            return True
+
+        filter_fn = matches if (author_lower or after_dt or before_dt) else None
+        prs = await GitHubAPI.paginated_fetch(
+            context, url, params, max_pages=max_pages, limit=limit, filter_fn=filter_fn
+        )
 
         return prs[:limit] if limit else prs
 
