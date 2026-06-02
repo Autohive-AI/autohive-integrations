@@ -535,7 +535,11 @@ class GitHubAPI:
 
         author_lower = author.lower() if author else None
         after_dt = _parse_iso_utc(after) if after else None
+        if after and after_dt is None:
+            raise ValueError(f"Invalid after date/time: {after!r}")
         before_dt = _parse_iso_utc(before, end_of_day=True) if before else None
+        if before and before_dt is None:
+            raise ValueError(f"Invalid before date/time: {before!r}")
 
         def matches(pr: Dict[str, Any]) -> bool:
             if author_lower is not None and pr.get("user", {}).get("login", "").lower() != author_lower:

@@ -259,6 +259,30 @@ class TestListPullRequests:
         assert [pr["number"] for pr in result.result.data] == [2]
 
     @pytest.mark.asyncio
+    async def test_invalid_after_returns_action_error_without_fetching(self, mock_context):
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "after": "not-a-date"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "invalid after" in result.result.message.lower()
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_invalid_before_returns_action_error_without_fetching(self, mock_context):
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "before": "2024-13-40"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "invalid before" in result.result.message.lower()
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_max_pages_cap_stops_unbounded_pagination(self, mock_context):
         # Each page returns a full 100 items so paginated_fetch would keep going
         # forever; the max_pages cap must stop it and surface a TimeoutError
