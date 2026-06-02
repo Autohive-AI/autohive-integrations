@@ -1,22 +1,8 @@
-import os
-import sys
-import importlib
+import pytest
+from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("github_mod", os.path.join(_parent, "github.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-
-github = _mod.github
+from github import github
 
 pytestmark = pytest.mark.unit
 
@@ -61,17 +47,6 @@ SAMPLE_PR = {
     "head": {"ref": "feature-branch", "sha": "abc123", "repo": SAMPLE_REPO_REF},
     "base": {"ref": "main", "sha": "def456", "repo": SAMPLE_REPO_REF},
 }
-
-
-@pytest.fixture
-def mock_context():
-    ctx = MagicMock(name="ExecutionContext")
-    ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "test_token"},  # nosec B105
-    }
-    return ctx
 
 
 class TestGetPullRequest:
