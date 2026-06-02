@@ -90,3 +90,15 @@ class TestGitHubReadOnlyActions:
 
         assert result.type == ResultType.ACTION
         assert isinstance(result.result.data, list)
+
+    async def test_diff_branch_to_branch_returns_comparison(self, live_context):
+        result = await github.execute_action(
+            "diff_branch_to_branch",
+            {"owner": PUBLIC_OWNER, "repo": PUBLIC_REPO, "base_branch": "master", "head_branch": "master"},
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["status"] == "identical"
+        assert result.result.data["ahead_by"] == 0
+        assert result.result.data["behind_by"] == 0
