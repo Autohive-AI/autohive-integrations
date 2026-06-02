@@ -1,6 +1,6 @@
 {
   "name": "GitHub",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "GitHub API integration for complete repository management including CRUD operations for repos, branches, issues, PRs, files, and more.",
   "display_name": "GitHub",
   "supports_connected_account": true,
@@ -1119,11 +1119,11 @@
           },
           "after": {
             "type": "string",
-            "description": "ISO 8601 timestamp to filter PRs created after this date"
+            "description": "ISO 8601 date or timestamp; keep PRs created at or after this point. A bare date (YYYY-MM-DD) is inclusive from the start of that day."
           },
           "before": {
             "type": "string",
-            "description": "ISO 8601 timestamp to filter PRs created before this date"
+            "description": "ISO 8601 date or timestamp; keep PRs created at or before this point. A bare date (YYYY-MM-DD) is inclusive through the end of that day."
           },
           "author": {
             "type": "string",
@@ -1132,6 +1132,12 @@
           "limit": {
             "type": "integer",
             "description": "Maximum number of PRs to return"
+          },
+          "max_pages": {
+            "type": "integer",
+            "description": "Maximum number of pages (100 PRs per page) to fetch before stopping. Prevents Lambda timeouts on large repos. Narrow with state/author/after/before for full coverage.",
+            "default": 10,
+            "minimum": 1
           }
         },
         "required": [

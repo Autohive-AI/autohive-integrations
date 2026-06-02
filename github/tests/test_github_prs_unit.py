@@ -1,22 +1,8 @@
-import os
-import sys
-import importlib
+import pytest
+from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
-sys.path.insert(0, _parent)
-sys.path.insert(0, _deps)
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-_spec = importlib.util.spec_from_file_location("github_mod", os.path.join(_parent, "github.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-
-github = _mod.github
+from github import github
 
 pytestmark = pytest.mark.unit
 
@@ -63,17 +49,6 @@ SAMPLE_PR = {
 }
 
 
-@pytest.fixture
-def mock_context():
-    ctx = MagicMock(name="ExecutionContext")
-    ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {
-        "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": "test_token"},  # nosec B105
-    }
-    return ctx
-
-
 class TestGetPullRequest:
     @pytest.mark.asyncio
     async def test_returns_pr_data(self, mock_context):
@@ -113,9 +88,7 @@ class TestGetPullRequest:
 class TestListPullRequests:
     @pytest.mark.asyncio
     async def test_returns_prs_list(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"items": [SAMPLE_PR], "total_count": 1}
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[SAMPLE_PR])
 
         result = await github.execute_action(
             "list_pull_requests", {"owner": "octocat", "repo": "Hello-World"}, mock_context
@@ -125,23 +98,197 @@ class TestListPullRequests:
         assert result.result.data[0]["number"] == 7
 
     @pytest.mark.asyncio
-    async def test_uses_search_api(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"items": [], "total_count": 0})
+    async def test_uses_rest_pulls_endpoint(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         await github.execute_action("list_pull_requests", {"owner": "octocat", "repo": "Hello-World"}, mock_context)
 
         url = mock_context.fetch.call_args.args[0]
-        assert "search/issues" in url
+        assert "repos/octocat/Hello-World/pulls" in url
+        assert "search/issues" not in url
 
     @pytest.mark.asyncio
-    async def test_search_query_includes_is_pr(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"items": [], "total_count": 0})
+    async def test_passes_state_sort_direction_params(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
-        await github.execute_action("list_pull_requests", {"owner": "octocat", "repo": "Hello-World"}, mock_context)
+        await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "state": "open", "sort": "created", "direction": "asc"},
+            mock_context,
+        )
 
         params = mock_context.fetch.call_args.kwargs["params"]
-        assert "is:pr" in params["q"]
-        assert "octocat/Hello-World" in params["q"]
+        assert params["state"] == "open"
+        assert params["sort"] == "created"
+        assert params["direction"] == "asc"
+
+    @pytest.mark.asyncio
+    async def test_filters_by_author_client_side(self, mock_context):
+        other_pr = {**SAMPLE_PR, "number": 8, "user": {**SAMPLE_USER, "login": "someone-else"}}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[SAMPLE_PR, other_pr])
+
+        result = await github.execute_action(
+            "list_pull_requests", {"owner": "octocat", "repo": "Hello-World", "author": "octocat"}, mock_context
+        )
+
+        assert [pr["number"] for pr in result.result.data] == [7]
+
+    @pytest.mark.asyncio
+    async def test_limit_caps_returned_list(self, mock_context):
+        pr2 = {**SAMPLE_PR, "number": 8}
+        pr3 = {**SAMPLE_PR, "number": 9}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[SAMPLE_PR, pr2, pr3])
+
+        result = await github.execute_action(
+            "list_pull_requests", {"owner": "octocat", "repo": "Hello-World", "limit": 2}, mock_context
+        )
+
+        assert len(result.result.data) == 2
+
+    @pytest.mark.asyncio
+    async def test_limit_returns_first_n_without_exhausting_pages(self, mock_context):
+        # A plain limit on a huge repo must return the first N PRs, not raise the
+        # max_pages TimeoutError. Every page is full (100 items) so without early
+        # exit pagination would run to the cap and error.
+        full_page = [{**SAMPLE_PR, "number": i} for i in range(100)]
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=full_page)
+
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "limit": 10, "max_pages": 2},
+            mock_context,
+        )
+
+        assert result.type != ResultType.ACTION_ERROR
+        assert len(result.result.data) == 10
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_author_filter_with_limit_stops_early(self, mock_context):
+        # A client-side filter must not defeat the limit early-exit: if page 1
+        # already has enough matching PRs, pagination must stop there instead of
+        # scanning to max_pages and raising a spurious TimeoutError.
+        full_page = [{**SAMPLE_PR, "number": i, "user": SAMPLE_USER} for i in range(100)]
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=full_page)
+
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "author": "octocat", "limit": 10, "max_pages": 2},
+            mock_context,
+        )
+
+        assert result.type != ResultType.ACTION_ERROR
+        assert len(result.result.data) == 10
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_author_filter_thins_pages_then_paginates(self, mock_context):
+        # When a full page is entirely filtered out, pagination must still detect
+        # it as a full page and advance, rather than mistaking the thinned result
+        # for a last (short) page and stopping early.
+        others = [{**SAMPLE_PR, "number": i, "user": {**SAMPLE_USER, "login": "someone-else"}} for i in range(100)]
+        match_page = [{**SAMPLE_PR, "number": 999, "user": SAMPLE_USER}]
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data=others),
+            FetchResponse(status=200, headers={}, data=match_page),
+        ]
+
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "author": "octocat", "max_pages": 5},
+            mock_context,
+        )
+
+        assert [pr["number"] for pr in result.result.data] == [999]
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_before_date_is_inclusive_of_whole_day(self, mock_context):
+        # before="2024-01-01" must include a PR created during that day
+        # (matching the old Search API created:<= semantics), not exclude it on
+        # a raw string comparison.
+        same_day = {**SAMPLE_PR, "number": 1, "created_at": "2024-01-01T09:00:00Z"}
+        next_day = {**SAMPLE_PR, "number": 2, "created_at": "2024-01-02T00:00:00Z"}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[same_day, next_day])
+
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "before": "2024-01-01"},
+            mock_context,
+        )
+
+        assert [pr["number"] for pr in result.result.data] == [1]
+
+    @pytest.mark.asyncio
+    async def test_after_date_is_inclusive_of_whole_day(self, mock_context):
+        before_day = {**SAMPLE_PR, "number": 1, "created_at": "2024-01-01T09:00:00Z"}
+        on_day = {**SAMPLE_PR, "number": 2, "created_at": "2024-01-02T09:00:00Z"}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[before_day, on_day])
+
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "after": "2024-01-02"},
+            mock_context,
+        )
+
+        assert [pr["number"] for pr in result.result.data] == [2]
+
+    @pytest.mark.asyncio
+    async def test_invalid_after_returns_action_error_without_fetching(self, mock_context):
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "after": "not-a-date"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "invalid after" in result.result.message.lower()
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_invalid_before_returns_action_error_without_fetching(self, mock_context):
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "before": "2024-13-40"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "invalid before" in result.result.message.lower()
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_max_pages_cap_stops_unbounded_pagination(self, mock_context):
+        # Each page returns a full 100 items so paginated_fetch would keep going
+        # forever; the max_pages cap must stop it and surface a TimeoutError
+        # which the decorator turns into an ActionError.
+        full_page = [SAMPLE_PR] * 100
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=full_page)
+
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World", "max_pages": 2},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "2 pages" in result.result.message
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_default_max_pages_is_ten(self, mock_context):
+        # When the caller omits max_pages, the default cap of 10 must apply.
+        full_page = [SAMPLE_PR] * 100
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=full_page)
+
+        result = await github.execute_action(
+            "list_pull_requests",
+            {"owner": "octocat", "repo": "Hello-World"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 10
 
 
 class TestCreatePullRequest:
