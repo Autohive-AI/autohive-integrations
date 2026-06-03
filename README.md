@@ -10,6 +10,10 @@ This repository hosts Autohive integrations made and maintained by the Autohive 
 
 ## Integrations
 
+### ActiveCampaign
+
+[active-campaign](active-campaign): ActiveCampaign is an email marketing and CRM platform used by marketing teams to send and manage EDM campaigns. The integration provides 7 actions covering email campaign performance metrics, contact management, contact activity history, and list segmentation. Campaign actions return derived open rate, click rate, and bounce rate calculated from raw send data, making it easy to track and compare performance across sends. Supports custom API key authentication. Ideal for EDM performance analysis, contact engagement tracking, audience segmentation, and marketing reporting workflows.
+
 ### Uber Ride Requests
 
 [uber](uber): Comprehensive Uber Ride Requests integration for booking rides, getting fare estimates, tracking ride status, and retrieving receipts through the Uber Riders API v1.2. Supports listing available products at a location (UberX, UberXL, Black, etc.), price estimates for trips between locations, time estimates for driver arrival, detailed ride fare estimates with upfront pricing, ride requests on behalf of users, real-time ride status tracking with driver and vehicle information, tracking map URLs for active rides, ride cancellation, receipt retrieval for completed rides, user profile access, ride history with pagination, and payment method listing. Features OAuth 2.0 authorization code flow with scopes for profile, history, places, request, and request_receipt. Includes centralized API handling with error type categorization (validation_error, auth_error, rate_limited, not_found, server_error, api_error), comprehensive input validation for coordinates, seat counts, and pagination parameters, and 47 unit tests covering validation helpers, success paths, error paths, and edge cases. Comprises 12 actions covering products, estimates, ride requests, tracking, receipts, user profile, history, and payment methods. Ideal for transportation automation, corporate travel management, ride booking workflows, and expense tracking integration.

@@ -1,0 +1,241 @@
+{
+    "name": "ActiveCampaign",
+    "version": "1.0.0",
+    "description": "ActiveCampaign email marketing integration for tracking EDM campaign performance including open rates, click rates, bounce rates, and contact engagement.",
+    "display_name": "ActiveCampaign",
+    "supports_connected_account": false,
+    "entry_point": "active_campaign.py",
+    "auth": {
+        "type": "custom",
+        "title": "ActiveCampaign API Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Key",
+                    "description": "Found under Settings > Developer in your ActiveCampaign account"
+                },
+                "account_name": {
+                    "type": "string",
+                    "label": "Account Name",
+                    "description": "Your ActiveCampaign subdomain (e.g. 'mycompany' from mycompany.api-us1.com)"
+                }
+            },
+            "required": ["api_key", "account_name"]
+        }
+    },
+    "actions": {
+        "list_campaigns": {
+            "display_name": "List Campaigns",
+            "description": "List all email campaigns with performance metrics including sends, open rate, click rate, bounce rate, and unsubscribes.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "integer",
+                        "description": "Filter by campaign status: 0=draft, 1=scheduled, 2=sending, 3=paused, 4=stopped, 5=completed"
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Filter by campaign type (e.g. 'email')"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of results per page (default: 20)",
+                        "default": 20
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Pagination offset (default: 0)",
+                        "default": 0
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "campaigns": {"type": "array", "items": {"type": "object"}},
+                    "total": {"type": "integer"}
+                }
+            }
+        },
+        "get_campaign": {
+            "display_name": "Get Campaign",
+            "description": "Retrieve full details and performance metrics for a single email campaign by ID, including open rate, click rate, bounce rate, and unsubscribes.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "campaign_id": {
+                        "type": "integer",
+                        "description": "The campaign ID to retrieve"
+                    }
+                },
+                "required": ["campaign_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "campaign": {"type": "object"}
+                }
+            }
+        },
+        "get_campaign_links": {
+            "display_name": "Get Campaign Links",
+            "description": "Retrieve all tracked links in a campaign with click counts for click-through analysis.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "campaign_id": {
+                        "type": "integer",
+                        "description": "The campaign ID to get links for"
+                    }
+                },
+                "required": ["campaign_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "links": {"type": "array", "items": {"type": "object"}}
+                }
+            }
+        },
+        "list_contacts": {
+            "display_name": "List Contacts",
+            "description": "List and search contacts with optional filters by email, list, status, and creation date.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "description": "Filter by exact email address"
+                    },
+                    "search": {
+                        "type": "string",
+                        "description": "Search by name, organisation, phone, or email"
+                    },
+                    "listid": {
+                        "type": "string",
+                        "description": "Filter contacts by list ID"
+                    },
+                    "status": {
+                        "type": "integer",
+                        "description": "Filter by contact status (1=active, 2=unsubscribed, 3=bounced)"
+                    },
+                    "created_after": {
+                        "type": "string",
+                        "description": "Filter contacts created after this date (YYYY-MM-DD)"
+                    },
+                    "created_before": {
+                        "type": "string",
+                        "description": "Filter contacts created before this date (YYYY-MM-DD)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of results (default: 20)",
+                        "default": 20
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Pagination offset (default: 0)",
+                        "default": 0
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "contacts": {"type": "array", "items": {"type": "object"}},
+                    "total": {"type": "integer"}
+                }
+            }
+        },
+        "get_contact": {
+            "display_name": "Get Contact",
+            "description": "Retrieve a single contact by their ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "contact_id": {
+                        "type": "integer",
+                        "description": "The contact ID to retrieve"
+                    }
+                },
+                "required": ["contact_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "contact": {"type": "object"}
+                }
+            }
+        },
+        "list_contact_activities": {
+            "display_name": "List Contact Activities",
+            "description": "Get activity history for a contact including email opens, clicks, and other engagement events.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "contact_id": {
+                        "type": "integer",
+                        "description": "The contact ID to get activities for"
+                    },
+                    "after": {
+                        "type": "string",
+                        "description": "Filter activities after this date (YYYY-MM-DD)"
+                    },
+                    "include_emails": {
+                        "type": "boolean",
+                        "description": "Include email data fields in the response (default: false)",
+                        "default": false
+                    }
+                },
+                "required": ["contact_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "activities": {"type": "array", "items": {"type": "object"}},
+                    "total": {"type": "integer"}
+                }
+            }
+        },
+        "list_lists": {
+            "display_name": "List Contact Lists",
+            "description": "Retrieve all contact lists in the ActiveCampaign account.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of results (default: 20)",
+                        "default": 20
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Pagination offset (default: 0)",
+                        "default": 0
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "boolean"},
+                    "lists": {"type": "array", "items": {"type": "object"}},
+                    "total": {"type": "integer"}
+                }
+            }
+        }
+    }
+}
