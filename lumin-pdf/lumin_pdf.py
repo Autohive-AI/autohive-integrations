@@ -24,6 +24,13 @@ def _auth_headers(context: ExecutionContext, api_version: str = "") -> Dict[str,
     return headers
 
 
+def _raise_for_status(response: Any) -> None:
+    if response.status >= 400:
+        data = response.data or {}
+        msg = data.get("error_message") or data.get("message") or f"HTTP {response.status}"
+        raise ValueError(msg)
+
+
 # ---- User & Workspace ----
 
 
@@ -32,6 +39,7 @@ class GetCurrentUserAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             response = await context.fetch(f"{BASE_URL}/user/info", method="GET", headers=_auth_headers(context))
+            _raise_for_status(response)
             return ActionResult(data={"result": True, "user": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -46,6 +54,7 @@ class GetWorkspaceAction(ActionHandler):
                 method="GET",
                 headers=_auth_headers(context),
             )
+            _raise_for_status(response)
             return ActionResult(data={"result": True, "workspace": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -64,6 +73,7 @@ class ListWorkspaceMembersAction(ActionHandler):
                 headers=_auth_headers(context),
                 params=params,
             )
+            _raise_for_status(response)
             data = response.data
             members = data if isinstance(data, list) else data.get("data", data.get("members", []))
             return ActionResult(data={"result": True, "members": members}, cost_usd=0.0)
@@ -87,6 +97,7 @@ class ListTemplatesAction(ActionHandler):
                 headers=_auth_headers(context, api_version="1.1"),
                 params=params,
             )
+            _raise_for_status(response)
             data = response.data
             templates = data if isinstance(data, list) else data.get("data", data.get("templates", []))
             return ActionResult(data={"result": True, "templates": templates}, cost_usd=0.0)
@@ -104,6 +115,7 @@ class GetTemplateAction(ActionHandler):
                 method="GET",
                 headers=_auth_headers(context, api_version="1.1"),
             )
+            _raise_for_status(response)
             return ActionResult(data={"result": True, "template": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -149,6 +161,7 @@ class SendSignatureRequestAction(ActionHandler):
                 headers=_auth_headers(context),
                 json=body,
             )
+            _raise_for_status(response)
             return ActionResult(data={"result": True, "signature_request": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -164,6 +177,7 @@ class GetSignatureRequestAction(ActionHandler):
                 method="GET",
                 headers=_auth_headers(context),
             )
+            _raise_for_status(response)
             return ActionResult(data={"result": True, "signature_request": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -174,12 +188,13 @@ class CancelSignatureRequestAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             req_id = inputs["signature_request_id"]
-            await context.fetch(
+            response = await context.fetch(
                 f"{BASE_URL}/signature_request/cancel/{req_id}",
                 method="PUT",
                 headers=_auth_headers(context),
                 json={},
             )
+            _raise_for_status(response)
             return ActionResult(data={"result": True, "canceled": True}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -197,6 +212,7 @@ class GenerateSigningLinkAction(ActionHandler):
                 headers=_auth_headers(context),
                 json=body,
             )
+            _raise_for_status(response)
             data = response.data
             signing_link = (
                 data.get("view_url") or data.get("url") or data.get("signing_link", "")
@@ -213,15 +229,25 @@ class SendReminderAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             req_id = inputs["signature_request_id"]
-            body: Dict[str, Any] = {}
-            if inputs.get("emails"):
-                body["emails"] = inputs["emails"]
-            await context.fetch(
+            emails = inputs.get("emails")
+            if not emails:
+                # fetch pending signers to remind all
+                sr = await context.fetch(
+                    f"{BASE_URL}/signature_request/{req_id}",
+                    method="GET",
+                    headers=_auth_headers(context),
+                )
+                _raise_for_status(sr)
+                signers = sr.data.get("signature_request", sr.data).get("signers", [])
+                emails = [s["email"] for s in signers if s.get("status") == "NEED_TO_SIGN" and s.get("email")]
+            body: Dict[str, Any] = {"emails": emails}
+            response = await context.fetch(
                 f"{BASE_URL}/signature_request/remind/{req_id}",
                 method="POST",
                 headers=_auth_headers(context),
                 json=body,
             )
+            _raise_for_status(response)
             return ActionResult(data={"result": True, "sent": True}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -259,6 +285,7 @@ class SendFromTemplateAction(ActionHandler):
                 headers=_auth_headers(context),
                 json=body,
             )
+            _raise_for_status(response)
             return ActionResult(data={"result": True, "signature_request": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -279,6 +306,7 @@ class UpdateSignatureRequestAction(ActionHandler):
                 headers=_auth_headers(context),
                 json={"expires_at": expires_at},
             )
+            _raise_for_status(response)
             return ActionResult(data={"result": True, "signature_request": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -296,6 +324,7 @@ class DownloadSignedDocumentAction(ActionHandler):
                 headers=_auth_headers(context),
                 params={"type": doc_type},
             )
+            _raise_for_status(response)
             data = response.data
             file_url = (
                 data.get("file_url") or data.get("url") or data.get("download_url", "")
@@ -311,9 +340,10 @@ class DownloadSignedDocumentAction(ActionHandler):
 class UploadDocumentAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
+            location = inputs.get("location", "personal")
             body: Dict[str, Any] = {
                 "document_name": inputs["document_name"],
-                "location": inputs.get("location", "personal"),
+                "location": location if isinstance(location, dict) else {"type": location},
             }
             if inputs.get("file_url"):
                 body["method"] = "file-upload"
@@ -327,6 +357,7 @@ class UploadDocumentAction(ActionHandler):
                 headers=_auth_headers(context),
                 json=body,
             )
+            _raise_for_status(response)
             return ActionResult(data={"result": True, "document": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -350,6 +381,7 @@ class GenerateDocumentFromTemplateAction(ActionHandler):
                 headers=_auth_headers(context),
                 json=body,
             )
+            _raise_for_status(response)
             return ActionResult(data={"result": True, "document": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -376,6 +408,7 @@ class CreateAgreementAction(ActionHandler):
                 headers=_auth_headers(context),
                 json=body,
             )
+            _raise_for_status(response)
             return ActionResult(data={"result": True, "agreement": response.data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -391,6 +424,7 @@ class DownloadAgreementAction(ActionHandler):
                 method="GET",
                 headers=_auth_headers(context),
             )
+            _raise_for_status(response)
             data = response.data
             file_url = (
                 data.get("file_url") or data.get("url") or data.get("download_url", "")
