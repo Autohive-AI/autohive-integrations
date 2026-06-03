@@ -16,8 +16,7 @@
           "label": "API Key",
           "description": "Your Lumin PDF API key from the Developer settings in your Lumin account."
         }
-      },
-      "required": ["api_key"]
+      }
     }
   },
   "actions": {

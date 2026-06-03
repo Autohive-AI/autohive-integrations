@@ -55,9 +55,9 @@ class GetWorkspaceAction(ActionHandler):
 class ListWorkspaceMembersAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            params: Dict[str, Any] = {"page": inputs.get("page", 1)}
+            params: Dict[str, Any] = {"page": int(inputs.get("page", 1))}
             if inputs.get("limit") is not None:
-                params["limit"] = inputs["limit"]
+                params["limit"] = int(inputs["limit"])
             response = await context.fetch(
                 f"{BASE_URL}/workspaces/members",
                 method="GET",
@@ -78,9 +78,9 @@ class ListWorkspaceMembersAction(ActionHandler):
 class ListTemplatesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            params: Dict[str, Any] = {"page": inputs.get("page", 1)}
+            params: Dict[str, Any] = {"page": int(inputs.get("page", 1))}
             if inputs.get("limit") is not None:
-                params["limit"] = inputs["limit"]
+                params["limit"] = int(inputs["limit"])
             response = await context.fetch(
                 f"{BASE_URL}/templates",
                 method="GET",
