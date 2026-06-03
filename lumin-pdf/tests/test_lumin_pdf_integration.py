@@ -1,10 +1,11 @@
 """
 End-to-end integration tests for the Lumin PDF integration.
 
-Requires a valid API key set in the LUMIN_PDF_TOKEN environment variable.
+Requires credentials set in environment variables or a .env file at the repo root:
+    LUMIN_PDF_TOKEN  — your Lumin PDF API key
 
-Write actions (send_signature_request) create real data — the test cancels
-the created request at the end of the chain to clean up.
+Write actions (send_signature_request) create real data — each test cancels
+the created request at the end to clean up.
 
 Run with:
     pytest lumin-pdf/tests/test_lumin_pdf_integration.py -m integration
@@ -12,34 +13,25 @@ Run with:
 
 import os
 import sys
-import importlib
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, _parent)
+import aiohttp
+import pytest
+from autohive_integrations_sdk import FetchResponse
 
-import pytest  # noqa: E402
-from unittest.mock import MagicMock, AsyncMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-_spec = importlib.util.spec_from_file_location("lumin_pdf_mod", os.path.join(_parent, "lumin_pdf.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-
-lumin_pdf = _mod.lumin_pdf
+from lumin_pdf import lumin_pdf  # noqa: E402
 
 pytestmark = pytest.mark.integration
-
-ACCESS_TOKEN = os.environ.get("LUMIN_PDF_TOKEN", "")
 
 PDF_URL = "https://www.learningcontainer.com/wp-content/uploads/2019/09/sample-pdf-file.pdf"
 
 
 @pytest.fixture
-def live_context():
-    if not ACCESS_TOKEN:
+def live_context(env_credentials, make_context):
+    api_key = env_credentials("LUMIN_PDF_TOKEN")
+    if not api_key:
         pytest.skip("LUMIN_PDF_TOKEN not set — skipping integration tests")
-
-    import aiohttp
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, data=None, **kwargs):
         async with aiohttp.ClientSession() as session:
@@ -50,9 +42,8 @@ def live_context():
                     body = {}
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=body)
 
-    ctx = MagicMock(name="ExecutionContext")
-    ctx.fetch = AsyncMock(side_effect=real_fetch)
-    ctx.auth = {"api_key": ACCESS_TOKEN}
+    ctx = make_context(auth={"api_key": api_key})
+    ctx.fetch.side_effect = real_fetch
     return ctx
 
 
@@ -136,7 +127,6 @@ class TestSignatureRequestLifecycle:
         sr_data = sr_result.result.data["signature_request"]
         assert isinstance(sr_data, dict)
 
-        # API returns {"signature_request": {"signature_request_id": "..."}}
         inner = sr_data.get("signature_request") if isinstance(sr_data.get("signature_request"), dict) else sr_data
         sig_req_id = (
             inner.get("signature_request_id")
@@ -156,10 +146,7 @@ class TestSignatureRequestLifecycle:
         # Generate signing link
         link_result = await lumin_pdf.execute_action(
             "generate_signing_link",
-            {
-                "signature_request_id": sig_req_id,
-                "signer_email": "engineering@autohive.com",
-            },
+            {"signature_request_id": sig_req_id, "signer_email": "engineering@autohive.com"},
             live_context,
         )
         assert link_result.result.data["result"] is True
@@ -167,9 +154,7 @@ class TestSignatureRequestLifecycle:
 
         # Cancel (cleanup)
         cancel_result = await lumin_pdf.execute_action(
-            "cancel_signature_request",
-            {"signature_request_id": sig_req_id},
-            live_context,
+            "cancel_signature_request", {"signature_request_id": sig_req_id}, live_context
         )
         assert cancel_result.result.data["result"] is True
         assert cancel_result.result.data["canceled"] is True
@@ -208,7 +193,7 @@ class TestSendFromTemplate:
 
         lumin_templates = [t for t in templates if t.get("type") == "lumin"]
         if not lumin_templates:
-            pytest.skip("No lumin-type templates in workspace — send_from_template requires a lumin template, not a pdf template")
+            pytest.skip("No lumin-type templates in workspace — send_from_template requires a lumin template")
 
         template_id = lumin_templates[0].get("template_id") or lumin_templates[0].get("id")
         result = await lumin_pdf.execute_action(
@@ -225,7 +210,6 @@ class TestSendFromTemplate:
         assert data["result"] is True
         assert "signature_request" in data
 
-        # Cancel the created request
         inner = data["signature_request"]
         sig_req_id = (
             inner.get("signature_request", {}).get("signature_request_id")
@@ -243,7 +227,6 @@ class TestSendFromTemplate:
 
 class TestUpdateSignatureRequest:
     async def test_extends_expiry(self, live_context):
-        # Create a request to update
         sr_result = await lumin_pdf.execute_action(
             "send_signature_request",
             {
@@ -268,7 +251,6 @@ class TestUpdateSignatureRequest:
 
         assert result.result.data["result"] is True
 
-        # Cleanup
         await lumin_pdf.execute_action("cancel_signature_request", {"signature_request_id": sig_req_id}, live_context)
 
 
@@ -277,8 +259,6 @@ class TestUpdateSignatureRequest:
 
 class TestDownloadSignedDocument:
     async def test_returns_file_data(self, live_context):
-        # Create and immediately try to download — will likely get a 409 since it's not signed yet,
-        # but confirms the action calls the right endpoint
         sr_result = await lumin_pdf.execute_action(
             "send_signature_request",
             {
@@ -299,11 +279,9 @@ class TestDownloadSignedDocument:
             "download_signed_document", {"signature_request_id": sig_req_id}, live_context
         )
 
-        # Document not signed yet — action either returns a file URL (success) or an error (expected for unsigned docs)
-        # Accept any result — what matters is the action reached the endpoint without silently swallowing errors
+        # Document not signed yet — accept any result (error expected for unsigned docs)
         assert result is not None
 
-        # Cleanup
         await lumin_pdf.execute_action("cancel_signature_request", {"signature_request_id": sig_req_id}, live_context)
 
 
@@ -343,7 +321,7 @@ class TestCreateAgreement:
 
         lumin_templates = [t for t in templates if t.get("type") == "lumin"]
         if not lumin_templates:
-            pytest.skip("No lumin-type templates in workspace — create_agreement requires a lumin template, not a pdf template")
+            pytest.skip("No lumin-type templates in workspace — create_agreement requires a lumin template")
 
         template_id = lumin_templates[0].get("template_id") or lumin_templates[0].get("id")
         result = await lumin_pdf.execute_action(
@@ -358,9 +336,7 @@ class TestCreateAgreement:
 
         agreement = data["agreement"]
         agreement_id = (
-            agreement.get("agreement", {}).get("agreement_id")
-            or agreement.get("agreement_id")
-            or agreement.get("id")
+            agreement.get("agreement", {}).get("agreement_id") or agreement.get("agreement_id") or agreement.get("id")
         )
         assert agreement_id, f"No agreement_id in response: {agreement}"
 
@@ -370,7 +346,6 @@ class TestCreateAgreement:
 
 class TestSendReminder:
     async def test_sends_reminder(self, live_context):
-        # Create a signature request to remind on
         sr_result = await lumin_pdf.execute_action(
             "send_signature_request",
             {
@@ -387,16 +362,11 @@ class TestSendReminder:
         if not sig_req_id:
             pytest.skip("Could not create signature request for reminder test")
 
-        result = await lumin_pdf.execute_action(
-            "send_reminder",
-            {"signature_request_id": sig_req_id},
-            live_context,
-        )
+        result = await lumin_pdf.execute_action("send_reminder", {"signature_request_id": sig_req_id}, live_context)
 
         assert result.result.data["result"] is True
         assert result.result.data["sent"] is True
 
-        # Cleanup
         await lumin_pdf.execute_action("cancel_signature_request", {"signature_request_id": sig_req_id}, live_context)
 
 
@@ -417,7 +387,6 @@ class TestDownloadAgreement:
 
         template_id = lumin_templates[0].get("template_id") or lumin_templates[0].get("id")
 
-        # Create an agreement to download
         create_result = await lumin_pdf.execute_action(
             "create_agreement",
             {"agreement_name": "Autohive Download Agreement Test", "template_id": template_id},
@@ -428,18 +397,12 @@ class TestDownloadAgreement:
 
         agreement = data["agreement"]
         agreement_id = (
-            agreement.get("agreement", {}).get("agreement_id")
-            or agreement.get("agreement_id")
-            or agreement.get("id")
+            agreement.get("agreement", {}).get("agreement_id") or agreement.get("agreement_id") or agreement.get("id")
         )
 
         if not agreement_id:
             pytest.skip("Could not extract agreement_id from create response")
 
-        result = await lumin_pdf.execute_action(
-            "download_agreement",
-            {"agreement_id": agreement_id},
-            live_context,
-        )
+        result = await lumin_pdf.execute_action("download_agreement", {"agreement_id": agreement_id}, live_context)
 
         assert "result" in result.result.data
