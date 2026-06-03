@@ -53,10 +53,6 @@ class ListCampaignsAction(ActionHandler):
                 "limit": inputs.get("limit", 20),
                 "offset": inputs.get("offset", 0),
             }
-            if inputs.get("status") is not None:
-                params["filters[status]"] = inputs["status"]
-            if inputs.get("type"):
-                params["filters[type]"] = inputs["type"]
 
             response = await context.fetch(
                 f"{_base_url(context)}/campaigns",

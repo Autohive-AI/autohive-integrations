@@ -33,14 +33,6 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "status": {
-                        "type": "integer",
-                        "description": "Filter by campaign status: 0=draft, 1=scheduled, 2=sending, 3=paused, 4=stopped, 5=completed"
-                    },
-                    "type": {
-                        "type": "string",
-                        "description": "Filter by campaign type (e.g. 'email')"
-                    },
                     "limit": {
                         "type": "integer",
                         "description": "Number of results per page (default: 20)",

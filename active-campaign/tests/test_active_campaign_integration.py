@@ -87,10 +87,6 @@ class TestListCampaigns:
         assert "click_rate" in c
         assert "bounce_rate" in c
 
-    async def test_status_filter(self, live_context):
-        result = await active_campaign.execute_action("list_campaigns", {"status": 5}, live_context)
-        assert result.result.data["result"] is True
-
     async def test_limit_respected(self, live_context):
         result = await active_campaign.execute_action("list_campaigns", {"limit": 2}, live_context)
         assert len(result.result.data["campaigns"]) <= 2

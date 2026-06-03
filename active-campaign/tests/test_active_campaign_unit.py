@@ -76,14 +76,6 @@ async def test_list_campaigns_zero_sends_no_division_error(make_context):
     assert c["bounce_rate"] == 0.0
 
 
-async def test_list_campaigns_passes_status_filter(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
-    ctx.fetch.return_value = ok({"campaigns": [], "meta": {"total": "0"}})
-    await active_campaign.execute_action("list_campaigns", {"status": 5}, ctx)
-    params = ctx.fetch.call_args.kwargs["params"]
-    assert params["filters[status]"] == 5
-
-
 async def test_list_campaigns_uses_correct_url(make_context):
     ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
     ctx.fetch.return_value = ok({"campaigns": [], "meta": {"total": "0"}})
