@@ -17,13 +17,13 @@
                     "label": "API Key",
                     "description": "Found under Settings > Developer in your ActiveCampaign account"
                 },
-                "account_name": {
+                "api_url": {
                     "type": "string",
-                    "label": "Account Name",
-                    "description": "Your ActiveCampaign subdomain (e.g. 'mycompany' from mycompany.api-us1.com)"
+                    "label": "API URL",
+                    "description": "Your ActiveCampaign API URL (e.g. https://mycompany.api-us1.com) — found under Settings > Developer"
                 }
             },
-            "required": ["api_key", "account_name"]
+            "required": ["api_key", "api_url"]
         }
     },
     "actions": {

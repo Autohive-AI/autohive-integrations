@@ -2,8 +2,8 @@
 End-to-end integration tests for the ActiveCampaign integration.
 
 Requires credentials set in environment variables or a .env file at the repo root:
-    ACTIVECAMPAIGN_API_KEY       — your API key (Settings > Developer)
-    ACTIVECAMPAIGN_ACCOUNT_NAME  — your account subdomain (e.g. 'mycompany')
+    ACTIVECAMPAIGN_API_KEY  — your API key (Settings > Developer)
+    ACTIVECAMPAIGN_API_URL  — your API URL (e.g. https://mycompany.api-us1.com)
 
 Optional — targets specific resources for faster tests:
     ACTIVECAMPAIGN_TEST_CAMPAIGN_ID  — a known campaign ID
@@ -30,12 +30,12 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def live_context(env_credentials, make_context):
     api_key = env_credentials("ACTIVECAMPAIGN_API_KEY")
-    account_name = env_credentials("ACTIVECAMPAIGN_ACCOUNT_NAME")
+    api_url = env_credentials("ACTIVECAMPAIGN_API_URL")
 
     if not api_key:
         pytest.skip("ACTIVECAMPAIGN_API_KEY not set — skipping integration tests")
-    if not account_name:
-        pytest.skip("ACTIVECAMPAIGN_ACCOUNT_NAME not set — skipping integration tests")
+    if not api_url:
+        pytest.skip("ACTIVECAMPAIGN_API_URL not set — skipping integration tests")
 
     async def real_fetch(url, *, method="GET", params=None, headers=None, json=None, **kwargs):
         merged = dict(headers or {})
@@ -49,7 +49,7 @@ def live_context(env_credentials, make_context):
                     data = await resp.text()
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
-    ctx = make_context(auth={"api_key": api_key, "account_name": account_name})
+    ctx = make_context(auth={"api_key": api_key, "api_url": api_url})
     ctx.fetch.side_effect = real_fetch
     return ctx
 

@@ -10,8 +10,8 @@ active_campaign = Integration.load()
 
 
 def _base_url(context: ExecutionContext) -> str:
-    account_name = context.auth.get("account_name", "")
-    return f"https://{account_name}.api-us1.com/api/3"
+    api_url = context.auth.get("api_url", "").rstrip("/")
+    return f"{api_url}/api/3"
 
 
 def _headers(context: ExecutionContext) -> Dict[str, str]:
