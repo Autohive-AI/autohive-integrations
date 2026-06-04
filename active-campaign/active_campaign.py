@@ -22,7 +22,10 @@ def _headers(context: ExecutionContext) -> Dict[str, str]:
 def _raise_for_status(response: Any) -> None:
     if response.status >= 400:
         data = response.data or {}
-        msg = data.get("message") or data.get("error") or f"HTTP {response.status}"
+        if isinstance(data, dict):
+            msg = data.get("message") or data.get("error") or f"HTTP {response.status}"
+        else:
+            msg = str(data) or f"HTTP {response.status}"
         raise ValueError(msg)
 
 
