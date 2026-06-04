@@ -6,13 +6,26 @@ from autohive_integrations_sdk import (
     ActionError,
 )
 from typing import Dict, Any, List
+from functools import wraps
+import asyncio
+import logging
+
+import httplib2
+from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.oauth2.credentials import Credentials
 
+logger = logging.getLogger(__name__)
+
 google_sheets = Integration.load()
 
 SPREADSHEET_MIMETYPE = "application/vnd.google-apps.spreadsheet"
+
+# httplib2's default timeout is None (block indefinitely), but the
+# integration Lambda is killed after 30s — a stalled Google API call must
+# fail cleanly before that, not crash the Lambda with "Unhandled".
+HTTP_TIMEOUT_SECONDS = 25
 
 
 def build_credentials(context: ExecutionContext) -> Credentials:
@@ -20,18 +33,46 @@ def build_credentials(context: ExecutionContext) -> Credentials:
     return Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")  # nosec B106
 
 
-def build_sheets_service(context: ExecutionContext):
+def _build_authorized_http(context: ExecutionContext) -> AuthorizedHttp:
     creds = build_credentials(context)
-    return build("sheets", "v4", credentials=creds)
+    return AuthorizedHttp(creds, http=httplib2.Http(timeout=HTTP_TIMEOUT_SECONDS))
+
+
+def build_sheets_service(context: ExecutionContext):
+    return build("sheets", "v4", http=_build_authorized_http(context))
 
 
 def build_drive_service(context: ExecutionContext):
-    creds = build_credentials(context)
-    return build("drive", "v3", credentials=creds)
+    return build("drive", "v3", http=_build_authorized_http(context))
+
+
+def handle_cancellation(action_name: str):
+    """Convert cooperative task cancellation reaching the action coroutine
+    into a clean ActionError. asyncio.CancelledError is a BaseException, so
+    the actions' `except Exception` blocks let it slip through and the
+    Lambda returned "Unhandled". This does not catch Lambda hard timeouts,
+    which kill the OS process with no catchable Python exception."""
+
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(self, inputs: Dict[str, Any], context: ExecutionContext):
+            try:
+                return await func(self, inputs, context)
+            except asyncio.CancelledError:
+                logger.warning(
+                    "CancelledError caught in action %s — cooperative cancellation reached the action coroutine",
+                    action_name,
+                )
+                return ActionError(message=f"Action '{action_name}' was cancelled before completing. Please try again.")
+
+        return wrapper
+
+    return decorator
 
 
 @google_sheets.action("sheets_list_spreadsheets")
 class ListSpreadsheets(ActionHandler):
+    @handle_cancellation("sheets_list_spreadsheets")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             drive = build_drive_service(context)
@@ -74,11 +115,19 @@ class ListSpreadsheets(ActionHandler):
 
 @google_sheets.action("sheets_get_spreadsheet")
 class GetSpreadsheet(ActionHandler):
+    @handle_cancellation("sheets_get_spreadsheet")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             service = build_sheets_service(context)
             spreadsheet_id = inputs["spreadsheet_id"]
             include_grid = bool(inputs.get("include_grid_data", False))
+            if include_grid:
+                # Full grid data on large spreadsheets can exceed the Lambda
+                # time/size limits; log so production behavior is observable.
+                logger.warning(
+                    "sheets_get_spreadsheet called with include_grid_data=True (spreadsheet %s)",
+                    spreadsheet_id,
+                )
             request = service.spreadsheets().get(spreadsheetId=spreadsheet_id, includeGridData=include_grid)
             spreadsheet = request.execute()
             return ActionResult(data={"spreadsheet": spreadsheet}, cost_usd=0.0)
@@ -90,6 +139,7 @@ class GetSpreadsheet(ActionHandler):
 
 @google_sheets.action("sheets_list_sheets")
 class ListSheets(ActionHandler):
+    @handle_cancellation("sheets_list_sheets")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             service = build_sheets_service(context)
@@ -113,6 +163,7 @@ class ListSheets(ActionHandler):
 
 @google_sheets.action("sheets_read_range")
 class ReadRange(ActionHandler):
+    @handle_cancellation("sheets_read_range")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             service = build_sheets_service(context)
@@ -141,6 +192,7 @@ class ReadRange(ActionHandler):
 
 @google_sheets.action("sheets_write_range")
 class WriteRange(ActionHandler):
+    @handle_cancellation("sheets_write_range")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             spreadsheet_id = inputs["spreadsheet_id"]
@@ -198,6 +250,7 @@ class WriteRange(ActionHandler):
 
 @google_sheets.action("sheets_append_rows")
 class AppendRows(ActionHandler):
+    @handle_cancellation("sheets_append_rows")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             service = build_sheets_service(context)
@@ -227,6 +280,7 @@ class AppendRows(ActionHandler):
 
 @google_sheets.action("sheets_format_range")
 class FormatRange(ActionHandler):
+    @handle_cancellation("sheets_format_range")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             service = build_sheets_service(context)
@@ -256,6 +310,7 @@ class FormatRange(ActionHandler):
 
 @google_sheets.action("sheets_freeze")
 class FreezePanes(ActionHandler):
+    @handle_cancellation("sheets_freeze")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             service = build_sheets_service(context)
@@ -294,6 +349,7 @@ class FreezePanes(ActionHandler):
 
 @google_sheets.action("sheets_batch_update")
 class SheetsBatchUpdate(ActionHandler):
+    @handle_cancellation("sheets_batch_update")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             spreadsheet_id = inputs["spreadsheet_id"]
@@ -322,6 +378,7 @@ class SheetsBatchUpdate(ActionHandler):
 
 @google_sheets.action("sheets_duplicate_spreadsheet")
 class DuplicateSpreadsheet(ActionHandler):
+    @handle_cancellation("sheets_duplicate_spreadsheet")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             drive = build_drive_service(context)
