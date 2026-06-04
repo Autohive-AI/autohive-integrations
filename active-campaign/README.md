@@ -38,8 +38,6 @@ List all email campaigns with performance metrics. Returns derived open rate, cl
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `status` | integer | No | Filter by status: 0=draft, 1=scheduled, 2=sending, 3=paused, 4=stopped, 5=completed |
-| `type` | string | No | Filter by campaign type (e.g. `email`) |
 | `limit` | integer | No | Number of results per page (default: 20) |
 | `offset` | integer | No | Pagination offset (default: 0) |
 
@@ -236,7 +234,7 @@ ActiveCampaign does not publicly document rate limits. Monitor for `429 Too Many
 |-------|-------|-----|
 | `HTTP 401` on all requests | Invalid API key | Re-copy from Settings → Developer |
 | `HTTP 404` on all requests | Wrong account name | Check your subdomain in the browser URL |
-| Empty `campaigns[]` | No campaigns match status filter | Try without `status` filter first |
+| Empty `campaigns[]` | No campaigns in the account yet | Check that campaigns have been created in ActiveCampaign |
 | `open_rate` is 0 | Campaign has 0 sends | Expected for draft or scheduled campaigns |
 | Activities return empty | No activity recorded yet | Normal for new contacts or accounts |
 
