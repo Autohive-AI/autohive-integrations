@@ -173,7 +173,9 @@ class GetContactAction(ActionHandler):
                 headers=_headers(context),
             )
             _raise_for_status(response)
-            return ActionResult(data={"result": True, "contact": response.data}, cost_usd=0.0)
+            data = response.data or {}
+            contact = data.get("contact", data)
+            return ActionResult(data={"result": True, "contact": contact}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 

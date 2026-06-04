@@ -165,7 +165,8 @@ async def test_get_contact_returns_contact(make_context):
     result = await active_campaign.execute_action("get_contact", {"contact_id": 5}, ctx)
     data = result.result.data
     assert data["result"] is True
-    assert data["contact"] is not None
+    assert data["contact"]["email"] == "bob@example.com"
+    assert data["contact"]["id"] == "5"
 
 
 async def test_get_contact_uses_correct_url(make_context):
