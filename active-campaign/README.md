@@ -17,13 +17,13 @@ ActiveCampaign uses API key authentication. Two values are required:
 | Field | Description |
 |-------|-------------|
 | `api_key` | Your ActiveCampaign API key |
-| `account_name` | Your account subdomain (e.g. `mycompany` from `mycompany.api-us1.com`) |
+| `api_url` | Your full ActiveCampaign API URL (e.g. `https://mycompany.api-us1.com`) |
 
 **Steps:**
 1. Log in to your ActiveCampaign account
 2. Go to **Settings → Developer**
 3. Copy your **API Key**
-4. Find your **Account Name** in your browser URL (e.g. `mycompany` from `mycompany.activehosted.com`)
+4. Copy your **API URL** (shown on the same page, e.g. `https://mycompany.api-us1.com`)
 5. Enter both values when connecting the integration in Autohive
 
 ## Actions
@@ -211,7 +211,7 @@ Use `list_lists` to enumerate all audience segments, then `list_contacts` filter
 
 ## API Info
 
-- **Base URL**: `https://{account_name}.api-us1.com/api/3`
+- **Base URL**: `https://{your-api-url}/api/3` (derived from your `api_url` field)
 - **Auth**: Custom HTTP header `Api-Token: <your_key>`
 - **API Docs**: [developers.activecampaign.com](https://developers.activecampaign.com/reference/overview)
 - **API Version**: v3
