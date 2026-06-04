@@ -383,7 +383,7 @@ class TestSendFromTemplate:
         assert body["tags"] == {"company": "Acme"}
         assert body["fields"] == {"date": "2026-01-01"}
 
-    async def test_due_date_converted_to_millis(self, make_context):
+    async def test_due_date_naive_treated_as_utc(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr3"})
         inputs = {
@@ -396,8 +396,24 @@ class TestSendFromTemplate:
         await lumin_pdf.execute_action("send_from_template", inputs, ctx)
 
         body = ctx.fetch.call_args.kwargs["json"]
-        assert isinstance(body["expires_at"], int)
-        assert body["expires_at"] > 1_000_000_000_000  # epoch millis
+        # 2026-12-31T00:00:00 naive → treated as UTC = 1798675200000 ms
+        assert body["expires_at"] == 1798675200000
+
+    async def test_due_date_offset_aware_converted_correctly(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr4"})
+        inputs = {
+            "template_id": "tpl1",
+            "title": "Contract",
+            "signers": [],
+            "due_date": "2026-12-31T00:00:00+08:00",
+        }
+
+        await lumin_pdf.execute_action("send_from_template", inputs, ctx)
+
+        body = ctx.fetch.call_args.kwargs["json"]
+        # 2026-12-31T00:00:00+08:00 = 2026-12-30T16:00:00Z = 1798646400000 ms
+        assert body["expires_at"] == 1798646400000
 
     async def test_error(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})

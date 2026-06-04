@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timezone
 from autohive_integrations_sdk import (
     Integration,
     ExecutionContext,
@@ -7,6 +8,13 @@ from autohive_integrations_sdk import (
     ActionError,
 )
 from typing import Any, Dict
+
+
+def _to_epoch_millis(due_date: str) -> int:
+    dt = datetime.fromisoformat(due_date)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return int(dt.timestamp() * 1000)
 
 lumin_pdf = Integration.load()
 
@@ -147,14 +155,7 @@ class SendSignatureRequestAction(ActionHandler):
             if inputs.get("message"):
                 body["message"] = inputs["message"]
             due_date = inputs.get("due_date")
-            if due_date:
-                from datetime import datetime, timezone
-
-                body["expires_at"] = int(
-                    datetime.fromisoformat(due_date).replace(tzinfo=timezone.utc).timestamp() * 1000
-                )
-            else:
-                body["expires_at"] = int((time.time() + 30 * 86400) * 1000)
+            body["expires_at"] = _to_epoch_millis(due_date) if due_date else int((time.time() + 30 * 86400) * 1000)
             response = await context.fetch(
                 f"{BASE_URL}/signature_request/send",
                 method="POST",
@@ -263,14 +264,7 @@ class SendFromTemplateAction(ActionHandler):
                 "signers": inputs["signers"],
             }
             due_date = inputs.get("due_date")
-            if due_date:
-                from datetime import datetime, timezone
-
-                body["expires_at"] = int(
-                    datetime.fromisoformat(due_date).replace(tzinfo=timezone.utc).timestamp() * 1000
-                )
-            else:
-                body["expires_at"] = int((time.time() + 30 * 86400) * 1000)
+            body["expires_at"] = _to_epoch_millis(due_date) if due_date else int((time.time() + 30 * 86400) * 1000)
             if inputs.get("tags"):
                 body["tags"] = inputs["tags"]
             if inputs.get("fields"):
@@ -297,9 +291,7 @@ class UpdateSignatureRequestAction(ActionHandler):
         try:
             req_id = inputs["signature_request_id"]
             due_date = inputs["due_date"]
-            from datetime import datetime, timezone
-
-            expires_at = int(datetime.fromisoformat(due_date).replace(tzinfo=timezone.utc).timestamp() * 1000)
+            expires_at = _to_epoch_millis(due_date)
             response = await context.fetch(
                 f"{BASE_URL}/signature_request/{req_id}",
                 method="PATCH",
