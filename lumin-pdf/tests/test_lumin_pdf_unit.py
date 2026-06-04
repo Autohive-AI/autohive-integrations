@@ -323,7 +323,7 @@ class TestSendReminder:
                 FetchResponse(
                     status=200,
                     headers={},
-                    data={"signers": [{"email": "alice@example.com", "status": "NEED_TO_SIGN"}]},
+                    data={"signers": [{"email_address": "alice@example.com", "status": "NEED_TO_SIGN"}]},
                 ),
                 FetchResponse(status=200, headers={}, data={}),
             ]
@@ -332,6 +332,27 @@ class TestSendReminder:
         result = await lumin_pdf.execute_action("send_reminder", {"signature_request_id": "sr1"}, ctx)
 
         assert result.result.data["result"] is True
+        body = ctx.fetch.call_args.kwargs["json"]
+        assert body["emails"] == ["alice@example.com"]
+
+    async def test_no_pending_signers_raises_error(self, make_context):
+        from unittest.mock import AsyncMock
+
+        ctx = make_context(auth={"api_key": API_KEY})
+        ctx.fetch = AsyncMock(
+            side_effect=[
+                FetchResponse(
+                    status=200,
+                    headers={},
+                    data={"signers": [{"email_address": "alice@example.com", "status": "SIGNED"}]},
+                ),
+            ]
+        )
+
+        result = await lumin_pdf.execute_action("send_reminder", {"signature_request_id": "sr1"}, ctx)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "No pending signers" in result.result.message
 
     async def test_error(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})

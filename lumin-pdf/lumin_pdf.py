@@ -16,6 +16,7 @@ def _to_epoch_millis(due_date: str) -> int:
         dt = dt.replace(tzinfo=timezone.utc)
     return int(dt.timestamp() * 1000)
 
+
 lumin_pdf = Integration.load()
 
 BASE_URL = "https://api.luminpdf.com/v1"
@@ -240,7 +241,13 @@ class SendReminderAction(ActionHandler):
                 )
                 _raise_for_status(sr)
                 signers = sr.data.get("signature_request", sr.data).get("signers", [])
-                emails = [s["email"] for s in signers if s.get("status") == "NEED_TO_SIGN" and s.get("email")]
+                emails = [
+                    s.get("email_address") or s.get("email")
+                    for s in signers
+                    if s.get("status") == "NEED_TO_SIGN" and (s.get("email_address") or s.get("email"))
+                ]
+                if not emails:
+                    raise ValueError("No pending signers found to remind")
             body: Dict[str, Any] = {"emails": emails}
             response = await context.fetch(
                 f"{BASE_URL}/signature_request/remind/{req_id}",
