@@ -444,7 +444,7 @@ class TestDownloadSignedDocument:
     async def test_returns_file_url(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
         ctx.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"file_url": "https://cdn.lumin.com/signed.pdf"}
+            status=200, headers={}, data={"signed_url": "https://cdn.lumin.com/signed.pdf"}
         )
 
         result = await lumin_pdf.execute_action("download_signed_document", {"signature_request_id": "sr1"}, ctx)
@@ -456,7 +456,7 @@ class TestDownloadSignedDocument:
     async def test_custom_type(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
         ctx.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"file_url": "https://cdn.lumin.com/coc.pdf"}
+            status=200, headers={}, data={"signed_url": "https://cdn.lumin.com/coc.pdf"}
         )
 
         await lumin_pdf.execute_action(
@@ -602,7 +602,7 @@ class TestDownloadAgreement:
     async def test_returns_file_url(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
         ctx.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"file_url": "https://cdn.lumin.com/agreement.pdf"}
+            status=200, headers={}, data={"signed_url": "https://cdn.lumin.com/agreement.pdf"}
         )
 
         result = await lumin_pdf.execute_action("download_agreement", {"agreement_id": "agr1"}, ctx)

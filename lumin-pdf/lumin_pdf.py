@@ -327,7 +327,7 @@ class DownloadSignedDocumentAction(ActionHandler):
             _raise_for_status(response)
             data = response.data
             file_url = (
-                data.get("file_url") or data.get("url") or data.get("download_url", "")
+                data.get("signed_url") or data.get("file_url") or data.get("url") or data.get("download_url", "")
                 if isinstance(data, dict)
                 else ""
             )
@@ -427,7 +427,7 @@ class DownloadAgreementAction(ActionHandler):
             _raise_for_status(response)
             data = response.data
             file_url = (
-                data.get("file_url") or data.get("url") or data.get("download_url", "")
+                data.get("signed_url") or data.get("file_url") or data.get("url") or data.get("download_url", "")
                 if isinstance(data, dict)
                 else ""
             )
