@@ -58,6 +58,7 @@ async def _wait_for_signature_request_ready(live_context, signature_request_id, 
         await asyncio.sleep(2)
 
     pytest.skip("Signature request did not become ready in time")
+    raise AssertionError("Unreachable: pytest.skip should raise and not return")
 
 
 @pytest.fixture
