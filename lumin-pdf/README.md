@@ -43,6 +43,20 @@ This integration uses API Key authentication.
 - **File size limits:** 20 MB (free), 200 MB (paid)
 - **Rate limits:** Refer to Lumin's developer documentation for current limits
 
+## Running Integration Tests
+
+Read-only live tests require `LUMIN_PDF_TOKEN` and can be run with:
+
+```bash
+pytest lumin-pdf/tests/test_lumin_pdf_integration.py -m "integration and not destructive"
+```
+
+Destructive live tests create, update, delete, and email real Lumin resources. Run them only against a test account:
+
+```bash
+pytest lumin-pdf/tests/test_lumin_pdf_integration.py -m "integration and destructive"
+```
+
 ## Troubleshooting
 
 | Error | Cause | Fix |
