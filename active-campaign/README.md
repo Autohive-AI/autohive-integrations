@@ -191,7 +191,7 @@ Retrieve all contact lists in the ActiveCampaign account. Use list IDs to filter
 ## EDM Performance Use Case
 
 ### Track overall EDM performance
-Use `list_campaigns` with `status: 5` (completed) to pull all sent campaigns and compare `open_rate`, `click_rate`, and `bounce_rate` across sends over time.
+Use `list_campaigns` to pull campaigns and compare `open_rate`, `click_rate`, and `bounce_rate` across sends over time. If you only need completed campaigns, filter the returned list client-side by status.
 
 ### Drill into a specific campaign
 Use `get_campaign` for full metrics on a send, then `get_campaign_links` to see which URLs were clicked and how many times.
