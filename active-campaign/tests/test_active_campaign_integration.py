@@ -9,12 +9,8 @@ Optional — targets specific resources for faster tests:
     ACTIVECAMPAIGN_TEST_CAMPAIGN_ID  — a known campaign ID
     ACTIVECAMPAIGN_TEST_CONTACT_ID   — a known contact ID
 
-Tests that create, update, or delete data are marked @pytest.mark.destructive
-and must be run deliberately:
-    pytest active-campaign/tests/test_active_campaign_integration.py -m "integration and destructive"
-
-Safe read-only run (use this by default):
-    pytest active-campaign/tests/test_active_campaign_integration.py -m "integration and not destructive"
+Run with:
+    pytest active-campaign/tests/test_active_campaign_integration.py -m integration
 """
 
 import os
