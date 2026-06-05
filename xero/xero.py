@@ -6,8 +6,9 @@ from autohive_integrations_sdk import (
     ActionError,
     ConnectedAccountHandler,
     ConnectedAccountInfo,
+    RateLimitError,
 )
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import asyncio
 import base64
 
@@ -99,6 +100,9 @@ class XeroRateLimitExceededException(Exception):
 
 
 class XeroRateLimiter:
+    # Xero allows up to 5 concurrent API calls per connected app
+    MAX_CONCURRENT_REQUESTS = 5
+
     def __init__(
         self,
         default_retry_delay: int = 60,
@@ -108,62 +112,87 @@ class XeroRateLimiter:
         """
         Handles Xero API rate limiting by retrying requests on 429 errors.
         Prevents lambda from waiting too long by setting maximum wait time.
+        Caps concurrency at 5 simultaneous requests as per Xero API limits.
         """
         self.default_retry_delay = default_retry_delay
         self.max_retries = max_retries
         self.max_wait_time = max_wait_time
+        # Lazily initialised: asyncio.Semaphore must be created inside a running
+        # event loop on Python ≤3.9, so we defer creation to first use.
+        self._semaphore: Optional[asyncio.Semaphore] = None
 
-    def _extract_retry_delay(self, error_response) -> int:
-        """Extract retry delay from error response headers"""
-        if hasattr(error_response, "headers"):
-            retry_after = error_response.headers.get("Retry-After")
-            if retry_after:
-                try:
-                    return int(retry_after)
-                except ValueError:
-                    pass
-        return self.default_retry_delay
+    def _get_semaphore(self) -> asyncio.Semaphore:
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
+        return self._semaphore
+
+    def _parse_limit_headers(self, headers: dict) -> tuple:
+        """Return (min_remaining, day_remaining) from Xero rate limit headers, or None if absent/unparseable."""
+        min_remaining = None
+        day_remaining = None
+        try:
+            val = headers.get("X-MinLimit-Remaining")
+            if val is not None:
+                min_remaining = int(val)
+        except (ValueError, TypeError):
+            pass
+        try:
+            val = headers.get("X-DayLimit-Remaining")
+            if val is not None:
+                day_remaining = int(val)
+        except (ValueError, TypeError):
+            pass
+        return min_remaining, day_remaining
 
     async def make_request(self, context: ExecutionContext, url: str, tenant_id: str, **kwargs) -> Any:
-        """Make request to Xero API with automatic retry on rate limit errors"""
-        # Add tenant header to the request
+        """Make request to Xero API with automatic retry on rate limit errors.
+
+        Enforces Xero's concurrency limit (max 5 simultaneous calls) via a semaphore.
+        On HTTP 429, waits the Retry-After duration and retries up to max_retries times.
+        Raises XeroRateLimitExceededException when:
+          - The Retry-After delay exceeds max_wait_time (minute-limit hit, too long to wait)
+          - The X-DayLimit-Remaining header reaches 0 (daily quota exhausted)
+        """
         headers = kwargs.get("headers", {})
         headers["xero-tenant-id"] = tenant_id
         kwargs["headers"] = headers
 
         last_error = None
 
-        for attempt in range(self.max_retries + 1):
-            try:
-                response = await context.fetch(url, **kwargs)
-                return response.data
+        async with self._get_semaphore():
+            for attempt in range(self.max_retries + 1):
+                try:
+                    response = await context.fetch(url, **kwargs)
 
-            except Exception as e:
-                last_error = e
-                error_str = str(e).lower()
+                    # Check rate limit headers proactively on successful responses.
+                    # X-DayLimit-Remaining reaching 0 means the daily quota is exhausted —
+                    # the next call will receive a 429, so we stop immediately.
+                    _, day_remaining = self._parse_limit_headers(response.headers)
+                    if day_remaining == 0:
+                        raise XeroRateLimitExceededException(86400, self.max_wait_time, tenant_id)
 
-                # Check if it's a rate limit error (HTTP 429)
-                if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
-                    # Don't retry on the last attempt
+                    return response.data
+
+                except XeroRateLimitExceededException:
+                    raise
+
+                except RateLimitError as e:
+                    last_error = e
+
                     if attempt >= self.max_retries:
                         break
 
-                    # Get delay from response headers or use default
-                    delay = self._extract_retry_delay(e)
+                    # Retry-After is provided by Xero on every 429 response
+                    delay = e.retry_after if e.retry_after else self.default_retry_delay
 
-                    # Check if delay exceeds maximum wait time
                     if delay > self.max_wait_time:
-                        # Don't wait - inform LLM about rate limit immediately
                         raise XeroRateLimitExceededException(delay, self.max_wait_time, tenant_id)
 
-                    # Short delay - proceed with waiting and retry
                     await asyncio.sleep(delay)
-                    continue
 
-                # For non-rate-limit errors, fail immediately
-                raise e
+                except Exception as e:
+                    raise
 
-        # All retries exhausted, raise the last error
         raise last_error
 
 
