@@ -22,6 +22,14 @@ lumin_pdf = Integration.load()
 BASE_URL = "https://api.luminpdf.com/v1"
 
 
+_VALID_LIMITS = (10, 25, 50)
+
+
+def _clamp_limit(limit: int) -> int:
+    """Round limit to the nearest value accepted by the Lumin API (10, 25, or 50)."""
+    return min(_VALID_LIMITS, key=lambda v: abs(v - limit))
+
+
 def _auth_headers(context: ExecutionContext, api_version: str = "") -> Dict[str, str]:
     auth = context.auth or {}
     api_key = auth.get("api_key") or auth.get("credentials", {}).get("api_key")
@@ -73,9 +81,12 @@ class GetWorkspaceAction(ActionHandler):
 class ListWorkspaceMembersAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            params: Dict[str, Any] = {"page": int(inputs.get("page", 1))}
-            if inputs.get("limit") is not None:
-                params["limit"] = int(inputs["limit"])
+            has_page = inputs.get("page") is not None
+            has_limit = inputs.get("limit") is not None
+            params: Dict[str, Any] = {}
+            if has_page or has_limit:
+                params["page"] = int(inputs["page"]) if has_page else 1
+                params["limit"] = _clamp_limit(int(inputs["limit"])) if has_limit else 10
             response = await context.fetch(
                 f"{BASE_URL}/workspaces/members",
                 method="GET",
@@ -97,9 +108,12 @@ class ListWorkspaceMembersAction(ActionHandler):
 class ListTemplatesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            params: Dict[str, Any] = {"page": int(inputs.get("page", 1))}
-            if inputs.get("limit") is not None:
-                params["limit"] = int(inputs["limit"])
+            has_page = inputs.get("page") is not None
+            has_limit = inputs.get("limit") is not None
+            params: Dict[str, Any] = {}
+            if has_page or has_limit:
+                params["page"] = int(inputs["page"]) if has_page else 1
+                params["limit"] = _clamp_limit(int(inputs["limit"])) if has_limit else 10
             response = await context.fetch(
                 f"{BASE_URL}/templates",
                 method="GET",
@@ -265,10 +279,18 @@ class SendReminderAction(ActionHandler):
 class SendFromTemplateAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
+            signers = []
+            for s in inputs["signers"]:
+                signer: Dict[str, Any] = {"email_address": s.get("email_address") or s.get("email", "")}
+                if s.get("name"):
+                    signer["name"] = s["name"]
+                if s.get("signer_role") or s.get("role"):
+                    signer["signer_role"] = s.get("signer_role") or s.get("role")
+                signers.append(signer)
             body: Dict[str, Any] = {
                 "template_id": inputs["template_id"],
                 "title": inputs["title"],
-                "signers": inputs["signers"],
+                "signers": signers,
             }
             due_date = inputs.get("due_date")
             body["expires_at"] = _to_epoch_millis(due_date) if due_date else int((time.time() + 30 * 86400) * 1000)
@@ -320,7 +342,7 @@ class DownloadSignedDocumentAction(ActionHandler):
             response = await context.fetch(
                 f"{BASE_URL}/signature_request/{req_id}/file",
                 method="GET",
-                headers=_auth_headers(context),
+                headers={**_auth_headers(context), "Accept": "application/json"},
                 params={"type": doc_type},
             )
             _raise_for_status(response)
@@ -377,7 +399,7 @@ class GenerateDocumentFromTemplateAction(ActionHandler):
             response = await context.fetch(
                 f"{BASE_URL}/templates/{template_id}/generate-document",
                 method="POST",
-                headers=_auth_headers(context),
+                headers={**_auth_headers(context), "Accept": "application/json"},
                 json=body,
             )
             _raise_for_status(response)
@@ -408,7 +430,9 @@ class CreateAgreementAction(ActionHandler):
                 json=body,
             )
             _raise_for_status(response)
-            return ActionResult(data={"result": True, "agreement": response.data}, cost_usd=0.0)
+            data = response.data
+            agreement = data.get("agreement", data) if isinstance(data, dict) else data
+            return ActionResult(data={"result": True, "agreement": agreement}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -421,7 +445,7 @@ class DownloadAgreementAction(ActionHandler):
             response = await context.fetch(
                 f"{BASE_URL}/agreements/{agreement_id}/file",
                 method="GET",
-                headers=_auth_headers(context),
+                headers={**_auth_headers(context), "Accept": "application/json"},
             )
             _raise_for_status(response)
             data = response.data

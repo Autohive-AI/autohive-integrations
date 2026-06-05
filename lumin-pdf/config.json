@@ -1,7 +1,7 @@
 {
   "name": "LuminPDF",
   "display_name": "Lumin PDF",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Integration with Lumin PDF for document management, eSignature workflows, and PDF generation.",
   "entry_point": "lumin_pdf.py",
   "auth": {
@@ -59,7 +59,7 @@
         "type": "object",
         "properties": {
           "page": {"type": "integer", "description": "Page number for pagination"},
-          "limit": {"type": "integer", "description": "Number of results per page"}
+          "limit": {"type": "integer", "description": "Number of results per page. Accepted values: 10, 25, or 50. Other values are rounded to the nearest accepted value."}
         },
         "required": []
       },
@@ -78,7 +78,7 @@
         "type": "object",
         "properties": {
           "page": {"type": "integer", "description": "Page number for pagination"},
-          "limit": {"type": "integer", "description": "Number of results per page"}
+          "limit": {"type": "integer", "description": "Number of results per page. Accepted values: 10, 25, or 50. Other values are rounded to the nearest accepted value."}
         },
         "required": []
       },
@@ -217,13 +217,13 @@
     },
     "send_from_template": {
       "display_name": "Send From Template",
-      "description": "Send a signature request using a saved template.",
+      "description": "Send a signature request using a saved lumin-type template (created in Lumin's template builder, not an uploaded PDF). The template must have signer roles defined.",
       "input_schema": {
         "type": "object",
         "properties": {
           "template_id": {"type": "string", "description": "The ID of the template to use"},
           "title": {"type": "string", "description": "Title of the signature request"},
-          "signers": {"type": "array", "description": "List of signers with their roles as defined in the template.", "items": {"type": "object"}},
+          "signers": {"type": "array", "description": "List of signers mapped to template roles. Each signer must have email_address (or email) and signer_role matching a role name from the template (use get_template to discover available roles). All template roles must be covered.", "items": {"type": "object", "properties": {"email_address": {"type": "string"}, "email": {"type": "string"}, "name": {"type": "string"}, "signer_role": {"type": "string", "description": "The role name as defined in the template e.g. 'Employee' or 'Employer'"}}}},
           "due_date": {"type": "string", "description": "Optional expiry date in ISO 8601 format. Defaults to 30 days from now."},
           "message": {"type": "string", "description": "Optional message to include with the request"},
           "tags": {"type": "object", "description": "Optional tag values to fill in the template"},
@@ -324,7 +324,7 @@
     },
     "create_agreement": {
       "display_name": "Create Agreement",
-      "description": "Create an agreement from a Lumin template.",
+      "description": "Create an agreement from a lumin-type template (created in Lumin's template builder). Does not work with pdf-type templates.",
       "input_schema": {
         "type": "object",
         "properties": {
