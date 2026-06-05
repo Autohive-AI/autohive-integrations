@@ -22,7 +22,7 @@
                     "label": "API URL",
                     "description": "Your ActiveCampaign API URL (e.g. https://mycompany.api-us1.com) — found under Settings > Developer"
                 }
-            },
+            }
         }
     },
     "actions": {
