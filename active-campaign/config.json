@@ -1,6 +1,6 @@
 {
     "name": "ActiveCampaign",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "ActiveCampaign email marketing integration for tracking EDM campaign performance including open rates, click rates, bounce rates, and contact engagement.",
     "display_name": "ActiveCampaign",
     "supports_connected_account": false,
@@ -23,7 +23,6 @@
                     "description": "Your ActiveCampaign API URL (e.g. https://mycompany.api-us1.com) — found under Settings > Developer"
                 }
             },
-            "required": ["api_key", "api_url"]
         }
     },
     "actions": {
