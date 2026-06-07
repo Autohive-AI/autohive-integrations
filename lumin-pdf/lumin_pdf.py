@@ -147,18 +147,38 @@ class GetTemplateAction(ActionHandler):
 # ---- Signature Requests ----
 
 
+def _normalize_signers(raw_signers: list) -> tuple:
+    """Normalize signer alias fields and validate required fields.
+
+    Returns (signers, error_message). error_message is None on success.
+    Preserves all signer fields; only maps email→email_address and role→signer_role aliases.
+    """
+    signers = []
+    for i, s in enumerate(raw_signers):
+        signer = dict(s)
+        if "email" in signer:
+            if "email_address" not in signer:
+                signer["email_address"] = signer["email"]
+            del signer["email"]
+        if "role" in signer:
+            if "signer_role" not in signer:
+                signer["signer_role"] = signer["role"]
+            del signer["role"]
+        if not signer.get("email_address"):
+            return None, f"Signer at index {i} is missing email_address"
+        if not signer.get("name"):
+            return None, f"Signer at index {i} is missing name"
+        signers.append(signer)
+    return signers, None
+
+
 @lumin_pdf.action("send_signature_request")
 class SendSignatureRequestAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            signers = []
-            for s in inputs["signers"]:
-                signers.append(
-                    {
-                        "name": s.get("name", ""),
-                        "email_address": s.get("email_address") or s.get("email", ""),
-                    }
-                )
+            signers, err = _normalize_signers(inputs["signers"])
+            if err:
+                return ActionError(message=err)
             body: Dict[str, Any] = {
                 "title": inputs["title"],
                 "signers": signers,
@@ -279,14 +299,9 @@ class SendReminderAction(ActionHandler):
 class SendFromTemplateAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            signers = []
-            for s in inputs["signers"]:
-                signer: Dict[str, Any] = {"email_address": s.get("email_address") or s.get("email", "")}
-                if s.get("name"):
-                    signer["name"] = s["name"]
-                if s.get("signer_role") or s.get("role"):
-                    signer["signer_role"] = s.get("signer_role") or s.get("role")
-                signers.append(signer)
+            signers, err = _normalize_signers(inputs["signers"])
+            if err:
+                return ActionError(message=err)
             body: Dict[str, Any] = {
                 "template_id": inputs["template_id"],
                 "title": inputs["title"],

@@ -119,13 +119,15 @@
           "file_url": {"type": "string", "description": "Single PDF URL to include in the request (use instead of file_urls for one document)"},
           "signers": {
             "type": "array",
-            "description": "List of signers. Each signer should have name and email.",
+            "description": "List of signers. Each signer must have name and email_address (or email as an alias).",
             "items": {
               "type": "object",
               "properties": {
-                "name": {"type": "string"},
-                "email": {"type": "string"}
-              }
+                "name": {"type": "string", "description": "Full name of the signer (required)"},
+                "email_address": {"type": "string", "description": "Email address of the signer (required; email is accepted as an alias)"},
+                "email": {"type": "string", "description": "Alias for email_address"}
+              },
+              "required": ["name"]
             }
           },
           "message": {"type": "string", "description": "Optional message to include with the request"},
@@ -223,7 +225,7 @@
         "properties": {
           "template_id": {"type": "string", "description": "The ID of the template to use"},
           "title": {"type": "string", "description": "Title of the signature request"},
-          "signers": {"type": "array", "description": "List of signers mapped to template roles. Each signer must have email_address (or email) and signer_role matching a role name from the template (use get_template to discover available roles). All template roles must be covered.", "items": {"type": "object", "properties": {"email_address": {"type": "string"}, "email": {"type": "string"}, "name": {"type": "string"}, "signer_role": {"type": "string", "description": "The role name as defined in the template e.g. 'Employee' or 'Employer'"}}}},
+          "signers": {"type": "array", "description": "List of signers mapped to template roles. Each signer must have name and email_address (or email as an alias), and signer_role matching a role name from the template (use get_template to discover available roles). All template roles must be covered.", "items": {"type": "object", "properties": {"email_address": {"type": "string", "description": "Email address of the signer (required; email accepted as alias)"}, "email": {"type": "string", "description": "Alias for email_address"}, "name": {"type": "string", "description": "Full name of the signer (required)"}, "signer_role": {"type": "string", "description": "The role name as defined in the template e.g. 'Employee' or 'Employer'"}, "verification": {"type": "object", "description": "Optional per-signer identity verification settings"}}, "required": ["name"]}},
           "due_date": {"type": "string", "description": "Optional expiry date in ISO 8601 format. Defaults to 30 days from now."},
           "message": {"type": "string", "description": "Optional message to include with the request"},
           "tags": {"type": "object", "description": "Optional tag values to fill in the template"},
