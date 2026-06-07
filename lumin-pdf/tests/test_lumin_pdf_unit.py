@@ -11,6 +11,8 @@ import sys
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
 
+INVALID_INPUT_TYPES = {ResultType.ACTION_ERROR, ResultType.VALIDATION_ERROR}
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from lumin_pdf import lumin_pdf  # noqa: E402
@@ -71,7 +73,7 @@ class TestListWorkspaceMembers:
         ctx = make_context(auth={"api_key": API_KEY})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=members)
 
-        result = await lumin_pdf.execute_action("list_workspace_members", {"limit": 10}, ctx)
+        result = await lumin_pdf.execute_action("list_workspace_members", {"page": 1, "limit": 10}, ctx)
 
         assert result.result.data["result"] is True
         assert result.result.data["members"] == members
@@ -86,15 +88,25 @@ class TestListWorkspaceMembers:
 
         assert result.result.data["members"] == members
 
-    async def test_default_page(self, make_context):
+    async def test_omits_params_when_not_provided(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         await lumin_pdf.execute_action("list_workspace_members", {}, ctx)
 
         params = ctx.fetch.call_args.kwargs["params"]
-        assert params["page"] == 1
+        assert "page" not in params
         assert "limit" not in params
+
+    async def test_limit_only_defaults_page_to_1(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
+
+        await lumin_pdf.execute_action("list_workspace_members", {"limit": 10}, ctx)
+
+        params = ctx.fetch.call_args.kwargs["params"]
+        assert params["page"] == 1
+        assert params["limit"] == 10
 
 
 # ---- Templates ----
@@ -119,6 +131,35 @@ class TestListTemplates:
         result = await lumin_pdf.execute_action("list_templates", {}, ctx)
 
         assert result.result.data["templates"] == templates
+
+    async def test_omits_params_when_not_provided(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
+
+        await lumin_pdf.execute_action("list_templates", {}, ctx)
+
+        params = ctx.fetch.call_args.kwargs["params"]
+        assert "page" not in params
+        assert "limit" not in params
+
+    async def test_limit_only_defaults_page_to_1(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
+
+        await lumin_pdf.execute_action("list_templates", {"limit": 25}, ctx)
+
+        params = ctx.fetch.call_args.kwargs["params"]
+        assert params["page"] == 1
+        assert params["limit"] == 25
+
+    async def test_limit_clamped_to_nearest_valid_value(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
+
+        # 5 → nearest valid is 10, 20 → nearest valid is 25, 40 → nearest valid is 50
+        for raw, expected in [(5, 10), (20, 25), (40, 50)]:
+            await lumin_pdf.execute_action("list_templates", {"limit": raw}, ctx)
+            assert ctx.fetch.call_args.kwargs["params"]["limit"] == expected
 
     async def test_error(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
@@ -202,6 +243,33 @@ class TestSendSignatureRequest:
         body = ctx.fetch.call_args.kwargs["json"]
         assert "file_urls" in body
         assert "file_url" not in body
+
+    async def test_missing_email_returns_error(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        inputs = {
+            "title": "Test",
+            "file_url": "https://example.com/doc.pdf",
+            "signers": [{"name": "Alice"}],
+        }
+
+        result = await lumin_pdf.execute_action("send_signature_request", inputs, ctx)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "email_address" in result.result.message
+        ctx.fetch.assert_not_called()
+
+    async def test_missing_name_returns_error(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        inputs = {
+            "title": "Test",
+            "file_url": "https://example.com/doc.pdf",
+            "signers": [{"email_address": "alice@example.com"}],
+        }
+
+        result = await lumin_pdf.execute_action("send_signature_request", inputs, ctx)
+
+        assert result.type in INVALID_INPUT_TYPES
+        ctx.fetch.assert_not_called()
 
     async def test_error(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
@@ -373,7 +441,7 @@ class TestSendFromTemplate:
         inputs = {
             "template_id": "tpl1",
             "title": "Contract",
-            "signers": [{"name": "Alice", "signer_role": "signer"}],
+            "signers": [{"name": "Alice", "email_address": "alice@example.com", "signer_role": "signer"}],
         }
 
         result = await lumin_pdf.execute_action("send_from_template", inputs, ctx)
@@ -391,7 +459,7 @@ class TestSendFromTemplate:
         inputs = {
             "template_id": "tpl1",
             "title": "Contract",
-            "signers": [{"name": "Bob", "signer_role": "signer"}],
+            "signers": [{"name": "Bob", "email_address": "bob@example.com", "signer_role": "signer"}],
             "message": "Please sign",
             "tags": {"company": "Acme"},
             "fields": {"date": "2026-01-01"},
@@ -403,6 +471,86 @@ class TestSendFromTemplate:
         assert body["message"] == "Please sign"
         assert body["tags"] == {"company": "Acme"}
         assert body["fields"] == {"date": "2026-01-01"}
+
+    async def test_normalizes_email_to_email_address(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr5"})
+        inputs = {
+            "template_id": "tpl1",
+            "title": "Contract",
+            "signers": [{"name": "Alice", "email": "alice@example.com", "signer_role": "Employee"}],
+        }
+
+        await lumin_pdf.execute_action("send_from_template", inputs, ctx)
+
+        body = ctx.fetch.call_args.kwargs["json"]
+        assert body["signers"][0]["email_address"] == "alice@example.com"
+        assert "email" not in body["signers"][0]
+        assert body["signers"][0]["signer_role"] == "Employee"
+
+    async def test_role_alias_mapped_to_signer_role(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr6"})
+        inputs = {
+            "template_id": "tpl1",
+            "title": "Contract",
+            "signers": [{"name": "Bob", "email_address": "bob@example.com", "role": "Employer"}],
+        }
+
+        await lumin_pdf.execute_action("send_from_template", inputs, ctx)
+
+        body = ctx.fetch.call_args.kwargs["json"]
+        assert body["signers"][0]["signer_role"] == "Employer"
+        assert "role" not in body["signers"][0]
+
+    async def test_preserves_verification_payload(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr7"})
+        verification = {"type": "SMS", "phone": "+15550001234"}
+        inputs = {
+            "template_id": "tpl1",
+            "title": "Contract",
+            "signers": [
+                {
+                    "name": "Alice",
+                    "email_address": "alice@example.com",
+                    "signer_role": "Employee",
+                    "verification": verification,
+                }
+            ],
+        }
+
+        await lumin_pdf.execute_action("send_from_template", inputs, ctx)
+
+        body = ctx.fetch.call_args.kwargs["json"]
+        assert body["signers"][0]["verification"] == verification
+
+    async def test_missing_email_returns_error(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        inputs = {
+            "template_id": "tpl1",
+            "title": "Contract",
+            "signers": [{"name": "Alice", "signer_role": "Employee"}],
+        }
+
+        result = await lumin_pdf.execute_action("send_from_template", inputs, ctx)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "email_address" in result.result.message
+        ctx.fetch.assert_not_called()
+
+    async def test_missing_name_returns_error(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        inputs = {
+            "template_id": "tpl1",
+            "title": "Contract",
+            "signers": [{"email_address": "alice@example.com", "signer_role": "Employee"}],
+        }
+
+        result = await lumin_pdf.execute_action("send_from_template", inputs, ctx)
+
+        assert result.type in INVALID_INPUT_TYPES
+        ctx.fetch.assert_not_called()
 
     async def test_due_date_naive_treated_as_utc(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
@@ -489,6 +637,7 @@ class TestDownloadSignedDocument:
         assert result.result.data["result"] is True
         assert result.result.data["file_url"] == "https://cdn.lumin.com/signed.pdf"
         assert ctx.fetch.call_args.kwargs["params"] == {"type": "agreement"}
+        assert ctx.fetch.call_args.kwargs["headers"].get("Accept") == "application/json"
 
     async def test_custom_type(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
@@ -567,6 +716,7 @@ class TestGenerateDocumentFromTemplate:
         assert body["document_name"] == "Generated Doc"
         assert body["fields"] == {"name": "Acme Corp"}
         assert f"{BASE_URL}/templates/tpl1/generate-document" in ctx.fetch.call_args.args[0]
+        assert ctx.fetch.call_args.kwargs["headers"].get("Accept") == "application/json"
 
     async def test_without_optional_fields(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
@@ -603,6 +753,19 @@ class TestCreateAgreement:
 
         assert result.result.data["result"] is True
         assert result.result.data["agreement"]["id"] == "agr1"
+
+    async def test_unwraps_nested_agreement_response(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        # API returns {"agreement": {"id": "agr1", ...}} — should be unwrapped
+        ctx.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"agreement": {"id": "agr1", "name": "NDA"}}
+        )
+        inputs = {"agreement_name": "NDA", "template_id": "tpl1"}
+
+        result = await lumin_pdf.execute_action("create_agreement", inputs, ctx)
+
+        assert result.result.data["agreement"]["id"] == "agr1"
+        assert "agreement" not in result.result.data["agreement"]
         body = ctx.fetch.call_args.kwargs["json"]
         assert body["method"] == "template"
         assert body["agreement_name"] == "NDA"
@@ -647,6 +810,7 @@ class TestDownloadAgreement:
         assert result.result.data["result"] is True
         assert result.result.data["file_url"] == "https://cdn.lumin.com/agreement.pdf"
         assert f"{BASE_URL}/agreements/agr1/file" in ctx.fetch.call_args.args[0]
+        assert ctx.fetch.call_args.kwargs["headers"].get("Accept") == "application/json"
 
     async def test_error(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})

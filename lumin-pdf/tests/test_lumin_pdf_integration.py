@@ -234,6 +234,18 @@ class TestSendFromTemplate:
             pytest.skip("No lumin-type templates in workspace — send_from_template requires a lumin template")
 
         template_id = lumin_templates[0].get("template_id") or lumin_templates[0].get("id")
+
+        # Fetch template details to discover required signer roles
+        tpl_result = await lumin_pdf.execute_action("get_template", {"template_id": template_id}, live_context)
+        signer_roles = tpl_result.result.data.get("template", {}).get("signer_roles", [])
+        if not signer_roles:
+            pytest.skip("Template has no signer roles defined")
+
+        signers = [
+            {"name": "Test Signer", "email_address": "engineering@autohive.com", "signer_role": r["name"]}
+            for r in signer_roles
+        ]
+
         sig_req_id = None
         try:
             result = await lumin_pdf.execute_action(
@@ -241,7 +253,7 @@ class TestSendFromTemplate:
                 {
                     "template_id": template_id,
                     "title": "Autohive Template Test",
-                    "signers": [{"name": "Test Signer", "email_address": "engineering@autohive.com"}],
+                    "signers": signers,
                 },
                 live_context,
             )
@@ -379,9 +391,7 @@ class TestCreateAgreement:
         assert "agreement" in data
 
         agreement = data["agreement"]
-        agreement_id = (
-            agreement.get("agreement", {}).get("agreement_id") or agreement.get("agreement_id") or agreement.get("id")
-        )
+        agreement_id = agreement.get("id") or agreement.get("agreement_id")
         assert agreement_id, f"No agreement_id in response: {agreement}"
 
 
