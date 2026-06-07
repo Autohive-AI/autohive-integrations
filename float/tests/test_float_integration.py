@@ -162,6 +162,11 @@ class TestCreateTimeOff:
         assert "timeoff_id" in data
         assert person_id in data.get("people_ids", [])
 
+        # Cleanup — delete the created entry so it doesn't linger in the account
+        await float_integration.execute_action(
+            "delete_time_off", {"timeoff_id": data["timeoff_id"]}, live_context
+        )
+
 
 @pytest.mark.destructive
 class TestLoggedTimeLifecycle:
