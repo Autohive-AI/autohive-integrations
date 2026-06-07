@@ -147,7 +147,7 @@ class TestCreateTimeOff:
         )
 
         body = mock_context.fetch.call_args.kwargs.get("json", {})
-        assert body["people_id"] == 123
+        assert body["people_ids"] == [123]
         assert body["full_day"] is True
 
     @pytest.mark.asyncio
