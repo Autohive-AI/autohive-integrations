@@ -121,14 +121,24 @@ class GetSpreadsheet(ActionHandler):
             service = build_sheets_service(context)
             spreadsheet_id = inputs["spreadsheet_id"]
             include_grid = bool(inputs.get("include_grid_data", False))
-            if include_grid:
-                # Full grid data on large spreadsheets can exceed the Lambda
-                # time/size limits; log so production behavior is observable.
-                logger.warning(
-                    "sheets_get_spreadsheet called with include_grid_data=True (spreadsheet %s)",
-                    spreadsheet_id,
+            ranges = inputs.get("ranges") or []
+            if include_grid and not ranges:
+                # An unbounded full-grid fetch on a large spreadsheet can stream
+                # and parse long enough to exhaust the 30s Lambda budget/memory
+                # (the per-socket HTTP timeout does not cap total payload). Force
+                # the caller to bound the response with explicit ranges.
+                return ActionError(
+                    message=(
+                        "include_grid_data=True requires 'ranges' to bound the response: "
+                        "an unbounded full-grid fetch can exceed the Lambda time/memory limit. "
+                        'Provide one or more A1 ranges (e.g. "Sheet1!A1:D100"), '
+                        "or use sheets_read_range to read cell data."
+                    )
                 )
-            request = service.spreadsheets().get(spreadsheetId=spreadsheet_id, includeGridData=include_grid)
+            get_kwargs: Dict[str, Any] = {"spreadsheetId": spreadsheet_id, "includeGridData": include_grid}
+            if include_grid and ranges:
+                get_kwargs["ranges"] = ranges
+            request = service.spreadsheets().get(**get_kwargs)
             spreadsheet = request.execute()
             return ActionResult(data={"spreadsheet": spreadsheet}, cost_usd=0.0)
         except HttpError as e:

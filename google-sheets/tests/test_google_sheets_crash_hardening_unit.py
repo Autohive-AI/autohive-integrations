@@ -4,7 +4,6 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from autohive_integrations_sdk.integration import ResultType
 
-import google_sheets as gs_module
 from google_sheets import google_sheets, build_sheets_service, build_drive_service, HTTP_TIMEOUT_SECONDS
 
 pytestmark = pytest.mark.unit
@@ -99,39 +98,42 @@ class TestCancellation:
         assert "boom" in result.result.message
 
 
-# ---- include_grid_data observability ----
+# ---- include_grid_data payload guard ----
 
 
-class TestGridDataWarning:
+class TestGridDataGuard:
     @pytest.mark.asyncio
     @patch("google_sheets.build")
-    async def test_include_grid_data_logs_warning(self, mock_build, mock_context, caplog):
+    async def test_include_grid_data_without_ranges_rejected(self, mock_build, mock_context):
         service = MagicMock()
         mock_build.return_value = service
         service.spreadsheets().get().execute.return_value = {"spreadsheetId": "sid"}
 
-        with caplog.at_level("WARNING", logger=gs_module.logger.name):
-            result = await google_sheets.execute_action(
-                "sheets_get_spreadsheet",
-                {"spreadsheet_id": "sid", "include_grid_data": True},
-                mock_context,
-            )
+        result = await google_sheets.execute_action(
+            "sheets_get_spreadsheet",
+            {"spreadsheet_id": "sid", "include_grid_data": True},
+            mock_context,
+        )
+
+        # Unbounded full-grid fetch is rejected deterministically before the API call.
+        assert result.type == ResultType.ACTION_ERROR
+        assert "ranges" in result.result.message
+        service.spreadsheets().get().execute.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("google_sheets.build")
+    async def test_include_grid_data_with_ranges_allowed(self, mock_build, mock_context):
+        service = MagicMock()
+        mock_build.return_value = service
+        service.spreadsheets().get().execute.return_value = {"spreadsheetId": "sid"}
+
+        result = await google_sheets.execute_action(
+            "sheets_get_spreadsheet",
+            {"spreadsheet_id": "sid", "include_grid_data": True, "ranges": ["Sheet1!A1:D100"]},
+            mock_context,
+        )
 
         assert result.type == ResultType.ACTION
-        assert any("include_grid_data" in rec.message for rec in caplog.records)
-
-    @pytest.mark.asyncio
-    @patch("google_sheets.build")
-    async def test_no_warning_without_grid_data(self, mock_build, mock_context, caplog):
-        service = MagicMock()
-        mock_build.return_value = service
-        service.spreadsheets().get().execute.return_value = {"spreadsheetId": "sid"}
-
-        with caplog.at_level("WARNING", logger=gs_module.logger.name):
-            await google_sheets.execute_action(
-                "sheets_get_spreadsheet",
-                {"spreadsheet_id": "sid"},
-                mock_context,
-            )
-
-        assert not any("include_grid_data" in rec.message for rec in caplog.records)
+        service.spreadsheets().get.assert_called_with(
+            spreadsheetId="sid", includeGridData=True, ranges=["Sheet1!A1:D100"]
+        )

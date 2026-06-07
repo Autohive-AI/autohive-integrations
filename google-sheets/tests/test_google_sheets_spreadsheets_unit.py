@@ -184,11 +184,13 @@ class TestGetSpreadsheet:
 
         await google_sheets.execute_action(
             "sheets_get_spreadsheet",
-            {"spreadsheet_id": "sid1", "include_grid_data": True},
+            {"spreadsheet_id": "sid1", "include_grid_data": True, "ranges": ["Sheet1!A1:D100"]},
             mock_context,
         )
 
-        service.spreadsheets().get.assert_called_with(spreadsheetId="sid1", includeGridData=True)
+        service.spreadsheets().get.assert_called_with(
+            spreadsheetId="sid1", includeGridData=True, ranges=["Sheet1!A1:D100"]
+        )
 
     @pytest.mark.asyncio
     @patch("google_sheets.build")
