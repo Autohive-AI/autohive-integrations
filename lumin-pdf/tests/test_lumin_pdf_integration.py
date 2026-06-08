@@ -111,6 +111,14 @@ class TestListWorkspaceMembers:
         assert "members" in data
         assert isinstance(data["members"], list)
 
+    async def test_returns_members_no_params(self, live_context):
+        result = await lumin_pdf.execute_action("list_workspace_members", {}, live_context)
+
+        data = result.result.data
+        assert data["result"] is True
+        assert "members" in data
+        assert isinstance(data["members"], list)
+
 
 # ---- Templates ----
 
@@ -118,6 +126,14 @@ class TestListWorkspaceMembers:
 class TestListTemplates:
     async def test_returns_templates(self, live_context):
         result = await lumin_pdf.execute_action("list_templates", {"limit": 10}, live_context)
+
+        data = result.result.data
+        assert data["result"] is True
+        assert "templates" in data
+        assert isinstance(data["templates"], list)
+
+    async def test_returns_templates_no_params(self, live_context):
+        result = await lumin_pdf.execute_action("list_templates", {}, live_context)
 
         data = result.result.data
         assert data["result"] is True
