@@ -211,3 +211,39 @@ class TestHttpTimeout:
         # Direct aiohttp downloads (PDF/attachments/file URLs) must time out
         # before the 30s Lambda kill; aiohttp's default is 300s.
         assert _mod.HTTP_TIMEOUT.total < 30
+
+
+# ---- Empty-string required inputs ----
+
+
+_SAMPLE_FILE = {"name": "test.pdf", "contentType": "application/pdf", "content": "Zm9v"}
+
+
+class TestEmptyStringValidation:
+    # The schemas mark these fields required but set no `minLength`, so an
+    # empty string passes schema validation and reaches the handler. The
+    # handler's `if not value: raise ValueError(...)` used to fire *before*
+    # the try block; since the SDK's execute_action only converts
+    # ValidationError, that ValueError escaped as an "Unhandled" Lambda crash.
+    # The checks now live inside the try, so an empty required string must
+    # come back as a clean ActionError.
+    @pytest.mark.parametrize(
+        "action_name,inputs",
+        [
+            ("get_invoice_pdf", {"tenant_id": "t-001", "invoice_id": ""}),
+            ("attach_file_to_invoice", {"tenant_id": "", "invoice_id": "inv-001", "file": _SAMPLE_FILE}),
+            ("attach_file_to_bill", {"tenant_id": "t-001", "bill_id": "", "file": _SAMPLE_FILE}),
+            (
+                "get_attachment_content",
+                {"tenant_id": "t-001", "endpoint": "Invoices", "guid": "g-001", "file_name": ""},
+            ),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_empty_required_string_returns_action_error(self, mock_context, action_name, inputs):
+        result = await xero.execute_action(action_name, inputs, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "is required" in result.result.message
+        # Validation must short-circuit before any network call is attempted.
+        mock_context.fetch.assert_not_awaited()

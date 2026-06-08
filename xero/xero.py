@@ -838,16 +838,16 @@ class GetInvoicePdfAction(ActionHandler):
         - file: Object containing content (base64), contentType, and name
         - success: Boolean indicating if the download was successful
         """
-        # Validate required inputs
-        tenant_id = inputs["tenant_id"]
-        invoice_id = inputs["invoice_id"]
-
-        if not tenant_id:
-            raise ValueError("tenant_id is required")
-        if not invoice_id:
-            raise ValueError("invoice_id is required")
-
         try:
+            # Validate required inputs
+            tenant_id = inputs["tenant_id"]
+            invoice_id = inputs["invoice_id"]
+
+            if not tenant_id:
+                raise ValueError("tenant_id is required")
+            if not invoice_id:
+                raise ValueError("invoice_id is required")
+
             # Build URL for specific invoice
             url = f"https://api.xero.com/api.xro/2.0/Invoices/{invoice_id}"
 
@@ -1354,16 +1354,16 @@ class AttachFileToInvoiceAction(ActionHandler):
         Optional fields:
         - include_online: Whether to include the attachment in online invoice (default: true)
         """
-        # Validate required inputs
-        tenant_id = inputs["tenant_id"]
-        invoice_id = inputs["invoice_id"]
-
-        if not tenant_id:
-            raise ValueError("tenant_id is required")
-        if not invoice_id:
-            raise ValueError("invoice_id is required")
-
         try:
+            # Validate required inputs
+            tenant_id = inputs["tenant_id"]
+            invoice_id = inputs["invoice_id"]
+
+            if not tenant_id:
+                raise ValueError("tenant_id is required")
+            if not invoice_id:
+                raise ValueError("invoice_id is required")
+
             # Debug: Log what inputs we're receiving
             # Get file object from inputs
             file_obj = inputs.get("file")
@@ -1452,16 +1452,16 @@ class AttachFileToBillAction(ActionHandler):
         Optional fields:
         - include_online: Whether to include the attachment in online bill (default: true)
         """
-        # Validate required inputs
-        tenant_id = inputs["tenant_id"]
-        bill_id = inputs["bill_id"]
-
-        if not tenant_id:
-            raise ValueError("tenant_id is required")
-        if not bill_id:
-            raise ValueError("bill_id is required")
-
         try:
+            # Validate required inputs
+            tenant_id = inputs["tenant_id"]
+            bill_id = inputs["bill_id"]
+
+            if not tenant_id:
+                raise ValueError("tenant_id is required")
+            if not bill_id:
+                raise ValueError("bill_id is required")
+
             # Get file object from inputs
             file_obj = inputs.get("file")
             files_arr = inputs.get("files")
@@ -1607,22 +1607,22 @@ class GetAttachmentContentAction(ActionHandler):
         - file: Object containing content (base64), contentType, and name
         - success: Boolean indicating if the download was successful
         """
-        # Validate required inputs
-        tenant_id = inputs["tenant_id"]
-        endpoint = inputs["endpoint"]
-        guid = inputs["guid"]
-        file_name = inputs["file_name"]
-
-        if not tenant_id:
-            raise ValueError("tenant_id is required")
-        if not endpoint:
-            raise ValueError("endpoint is required (e.g., 'Invoices', 'Bills')")
-        if not guid:
-            raise ValueError("guid is required")
-        if not file_name:
-            raise ValueError("file_name is required")
-
         try:
+            # Validate required inputs
+            tenant_id = inputs["tenant_id"]
+            endpoint = inputs["endpoint"]
+            guid = inputs["guid"]
+            file_name = inputs["file_name"]
+
+            if not tenant_id:
+                raise ValueError("tenant_id is required")
+            if not endpoint:
+                raise ValueError("endpoint is required (e.g., 'Invoices', 'Bills')")
+            if not guid:
+                raise ValueError("guid is required")
+            if not file_name:
+                raise ValueError("file_name is required")
+
             api_endpoint = endpoint
 
             # Build URL for getting attachment content
