@@ -88,15 +88,15 @@ class TestListWorkspaceMembers:
 
         assert result.result.data["members"] == members
 
-    async def test_omits_params_when_not_provided(self, make_context):
+    async def test_defaults_page_and_limit_when_not_provided(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         await lumin_pdf.execute_action("list_workspace_members", {}, ctx)
 
         params = ctx.fetch.call_args.kwargs["params"]
-        assert "page" not in params
-        assert "limit" not in params
+        assert params["page"] == 1
+        assert params["limit"] == 10
 
     async def test_limit_only_defaults_page_to_1(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
@@ -132,15 +132,15 @@ class TestListTemplates:
 
         assert result.result.data["templates"] == templates
 
-    async def test_omits_params_when_not_provided(self, make_context):
+    async def test_defaults_page_and_limit_when_not_provided(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         await lumin_pdf.execute_action("list_templates", {}, ctx)
 
         params = ctx.fetch.call_args.kwargs["params"]
-        assert "page" not in params
-        assert "limit" not in params
+        assert params["page"] == 1
+        assert params["limit"] == 10
 
     async def test_limit_only_defaults_page_to_1(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
