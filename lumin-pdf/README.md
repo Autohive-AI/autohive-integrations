@@ -321,6 +321,7 @@ pytest lumin-pdf/tests/test_lumin_pdf_integration.py -m "integration and destruc
 
 ## Version History
 
+- **v1.2.1** — Fixed `list_templates` and `list_workspace_members` always sending `page=1` and `limit=10` defaults, preventing 400 errors when called without pagination params
 - **v1.2.0** — Fixed pagination params (page+limit must be sent together), clamped limit to accepted values (10/25/50), fixed `send_from_template` signer normalization to use `signer_role` field, fixed `download_signed_document`/`download_agreement`/`generate_document_from_template` binary decode errors with Accept header, fixed `create_agreement` response double-nesting
 - **v1.1.0** — Added `send_from_template`, `update_signature_request`, `upload_document`, `generate_document_from_template`, `create_agreement`, `download_agreement` actions
 - **v1.0.0** — Initial release with signature request lifecycle, workspace, and template actions
