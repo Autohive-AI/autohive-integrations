@@ -1,7 +1,7 @@
 {
   "name": "LuminPDF",
   "display_name": "Lumin PDF",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Integration with Lumin PDF for document management, eSignature workflows, and PDF generation.",
   "entry_point": "lumin_pdf.py",
   "auth": {
