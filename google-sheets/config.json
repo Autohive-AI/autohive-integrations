@@ -1,7 +1,7 @@
 {
   "name": "Google Sheets",
   "display_name": "Google Sheets",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "entry_point": "google_sheets.py",
   "description": "Read and write Google Sheets with safe, deterministic operations and basic formatting.",
   "auth": {
@@ -50,7 +50,12 @@
           "spreadsheet_id": { "type": "string" },
           "include_grid_data": {
             "type": "boolean",
-            "description": "If true, returns cell data (may be large)."
+            "description": "If true, returns cell data. Requires 'ranges' to bound the response, otherwise the action errors (an unbounded full-grid fetch can exceed the Lambda time/memory limit)."
+          },
+          "ranges": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "A1 ranges (e.g. [\"Sheet1!A1:D100\"]) to bound the grid data returned when include_grid_data is true."
           }
         },
         "required": ["spreadsheet_id"]

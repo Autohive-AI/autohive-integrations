@@ -41,7 +41,8 @@ No additional configuration fields are required beyond the OAuth connection.
 - Description: Fetch spreadsheet properties, sheets, and named ranges.
 - Inputs:
   - `spreadsheet_id` (string, required)
-  - `include_grid_data` (boolean, optional)
+  - `include_grid_data` (boolean, optional). If true, `ranges` is required to avoid unbounded full-grid responses that can exceed Lambda time or memory limits.
+  - `ranges` (array[string], optional). A1 ranges such as `Sheet1!A1:D100` used to bound returned grid data when `include_grid_data` is true.
 - Outputs: `spreadsheet` (object), `result` (boolean), `error` (string)
 
 ### `sheets_list_sheets`
