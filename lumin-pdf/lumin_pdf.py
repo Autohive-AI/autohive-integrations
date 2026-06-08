@@ -81,12 +81,10 @@ class GetWorkspaceAction(ActionHandler):
 class ListWorkspaceMembersAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            has_page = inputs.get("page") is not None
-            has_limit = inputs.get("limit") is not None
-            params: Dict[str, Any] = {}
-            if has_page or has_limit:
-                params["page"] = int(inputs["page"]) if has_page else 1
-                params["limit"] = _clamp_limit(int(inputs["limit"])) if has_limit else 10
+            params: Dict[str, Any] = {
+                "page": int(inputs["page"]) if inputs.get("page") is not None else 1,
+                "limit": _clamp_limit(int(inputs["limit"])) if inputs.get("limit") is not None else 10,
+            }
             response = await context.fetch(
                 f"{BASE_URL}/workspaces/members",
                 method="GET",
@@ -108,12 +106,10 @@ class ListWorkspaceMembersAction(ActionHandler):
 class ListTemplatesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            has_page = inputs.get("page") is not None
-            has_limit = inputs.get("limit") is not None
-            params: Dict[str, Any] = {}
-            if has_page or has_limit:
-                params["page"] = int(inputs["page"]) if has_page else 1
-                params["limit"] = _clamp_limit(int(inputs["limit"])) if has_limit else 10
+            params: Dict[str, Any] = {
+                "page": int(inputs["page"]) if inputs.get("page") is not None else 1,
+                "limit": _clamp_limit(int(inputs["limit"])) if inputs.get("limit") is not None else 10,
+            }
             response = await context.fetch(
                 f"{BASE_URL}/templates",
                 method="GET",
