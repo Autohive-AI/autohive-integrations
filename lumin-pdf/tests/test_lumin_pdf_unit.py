@@ -98,15 +98,21 @@ class TestListWorkspaceMembers:
         assert params["page"] == 1
         assert params["limit"] == 10
 
+    async def test_page_only_defaults_limit_to_10(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
+
+        await lumin_pdf.execute_action("list_workspace_members", {"page": 3}, ctx)
+
+        assert ctx.fetch.call_args.kwargs["params"] == {"page": 3, "limit": 10}
+
     async def test_limit_only_defaults_page_to_1(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         await lumin_pdf.execute_action("list_workspace_members", {"limit": 10}, ctx)
 
-        params = ctx.fetch.call_args.kwargs["params"]
-        assert params["page"] == 1
-        assert params["limit"] == 10
+        assert ctx.fetch.call_args.kwargs["params"] == {"page": 1, "limit": 10}
 
 
 # ---- Templates ----
@@ -142,15 +148,21 @@ class TestListTemplates:
         assert params["page"] == 1
         assert params["limit"] == 10
 
+    async def test_page_only_defaults_limit_to_10(self, make_context):
+        ctx = make_context(auth={"api_key": API_KEY})
+        ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
+
+        await lumin_pdf.execute_action("list_templates", {"page": 3}, ctx)
+
+        assert ctx.fetch.call_args.kwargs["params"] == {"page": 3, "limit": 10}
+
     async def test_limit_only_defaults_page_to_1(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         await lumin_pdf.execute_action("list_templates", {"limit": 25}, ctx)
 
-        params = ctx.fetch.call_args.kwargs["params"]
-        assert params["page"] == 1
-        assert params["limit"] == 25
+        assert ctx.fetch.call_args.kwargs["params"] == {"page": 1, "limit": 25}
 
     async def test_limit_clamped_to_nearest_valid_value(self, make_context):
         ctx = make_context(auth={"api_key": API_KEY})
@@ -168,6 +180,31 @@ class TestListTemplates:
         result = await lumin_pdf.execute_action("list_templates", {}, ctx)
 
         assert result.type == ResultType.ACTION_ERROR
+
+
+@pytest.mark.parametrize(
+    "action_name, expected_path, inputs, expected_params",
+    [
+        ("list_workspace_members", "/workspaces/members", {}, {"page": 1, "limit": 10}),
+        ("list_workspace_members", "/workspaces/members", {"page": 3}, {"page": 3, "limit": 10}),
+        ("list_workspace_members", "/workspaces/members", {"limit": 25}, {"page": 1, "limit": 25}),
+        ("list_workspace_members", "/workspaces/members", {"page": 2, "limit": 50}, {"page": 2, "limit": 50}),
+        ("list_templates", "/templates", {}, {"page": 1, "limit": 10}),
+        ("list_templates", "/templates", {"page": 3}, {"page": 3, "limit": 10}),
+        ("list_templates", "/templates", {"limit": 25}, {"page": 1, "limit": 25}),
+        ("list_templates", "/templates", {"page": 2, "limit": 50}, {"page": 2, "limit": 50}),
+    ],
+)
+async def test_list_actions_send_pagination_params(make_context, action_name, expected_path, inputs, expected_params):
+    ctx = make_context(auth={"api_key": API_KEY})
+    ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
+
+    await lumin_pdf.execute_action(action_name, inputs, ctx)
+
+    call = ctx.fetch.call_args
+    assert call.args[0] == f"{BASE_URL}{expected_path}"
+    assert call.kwargs["method"] == "GET"
+    assert call.kwargs["params"] == expected_params
 
 
 class TestGetTemplate:
