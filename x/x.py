@@ -181,12 +181,7 @@ class CreateTweetAction(ActionHandler):
             media_id = None
 
             # Handle file upload if provided
-            file_data = None
-            if "file" in inputs and inputs["file"]:
-                file_data = inputs["file"]
-            elif "files" in inputs and inputs["files"] and len(inputs["files"]) > 0:
-                file_data = inputs["files"][0]
-
+            file_data = inputs.get("file")
             if file_data:
                 upload_result = await _upload_media(context, file_data)
                 if "error" in upload_result:
@@ -194,15 +189,18 @@ class CreateTweetAction(ActionHandler):
                 media_id = upload_result["media_id"]
                 data["media"] = {"media_ids": [media_id]}
 
-            if "reply_to" in inputs and inputs["reply_to"]:
-                data["reply"] = {"in_reply_to_tweet_id": inputs["reply_to"]}
+            reply_to = inputs.get("reply_to")
+            if reply_to:
+                data["reply"] = {"in_reply_to_tweet_id": reply_to}
 
-            if "quote_tweet_id" in inputs and inputs["quote_tweet_id"]:
-                data["quote_tweet_id"] = inputs["quote_tweet_id"]
+            quote_tweet_id = inputs.get("quote_tweet_id")
+            if quote_tweet_id:
+                data["quote_tweet_id"] = quote_tweet_id
 
-            if "poll_options" in inputs and inputs["poll_options"]:
+            poll_options = inputs.get("poll_options")
+            if poll_options:
                 data["poll"] = {
-                    "options": inputs["poll_options"],
+                    "options": poll_options,
                     "duration_minutes": inputs.get("poll_duration_minutes", 1440),
                 }
 
