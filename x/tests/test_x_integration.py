@@ -24,7 +24,7 @@ import sys
 import aiohttp
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 
 # The integration folder ships an __init__.py that turns `x` into a package
@@ -59,6 +59,16 @@ def live_context():
                     resp_data = await resp.json(content_type=None)
                 except Exception:
                     resp_data = await resp.text()
+                # Mirror the SDK's context.fetch: it raises on non-2xx (RateLimitError
+                # on 429, HTTPError otherwise) and only returns a FetchResponse for 2xx.
+                # Replicating that here ensures failed requests (401/403/429 from token
+                # scopes, API tier, or rate limits) surface as ActionError exactly as in
+                # production — rather than masquerading as empty/successful results.
+                if resp.status == 429:
+                    retry_after = int(resp.headers.get("Retry-After", 60))
+                    raise RateLimitError(retry_after, resp.status, "Rate limit exceeded", resp_data)
+                if not resp.ok:
+                    raise HTTPError(resp.status, str(resp_data), resp_data)
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=resp_data)
 
     ctx = MagicMock(name="ExecutionContext")
