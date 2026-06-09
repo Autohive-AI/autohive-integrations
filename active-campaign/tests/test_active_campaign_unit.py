@@ -84,6 +84,53 @@ async def test_list_campaigns_uses_correct_url(make_context):
     assert url.endswith("/campaigns")
 
 
+async def test_list_campaigns_params_baked_into_url_not_passed_as_kwarg(make_context):
+    """Params must be baked into the URL so the SDK retry loop cannot duplicate them."""
+    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx.fetch.return_value = ok({"campaigns": [], "meta": {"total": "0"}})
+    await active_campaign.execute_action("list_campaigns", {"limit": 2, "offset": 10}, ctx)
+    call = ctx.fetch.call_args
+    url = call.args[0]
+    assert "limit=2" in url
+    assert "offset=10" in url
+    assert call.kwargs.get("params") is None
+
+
+async def test_list_contacts_params_baked_into_url_not_passed_as_kwarg(make_context):
+    """Params must be baked into the URL so the SDK retry loop cannot duplicate them."""
+    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx.fetch.return_value = ok({"contacts": [], "meta": {"total": "0"}})
+    await active_campaign.execute_action("list_contacts", {"email": "test@example.com", "limit": 5}, ctx)
+    call = ctx.fetch.call_args
+    url = call.args[0]
+    assert "email=test%40example.com" in url or "email=test@example.com" in url
+    assert "limit=5" in url
+    assert call.kwargs.get("params") is None
+
+
+async def test_list_contact_activities_params_baked_into_url_not_passed_as_kwarg(make_context):
+    """Params must be baked into the URL so the SDK retry loop cannot duplicate them."""
+    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx.fetch.return_value = ok({"activities": [], "meta": {"total": "0"}})
+    await active_campaign.execute_action("list_contact_activities", {"contact_id": 42}, ctx)
+    call = ctx.fetch.call_args
+    url = call.args[0]
+    assert "contact=42" in url
+    assert call.kwargs.get("params") is None
+
+
+async def test_list_lists_params_baked_into_url_not_passed_as_kwarg(make_context):
+    """Params must be baked into the URL so the SDK retry loop cannot duplicate them."""
+    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx.fetch.return_value = ok({"lists": [], "meta": {"total": "0"}})
+    await active_campaign.execute_action("list_lists", {"limit": 5, "offset": 10}, ctx)
+    call = ctx.fetch.call_args
+    url = call.args[0]
+    assert "limit=5" in url
+    assert "offset=10" in url
+    assert call.kwargs.get("params") is None
+
+
 # ---- get_campaign ----
 
 
@@ -152,8 +199,8 @@ async def test_list_contacts_passes_email_filter(make_context):
     ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
     ctx.fetch.return_value = ok({"contacts": [], "meta": {"total": "0"}})
     await active_campaign.execute_action("list_contacts", {"email": "jane@example.com"}, ctx)
-    params = ctx.fetch.call_args.kwargs["params"]
-    assert params["email"] == "jane@example.com"
+    url = ctx.fetch.call_args.args[0]
+    assert "email=jane%40example.com" in url or "email=jane@example.com" in url
 
 
 # ---- get_contact ----
@@ -196,8 +243,8 @@ async def test_list_contact_activities_passes_contact_id(make_context):
     ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
     ctx.fetch.return_value = ok({"activities": [], "meta": {"total": "0"}})
     await active_campaign.execute_action("list_contact_activities", {"contact_id": 42}, ctx)
-    params = ctx.fetch.call_args.kwargs["params"]
-    assert params["contact"] == 42
+    url = ctx.fetch.call_args.args[0]
+    assert "contact=42" in url
 
 
 # ---- list_lists ----

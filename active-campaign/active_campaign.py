@@ -1,6 +1,7 @@
 import os
 import sys
 from typing import Any, Dict
+from urllib.parse import urlencode
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -9,14 +10,26 @@ from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, 
 active_campaign = Integration.load()
 
 
+def _creds(context: ExecutionContext) -> Dict[str, Any]:
+    auth = context.auth
+    return auth.get("credentials", auth)
+
+
 def _base_url(context: ExecutionContext) -> str:
-    api_url = context.auth.get("api_url", "").rstrip("/")
+    api_url = _creds(context).get("api_url", "").rstrip("/")
     return f"{api_url}/api/3"
 
 
 def _headers(context: ExecutionContext) -> Dict[str, str]:
-    api_key = context.auth.get("api_key", "")
+    api_key = _creds(context).get("api_key", "")
     return {"Api-Token": api_key, "Accept": "application/json"}
+
+
+def _url(base: str, params: Dict[str, Any]) -> str:
+    """Bake params into URL so the SDK retry loop can't re-append them."""
+    if not params:
+        return base
+    return f"{base}?{urlencode(params)}"
 
 
 def _raise_for_status(response: Any) -> None:
@@ -52,16 +65,16 @@ def _derive_rates(campaign: Dict[str, Any]) -> Dict[str, Any]:
 class ListCampaignsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            params: Dict[str, Any] = {
-                "limit": inputs.get("limit", 20),
-                "offset": inputs.get("offset", 0),
-            }
+            params: Dict[str, Any] = {}
+            if inputs.get("limit") is not None:
+                params["limit"] = inputs["limit"]
+            if inputs.get("offset") is not None:
+                params["offset"] = inputs["offset"]
 
             response = await context.fetch(
-                f"{_base_url(context)}/campaigns",
+                _url(f"{_base_url(context)}/campaigns", params),
                 method="GET",
                 headers=_headers(context),
-                params=params,
             )
             _raise_for_status(response)
             data = response.data or {}
@@ -128,10 +141,11 @@ class GetCampaignLinksAction(ActionHandler):
 class ListContactsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            params: Dict[str, Any] = {
-                "limit": inputs.get("limit", 20),
-                "offset": inputs.get("offset", 0),
-            }
+            params: Dict[str, Any] = {}
+            if inputs.get("limit") is not None:
+                params["limit"] = inputs["limit"]
+            if inputs.get("offset") is not None:
+                params["offset"] = inputs["offset"]
             if inputs.get("email"):
                 params["email"] = inputs["email"]
             if inputs.get("search"):
@@ -146,10 +160,9 @@ class ListContactsAction(ActionHandler):
                 params["filters[created_before]"] = inputs["created_before"]
 
             response = await context.fetch(
-                f"{_base_url(context)}/contacts",
+                _url(f"{_base_url(context)}/contacts", params),
                 method="GET",
                 headers=_headers(context),
-                params=params,
             )
             _raise_for_status(response)
             data = response.data or {}
@@ -194,10 +207,9 @@ class ListContactActivitiesAction(ActionHandler):
                 params["emails"] = "true"
 
             response = await context.fetch(
-                f"{_base_url(context)}/activities",
+                _url(f"{_base_url(context)}/activities", params),
                 method="GET",
                 headers=_headers(context),
-                params=params,
             )
             _raise_for_status(response)
             data = response.data or {}
@@ -220,15 +232,16 @@ class ListContactActivitiesAction(ActionHandler):
 class ListListsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            params: Dict[str, Any] = {
-                "limit": inputs.get("limit", 20),
-                "offset": inputs.get("offset", 0),
-            }
+            params: Dict[str, Any] = {}
+            if inputs.get("limit") is not None:
+                params["limit"] = inputs["limit"]
+            if inputs.get("offset") is not None:
+                params["offset"] = inputs["offset"]
+
             response = await context.fetch(
-                f"{_base_url(context)}/lists",
+                _url(f"{_base_url(context)}/lists", params),
                 method="GET",
                 headers=_headers(context),
-                params=params,
             )
             _raise_for_status(response)
             data = response.data or {}

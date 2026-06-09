@@ -1,6 +1,6 @@
 {
     "name": "ActiveCampaign",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "description": "ActiveCampaign email marketing integration for tracking EDM campaign performance including open rates, click rates, bounce rates, and contact engagement.",
     "display_name": "ActiveCampaign",
     "supports_connected_account": false,
