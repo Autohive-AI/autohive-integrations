@@ -1,6 +1,7 @@
 import os
 import sys
 from typing import Any, Dict
+from urllib.parse import urlencode
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -22,6 +23,13 @@ def _base_url(context: ExecutionContext) -> str:
 def _headers(context: ExecutionContext) -> Dict[str, str]:
     api_key = _creds(context).get("api_key", "")
     return {"Api-Token": api_key, "Accept": "application/json"}
+
+
+def _url(base: str, params: Dict[str, Any]) -> str:
+    """Bake params into URL so the SDK retry loop can't re-append them."""
+    if not params:
+        return base
+    return f"{base}?{urlencode(params)}"
 
 
 def _raise_for_status(response: Any) -> None:
@@ -64,10 +72,9 @@ class ListCampaignsAction(ActionHandler):
                 params["offset"] = inputs["offset"]
 
             response = await context.fetch(
-                f"{_base_url(context)}/campaigns",
+                _url(f"{_base_url(context)}/campaigns", params),
                 method="GET",
                 headers=_headers(context),
-                params=params if params else None,
             )
             _raise_for_status(response)
             data = response.data or {}
@@ -153,10 +160,9 @@ class ListContactsAction(ActionHandler):
                 params["filters[created_before]"] = inputs["created_before"]
 
             response = await context.fetch(
-                f"{_base_url(context)}/contacts",
+                _url(f"{_base_url(context)}/contacts", params),
                 method="GET",
                 headers=_headers(context),
-                params=params if params else None,
             )
             _raise_for_status(response)
             data = response.data or {}
@@ -201,10 +207,9 @@ class ListContactActivitiesAction(ActionHandler):
                 params["emails"] = "true"
 
             response = await context.fetch(
-                f"{_base_url(context)}/activities",
+                _url(f"{_base_url(context)}/activities", params),
                 method="GET",
                 headers=_headers(context),
-                params=params,
             )
             _raise_for_status(response)
             data = response.data or {}
@@ -234,10 +239,9 @@ class ListListsAction(ActionHandler):
                 params["offset"] = inputs["offset"]
 
             response = await context.fetch(
-                f"{_base_url(context)}/lists",
+                _url(f"{_base_url(context)}/lists", params),
                 method="GET",
                 headers=_headers(context),
-                params=params if params else None,
             )
             _raise_for_status(response)
             data = response.data or {}
