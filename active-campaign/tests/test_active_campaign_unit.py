@@ -119,6 +119,18 @@ async def test_list_contact_activities_params_baked_into_url_not_passed_as_kwarg
     assert call.kwargs.get("params") is None
 
 
+async def test_list_lists_params_baked_into_url_not_passed_as_kwarg(make_context):
+    """Params must be baked into the URL so the SDK retry loop cannot duplicate them."""
+    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx.fetch.return_value = ok({"lists": [], "meta": {"total": "0"}})
+    await active_campaign.execute_action("list_lists", {"limit": 5, "offset": 10}, ctx)
+    call = ctx.fetch.call_args
+    url = call.args[0]
+    assert "limit=5" in url
+    assert "offset=10" in url
+    assert call.kwargs.get("params") is None
+
+
 # ---- get_campaign ----
 
 
