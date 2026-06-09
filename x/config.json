@@ -1,7 +1,7 @@
 {
     "name": "X",
     "display_name": "X (formerly Twitter)",
-    "version": "1.0.3",
+    "version": "2.0.0",
     "description": "X integration for posting, managing interactions, and engaging with users",
     "entry_point": "x.py",
     "supports_connected_account": true,
@@ -75,17 +75,8 @@
                     "media_id": {
                         "type": "string",
                         "description": "The media ID that was uploaded (if media was included)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["post", "result"]
+                    }                },
+                "required": ["post"]
             }
         },
         "get_tweet": {
@@ -119,17 +110,8 @@
                     "includes": {
                         "type": "object",
                         "description": "Additional data like user information"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["post", "result"]
+                    }                },
+                "required": ["post"]
             }
         },
         "delete_tweet": {
@@ -151,17 +133,8 @@
                     "deleted": {
                         "type": "boolean",
                         "description": "Whether the post was deleted"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["deleted", "result"]
+                    }                },
+                "required": ["deleted"]
             }
         },
         "search_tweets": {
@@ -207,17 +180,8 @@
                     "meta": {
                         "type": "object",
                         "description": "Metadata including pagination tokens"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["posts", "result"]
+                    }                },
+                "required": ["posts"]
             }
         },
         "get_user_tweets": {
@@ -259,17 +223,8 @@
                     "meta": {
                         "type": "object",
                         "description": "Metadata including pagination tokens"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["posts", "result"]
+                    }                },
+                "required": ["posts"]
             }
         },
         "get_liked_tweets": {
@@ -307,17 +262,8 @@
                     "meta": {
                         "type": "object",
                         "description": "Metadata including pagination tokens"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["posts", "result"]
+                    }                },
+                "required": ["posts"]
             }
         },
         "get_bookmarks": {
@@ -355,17 +301,8 @@
                     "meta": {
                         "type": "object",
                         "description": "Metadata including pagination tokens"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["posts", "result"]
+                    }                },
+                "required": ["posts"]
             }
         },
         "bookmark_tweet": {
@@ -391,17 +328,8 @@
                     "bookmarked": {
                         "type": "boolean",
                         "description": "Whether the post was bookmarked"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["bookmarked", "result"]
+                    }                },
+                "required": ["bookmarked"]
             }
         },
         "remove_bookmark": {
@@ -427,17 +355,8 @@
                     "removed": {
                         "type": "boolean",
                         "description": "Whether the bookmark was removed"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["removed", "result"]
+                    }                },
+                "required": ["removed"]
             }
         },
         "retweet": {
@@ -463,17 +382,8 @@
                     "reposted": {
                         "type": "boolean",
                         "description": "Whether the post was reposted"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["reposted", "result"]
+                    }                },
+                "required": ["reposted"]
             }
         },
         "unretweet": {
@@ -499,17 +409,8 @@
                     "unreposted": {
                         "type": "boolean",
                         "description": "Whether the repost was removed"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["unreposted", "result"]
+                    }                },
+                "required": ["unreposted"]
             }
         },
         "get_user": {
@@ -535,17 +436,8 @@
                     "user": {
                         "type": "object",
                         "description": "User profile details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["user", "result"]
+                    }                },
+                "required": ["user"]
             }
         },
         "get_me": {
@@ -562,17 +454,8 @@
                     "user": {
                         "type": "object",
                         "description": "Authenticated user's profile details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["user", "result"]
+                    }                },
+                "required": ["user"]
             }
         },
         "follow_user": {
@@ -598,17 +481,8 @@
                     "followed": {
                         "type": "boolean",
                         "description": "Whether the user was followed"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["followed", "result"]
+                    }                },
+                "required": ["followed"]
             }
         },
         "unfollow_user": {
@@ -634,17 +508,8 @@
                     "unfollowed": {
                         "type": "boolean",
                         "description": "Whether the user was unfollowed"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["unfollowed", "result"]
+                    }                },
+                "required": ["unfollowed"]
             }
         }
     }

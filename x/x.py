@@ -6,6 +6,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
     ConnectedAccountHandler,
     ConnectedAccountInfo,
 )
@@ -34,7 +35,7 @@ class XConnectedAccountHandler(ConnectedAccountHandler):
             f"{X_API_BASE_URL}/users/me", method="GET", params={"user.fields": "username,name,profile_image_url"}
         )
 
-        user_data = response.get("data", {})
+        user_data = response.data.get("data", {})
         username = user_data.get("username")
         name = user_data.get("name", "")
         user_id = user_data.get("id")
@@ -77,21 +78,22 @@ async def _upload_media(context: ExecutionContext, file_data: Dict[str, Any]) ->
         method="POST",
         json={"media_category": media_category, "media_type": content_type, "total_bytes": total_bytes},
     )
+    init_body = init_response.data
 
-    if isinstance(init_response, dict) and "errors" in init_response:
-        error_msg = init_response.get("errors", [{}])[0].get("message", str(init_response))
+    if isinstance(init_body, dict) and "errors" in init_body:
+        error_msg = init_body.get("errors", [{}])[0].get("message", str(init_body))
         return {"error": f"Initialize failed: {error_msg}"}
 
     # Extract media_id from response (v2 returns in data object)
     media_id = None
-    if isinstance(init_response, dict):
-        if "data" in init_response:
-            media_id = init_response.get("data", {}).get("id")
+    if isinstance(init_body, dict):
+        if "data" in init_body:
+            media_id = init_body.get("data", {}).get("id")
         else:
-            media_id = init_response.get("media_id_string") or init_response.get("media_id")
+            media_id = init_body.get("media_id_string") or init_body.get("media_id")
 
     if not media_id:
-        return {"error": f"No media_id returned: {str(init_response)[:300]}"}
+        return {"error": f"No media_id returned: {str(init_body)[:300]}"}
 
     media_id = str(media_id)
 
@@ -109,25 +111,27 @@ async def _upload_media(context: ExecutionContext, file_data: Dict[str, Any]) ->
             method="POST",
             json={"media": chunk_base64, "segment_index": segment_index},
         )
+        append_body = append_response.data
 
-        if isinstance(append_response, dict) and "errors" in append_response:
-            error_msg = append_response.get("errors", [{}])[0].get("message", str(append_response))
+        if isinstance(append_body, dict) and "errors" in append_body:
+            error_msg = append_body.get("errors", [{}])[0].get("message", str(append_body))
             return {"error": f"Append chunk {segment_index} failed: {error_msg}"}
 
         segment_index += 1
 
     # Step 3: FINALIZE - Complete the upload
     finalize_response = await context.fetch(f"{X_MEDIA_UPLOAD_URL}/{media_id}/finalize", method="POST")
+    finalize_body = finalize_response.data
 
-    if isinstance(finalize_response, dict) and "errors" in finalize_response:
-        error_msg = finalize_response.get("errors", [{}])[0].get("message", str(finalize_response))
+    if isinstance(finalize_body, dict) and "errors" in finalize_body:
+        error_msg = finalize_body.get("errors", [{}])[0].get("message", str(finalize_body))
         return {"error": f"Finalize failed: {error_msg}"}
 
     # Step 4: STATUS - Poll for processing completion (for videos/gifs)
     if media_category in ["tweet_video", "tweet_gif"]:
         processing_info = None
-        if isinstance(finalize_response, dict):
-            processing_info = finalize_response.get("data", {}).get("processing_info") or finalize_response.get(
+        if isinstance(finalize_body, dict):
+            processing_info = finalize_body.get("data", {}).get("processing_info") or finalize_body.get(
                 "processing_info"
             )
 
@@ -148,9 +152,10 @@ async def _upload_media(context: ExecutionContext, file_data: Dict[str, Any]) ->
                 await asyncio.sleep(wait_time)
 
                 status_response = await context.fetch(X_MEDIA_UPLOAD_URL, method="GET", params={"id": media_id})
+                status_body = status_response.data
 
-                if isinstance(status_response, dict):
-                    processing_info = status_response.get("data", {}).get("processing_info") or status_response.get(
+                if isinstance(status_body, dict):
+                    processing_info = status_body.get("data", {}).get("processing_info") or status_body.get(
                         "processing_info"
                     )
                     if not processing_info:
@@ -185,9 +190,7 @@ class CreateTweetAction(ActionHandler):
             if file_data:
                 upload_result = await _upload_media(context, file_data)
                 if "error" in upload_result:
-                    return ActionResult(
-                        data={"post": {}, "result": False, "error": upload_result["error"]}, cost_usd=0.0
-                    )
+                    return ActionError(message=upload_result["error"])
                 media_id = upload_result["media_id"]
                 data["media"] = {"media_ids": [media_id]}
 
@@ -204,22 +207,20 @@ class CreateTweetAction(ActionHandler):
                 }
 
             response = await context.fetch(f"{X_API_BASE_URL}/tweets", method="POST", json=data)
+            body = response.data
 
-            if isinstance(response, dict) and "errors" in response:
-                error_msg = response.get("errors", [{}])[0].get("message", str(response))
-                return ActionResult(
-                    data={"post": {}, "media_id": media_id, "result": False, "error": f"Tweet failed: {error_msg}"},
-                    cost_usd=0.0,
-                )
+            if isinstance(body, dict) and "errors" in body:
+                error_msg = body.get("errors", [{}])[0].get("message", str(body))
+                return ActionError(message=f"Tweet failed: {error_msg}")
 
-            result_data = {"post": response.get("data", {}), "result": True}
+            result_data = {"post": body.get("data", {})}
             if media_id:
                 result_data["media_id"] = media_id
 
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"post": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @x.action("get_tweet")
@@ -249,12 +250,12 @@ class GetTweetAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"post": response.get("data", {}), "includes": response.get("includes", {}), "result": True},
+                data={"post": response.data.get("data", {}), "includes": response.data.get("includes", {})},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"post": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @x.action("delete_tweet")
@@ -266,12 +267,10 @@ class DeleteTweetAction(ActionHandler):
             post_id = inputs["post_id"]
             response = await context.fetch(f"{X_API_BASE_URL}/tweets/{post_id}", method="DELETE")
 
-            return ActionResult(
-                data={"deleted": response.get("data", {}).get("deleted", False), "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"deleted": response.data.get("data", {}).get("deleted", False)}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @x.action("search_tweets")
@@ -300,16 +299,15 @@ class SearchTweetsAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "posts": response.get("data", []),
-                    "includes": response.get("includes", {}),
-                    "meta": response.get("meta", {}),
-                    "result": True,
+                    "posts": response.data.get("data", []),
+                    "includes": response.data.get("includes", {}),
+                    "meta": response.data.get("meta", {}),
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"posts": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @x.action("get_user_tweets")
@@ -338,11 +336,11 @@ class GetUserTweetsAction(ActionHandler):
             response = await context.fetch(f"{X_API_BASE_URL}/users/{user_id}/tweets", method="GET", params=params)
 
             return ActionResult(
-                data={"posts": response.get("data", []), "meta": response.get("meta", {}), "result": True}, cost_usd=0.0
+                data={"posts": response.data.get("data", []), "meta": response.data.get("meta", {})}, cost_usd=0.0
             )
 
         except Exception as e:
-            return ActionResult(data={"posts": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @x.action("get_liked_tweets")
@@ -368,16 +366,15 @@ class GetLikedTweetsAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "posts": response.get("data", []),
-                    "includes": response.get("includes", {}),
-                    "meta": response.get("meta", {}),
-                    "result": True,
+                    "posts": response.data.get("data", []),
+                    "includes": response.data.get("includes", {}),
+                    "meta": response.data.get("meta", {}),
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"posts": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @x.action("get_bookmarks")
@@ -398,23 +395,23 @@ class GetBookmarksAction(ActionHandler):
                 params["pagination_token"] = inputs["pagination_token"]
 
             response = await context.fetch(f"{X_API_BASE_URL}/users/{user_id}/bookmarks", method="GET", params=params)
+            body = response.data
 
-            if isinstance(response, dict) and "errors" in response:
-                error_msg = response.get("errors", [{}])[0].get("message", str(response))
-                return ActionResult(data={"posts": [], "result": False, "error": error_msg}, cost_usd=0.0)
+            if isinstance(body, dict) and "errors" in body:
+                error_msg = body.get("errors", [{}])[0].get("message", str(body))
+                return ActionError(message=error_msg)
 
             return ActionResult(
                 data={
-                    "posts": response.get("data", []),
-                    "includes": response.get("includes", {}),
-                    "meta": response.get("meta", {}),
-                    "result": True,
+                    "posts": body.get("data", []),
+                    "includes": body.get("includes", {}),
+                    "meta": body.get("meta", {}),
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"posts": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @x.action("bookmark_tweet")
@@ -429,17 +426,16 @@ class BookmarkTweetAction(ActionHandler):
             response = await context.fetch(
                 f"{X_API_BASE_URL}/users/{user_id}/bookmarks", method="POST", json={"tweet_id": post_id}
             )
+            body = response.data
 
-            if isinstance(response, dict) and "errors" in response:
-                error_msg = response.get("errors", [{}])[0].get("message", str(response))
-                return ActionResult(data={"bookmarked": False, "result": False, "error": error_msg}, cost_usd=0.0)
+            if isinstance(body, dict) and "errors" in body:
+                error_msg = body.get("errors", [{}])[0].get("message", str(body))
+                return ActionError(message=error_msg)
 
-            return ActionResult(
-                data={"bookmarked": response.get("data", {}).get("bookmarked", True), "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"bookmarked": body.get("data", {}).get("bookmarked", True)}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"bookmarked": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @x.action("remove_bookmark")
@@ -452,17 +448,16 @@ class RemoveBookmarkAction(ActionHandler):
             post_id = inputs["post_id"]
 
             response = await context.fetch(f"{X_API_BASE_URL}/users/{user_id}/bookmarks/{post_id}", method="DELETE")
+            body = response.data
 
-            if isinstance(response, dict) and "errors" in response:
-                error_msg = response.get("errors", [{}])[0].get("message", str(response))
-                return ActionResult(data={"removed": False, "result": False, "error": error_msg}, cost_usd=0.0)
+            if isinstance(body, dict) and "errors" in body:
+                error_msg = body.get("errors", [{}])[0].get("message", str(body))
+                return ActionError(message=error_msg)
 
-            return ActionResult(
-                data={"removed": not response.get("data", {}).get("bookmarked", True), "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"removed": not body.get("data", {}).get("bookmarked", True)}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"removed": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Repost Handlers ----
@@ -481,12 +476,10 @@ class RetweetAction(ActionHandler):
                 f"{X_API_BASE_URL}/users/{user_id}/retweets", method="POST", json={"tweet_id": post_id}
             )
 
-            return ActionResult(
-                data={"reposted": response.get("data", {}).get("retweeted", False), "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"reposted": response.data.get("data", {}).get("retweeted", False)}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"reposted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @x.action("unretweet")
@@ -501,11 +494,11 @@ class UnretweetAction(ActionHandler):
             response = await context.fetch(f"{X_API_BASE_URL}/users/{user_id}/retweets/{post_id}", method="DELETE")
 
             return ActionResult(
-                data={"unreposted": not response.get("data", {}).get("retweeted", True), "result": True}, cost_usd=0.0
+                data={"unreposted": not response.data.get("data", {}).get("retweeted", True)}, cost_usd=0.0
             )
 
         except Exception as e:
-            return ActionResult(data={"unreposted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- User Handlers ----
@@ -524,16 +517,14 @@ class GetUserAction(ActionHandler):
             elif inputs.get("username"):
                 url = f"{X_API_BASE_URL}/users/by/username/{inputs['username']}"
             else:
-                return ActionResult(
-                    data={"user": {}, "result": False, "error": "Either user_id or username is required"}, cost_usd=0.0
-                )
+                return ActionError(message="Either user_id or username is required")
 
             response = await context.fetch(url, method="GET", params=params)
 
-            return ActionResult(data={"user": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"user": response.data.get("data", {})}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @x.action("get_me")
@@ -546,10 +537,10 @@ class GetMeAction(ActionHandler):
 
             response = await context.fetch(f"{X_API_BASE_URL}/users/me", method="GET", params=params)
 
-            return ActionResult(data={"user": response.get("data", {}), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"user": response.data.get("data", {})}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @x.action("follow_user")
@@ -567,12 +558,10 @@ class FollowUserAction(ActionHandler):
                 json={"target_user_id": target_user_id},
             )
 
-            return ActionResult(
-                data={"followed": response.get("data", {}).get("following", False), "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"followed": response.data.get("data", {}).get("following", False)}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"followed": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @x.action("unfollow_user")
@@ -589,8 +578,8 @@ class UnfollowUserAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"unfollowed": not response.get("data", {}).get("following", True), "result": True}, cost_usd=0.0
+                data={"unfollowed": not response.data.get("data", {}).get("following", True)}, cost_usd=0.0
             )
 
         except Exception as e:
-            return ActionResult(data={"unfollowed": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
