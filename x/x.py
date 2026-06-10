@@ -294,12 +294,17 @@ class SearchTweetsAction(ActionHandler):
                 params["next_token"] = inputs["next_token"]
 
             response = await context.fetch(f"{X_API_BASE_URL}/tweets/search/recent", method="GET", params=params)
+            body = response.data
+
+            if isinstance(body, dict) and "errors" in body:
+                error_msg = body.get("errors", [{}])[0].get("message", str(body))
+                return ActionError(message=error_msg)
 
             return ActionResult(
                 data={
-                    "posts": response.data.get("data", []),
-                    "includes": response.data.get("includes", {}),
-                    "meta": response.data.get("meta", {}),
+                    "posts": body.get("data", []),
+                    "includes": body.get("includes", {}),
+                    "meta": body.get("meta", {}),
                 },
                 cost_usd=0.0,
             )

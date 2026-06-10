@@ -389,6 +389,13 @@ class TestSearchTweets:
         assert result.result.data["posts"] == []
 
     @pytest.mark.asyncio
+    async def test_api_error_returns_action_error(self):
+        ctx = make_ctx({"errors": [{"message": "forbidden"}]})
+        result = await x_integration.execute_action("search_tweets", {"query": "x"}, ctx)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "forbidden" in result.result.message
+
+    @pytest.mark.asyncio
     async def test_exception_returns_action_error(self):
         ctx = make_ctx_error(Exception("rate limited"))
         result = await x_integration.execute_action("search_tweets", {"query": "x"}, ctx)
