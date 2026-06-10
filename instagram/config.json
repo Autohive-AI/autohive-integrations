@@ -176,7 +176,8 @@
                     },
                     "media_url": {
                         "type": "string",
-                        "description": "Required for IMAGE, VIDEO, REELS: Public URL of the media file"
+                        "description": "Required for IMAGE, VIDEO, REELS: Public URL of the media file. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
+                        "x-autohive-input": "file-public-url"
                     },
                     "caption": {
                         "type": "string",
@@ -231,7 +232,8 @@
                     },
                     "media_url": {
                         "type": "string",
-                        "description": "Public URL of the media file"
+                        "description": "Public URL of the media file. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
+                        "x-autohive-input": "file-public-url"
                     }
                 },
                 "required": [
