@@ -1,0 +1,670 @@
+{
+  "name": "iMIS",
+  "display_name": "iMIS RiSE",
+  "version": "1.0.0",
+  "description": "Integration with iMIS RiSE for managing contacts, events, registrations, and media assets on your iMIS-powered website.",
+  "entry_point": "imis.py",
+  "auth": {
+    "type": "custom",
+    "title": "iMIS Credentials",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "site_url": {
+          "type": "string",
+          "label": "Site URL",
+          "help_text": "Your iMIS site URL (e.g. https://yourorg.imis.com)"
+        },
+        "username": {
+          "type": "string",
+          "label": "Username",
+          "help_text": "Your iMIS username"
+        },
+        "password": {
+          "type": "string",
+          "format": "password",
+          "label": "Password",
+          "help_text": "Your iMIS password"
+        },
+        "client_id": {
+          "type": "string",
+          "label": "Client ID",
+          "help_text": "OAuth client ID (default: 'iMIS' for most installations)",
+          "default": "iMIS"
+        }
+      },
+      "required": ["site_url", "username", "password"]
+    }
+  },
+  "actions": {
+    "get_contact": {
+      "display_name": "Get Contact",
+      "description": "Retrieve a contact (person or organisation) by their iMIS Party ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "party_id": {
+            "type": "string",
+            "description": "The iMIS Party ID of the contact"
+          }
+        },
+        "required": ["party_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contact": {
+            "type": "object",
+            "description": "Contact details"
+          }
+        }
+      }
+    },
+    "update_contact": {
+      "display_name": "Update Contact",
+      "description": "Update details for an existing contact by Party ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "party_id": {
+            "type": "string",
+            "description": "The iMIS Party ID of the contact to update"
+          },
+          "first_name": {
+            "type": "string",
+            "description": "First name"
+          },
+          "last_name": {
+            "type": "string",
+            "description": "Last name"
+          },
+          "email": {
+            "type": "string",
+            "description": "Primary email address"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Primary phone number"
+          },
+          "address": {
+            "type": "object",
+            "description": "Address fields (line1, line2, city, state, zip, country)"
+          },
+          "additional_fields": {
+            "type": "object",
+            "description": "Any additional iMIS fields to update as key-value pairs"
+          }
+        },
+        "required": ["party_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contact": {
+            "type": "object",
+            "description": "Updated contact details"
+          }
+        }
+      }
+    },
+    "list_events": {
+      "display_name": "List Events",
+      "description": "List events from iMIS with optional filters.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of events to return (default: 20)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of events to skip for pagination (default: 0)"
+          },
+          "from_date": {
+            "type": "string",
+            "description": "Filter events starting on or after this date (YYYY-MM-DD)"
+          },
+          "to_date": {
+            "type": "string",
+            "description": "Filter events starting on or before this date (YYYY-MM-DD)"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "description": "List of events"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of matching events"
+          }
+        }
+      }
+    },
+    "get_event": {
+      "display_name": "Get Event",
+      "description": "Retrieve details of a specific event by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "description": "The iMIS event ID"
+          }
+        },
+        "required": ["event_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "object",
+            "description": "Event details"
+          }
+        }
+      }
+    },
+    "create_event": {
+      "display_name": "Create Event",
+      "description": "Create a new event in iMIS.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Event title"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Event start date and time (ISO 8601, e.g. 2025-09-01T09:00:00)"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Event end date and time (ISO 8601)"
+          },
+          "description": {
+            "type": "string",
+            "description": "Event description"
+          },
+          "location": {
+            "type": "string",
+            "description": "Event location or venue"
+          },
+          "capacity": {
+            "type": "integer",
+            "description": "Maximum number of registrations"
+          },
+          "additional_fields": {
+            "type": "object",
+            "description": "Any additional iMIS event fields as key-value pairs"
+          }
+        },
+        "required": ["title", "start_date"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "object",
+            "description": "Created event details"
+          }
+        }
+      }
+    },
+    "update_event": {
+      "display_name": "Update Event",
+      "description": "Update an existing event in iMIS.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "description": "The iMIS event ID to update"
+          },
+          "title": {
+            "type": "string",
+            "description": "Event title"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Event start date and time (ISO 8601)"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Event end date and time (ISO 8601)"
+          },
+          "description": {
+            "type": "string",
+            "description": "Event description"
+          },
+          "location": {
+            "type": "string",
+            "description": "Event location or venue"
+          },
+          "capacity": {
+            "type": "integer",
+            "description": "Maximum number of registrations"
+          },
+          "additional_fields": {
+            "type": "object",
+            "description": "Any additional iMIS event fields as key-value pairs"
+          }
+        },
+        "required": ["event_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "object",
+            "description": "Updated event details"
+          }
+        }
+      }
+    },
+    "list_registrations": {
+      "display_name": "List Event Registrations",
+      "description": "List registrations for an event.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "description": "Filter registrations by event ID"
+          },
+          "party_id": {
+            "type": "string",
+            "description": "Filter registrations by contact Party ID"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of registrations to return (default: 20)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of registrations to skip for pagination (default: 0)"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "registrations": {
+            "type": "array",
+            "description": "List of event registrations"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of matching registrations"
+          }
+        }
+      }
+    },
+    "create_registration": {
+      "display_name": "Create Event Registration",
+      "description": "Register a contact for an event.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "description": "The iMIS event ID"
+          },
+          "party_id": {
+            "type": "string",
+            "description": "The iMIS Party ID of the contact to register"
+          },
+          "additional_fields": {
+            "type": "object",
+            "description": "Any additional registration fields as key-value pairs"
+          }
+        },
+        "required": ["event_id", "party_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "registration": {
+            "type": "object",
+            "description": "Created registration details"
+          }
+        }
+      }
+    },
+    "list_media_assets": {
+      "display_name": "List Media Assets",
+      "description": "List media assets (images, files, documents) stored in iMIS.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of assets to return (default: 20)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of assets to skip for pagination (default: 0)"
+          },
+          "search": {
+            "type": "string",
+            "description": "Search term to filter assets by name"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "assets": {
+            "type": "array",
+            "description": "List of media assets"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of matching assets"
+          }
+        }
+      }
+    },
+    "create_contact": {
+      "display_name": "Create Contact",
+      "description": "Create a new contact (person) in iMIS.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "last_name": {
+            "type": "string",
+            "description": "Last name (required)"
+          },
+          "first_name": {
+            "type": "string",
+            "description": "First name"
+          },
+          "email": {
+            "type": "string",
+            "description": "Primary email address"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Primary phone number"
+          },
+          "address": {
+            "type": "object",
+            "description": "Address fields (line1, line2, city, state, zip, country)"
+          },
+          "additional_fields": {
+            "type": "object",
+            "description": "Any additional iMIS fields as key-value pairs"
+          }
+        },
+        "required": ["last_name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contact": {
+            "type": "object",
+            "description": "Created contact details"
+          }
+        }
+      }
+    },
+    "list_groups": {
+      "display_name": "List Groups",
+      "description": "List groups in iMIS.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of groups to return (default: 20)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of groups to skip for pagination (default: 0)"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "groups": {
+            "type": "array",
+            "description": "List of groups"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of groups"
+          }
+        }
+      }
+    },
+    "get_group": {
+      "display_name": "Get Group",
+      "description": "Retrieve details of a specific group by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "The iMIS group ID"
+          }
+        },
+        "required": ["group_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "object",
+            "description": "Group details"
+          }
+        }
+      }
+    },
+    "add_group_member": {
+      "display_name": "Add Group Member",
+      "description": "Add a contact to an iMIS group.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "The iMIS group ID"
+          },
+          "party_id": {
+            "type": "string",
+            "description": "The iMIS Party ID of the contact to add"
+          }
+        },
+        "required": ["group_id", "party_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "member": {
+            "type": "object",
+            "description": "Created group membership details"
+          }
+        }
+      }
+    },
+    "remove_group_member": {
+      "display_name": "Remove Group Member",
+      "description": "Remove a contact from an iMIS group.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "The iMIS group ID"
+          },
+          "party_id": {
+            "type": "string",
+            "description": "The iMIS Party ID of the contact to remove"
+          }
+        },
+        "required": ["group_id", "party_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the member was successfully removed"
+          }
+        }
+      }
+    },
+    "delete_registration": {
+      "display_name": "Delete Event Registration",
+      "description": "Cancel and delete an event registration by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "registration_id": {
+            "type": "string",
+            "description": "The iMIS event registration ID to delete"
+          }
+        },
+        "required": ["registration_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the registration was successfully deleted"
+          }
+        }
+      }
+    },
+    "list_tags": {
+      "display_name": "List Tags",
+      "description": "List all tags available in iMIS.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of tags to return (default: 100)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of tags to skip for pagination (default: 0)"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tags": {
+            "type": "array",
+            "description": "List of tags"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of tags"
+          }
+        }
+      }
+    },
+    "add_tag": {
+      "display_name": "Add Tag to Contact",
+      "description": "Add a tag to a contact in iMIS.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "party_id": {
+            "type": "string",
+            "description": "The iMIS Party ID of the contact"
+          },
+          "tag": {
+            "type": "string",
+            "description": "The tag value to add"
+          }
+        },
+        "required": ["party_id", "tag"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "object",
+            "description": "Created tag details"
+          }
+        }
+      }
+    },
+    "run_query": {
+      "display_name": "Run IQA Query",
+      "description": "Run a saved IQA (Intelligent Query Architect) query in iMIS and return results.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query_name": {
+            "type": "string",
+            "description": "The full name of the saved IQA query (e.g. $/Contact/AllContacts)"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of results to return"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of results to skip for pagination"
+          },
+          "parameters": {
+            "type": "object",
+            "description": "Query parameter key-value pairs to pass to the query"
+          }
+        },
+        "required": ["query_name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "description": "Query result rows"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of results"
+          }
+        }
+      }
+    },
+    "get_media_asset": {
+      "display_name": "Get Media Asset",
+      "description": "Retrieve details of a specific media asset by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "description": "The iMIS media asset ID"
+          }
+        },
+        "required": ["asset_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "object",
+            "description": "Media asset details"
+          }
+        }
+      }
+    }
+  }
+}
