@@ -135,7 +135,8 @@
                         "type": "object",
                         "description": "Metadata for the file"
                     }
-                }
+                },
+                "required": ["link", "metadata"]
             }
         },
         "upload_file": {
@@ -193,7 +194,8 @@
                         "type": "object",
                         "description": "Uploaded file metadata"
                     }
-                }
+                },
+                "required": ["file"]
             }
         },
         "create_folder": {
@@ -221,7 +223,8 @@
                         "type": "object",
                         "description": "Created folder metadata"
                     }
-                }
+                },
+                "required": ["folder"]
             }
         },
         "delete": {
@@ -244,7 +247,8 @@
                         "type": "object",
                         "description": "Metadata of the deleted item"
                     }
-                }
+                },
+                "required": ["metadata"]
             }
         },
         "move": {
@@ -281,7 +285,8 @@
                         "type": "object",
                         "description": "Metadata of the moved item"
                     }
-                }
+                },
+                "required": ["metadata"]
             }
         },
         "copy": {
@@ -313,7 +318,8 @@
                         "type": "object",
                         "description": "Metadata of the copied item"
                     }
-                }
+                },
+                "required": ["metadata"]
             }
         }
     }
