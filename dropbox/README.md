@@ -6,7 +6,7 @@ Connects Autohive to the Dropbox API to enable file browsing, metadata retrieval
 
 This integration provides access to Dropbox's file storage platform. It lets users browse folders, retrieve metadata, get temporary download links, upload files, create folders, and manage files (move, copy, delete) directly from Autohive.
 
-The integration targets Dropbox API v2 with OAuth 2.0 authentication and exposes 8 actions covering file listing, metadata, downloads, uploads, and file management.
+The integration targets Dropbox API v2 with OAuth 2.0 authentication, covering file listing, metadata, downloads, uploads, and file management.
 
 ## Setup & Authentication
 
@@ -262,7 +262,7 @@ Environment variables (documented in repo-root `.env.example`):
   - Errors are now returned as `ActionError`. Output schemas no longer carry `result`/`error` keys.
   - Removed the redundant `list_folder_continue` action — `list_folder` already handles cursor-based pagination.
   - Added `pytest` unit and integration test suites.
-- **1.0.0** — Initial release with 9 actions (SDK 1.0.x).
+- **1.0.0** — Initial release (SDK 1.0.x).
 
 ## Sources
 
