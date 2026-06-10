@@ -145,7 +145,7 @@ class UploadFileAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            file_obj = inputs.get("file") or {}
+            file_obj = inputs["file"]
             # Treat only missing/None content as an error — zero-byte files (base64 == "") are valid.
             if "content" not in file_obj or file_obj.get("content") is None:
                 return ActionError(message="File content is required")
