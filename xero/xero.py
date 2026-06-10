@@ -88,15 +88,22 @@ class XeroRateLimitExceededException(Exception):
     Provides structured info for LLM.
     """
 
-    def __init__(self, requested_delay: int, max_wait_time: int, tenant_id: str):
+    def __init__(self, requested_delay: int, max_wait_time: int, tenant_id: str, daily: bool = False):
         self.requested_delay = requested_delay
         self.max_wait_time = max_wait_time
         self.tenant_id = tenant_id
+        self.daily = daily
 
-        super().__init__(
-            f"Xero API rate limit for tenant {tenant_id} requires waiting {requested_delay}s, "
-            f"exceeds maximum wait time of {max_wait_time}s"
-        )
+        if daily:
+            super().__init__(
+                f"Xero API daily call limit has been reached for tenant {tenant_id}. "
+                "The quota resets every 24 hours — please try again tomorrow."
+            )
+        else:
+            super().__init__(
+                f"Xero API rate limit for tenant {tenant_id} requires waiting {requested_delay}s, "
+                f"exceeds maximum wait time of {max_wait_time}s. Please try again in a minute."
+            )
 
 
 class XeroRateLimiter:
@@ -107,18 +114,27 @@ class XeroRateLimiter:
         self,
         default_retry_delay: int = 60,
         max_retries: int = 3,
-        max_wait_time: int = 60,
+        max_wait_time: int = 10,
     ):
         """
         Handles Xero API rate limiting by retrying requests on 429 errors.
         Prevents lambda from waiting too long by setting maximum wait time.
         Caps concurrency at 5 simultaneous requests as per Xero API limits.
+
+        max_wait_time is set to 10s (not 60s) because sleeping longer than ~15s
+        inside a Lambda execution risks hitting the function timeout budget.
+        If Xero's Retry-After exceeds this, we surface a clear ActionError
+        rather than blocking the Lambda.
         """
         self.default_retry_delay = default_retry_delay
         self.max_retries = max_retries
         self.max_wait_time = max_wait_time
         # Lazily initialised: asyncio.Semaphore must be created inside a running
         # event loop on Python ≤3.9, so we defer creation to first use.
+        # NOTE: this semaphore is intra-process only — it does not limit
+        # concurrency across separate Lambda invocations. Xero's 5-concurrent-call
+        # limit is enforced per connected app across all callers, so this only
+        # helps when multiple async tasks share the same process (e.g. tests).
         self._semaphore: Optional[asyncio.Semaphore] = None
 
     def _get_semaphore(self) -> asyncio.Semaphore:
@@ -169,7 +185,7 @@ class XeroRateLimiter:
                     # the next call will receive a 429, so we stop immediately.
                     _, day_remaining = self._parse_limit_headers(response.headers)
                     if day_remaining == 0:
-                        raise XeroRateLimitExceededException(86400, self.max_wait_time, tenant_id)
+                        raise XeroRateLimitExceededException(86400, self.max_wait_time, tenant_id, daily=True)
 
                     return response.data
 
@@ -190,7 +206,7 @@ class XeroRateLimiter:
 
                     await asyncio.sleep(delay)
 
-                except Exception as e:
+                except Exception:
                     raise
 
         raise last_error
