@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 import pytest
+from autohive_integrations_sdk import ResultType
 from fergus.fergus import fergus
 
 pytestmark = pytest.mark.unit
@@ -44,12 +45,12 @@ async def test_create_job_draft(mock_context):
 
 @pytest.mark.asyncio
 async def test_create_job_missing_fields_non_draft(mock_context):
-    with pytest.raises(Exception):
-        await fergus.execute_action(
-            "create_job",
-            {"job_type": "Charge Up", "title": "No Details"},
-            mock_context,
-        )
+    result = await fergus.execute_action(
+        "create_job",
+        {"job_type": "Charge Up", "title": "No Details"},
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION_ERROR
 
 
 @pytest.mark.asyncio
@@ -67,8 +68,8 @@ async def test_update_job(mock_context):
 
 @pytest.mark.asyncio
 async def test_update_job_no_fields(mock_context):
-    with pytest.raises(Exception):
-        await fergus.execute_action("update_job", {"job_id": 5}, mock_context)
+    result = await fergus.execute_action("update_job", {"job_id": 5}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
 
 
 @pytest.mark.asyncio
@@ -176,5 +177,5 @@ async def test_list_users_with_search(mock_context):
 @pytest.mark.asyncio
 async def test_auth_token_missing(mock_context):
     mock_context.auth = {}
-    with pytest.raises(Exception):
-        await fergus.execute_action("list_jobs", {}, mock_context)
+    result = await fergus.execute_action("list_jobs", {}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR

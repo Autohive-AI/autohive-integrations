@@ -66,10 +66,8 @@ class CreateJob(ActionHandler):
 
             resp = await context.fetch(f"{BASE_URL}/jobs", method="POST", headers=headers, json=body)
             return ActionResult(data={"job": resp.data}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @fergus.action("update_job")
@@ -99,10 +97,8 @@ class UpdateJob(ActionHandler):
 
             resp = await context.fetch(f"{BASE_URL}/jobs/{job_id}", method="PUT", headers=headers, json=body)
             return ActionResult(data={"job": resp.data}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @fergus.action("finalise_job")
@@ -120,10 +116,8 @@ class FinaliseJob(ActionHandler):
                 json={},
             )
             return ActionResult(data={"job": resp.data}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @fergus.action("get_job")
@@ -136,10 +130,8 @@ class GetJob(ActionHandler):
 
             resp = await context.fetch(f"{BASE_URL}/jobs/{job_id}", method="GET", headers=headers)
             return ActionResult(data={"job": resp.data}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @fergus.action("list_jobs")
@@ -169,10 +161,8 @@ class ListJobs(ActionHandler):
 
             resp = await context.fetch(f"{BASE_URL}/jobs", method="GET", headers=headers, params=params)
             return ActionResult(data={"jobs": resp.data}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @fergus.action("search_customers")
@@ -192,10 +182,8 @@ class SearchCustomers(ActionHandler):
 
             resp = await context.fetch(f"{BASE_URL}/customers", method="GET", headers=headers, params=params)
             return ActionResult(data={"customers": resp.data}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @fergus.action("get_customer")
@@ -208,10 +196,8 @@ class GetCustomer(ActionHandler):
 
             resp = await context.fetch(f"{BASE_URL}/customers/{customer_id}", method="GET", headers=headers)
             return ActionResult(data={"customer": resp.data}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @fergus.action("list_sites")
@@ -231,10 +217,8 @@ class ListSites(ActionHandler):
 
             resp = await context.fetch(f"{BASE_URL}/sites", method="GET", headers=headers, params=params)
             return ActionResult(data={"sites": resp.data}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @fergus.action("list_users")
@@ -254,7 +238,5 @@ class ListUsers(ActionHandler):
 
             resp = await context.fetch(f"{BASE_URL}/users", method="GET", headers=headers, params=params)
             return ActionResult(data={"users": resp.data}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
