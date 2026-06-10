@@ -1,7 +1,7 @@
 {
   "name": "Circle",
   "display_name": "Circle",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Circle community platform integration for managing posts, members, spaces, and events",
   "entry_point": "circle.py",
   "auth": {
@@ -41,7 +41,11 @@
           "status": {
             "type": "string",
             "description": "Filter by post status",
-            "enum": ["published", "draft", "archived"]
+            "enum": [
+              "published",
+              "draft",
+              "archived"
+            ]
           },
           "per_page": {
             "type": "integer",
@@ -61,10 +65,6 @@
           "count": {
             "type": "integer",
             "description": "Total number of posts found"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -80,7 +80,9 @@
             "description": "The post ID to retrieve"
           }
         },
-        "required": ["post_id"]
+        "required": [
+          "post_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -88,10 +90,6 @@
           "post": {
             "type": "object",
             "description": "Post details including title, body, author, and metadata"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -117,7 +115,11 @@
           "status": {
             "type": "string",
             "description": "Post status",
-            "enum": ["published", "draft", "scheduled"],
+            "enum": [
+              "published",
+              "draft",
+              "scheduled"
+            ],
             "default": "published"
           },
           "is_pinned": {
@@ -135,7 +137,11 @@
             "description": "Email of the user to create the post as (optional, defaults to authenticated user)"
           }
         },
-        "required": ["space_id", "name", "body"]
+        "required": [
+          "space_id",
+          "name",
+          "body"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -143,10 +149,6 @@
           "post": {
             "type": "object",
             "description": "Created post details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -172,14 +174,20 @@
           "status": {
             "type": "string",
             "description": "Updated post status",
-            "enum": ["published", "draft", "archived"]
+            "enum": [
+              "published",
+              "draft",
+              "archived"
+            ]
           },
           "is_pinned": {
             "type": "boolean",
             "description": "Whether to pin the post"
           }
         },
-        "required": ["post_id"]
+        "required": [
+          "post_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -187,10 +195,6 @@
           "post": {
             "type": "object",
             "description": "Updated post details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -206,7 +210,9 @@
             "description": "Email address of the member to find"
           }
         },
-        "required": ["email"]
+        "required": [
+          "email"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -214,10 +220,6 @@
           "member": {
             "type": "object",
             "description": "Member details if found"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -231,7 +233,11 @@
           "status": {
             "type": "string",
             "description": "Filter by member status",
-            "enum": ["active", "inactive", "pending"]
+            "enum": [
+              "active",
+              "inactive",
+              "pending"
+            ]
           },
           "per_page": {
             "type": "integer",
@@ -256,10 +262,6 @@
           "count": {
             "type": "integer",
             "description": "Total number of members"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -275,7 +277,9 @@
             "description": "The member ID to retrieve"
           }
         },
-        "required": ["member_id"]
+        "required": [
+          "member_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -283,10 +287,6 @@
           "member": {
             "type": "object",
             "description": "Member details including profile, activity, and membership info"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -304,7 +304,12 @@
           "space_type": {
             "type": "string",
             "description": "Filter by space type",
-            "enum": ["post", "event", "chat", "course"]
+            "enum": [
+              "post",
+              "event",
+              "chat",
+              "course"
+            ]
           },
           "per_page": {
             "type": "integer",
@@ -324,10 +329,6 @@
           "count": {
             "type": "integer",
             "description": "Total number of spaces found"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -343,7 +344,9 @@
             "description": "The space ID to retrieve"
           }
         },
-        "required": ["space_id"]
+        "required": [
+          "space_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -351,10 +354,6 @@
           "space": {
             "type": "object",
             "description": "Space details including name, type, and settings"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -372,7 +371,11 @@
           "time_filter": {
             "type": "string",
             "description": "Filter events by time",
-            "enum": ["upcoming", "past", "all"],
+            "enum": [
+              "upcoming",
+              "past",
+              "all"
+            ],
             "default": "upcoming"
           },
           "space_id": {
@@ -397,10 +400,6 @@
           "count": {
             "type": "integer",
             "description": "Total number of events found"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -416,7 +415,9 @@
             "description": "The event ID to retrieve"
           }
         },
-        "required": ["event_id"]
+        "required": [
+          "event_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -424,10 +425,6 @@
           "event": {
             "type": "object",
             "description": "Event details including date, location, attendees, and description"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -447,7 +444,10 @@
             "description": "Comment content"
           }
         },
-        "required": ["post_id", "body"]
+        "required": [
+          "post_id",
+          "body"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -455,10 +455,6 @@
           "comment": {
             "type": "object",
             "description": "Created comment details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -479,7 +475,9 @@
             "default": 20
           }
         },
-        "required": ["post_id"]
+        "required": [
+          "post_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -491,10 +489,6 @@
           "count": {
             "type": "integer",
             "description": "Total number of comments"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -513,10 +507,6 @@
           "community": {
             "type": "object",
             "description": "Community details including name, settings, and statistics"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -539,7 +529,10 @@
             "description": "List of member tag IDs to add (use list_tags to get available tag IDs)"
           }
         },
-        "required": ["user_email", "member_tag_ids"]
+        "required": [
+          "user_email",
+          "member_tag_ids"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -547,10 +540,6 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -573,7 +562,10 @@
             "description": "List of member tag IDs to remove"
           }
         },
-        "required": ["user_email", "member_tag_ids"]
+        "required": [
+          "user_email",
+          "member_tag_ids"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -581,10 +573,6 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -607,7 +595,10 @@
             "description": "List of space group IDs to add the member to (use list_space_groups to get available group IDs)"
           }
         },
-        "required": ["email", "space_group_ids"]
+        "required": [
+          "email",
+          "space_group_ids"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -615,10 +606,6 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -641,7 +628,10 @@
             "description": "List of space group IDs to remove the member from"
           }
         },
-        "required": ["email", "space_group_ids"]
+        "required": [
+          "email",
+          "space_group_ids"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -649,10 +639,6 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -686,10 +672,6 @@
           "count": {
             "type": "integer",
             "description": "Total number of tags"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -723,10 +705,6 @@
           "count": {
             "type": "integer",
             "description": "Total number of space groups"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -760,10 +738,6 @@
           "count": {
             "type": "integer",
             "description": "Total number of access groups"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -786,7 +760,10 @@
             "description": "List of access group IDs to add the member to (use list_access_groups to get available group IDs)"
           }
         },
-        "required": ["email", "access_group_ids"]
+        "required": [
+          "email",
+          "access_group_ids"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -794,10 +771,6 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
@@ -820,7 +793,10 @@
             "description": "List of access group IDs to remove the member from"
           }
         },
-        "required": ["email", "access_group_ids"]
+        "required": [
+          "email",
+          "access_group_ids"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -828,10 +804,6 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
           }
         }
       }
