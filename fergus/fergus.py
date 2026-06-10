@@ -4,8 +4,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
-    HTTPError,
-    RateLimitError,
+    ActionError,
 )
 
 fergus = Integration.load()
@@ -20,36 +19,8 @@ def _auth_headers(api_token: str, include_content_type: bool = False) -> Dict[st
     return headers
 
 
-def _success(data: Dict[str, Any]) -> ActionResult:
-    return ActionResult(data={"result": True, **data})
-
-
-def _error(e: Exception) -> ActionResult:
-    if isinstance(e, RateLimitError):
-        return ActionResult(
-            data={
-                "result": False,
-                "error": e.message,
-                "error_type": "RateLimitError",
-                "status_code": e.status,
-                "response": e.response_data,
-            }
-        )
-    if isinstance(e, HTTPError):
-        return ActionResult(
-            data={
-                "result": False,
-                "error": e.message,
-                "error_type": "HTTPError",
-                "status_code": e.status,
-                "response": e.response_data,
-            }
-        )
-    return ActionResult(data={"result": False, "error": str(e), "error_type": type(e).__name__})
-
-
 def _get_token(context: ExecutionContext) -> str:
-    token = context.auth.get("credentials", {}).get("api_token")
+    token = context.auth.get("api_token")
     if not token:
         raise ValueError("Fergus Personal Access Token is required in auth (field 'api_token').")
     return token
@@ -57,11 +28,6 @@ def _get_token(context: ExecutionContext) -> str:
 
 @fergus.action("create_job")
 class CreateJob(ActionHandler):
-    """Create a new job in Fergus from a work order (MP inbound flow).
-    Set is_draft=true to create a draft (only job_type + title required), then call update_job
-    and finalise_job once all details are confirmed. For non-draft jobs, description, customer_id
-    and site_id are also required by Fergus."""
-
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             token = _get_token(context)
@@ -99,16 +65,15 @@ class CreateJob(ActionHandler):
                     body["customerReference"] = inputs["customer_reference"]
 
             resp = await context.fetch(f"{BASE_URL}/jobs", method="POST", headers=headers, json=body)
-            return _success({"job": resp})
+            return ActionResult(data={"job": resp.data}, cost_usd=0.0)
+        except ActionError:
+            raise
         except Exception as e:
-            return _error(e)
+            raise ActionError(message=str(e)) from e
 
 
 @fergus.action("update_job")
 class UpdateJob(ActionHandler):
-    """Update a DRAFT job in Fergus. Fergus only allows updating jobs still in draft status.
-    Call finalise_job after to make the job active."""
-
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             token = _get_token(context)
@@ -133,15 +98,15 @@ class UpdateJob(ActionHandler):
                 raise ValueError("At least one field must be provided to update a job.")
 
             resp = await context.fetch(f"{BASE_URL}/jobs/{job_id}", method="PUT", headers=headers, json=body)
-            return _success({"job": resp})
+            return ActionResult(data={"job": resp.data}, cost_usd=0.0)
+        except ActionError:
+            raise
         except Exception as e:
-            return _error(e)
+            raise ActionError(message=str(e)) from e
 
 
 @fergus.action("finalise_job")
 class FinaliseJob(ActionHandler):
-    """Finalise a draft job in Fergus, making it active and ready to assign to a technician."""
-
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             token = _get_token(context)
@@ -154,15 +119,15 @@ class FinaliseJob(ActionHandler):
                 headers=headers,
                 json={},
             )
-            return _success({"job": resp})
+            return ActionResult(data={"job": resp.data}, cost_usd=0.0)
+        except ActionError:
+            raise
         except Exception as e:
-            return _error(e)
+            raise ActionError(message=str(e)) from e
 
 
 @fergus.action("get_job")
 class GetJob(ActionHandler):
-    """Get full job details including completion/invoice data for BCTI reporting."""
-
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             token = _get_token(context)
@@ -170,15 +135,15 @@ class GetJob(ActionHandler):
             job_id = int(inputs["job_id"])
 
             resp = await context.fetch(f"{BASE_URL}/jobs/{job_id}", method="GET", headers=headers)
-            return _success({"job": resp})
+            return ActionResult(data={"job": resp.data}, cost_usd=0.0)
+        except ActionError:
+            raise
         except Exception as e:
-            return _error(e)
+            raise ActionError(message=str(e)) from e
 
 
 @fergus.action("list_jobs")
 class ListJobs(ActionHandler):
-    """List jobs with optional filters — use filterJobStatus=Completed/Invoiced for BCTI outbound flow."""
-
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             token = _get_token(context)
@@ -203,15 +168,15 @@ class ListJobs(ActionHandler):
                 params["filterSearchText"] = inputs["search"]
 
             resp = await context.fetch(f"{BASE_URL}/jobs", method="GET", headers=headers, params=params)
-            return _success({"jobs": resp})
+            return ActionResult(data={"jobs": resp.data}, cost_usd=0.0)
+        except ActionError:
+            raise
         except Exception as e:
-            return _error(e)
+            raise ActionError(message=str(e)) from e
 
 
 @fergus.action("search_customers")
 class SearchCustomers(ActionHandler):
-    """Search for customers in Fergus — use to find customer_id before creating a job."""
-
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             token = _get_token(context)
@@ -226,15 +191,15 @@ class SearchCustomers(ActionHandler):
                 params["filterSearchText"] = inputs["search"]
 
             resp = await context.fetch(f"{BASE_URL}/customers", method="GET", headers=headers, params=params)
-            return _success({"customers": resp})
+            return ActionResult(data={"customers": resp.data}, cost_usd=0.0)
+        except ActionError:
+            raise
         except Exception as e:
-            return _error(e)
+            raise ActionError(message=str(e)) from e
 
 
 @fergus.action("get_customer")
 class GetCustomer(ActionHandler):
-    """Get full details of a single customer."""
-
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             token = _get_token(context)
@@ -242,15 +207,15 @@ class GetCustomer(ActionHandler):
             customer_id = int(inputs["customer_id"])
 
             resp = await context.fetch(f"{BASE_URL}/customers/{customer_id}", method="GET", headers=headers)
-            return _success({"customer": resp})
+            return ActionResult(data={"customer": resp.data}, cost_usd=0.0)
+        except ActionError:
+            raise
         except Exception as e:
-            return _error(e)
+            raise ActionError(message=str(e)) from e
 
 
 @fergus.action("list_sites")
 class ListSites(ActionHandler):
-    """List sites (job locations) — use to find site_id before creating a job."""
-
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             token = _get_token(context)
@@ -265,15 +230,15 @@ class ListSites(ActionHandler):
                 params["filterSearchText"] = inputs["search"]
 
             resp = await context.fetch(f"{BASE_URL}/sites", method="GET", headers=headers, params=params)
-            return _success({"sites": resp})
+            return ActionResult(data={"sites": resp.data}, cost_usd=0.0)
+        except ActionError:
+            raise
         except Exception as e:
-            return _error(e)
+            raise ActionError(message=str(e)) from e
 
 
 @fergus.action("list_users")
 class ListUsers(ActionHandler):
-    """List all users (technicians/staff) — use to find user IDs when assigning jobs."""
-
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             token = _get_token(context)
@@ -288,6 +253,8 @@ class ListUsers(ActionHandler):
                 params["filterSearchText"] = inputs["search"]
 
             resp = await context.fetch(f"{BASE_URL}/users", method="GET", headers=headers, params=params)
-            return _success({"users": resp})
+            return ActionResult(data={"users": resp.data}, cost_usd=0.0)
+        except ActionError:
+            raise
         except Exception as e:
-            return _error(e)
+            raise ActionError(message=str(e)) from e
