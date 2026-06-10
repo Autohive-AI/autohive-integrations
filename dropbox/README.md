@@ -117,7 +117,7 @@ Upload a file to Dropbox. Files are supplied as a structured object so the actio
   - `content` — File content encoded as base64. Zero-byte content (`""`) is allowed.
   - `contentType` — MIME type.
 - `path` (optional, default root) — Destination folder. The file's `name` is appended to this. A leading `/` is added automatically and trailing slashes are stripped.
-- `mode` (optional, default `"add"`) — `"add"` (rename on conflict), `"overwrite"`, or `"update"`.
+- `mode` (optional, default `"add"`) — `"add"` (rename on conflict) or `"overwrite"`.
 - `autorename` (optional, default `false`)
 - `mute` (optional, default `false`)
 

@@ -169,8 +169,8 @@
                     },
                     "mode": {
                         "type": "string",
-                        "description": "How to handle conflicts: 'add' (rename if exists), 'overwrite', or 'update'",
-                        "enum": ["add", "overwrite", "update"],
+                        "description": "How to handle conflicts: 'add' (rename if exists) or 'overwrite'",
+                        "enum": ["add", "overwrite"],
                         "default": "add"
                     },
                     "autorename": {
