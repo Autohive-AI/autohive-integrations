@@ -189,9 +189,7 @@ async def test_07_list_buckets(live_context):
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_08_get_bucket(live_context):
-    result = await supabase.execute_action(
-        "get_bucket", {"bucket_id": TEST_BUCKET}, live_context
-    )
+    result = await supabase.execute_action("get_bucket", {"bucket_id": TEST_BUCKET}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert result.result.data["bucket"] is not None
 
@@ -199,9 +197,7 @@ async def test_08_get_bucket(live_context):
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_09_list_files(live_context):
-    result = await supabase.execute_action(
-        "list_files", {"bucket_id": TEST_BUCKET}, live_context
-    )
+    result = await supabase.execute_action("list_files", {"bucket_id": TEST_BUCKET}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert isinstance(result.result.data["files"], list)
 
@@ -233,9 +229,7 @@ async def test_11_delete_files(live_context):
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_12_delete_bucket(live_context):
-    result = await supabase.execute_action(
-        "delete_bucket", {"bucket_id": TEST_BUCKET}, live_context
-    )
+    result = await supabase.execute_action("delete_bucket", {"bucket_id": TEST_BUCKET}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert result.result.data["deleted"] is True
 
@@ -272,8 +266,6 @@ async def test_15_delete_user(live_context):
     test_user_id = os.getenv("SUPABASE_TEST_DELETE_USER_ID", "")
     if not test_user_id:
         pytest.skip("SUPABASE_TEST_DELETE_USER_ID not set — skipping destructive test")
-    result = await supabase.execute_action(
-        "delete_user", {"user_id": test_user_id}, live_context
-    )
+    result = await supabase.execute_action("delete_user", {"user_id": test_user_id}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert result.result.data["deleted"] is True
