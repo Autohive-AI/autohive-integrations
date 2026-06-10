@@ -68,11 +68,11 @@ class UpdateTaskAction(ActionHandler):
             if inputs.get("notes"):
                 data["notes"] = inputs["notes"]
             if "assignee" in inputs:
-                data["assignee"] = inputs["assignee"]
+                data["assignee"] = inputs.get("assignee")
             if "due_on" in inputs:
-                data["due_on"] = inputs["due_on"]
+                data["due_on"] = inputs.get("due_on")
             if "due_at" in inputs:
-                data["due_at"] = inputs["due_at"]
+                data["due_at"] = inputs.get("due_at")
             if inputs.get("completed") is not None:
                 data["completed"] = inputs["completed"]
 
@@ -100,7 +100,7 @@ class ListTasksAction(ActionHandler):
             if inputs.get("completed_since"):
                 params["completed_since"] = inputs["completed_since"]
             if "limit" in inputs:
-                params["limit"] = inputs["limit"]
+                params["limit"] = inputs.get("limit")
             if inputs.get("opt_fields"):
                 params["opt_fields"] = ",".join(inputs["opt_fields"])
 
@@ -139,7 +139,7 @@ class ListProjectsAction(ActionHandler):
             if inputs.get("archived") is not None:
                 params["archived"] = str(inputs["archived"]).lower()
             if "limit" in inputs:
-                params["limit"] = inputs["limit"]
+                params["limit"] = inputs.get("limit")
 
             response = await context.fetch(f"{ASANA_API_BASE_URL}/projects", method="GET", params=params)
             return ActionResult(data={"projects": response.data.get("data", [])}, cost_usd=0.0)
@@ -305,7 +305,7 @@ class ListSectionsAction(ActionHandler):
 
             params = {}
             if "limit" in inputs:
-                params["limit"] = inputs["limit"]
+                params["limit"] = inputs.get("limit")
 
             response = await context.fetch(
                 f"{ASANA_API_BASE_URL}/projects/{project_gid}/sections", method="GET", params=params if params else None
@@ -391,7 +391,7 @@ class ListStoriesAction(ActionHandler):
 
             params = {}
             if "limit" in inputs:
-                params["limit"] = inputs["limit"]
+                params["limit"] = inputs.get("limit")
 
             response = await context.fetch(
                 f"{ASANA_API_BASE_URL}/tasks/{task_gid}/stories", method="GET", params=params if params else None
@@ -437,7 +437,7 @@ class ListWorkspacesAction(ActionHandler):
         try:
             params = {}
             if "limit" in inputs:
-                params["limit"] = inputs["limit"]
+                params["limit"] = inputs.get("limit")
             if inputs.get("opt_fields"):
                 params["opt_fields"] = ",".join(inputs["opt_fields"])
 
