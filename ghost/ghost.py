@@ -71,10 +71,8 @@ class GetPostsAction(ActionHandler):
             resp = await context.fetch(f"{base}/ghost/api/content/posts/", method="GET", params=params)
             data = resp.data
             return ActionResult(data={"posts": data.get("posts", []), "meta": data.get("meta", {})}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("get_post")
@@ -96,10 +94,8 @@ class GetPostAction(ActionHandler):
             resp = await context.fetch(endpoint, method="GET", params=params)
             posts = resp.data.get("posts", [])
             return ActionResult(data={"post": posts[0] if posts else None}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("get_pages")
@@ -113,10 +109,8 @@ class GetPagesAction(ActionHandler):
             resp = await context.fetch(f"{base}/ghost/api/content/pages/", method="GET", params=params)
             data = resp.data
             return ActionResult(data={"pages": data.get("pages", []), "meta": data.get("meta", {})}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("get_page")
@@ -138,10 +132,8 @@ class GetPageAction(ActionHandler):
             resp = await context.fetch(endpoint, method="GET", params=params)
             pages = resp.data.get("pages", [])
             return ActionResult(data={"page": pages[0] if pages else None}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("get_tags")
@@ -155,10 +147,8 @@ class GetTagsAction(ActionHandler):
             resp = await context.fetch(f"{base}/ghost/api/content/tags/", method="GET", params=params)
             data = resp.data
             return ActionResult(data={"tags": data.get("tags", []), "meta": data.get("meta", {})}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("get_authors")
@@ -175,10 +165,8 @@ class GetAuthorsAction(ActionHandler):
                 data={"authors": data.get("authors", []), "meta": data.get("meta", {})},
                 cost_usd=0.0,
             )
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("get_settings")
@@ -192,10 +180,8 @@ class GetSettingsAction(ActionHandler):
                 params={"key": content_key},
             )
             return ActionResult(data={"settings": resp.data.get("settings", {})}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("get_tiers")
@@ -209,10 +195,8 @@ class GetTiersAction(ActionHandler):
                 params={"key": content_key},
             )
             return ActionResult(data={"tiers": resp.data.get("tiers", [])}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 # ---- Admin API Actions ----
@@ -238,10 +222,8 @@ class CreatePostAction(ActionHandler):
             )
             posts = resp.data.get("posts", [])
             return ActionResult(data={"post": posts[0] if posts else None}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("update_post")
@@ -264,10 +246,8 @@ class UpdatePostAction(ActionHandler):
             )
             posts = resp.data.get("posts", [])
             return ActionResult(data={"post": posts[0] if posts else None}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("create_page")
@@ -290,10 +270,8 @@ class CreatePageAction(ActionHandler):
             )
             pages = resp.data.get("pages", [])
             return ActionResult(data={"page": pages[0] if pages else None}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("upload_image")
@@ -323,10 +301,8 @@ class UploadImageAction(ActionHandler):
             )
             images = resp.data.get("images", [])
             return ActionResult(data={"image": images[0] if images else None}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("create_member")
@@ -346,10 +322,8 @@ class CreateMemberAction(ActionHandler):
             )
             members = resp.data.get("members", [])
             return ActionResult(data={"member": members[0] if members else None}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("update_member")
@@ -370,10 +344,8 @@ class UpdateMemberAction(ActionHandler):
             )
             members = resp.data.get("members", [])
             return ActionResult(data={"member": members[0] if members else None}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))
 
 
 @ghost.action("send_newsletter")
@@ -395,7 +367,5 @@ class SendNewsletterAction(ActionHandler):
             )
             posts = resp.data.get("posts", [])
             return ActionResult(data={"post": posts[0] if posts else None}, cost_usd=0.0)
-        except ActionError:
-            raise
         except Exception as e:
-            raise ActionError(message=str(e)) from e
+            return ActionError(message=str(e))

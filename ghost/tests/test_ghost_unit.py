@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 import pytest
+from autohive_integrations_sdk import ResultType
 from ghost.ghost import ghost
 
 pytestmark = pytest.mark.unit
@@ -52,8 +53,8 @@ async def test_get_post_by_slug(mock_context):
 
 @pytest.mark.asyncio
 async def test_get_post_no_id_or_slug(mock_context):
-    with pytest.raises(Exception):
-        await ghost.execute_action("get_post", {}, mock_context)
+    result = await ghost.execute_action("get_post", {}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
 
 
 @pytest.mark.asyncio
@@ -201,12 +202,12 @@ async def test_send_newsletter(mock_context):
 @pytest.mark.asyncio
 async def test_missing_content_api_key(mock_context):
     mock_context.auth = {"api_url": "https://demo.ghost.io", "admin_api_key": "id:aabbcc"}
-    with pytest.raises(Exception):
-        await ghost.execute_action("get_posts", {}, mock_context)
+    result = await ghost.execute_action("get_posts", {}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
 
 
 @pytest.mark.asyncio
 async def test_missing_api_url(mock_context):
     mock_context.auth = {"content_api_key": "key", "admin_api_key": "id:aabbcc"}
-    with pytest.raises(Exception):
-        await ghost.execute_action("get_posts", {}, mock_context)
+    result = await ghost.execute_action("get_posts", {}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
