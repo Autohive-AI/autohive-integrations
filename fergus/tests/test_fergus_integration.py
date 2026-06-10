@@ -1,54 +1,60 @@
-import asyncio
-from pprint import pprint
-from context import fergus
+import os
+import pytest
 from autohive_integrations_sdk import ExecutionContext
+from fergus.fergus import fergus
 
-AUTH = {"credentials": {"api_token": "YOUR_FERGUS_PAT"}}  # nosec B105
+pytestmark = pytest.mark.integration
 
-
-async def test_create_job():
-    inputs = {
-        "job_type": "Charge Up",
-        "title": "Leaking Tap Repair – Kitchen Sink",
-        "description": "Customer reports dripping tap under sink. Access via front door.",
-        "customer_id": 111,  # replace with a real customer ID
-        "site_id": 222,  # replace with a real site ID
-        "customer_reference": "MP-WO-12345",
-    }
-    async with ExecutionContext(auth=AUTH) as context:
-        result = await fergus.execute_action("create_job", inputs, context)
-        print("\nCreate Job:")
-        pprint(result)
+FERGUS_API_TOKEN = os.getenv("FERGUS_API_TOKEN", "")
+FERGUS_TEST_JOB_ID = os.getenv("FERGUS_TEST_JOB_ID", "")
+FERGUS_TEST_CUSTOMER_ID = os.getenv("FERGUS_TEST_CUSTOMER_ID", "")
+FERGUS_TEST_SITE_ID = os.getenv("FERGUS_TEST_SITE_ID", "")
 
 
-async def test_list_jobs():
-    inputs = {
-        "status": "Completed",
-        "page_size": 10,
-    }
-    async with ExecutionContext(auth=AUTH) as context:
-        result = await fergus.execute_action("list_jobs", inputs, context)
-        print("\nList Jobs (completed):")
-        pprint(result)
+@pytest.fixture
+def live_context():
+    if not FERGUS_API_TOKEN:
+        pytest.skip("FERGUS_API_TOKEN not set")
+    ctx = ExecutionContext.__new__(ExecutionContext)
+    ctx.auth = {"api_token": FERGUS_API_TOKEN}
+    return ctx
 
 
-async def test_get_job():
-    inputs = {
-        "job_id": 1,  # replace with a real job ID
-    }
-    async with ExecutionContext(auth=AUTH) as context:
-        result = await fergus.execute_action("get_job", inputs, context)
-        print("\nGet Job:")
-        pprint(result)
+@pytest.mark.asyncio
+async def test_list_jobs_live(live_context):
+    result = await fergus.execute_action("list_jobs", {"page_size": 5}, live_context)
+    assert result.result.data.get("jobs") is not None
 
 
-async def main():
-    print("Testing Fergus Integration")
-    print("==========================")
-    await test_create_job()
-    await test_list_jobs()
-    await test_get_job()
+@pytest.mark.asyncio
+async def test_list_users_live(live_context):
+    result = await fergus.execute_action("list_users", {"page_size": 5}, live_context)
+    assert result.result.data.get("users") is not None
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+@pytest.mark.asyncio
+async def test_search_customers_live(live_context):
+    result = await fergus.execute_action("search_customers", {"page_size": 5}, live_context)
+    assert result.result.data.get("customers") is not None
+
+
+@pytest.mark.asyncio
+async def test_list_sites_live(live_context):
+    result = await fergus.execute_action("list_sites", {"page_size": 5}, live_context)
+    assert result.result.data.get("sites") is not None
+
+
+@pytest.mark.asyncio
+async def test_get_job_live(live_context):
+    if not FERGUS_TEST_JOB_ID:
+        pytest.skip("FERGUS_TEST_JOB_ID not set")
+    result = await fergus.execute_action("get_job", {"job_id": int(FERGUS_TEST_JOB_ID)}, live_context)
+    assert result.result.data.get("job") is not None
+
+
+@pytest.mark.asyncio
+async def test_get_customer_live(live_context):
+    if not FERGUS_TEST_CUSTOMER_ID:
+        pytest.skip("FERGUS_TEST_CUSTOMER_ID not set")
+    result = await fergus.execute_action("get_customer", {"customer_id": int(FERGUS_TEST_CUSTOMER_ID)}, live_context)
+    assert result.result.data.get("customer") is not None
