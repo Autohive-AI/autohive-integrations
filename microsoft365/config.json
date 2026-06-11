@@ -521,7 +521,7 @@
     },
     "list_emails_from_contact": {
       "display_name": "List Emails from Contact",
-      "description": "List latest emails from a specific contact. Returns full body HTML by default — use the fields parameter to limit response to metadata only (e.g. [\"id\", \"subject\", \"sender\", \"receivedDateTime\", \"hasAttachments\", \"bodyPreview\"]) when scanning a large inbox to avoid context window issues.",
+      "description": "List latest emails from a specific contact. Returns full body HTML by default \u00e2\u20ac\u201d use the fields parameter to limit response to metadata only (e.g. [\"id\", \"subject\", \"sender\", \"receivedDateTime\", \"hasAttachments\", \"bodyPreview\"]) when scanning a large inbox to avoid context window issues.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -543,9 +543,19 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["id", "subject", "sender", "receivedDateTime", "bodyPreview", "body", "hasAttachments", "isRead", "importance"]
+              "enum": [
+                "id",
+                "subject",
+                "sender",
+                "receivedDateTime",
+                "bodyPreview",
+                "body",
+                "hasAttachments",
+                "isRead",
+                "importance"
+              ]
             },
-            "description": "Optional list of fields to return for each email. When omitted, all fields including body.content are returned. Use to reduce context consumption — e.g. [\"id\", \"subject\", \"sender\", \"receivedDateTime\", \"hasAttachments\", \"bodyPreview\"] for a lightweight metadata scan."
+            "description": "Optional list of fields to return for each email. When omitted, all fields including body.content are returned. Use to reduce context consumption \u00e2\u20ac\u201d e.g. [\"id\", \"subject\", \"sender\", \"receivedDateTime\", \"hasAttachments\", \"bodyPreview\"] for a lightweight metadata scan."
           }
         },
         "required": [
@@ -1163,6 +1173,10 @@
               "id",
               "name"
             ]
+          },
+          "content_error": {
+            "type": "string",
+            "description": "Describes why content could not be retrieved (present only when content retrieval fails but metadata succeeded)"
           }
         },
         "required": [
@@ -1547,6 +1561,10 @@
               "message_id",
               "is_inline"
             ]
+          },
+          "content_error": {
+            "type": "string",
+            "description": "Describes why content could not be retrieved (present only when content retrieval fails but metadata succeeded)"
           }
         },
         "required": [
@@ -2045,6 +2063,10 @@
               "name",
               "site_id"
             ]
+          },
+          "content_error": {
+            "type": "string",
+            "description": "Describes why content could not be retrieved (present only when content retrieval fails but metadata succeeded)"
           }
         },
         "required": [

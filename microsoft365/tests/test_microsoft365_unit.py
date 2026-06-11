@@ -4,15 +4,15 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from autohive_integrations_sdk import ResultType
+from unittest.mock import AsyncMock, patch
+from autohive_integrations_sdk import FetchResponse, ResultType
 from microsoft365.microsoft365 import microsoft365
 
 pytestmark = pytest.mark.unit
 
 
 def make_fetch(data):
-    return AsyncMock(return_value=MagicMock(data=data))
+    return AsyncMock(return_value=FetchResponse(status=200, headers={}, data=data))
 
 
 # ---- send_email ----
@@ -20,7 +20,7 @@ def make_fetch(data):
 
 @pytest.mark.asyncio
 async def test_send_email(mock_context):
-    mock_context.fetch = AsyncMock(return_value=MagicMock(data=None))
+    mock_context.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data=None))
     result = await microsoft365.execute_action(
         "send_email",
         {"subject": "Hi", "body": "Hello", "to": "user@example.com"},
@@ -500,6 +500,17 @@ async def test_read_onedrive_file_content_text(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_read_onedrive_file_content_content_error(mock_context):
+    metadata = {"id": "f1", "name": "readme.txt", "size": 50, "mimeType": "text/plain", "webUrl": "https://od.com/f1"}
+    mock_context.fetch = make_fetch(metadata)
+    with patch("microsoft365.microsoft365._fetch_binary", new=AsyncMock(side_effect=Exception("binary fetch failed"))):
+        result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": "f1"}, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+    assert "content_error" in result.result.data
+    assert result.result.data["file"]["content"] == ""
+
+
+@pytest.mark.asyncio
 async def test_read_onedrive_file_content_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("err"))
     result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": "f1"}, mock_context)
@@ -544,7 +555,7 @@ async def test_create_draft_email_error(mock_context):
 
 @pytest.mark.asyncio
 async def test_send_draft_email(mock_context):
-    mock_context.fetch = AsyncMock(return_value=MagicMock(data=None))
+    mock_context.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data=None))
     result = await microsoft365.execute_action("send_draft_email", {"draft_id": "draft1"}, mock_context)
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["sent"] is True
@@ -562,7 +573,7 @@ async def test_send_draft_email_error(mock_context):
 
 @pytest.mark.asyncio
 async def test_reply_to_email(mock_context):
-    mock_context.fetch = AsyncMock(return_value=MagicMock(data=None))
+    mock_context.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data=None))
     result = await microsoft365.execute_action(
         "reply_to_email",
         {"message_id": "em1", "comment": "Got it!"},
@@ -588,7 +599,7 @@ async def test_reply_to_email_error(mock_context):
 
 @pytest.mark.asyncio
 async def test_forward_email(mock_context):
-    mock_context.fetch = AsyncMock(return_value=MagicMock(data=None))
+    mock_context.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data=None))
     result = await microsoft365.execute_action(
         "forward_email",
         {"message_id": "em1", "to_recipients": ["c@d.com"]},
@@ -624,6 +635,21 @@ async def test_download_email_attachment(mock_context):
         )
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["metadata"]["name"] == "file.pdf"
+
+
+@pytest.mark.asyncio
+async def test_download_email_attachment_content_error(mock_context):
+    meta = {"id": "att1", "name": "file.pdf", "contentType": "application/pdf", "size": 200, "isInline": False}
+    mock_context.fetch = make_fetch(meta)
+    with patch("microsoft365.microsoft365._fetch_binary", new=AsyncMock(side_effect=Exception("binary fetch failed"))):
+        result = await microsoft365.execute_action(
+            "download_email_attachment",
+            {"message_id": "em1", "attachment_id": "att1"},
+            mock_context,
+        )
+    assert result.type != ResultType.ACTION_ERROR
+    assert "content_error" in result.result.data
+    assert result.result.data["file"]["content"] == ""
 
 
 @pytest.mark.asyncio
@@ -787,7 +813,12 @@ async def test_search_sharepoint_documents(mock_context):
             }
         ]
     }
-    mock_context.fetch = AsyncMock(side_effect=[MagicMock(data=drives), MagicMock(data=files)])
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=200, headers={}, data=drives),
+            FetchResponse(status=200, headers={}, data=files),
+        ]
+    )
     result = await microsoft365.execute_action(
         "search_sharepoint_documents",
         {"site_id": "s1", "query": "report"},
@@ -823,6 +854,21 @@ async def test_read_sharepoint_document(mock_context):
         )
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["file"]["name"] == "readme.txt"
+
+
+@pytest.mark.asyncio
+async def test_read_sharepoint_document_content_error(mock_context):
+    metadata = {"id": "f1", "name": "doc.txt", "size": 50, "mimeType": "text/plain", "webUrl": "https://sp.com/f1"}
+    mock_context.fetch = make_fetch(metadata)
+    with patch("microsoft365.microsoft365._fetch_binary", new=AsyncMock(side_effect=Exception("binary fetch failed"))):
+        result = await microsoft365.execute_action(
+            "read_sharepoint_document",
+            {"site_id": "s1", "file_id": "f1"},
+            mock_context,
+        )
+    assert result.type != ResultType.ACTION_ERROR
+    assert "content_error" in result.result.data
+    assert result.result.data["file"]["content"] == ""
 
 
 @pytest.mark.asyncio
