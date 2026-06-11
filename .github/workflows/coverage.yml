@@ -3,6 +3,8 @@ name: Unit Test Coverage
 on:
   pull_request:
     branches: [master, main]
+  push:
+    branches: [master, main]
 
 permissions:
   contents: read
@@ -21,16 +23,17 @@ jobs:
       - name: Detect changed integrations
         id: changed
         run: |
-          # Get all changed files vs base branch
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          if [ "${{ github.event_name }}" = "push" ]; then
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} HEAD)
+          else
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          fi
 
-          # Extract unique top-level integration directories that have a config.json
-          # (excludes .github, conftest.py, pyproject.toml, etc.)
           INTEGRATIONS=$(echo "$CHANGED_FILES" \
             | grep -oE '^[^/]+' \
             | sort -u \
             | while read dir; do
-                if [ -f "$dir/config.json" ] && [ -f "$dir/tests/$(ls $dir/tests/ 2>/dev/null | grep 'unit' | head -1)" ]; then
+                if [ -f "$dir/config.json" ] && ls "$dir/tests/"*unit*.py 2>/dev/null | grep -q .; then
                   echo "$dir"
                 fi
               done \
@@ -55,7 +58,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Install dependencies
         run: |
@@ -63,7 +66,9 @@ jobs:
 
       - name: Run unit tests with coverage
         id: run_tests
+        shell: bash
         run: |
+          set -o pipefail
           python -m pytest ${{ matrix.integration }}/tests/test_*_unit.py \
             --cov=${{ matrix.integration }} \
             --cov-report=json:coverage.json \
@@ -72,14 +77,13 @@ jobs:
             --tb=short \
             -q 2>&1 | tee test_output.txt
 
-          # Extract coverage % from json report
           COVERAGE=$(python -c "
-          import json, sys
+          import json
           try:
               data = json.load(open('coverage.json'))
               pct = data['totals']['percent_covered']
               print(f'{pct:.1f}')
-          except Exception as e:
+          except Exception:
               print('0.0')
           ")
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
@@ -95,10 +99,7 @@ jobs:
       - name: Fetch master baseline coverage
         id: baseline
         run: |
-          # Try to download master coverage artifact from the most recent successful run on master
           BASELINE="N/A"
-
-          # Check if a baseline artifact exists from a previous cache
           if [ -f ".coverage-baselines/${{ matrix.integration }}.json" ]; then
             BASELINE=$(python -c "
           import json
@@ -110,7 +111,6 @@ jobs:
               print('N/A')
           ")
           fi
-
           echo "baseline=$BASELINE" >> $GITHUB_OUTPUT
 
       - name: Build coverage summary
@@ -119,29 +119,27 @@ jobs:
           COVERAGE=${{ steps.run_tests.outputs.coverage }}
           BASELINE=${{ steps.baseline.outputs.baseline }}
 
-          # Calculate trend
           if [ "$BASELINE" = "N/A" ]; then
-            TREND="⚪ (no baseline)"
+            TREND="⚪ (no baseline yet)"
           else
-            DIFF=$(python -c "
+            TREND=$(python -c "
           try:
               diff = float('$COVERAGE') - float('$BASELINE')
               if diff > 0:
-                  print(f'🟢 ↑ +{diff:.1f}%')
+                  print(f'🟢 ↑ +{diff:.1f}% vs master ({float(\"$BASELINE\"):.1f}%)')
               elif diff < 0:
-                  print(f'🔴 ↓ {diff:.1f}%')
+                  print(f'🔴 ↓ {diff:.1f}% vs master ({float(\"$BASELINE\"):.1f}%)')
               else:
-                  print('➡️ no change')
+                  print(f'➡️ no change vs master ({float(\"$BASELINE\"):.1f}%)')
           except:
               print('⚪')
           ")
-            TREND="$DIFF vs master ($BASELINE%)"
           fi
 
           echo "trend=$TREND" >> $GITHUB_OUTPUT
-          echo "Integration: ${{ matrix.integration }} | Coverage: $COVERAGE% | $TREND"
 
       - name: Post coverage comment
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
@@ -179,7 +177,7 @@ jobs:
 
   update-baseline:
     needs: coverage
-    if: github.ref_name == 'master' && always()
+    if: github.event_name == 'push' && (github.ref_name == 'master' || github.ref_name == 'main')
     runs-on: ubuntu-latest
     permissions:
       contents: write
