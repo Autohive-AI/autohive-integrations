@@ -75,7 +75,7 @@ def live_context(make_context):
 @pytest.mark.asyncio
 async def test_get_community_info(live_context):
     result = await circle.execute_action("get_community_info", {}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data.get("community") is not None
 
 
@@ -86,7 +86,7 @@ async def test_get_community_info(live_context):
 @pytest.mark.asyncio
 async def test_list_members(live_context):
     result = await circle.execute_action("list_members", {"per_page": 5}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert isinstance(result.result.data.get("members"), list)
 
 
@@ -101,7 +101,7 @@ async def test_get_member(live_context):
             pytest.skip("No members found")
         member_id = str(members[0].get("id") or members[0].get("member_id", ""))
     result = await circle.execute_action("get_member", {"member_id": member_id}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data.get("member") is not None
 
 
@@ -112,7 +112,7 @@ async def test_search_member_by_email(live_context):
     if not email:
         pytest.skip("CIRCLE_TEST_MEMBER_EMAIL not set")
     result = await circle.execute_action("search_member_by_email", {"email": email}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data.get("member") is not None
 
 
@@ -123,7 +123,7 @@ async def test_search_member_by_email(live_context):
 @pytest.mark.asyncio
 async def test_search_spaces(live_context):
     result = await circle.execute_action("search_spaces", {"per_page": 5}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert isinstance(result.result.data.get("spaces"), list)
 
 
@@ -138,7 +138,7 @@ async def test_get_space(live_context):
             pytest.skip("No spaces found")
         space_id = str(spaces[0].get("id", ""))
     result = await circle.execute_action("get_space", {"space_id": space_id}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data.get("space") is not None
 
 
@@ -149,7 +149,7 @@ async def test_get_space(live_context):
 @pytest.mark.asyncio
 async def test_search_posts(live_context):
     result = await circle.execute_action("search_posts", {"per_page": 5}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert isinstance(result.result.data.get("posts"), list)
 
 
@@ -164,7 +164,7 @@ async def test_get_post(live_context):
             pytest.skip("No posts found")
         post_id = str(posts[0].get("id", ""))
     result = await circle.execute_action("get_post", {"post_id": post_id}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data.get("post") is not None
 
 
@@ -179,7 +179,7 @@ async def test_get_post_comments(live_context):
             pytest.skip("No posts found")
         post_id = str(posts[0].get("id", ""))
     result = await circle.execute_action("get_post_comments", {"post_id": post_id}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert "comments" in result.result.data
 
 
@@ -190,7 +190,7 @@ async def test_get_post_comments(live_context):
 @pytest.mark.asyncio
 async def test_search_events(live_context):
     result = await circle.execute_action("search_events", {"per_page": 5}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert isinstance(result.result.data.get("events"), list)
 
 
@@ -203,7 +203,7 @@ async def test_get_event(live_context):
         pytest.skip("No events found")
     event_id = str(events[0].get("id", ""))
     result = await circle.execute_action("get_event", {"event_id": event_id}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data.get("event") is not None
 
 
@@ -214,7 +214,7 @@ async def test_get_event(live_context):
 @pytest.mark.asyncio
 async def test_list_tags(live_context):
     result = await circle.execute_action("list_tags", {}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert isinstance(result.result.data.get("tags"), list)
 
 
@@ -222,7 +222,7 @@ async def test_list_tags(live_context):
 @pytest.mark.asyncio
 async def test_list_space_groups(live_context):
     result = await circle.execute_action("list_space_groups", {}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert isinstance(result.result.data.get("space_groups"), list)
 
 
@@ -230,5 +230,5 @@ async def test_list_space_groups(live_context):
 @pytest.mark.asyncio
 async def test_list_access_groups(live_context):
     result = await circle.execute_action("list_access_groups", {}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert isinstance(result.result.data.get("access_groups"), list)
