@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 import aiohttp
 import pytest
-from autohive_integrations_sdk import FetchResponse, ResultType
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, ResultType
 from circle.circle import circle  # noqa: E402
 
 pytestmark = pytest.mark.integration
@@ -54,6 +54,13 @@ def live_context(make_context):
                     data = await resp.json(content_type=None)
                 except Exception:
                     data = await resp.text()
+
+                if resp.status == 429:
+                    retry_after = int(resp.headers.get("Retry-After", 60))
+                    raise RateLimitError(retry_after, resp.status, str(data), data)
+                if resp.status < 200 or resp.status >= 300:
+                    raise HTTPError(resp.status, str(data), data)
+
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     ctx = make_context(auth={"api_token": CIRCLE_API_TOKEN})
