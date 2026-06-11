@@ -53,7 +53,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Dropbox
 
-[dropbox](dropbox): Cloud file storage integration with Dropbox API v2 for comprehensive file and folder management. Supports folder listing with recursive browsing and pagination (list_folder, list_folder_continue), file and folder metadata retrieval, temporary download link generation (valid for 4 hours), file uploads with conflict handling modes (add, overwrite, update), folder creation, and complete file operations (delete, move, copy with autorename support). Features OAuth 2.0 authentication with automatic token management, cursor-based pagination for large directories, and support for mounted folders. Includes 9 actions covering file browsing, metadata access, uploads, and file organization. Ideal for file synchronization, backup workflows, document management, and cloud storage automation.
+[dropbox](dropbox): Cloud file storage integration with Dropbox API v2 for comprehensive file and folder management. Supports folder listing with recursive browsing and cursor-based pagination, file and folder metadata retrieval, temporary download link generation (valid for 4 hours), file uploads with conflict handling modes (add, overwrite), folder creation, and complete file operations (delete, move, copy with autorename support). Features OAuth 2.0 authentication with automatic token management and support for mounted folders. Includes 8 actions covering file browsing, metadata access, uploads, and file organization. Ideal for file synchronization, backup workflows, document management, and cloud storage automation.
 
 ### Canva
 
