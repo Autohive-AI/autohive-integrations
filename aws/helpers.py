@@ -9,15 +9,16 @@ from autohive_integrations_sdk import ActionError, ActionResult, ExecutionContex
 
 
 def create_boto3_client(context: ExecutionContext, service_name: str):
-    access_key = context.auth.get("aws_access_key_id")
-    secret_key = context.auth.get("aws_secret_access_key")
+    creds = context.auth.get("credentials") or context.auth
+    access_key = creds.get("aws_access_key_id")
+    secret_key = creds.get("aws_secret_access_key")
     if not access_key or not secret_key:
         raise ValueError("AWS credentials are missing: aws_access_key_id and aws_secret_access_key are required")
     return boto3.client(
         service_name,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
-        region_name=context.auth.get("aws_region", "us-east-1"),
+        region_name=creds.get("aws_region", "us-east-1"),
     )
 
 
