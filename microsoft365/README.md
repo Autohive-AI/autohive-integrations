@@ -4,536 +4,629 @@ Connects Autohive to Microsoft Copilot 365 services including Outlook, OneDrive,
 
 ## Description
 
-This integration provides comprehensive access to Microsoft Copilot 365 services, enabling users to manage emails, calendar events, contacts, files, and SharePoint sites through a unified interface. It interacts with the Microsoft Graph API to deliver seamless integration with Outlook email, OneDrive file storage, Calendar management, SharePoint collaboration, and intelligent meeting scheduling.
+This integration provides comprehensive access to Microsoft Copilot 365 services, enabling agents to manage emails, calendar events, contacts, files, and SharePoint sites through a unified interface. It interacts with the Microsoft Graph API to deliver seamless integration with Outlook email, OneDrive file storage, Calendar management, SharePoint collaboration, and intelligent meeting scheduling.
 
-Key capabilities include sending and managing emails, creating and updating calendar events, intelligent meeting scheduling with attendee availability detection, room discovery and availability checking, uploading and accessing files, reading contact information, and accessing SharePoint sites and document libraries. The integration supports advanced features like HTML email content, file attachments, timezone-aware operations, folder management, PDF conversion for Office documents, multi-drive SharePoint document access, findMeetingTimes for smart scheduling suggestions, and getSchedule for free/busy availability lookups.
+Key capabilities include sending and managing emails, creating and updating calendar events, intelligent meeting scheduling with attendee availability detection, room discovery and availability checking, uploading and accessing files, reading contact information, and accessing SharePoint sites and document libraries. Advanced features include HTML email content, file attachments, timezone-aware operations, folder management, PDF conversion for Office documents, multi-drive SharePoint document access, `findMeetingTimes` for smart scheduling suggestions, `getSchedule` for free/busy availability lookups, and a `fields` parameter on `list_emails` to limit response payload when scanning large inboxes.
 
 ## Setup & Authentication
 
-This integration uses Microsoft Graph OAuth2 authentication through the Autohive platform. Users need to connect their Microsoft 365 account to authorize the integration.
-
 **Authentication Method:** Platform OAuth2 (Microsoft 365)
 
+Users need to connect their Microsoft 365 account through the Autohive platform. No manual credential configuration is required.
+
 Required Microsoft Graph API permissions:
-- `Mail.ReadWrite` - Read and send emails
-- `Mail.Send` - Send emails on behalf of user
-- `Files.ReadWrite` - Access OneDrive files
-- `Calendars.ReadWrite` - Manage calendar events
-- `Contacts.Read` - Read user contacts
-- `Sites.Read.All` - Access SharePoint sites and document libraries
-- `Schedule.Read.All` - Read free/busy availability for users and rooms
-- `Place.Read.All` - List and query meeting rooms and room lists
-
-**Authentication Fields:**
-
-The integration uses platform-level OAuth2 authentication, so no manual configuration of authentication fields is required. Users simply need to authorize their Microsoft Copilot 365 account through the Autohive platform.
+- `Mail.ReadWrite` — Read and send emails
+- `Mail.Send` — Send emails on behalf of user
+- `Files.ReadWrite` — Access OneDrive files
+- `Calendars.ReadWrite` — Manage calendar events
+- `Contacts.Read` — Read user contacts
+- `Sites.Read.All` — Access SharePoint sites and document libraries
+- `Schedule.Read.All` — Read free/busy availability for users and rooms
+- `Place.Read.All` — List and query meeting rooms and room lists
 
 ## Actions
 
-### Action: `send_email`
-
-*   **Description:** Send an email via Outlook with support for CC, BCC, and HTML content
-*   **Inputs:**
-    *   `to`: Recipient email address
-    *   `subject`: Email subject
-    *   `body`: Email body content
-    *   `body_type`: Body content type (Text or HTML)
-    *   `cc`: CC email addresses (optional)
-    *   `bcc`: BCC email addresses (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `error`: Error message if operation failed
-
-### Action: `list_emails`
-
-*   **Description:** List emails for specific dates or date ranges with full content
-*   **Inputs:**
-    *   `start_datetime`: Start datetime for filtering (UTC)
-    *   `end_datetime`: End datetime for filtering (UTC)
-    *   `folder`: Email folder to search (default: Inbox)
-    *   `limit`: Maximum number of emails to return
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `emails`: List of email objects with full details
-    *   `error`: Error message if operation failed
-
-### Action: `list_emails_from_contact`
-
-*   **Description:** Get latest emails from a specific contact
-*   **Inputs:**
-    *   `contact_email`: Email address of the contact
-    *   `limit`: Maximum number of emails to return
-    *   `folder`: Email folder to search (default: Inbox)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `emails`: List of email objects from the specified contact
-    *   `error`: Error message if operation failed
-
-### Action: `read_email`
-
-*   **Description:** Read email content and list attachment metadata
-*   **Inputs:**
-    *   `email_id`: Unique identifier of the email
-    *   `include_attachments`: Include attachment metadata (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `email`: Complete email object with content
-    *   `attachments`: List of attachment metadata (if requested)
-    *   `error`: Error message if operation failed
-
-### Action: `mark_email_read`
-
-*   **Description:** Change the read status of emails
-*   **Inputs:**
-    *   `email_id`: Unique identifier of the email
-    *   `is_read`: Boolean to set read status
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `error`: Error message if operation failed
-
-### Action: `list_mail_folders`
-
-*   **Description:** List mail folders in the user's mailbox. Returns folder IDs needed for move_email action. Use include_children=true to get all folders including nested subfolders.
-*   **Inputs:**
-    *   `folder_id`: (Optional) ID of a parent folder to list children of. If not provided, lists root-level folders.
-    *   `include_hidden`: (Optional) Include hidden system folders in the response (default: false)
-    *   `include_children`: (Optional) Recursively include all nested child folders. Recommended when searching for a custom folder. (default: false)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `folders`: List of folder objects with:
-        *   `id`: Folder ID - use this for move_email destination_folder_id
-        *   `displayName`: Human-readable folder name
-        *   `parentFolderId`: ID of the parent folder
-        *   `childFolderCount`: Number of child folders
-        *   `unreadItemCount`: Number of unread items
-        *   `totalItemCount`: Total number of items
-        *   `isHidden`: Whether the folder is hidden
-    *   `total_count`: Total number of folders returned
-    *   `error`: Error message if operation failed
-
-### Action: `get_mail_folder`
-
-*   **Description:** Get details of a specific mail folder by ID or well-known name
-*   **Inputs:**
-    *   `folder_id`: Folder ID or well-known folder name (lowercase, no spaces)
-*   **Well-known folder names:** `inbox`, `drafts`, `sentitems`, `deleteditems`, `junkemail`, `archive`, `outbox`, `clutter`, `scheduled`, `searchfolders`, `conversationhistory`
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `folder`: Folder object with id, displayName, parentFolderId, childFolderCount, unreadItemCount, totalItemCount, isHidden
-    *   `error`: Error message if operation failed
-
-### Action: `move_email`
-
-*   **Description:** Move an email to a different folder. For custom folders, first use list_mail_folders to find the folder ID.
-*   **Inputs:**
-    *   `email_id`: Unique identifier of the email
-    *   `destination_folder_id`: Destination folder ID (from list_mail_folders) OR a well-known folder name
-*   **Well-known folder names (use lowercase, no spaces):** `inbox`, `drafts`, `sentitems`, `deleteditems`, `junkemail`, `archive`, `outbox`, `clutter`, `scheduled`
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `id`: ID of the moved email
-    *   `parentFolderId`: ID of the destination folder
-    *   `subject`: Subject of the moved email
-    *   `error`: Error message if operation failed
-*   **Note:** For custom folders (e.g., "Clients", "Projects"), you must first call `list_mail_folders` with `include_children=true` to find the folder ID, then use that ID as `destination_folder_id`.
-
-### Action: `create_draft_email`
-
-*   **Description:** Create a draft email message that can be sent later
-*   **Inputs:**
-    *   `subject`: Email subject line
-    *   `body`: Email body content
-    *   `body_type`: Content type (Text or HTML, default: Text)
-    *   `to_recipients`: List of recipient email addresses
-    *   `cc_recipients`: List of CC recipient email addresses (optional)
-    *   `bcc_recipients`: List of BCC recipient email addresses (optional)
-    *   `importance`: Email importance level (Low, Normal, High)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `draft_id`: ID of the created draft
-    *   `subject`: Subject of the draft
-    *   `created_datetime`: When the draft was created
-    *   `is_draft`: Whether this is a draft message
-    *   `error`: Error message if operation failed
-
-### Action: `send_draft_email`
-
-*   **Description:** Send a previously created draft email
-*   **Inputs:**
-    *   `draft_id`: ID of the draft to send
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `draft_id`: ID of the sent draft
-    *   `status`: Status of the operation
-    *   `error`: Error message if operation failed
-
-### Action: `reply_to_email`
-
-*   **Description:** Reply to an existing email message
-*   **Inputs:**
-    *   `message_id`: ID of the message to reply to
-    *   `comment`: Reply message text (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `message_id`: ID of the original message
-    *   `operation`: Type of operation performed
-    *   `status`: Status of the operation
-    *   `error`: Error message if operation failed
-
-### Action: `forward_email`
-
-*   **Description:** Forward an existing email message to other recipients
-*   **Inputs:**
-    *   `message_id`: ID of the message to forward
-    *   `to_recipients`: List of recipients to forward to
-    *   `comment`: Additional message text to include (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `message_id`: ID of the original message
-    *   `operation`: Type of operation performed
-    *   `status`: Status of the operation
-    *   `error`: Error message if operation failed
-
-### Action: `download_email_attachment`
-
-*   **Description:** Download the content of an email attachment with automatic file attachment to conversation
-*   **Inputs:**
-    *   `message_id`: ID of the message containing the attachment
-    *   `attachment_id`: ID of the attachment to download
-    *   `include_content`: Whether to include attachment content (default: true)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `file`: Object with file content (same format as OneDrive/SharePoint for automatic attachment)
-        *   `content`: Base64 encoded attachment content
-        *   `name`: Attachment filename
-        *   `contentType`: MIME type of the attachment
-    *   `metadata`: Attachment metadata
-        *   `id`: Attachment ID
-        *   `name`: Attachment filename
-        *   `size`: File size in bytes
-        *   `contentType`: MIME type
-        *   `message_id`: ID of the message containing this attachment
-        *   `is_inline`: Whether attachment is inline
-    *   `error`: Error message if operation failed
-*   **Note:** Uses Microsoft Graph `/$value` endpoint to download raw attachment content. Returns in same format as OneDrive/SharePoint files for consistent file handling.
-
-### Action: `search_emails`
-
-*   **Description:** Search for emails using natural language queries
-*   **Inputs:**
-    *   `query`: Search query to find emails (searches body, sender, subject, and attachments)
-    *   `limit`: Maximum number of results to return (default: 25, max: 1000)
-    *   `enable_top_results`: Enable relevance-based ranking for top results (default: false)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `query`: The search query that was executed
-    *   `total_results`: Total number of matching emails found
-    *   `messages`: List of matching email messages with details
-    *   `error`: Error message if operation failed
-
-### Action: `create_calendar_event`
-
-*   **Description:** Create calendar events with attendees and location
-*   **Inputs:**
-    *   `subject`: Event subject/title
-    *   `start_time`: Event start time (UTC)
-    *   `end_time`: Event end time (UTC)
-    *   `location`: Event location (optional)
-    *   `body`: Event description (optional)
-    *   `attendees`: List of attendee email addresses (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `id`: Unique identifier of the created event
-    *   `webLink`: Web link to the event
-    *   `error`: Error message if operation failed
-
-### Action: `update_calendar_event`
-
-*   **Description:** Update existing calendar events by ID
-*   **Inputs:**
-    *   `event_id`: Unique identifier of the event to update
-    *   `subject`: Updated event subject/title (optional)
-    *   `start_time`: Updated start time (optional)
-    *   `end_time`: Updated end time (optional)
-    *   `location`: Updated location (optional)
-    *   `attendees`: Updated list of attendee email addresses (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `id`: Unique identifier of the updated event
-    *   `webLink`: Web link to the event
-    *   `error`: Error message if operation failed
-
-### Action: `list_calendar_events`
-
-*   **Description:** List calendar events for specific dates or date ranges using Microsoft Graph calendarView for accurate date filtering
-*   **Inputs:**
-    *   `start_datetime`: Start datetime for filtering (ISO 8601 format in UTC, e.g., "2024-08-20T00:00:00Z")
-    *   `end_datetime`: End datetime for filtering (ISO 8601 format in UTC, e.g., "2024-08-20T23:59:59Z")
-    *   `start_date`: Legacy date-only support (ISO 8601 date, e.g., "2024-08-20")
-    *   `end_date`: Legacy date-only support (ISO 8601 date)
-    *   `limit`: Maximum number of events to return (default: 100)
-    *   `user_timezone`: User's timezone for intelligent defaults (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `events`: List of calendar event objects with full details including subject, start, end, location, organizer, attendees
-    *   `error`: Error message if operation failed
-*   **Note:** Uses Microsoft Graph calendarView endpoint which properly filters events by date range and expands recurring events. If no date parameters provided, defaults to next 30 days.
-
-### Action: `find_meeting_times`
-
-*   **Description:** Find available meeting time slots based on attendee availability, working hours, and optional room requirements. Uses Microsoft Graph findMeetingTimes API to suggest optimal meeting times with confidence ratings.
-*   **Inputs:**
-    *   `attendees`: List of attendee email addresses to check availability for (required)
-    *   `duration_minutes`: Duration of the meeting in minutes (default: 60)
-    *   `start_datetime`: Start of the time range to search (ISO 8601 UTC). Defaults to now.
-    *   `end_datetime`: End of the time range to search (ISO 8601 UTC). Defaults to 7 days from start.
-    *   `max_candidates`: Maximum number of meeting time suggestions (default: 10, max: 20)
-    *   `is_organizer_optional`: Whether the organizer is optional (default: false)
-    *   `location_constraint`: Room/location email address to include as a required resource
-    *   `minimum_attendee_percentage`: Minimum percentage of attendees that must be available (0-100, default: 100)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `meeting_time_suggestions`: List of suggested time slots with confidence scores, organizer/attendee availability, and suggested locations
-    *   `empty_suggestions_reason`: Reason why no suggestions were returned (if applicable)
-    *   `error`: Error message if operation failed
-*   **Note:** This action uses the Microsoft Graph `findMeetingTimes` API which considers attendee calendars, working hours, and time zones to suggest optimal meeting times. Requires `Calendars.ReadWrite` and `Schedule.Read.All` scopes.
-
-### Action: `get_schedule`
-
-*   **Description:** Get the free/busy availability schedule for one or more users or rooms for a specific time range. Returns detailed availability information including busy time slots, working hours, and an availability view string.
-*   **Inputs:**
-    *   `schedules`: List of email addresses (users or rooms) to retrieve availability for (required)
-    *   `start_datetime`: Start of the time range (ISO 8601 UTC) (required)
-    *   `end_datetime`: End of the time range (ISO 8601 UTC) (required)
-    *   `availability_view_interval`: Time slot duration in minutes for the availability view string (default: 30, range: 5-1440)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `schedules`: List of availability schedules with:
-        *   `email`: The email address of the user/room
-        *   `availability_view`: Merged availability string (0=free, 1=tentative, 2=busy, 3=out of office, 4=working elsewhere)
-        *   `schedule_items`: List of calendar items with status, start/end times, subject, location, and privacy flag
-        *   `working_hours`: Working hours configuration (start/end times, days, timezone)
-        *   `error`: Error for this specific schedule if retrieval failed
-    *   `error`: Error message if operation failed
-*   **Note:** Uses the Microsoft Graph `getSchedule` API. The `availability_view` string provides a quick visual overview where each character represents a time slot. Requires `Schedule.Read.All` scope for reading other users' schedules.
-
-### Action: `list_rooms`
-
-*   **Description:** List available meeting rooms and room lists in the organization. Can list all rooms, rooms in a specific room list/building, or all room lists.
-*   **Inputs:**
-    *   `list_type`: What to list - 'rooms' for all rooms, 'room_lists' for room lists/buildings, 'rooms_in_list' for rooms in a specific list (default: rooms)
-    *   `room_list_email`: Email address of a room list (required when list_type is 'rooms_in_list')
-    *   `limit`: Maximum number of rooms to return (default: 100)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `rooms`: List of room objects with id, display_name, email_address, capacity, building, floor_number, floor_label, accessibility info, and A/V equipment details
-    *   `total_count`: Total number of rooms/lists returned
-    *   `error`: Error message if operation failed
-*   **Note:** Uses the Microsoft Graph Places API. Room email addresses from this action can be used with `check_room_availability`, `get_schedule`, and `find_meeting_times` (as location_constraint). Requires `Place.Read.All` scope.
-
-### Action: `check_room_availability`
-
-*   **Description:** Check if specific meeting rooms are available during a given time range. Returns free/busy status for each room with details of any conflicting bookings.
-*   **Inputs:**
-    *   `room_emails`: List of room email addresses to check (required, get from `list_rooms`)
-    *   `start_datetime`: Start of the time range (ISO 8601 UTC) (required)
-    *   `end_datetime`: End of the time range (ISO 8601 UTC) (required)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `rooms`: List of room availability objects with:
-        *   `email`: Room email address
-        *   `is_available`: Whether the room is free for the entire requested time range
-        *   `conflicts`: List of conflicting bookings with status, start/end times, and subject
-        *   `error`: Error for this specific room if check failed
-    *   `available_rooms`: List of room emails that are available
-    *   `unavailable_rooms`: List of room emails that have conflicts
-    *   `error`: Error message if operation failed
-*   **Note:** Uses the Microsoft Graph `getSchedule` API targeting room resources. Requires `Schedule.Read.All` scope. Get room email addresses from the `list_rooms` action.
-
-### Action: `upload_file`
-
-*   **Description:** Upload files to OneDrive with folder support
-*   **Inputs:**
-    *   `filename`: Name of the file to upload
-    *   `content`: Base64 encoded file content
-    *   `content_type`: MIME type of the file
-    *   `folder_path`: Target folder path in OneDrive (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `id`: Unique identifier of the uploaded file
-    *   `webUrl`: Web URL to access the file
-    *   `size`: File size in bytes
-    *   `error`: Error message if operation failed
-
-### Action: `list_files`
-
-*   **Description:** List files and folders in OneDrive
-*   **Inputs:**
-    *   `folder_path`: Folder path to list (optional, defaults to root)
-    *   `limit`: Maximum number of items to return
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `files`: List of file and folder objects
-    *   `error`: Error message if operation failed
-
-### Action: `read_contacts`
-
-*   **Description:** Read and search contacts from Outlook with detailed information
-*   **Inputs:**
-    *   `limit`: Maximum number of contacts to return
-    *   `search`: Search term to filter contacts (case-insensitive, partial matching)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `contacts`: List of contact objects with detailed information
-    *   `message`: Descriptive message about the search results
-    *   `search_term`: The search term used (only present when searching)
-    *   `total_searched`: Total number of contacts searched through (only present when searching)
-    *   `error`: Error message if operation failed
-
-### Action: `search_onedrive_files`
-
-*   **Description:** Search for files in OneDrive using natural language queries
-*   **Inputs:**
-    *   `query`: Search query to find files (e.g., 'quarterly report', 'budget 2024')
-    *   `limit`: Maximum number of files to return (default: 10)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `files`: List of matching file objects with metadata
-    *   `query`: The search query that was executed
-    *   `error`: Error message if operation failed
-
-### Action: `read_onedrive_file_content`
-
-*   **Description:** Read the content of a OneDrive file by ID, with automatic PDF conversion for Office documents
-*   **Inputs:**
-    *   `file_id`: The ID of the file to read (obtained from search or list operations)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `file`: Object with file content and metadata
-        *   `content`: Base64 encoded file content (PDF for Office documents, original content for text files)
-        *   `name`: The name of the file
-        *   `contentType`: Content type of the returned file (application/pdf for converted Office docs)
-    *   `metadata`: File metadata including ID, size, and web URL
-    *   `error`: Error message if operation failed
-
-### Action: `search_sharepoint_sites`
-
-*   **Description:** Search for SharePoint sites across your organization
-*   **Inputs:**
-    *   `query`: Search query to find sites
-    *   `order_by_created`: Sort by creation date (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `query`: The search query that was executed
-    *   `sites`: List of matching SharePoint sites
-    *   `total_sites`: Total number of sites found
-    *   `error`: Error message if operation failed
-
-### Action: `get_sharepoint_site_details`
-
-*   **Description:** Get detailed information about a specific SharePoint site
-*   **Inputs:**
-    *   `site_id`: The ID of the SharePoint site
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `site`: Object with site details including display name, description, web URL, and metadata
-    *   `error`: Error message if operation failed
-
-### Action: `list_sharepoint_libraries`
-
-*   **Description:** List all document libraries (drives) in a SharePoint site
-*   **Inputs:**
-    *   `site_id`: The ID of the SharePoint site
-    *   `limit`: Maximum number of libraries to return (optional)
-    *   `select_fields`: Comma-separated list of fields to return (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `site_id`: The SharePoint site ID
-    *   `libraries`: List of document libraries with metadata
-    *   `total_libraries`: Total number of libraries found
-    *   `error`: Error message if operation failed
-
-### Action: `search_sharepoint_documents`
-
-*   **Description:** Search for documents across all document libraries in a SharePoint site
-*   **Inputs:**
-    *   `site_id`: The ID of the SharePoint site
-    *   `query`: Search query to find documents
-    *   `limit`: Maximum number of documents to return (default: 10)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `site_id`: The SharePoint site ID
-    *   `query`: The search query that was executed
-    *   `files`: List of matching documents with drive information
-    *   `total_files`: Total number of files found
-    *   `drives_searched`: Number of document libraries searched
-    *   `total_drives`: Total number of document libraries in the site
-    *   `search_errors`: List of errors encountered during search (if any)
-    *   `error`: Error message if operation failed
-
-### Action: `read_sharepoint_document`
-
-*   **Description:** Read the content of a SharePoint document with automatic PDF conversion for Office documents
-*   **Inputs:**
-    *   `site_id`: The ID of the SharePoint site
-    *   `file_id`: The ID of the file to read
-    *   `drive_id`: The ID of the document library containing the file (optional, for non-default libraries)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `file`: Object with file content and metadata
-        *   `content`: Base64 encoded file content (PDF for Office documents)
-        *   `name`: The name of the file
-        *   `contentType`: Content type of the returned file
-    *   `metadata`: File metadata including ID, size, web URL, site ID, and drive ID
-    *   `error`: Error message if operation failed
-
-### Action: `list_sharepoint_pages`
-
-*   **Description:** List all pages in a SharePoint site
-*   **Inputs:**
-    *   `site_id`: The ID of the SharePoint site
-    *   `limit`: Maximum number of pages to return (optional)
-    *   `order_by`: Sort order for results (optional)
-    *   `select_fields`: Comma-separated list of fields to return (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `site_id`: The SharePoint site ID
-    *   `pages`: List of pages with metadata
-    *   `total_pages`: Total number of pages found
-    *   `error`: Error message if operation failed
-
-### Action: `read_sharepoint_page_content`
-
-*   **Description:** Read the content and metadata of a SharePoint site page
-*   **Inputs:**
-    *   `site_id`: The ID of the SharePoint site
-    *   `page_id`: The ID of the page to read
-    *   `include_content`: Whether to include page content and web parts (default: true)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `site_id`: The SharePoint site ID
-    *   `page`: Object with page details including title, layout, and content
-    *   `error`: Error message if operation failed
+### `send_email`
+
+Send an email via Outlook with support for CC, BCC, and HTML content.
+
+**Inputs:**
+- `to` (required): Recipient email address
+- `subject` (required): Email subject
+- `body` (required): Email body content
+- `body_type` (optional): Body content type — `Text` or `HTML` (default: `Text`)
+- `cc` (optional): CC email addresses
+- `bcc` (optional): BCC email addresses
+
+**Outputs:**
+- `status`: Confirmation string
+
+---
+
+### `list_emails`
+
+List emails for a specific date range and folder. Defaults to last 24 hours if no date specified.
+
+Returns full body HTML by default. Use the `fields` parameter to limit response to metadata only when scanning a large inbox to avoid context window issues.
+
+**Inputs:**
+- `start_datetime` (optional): Start datetime in UTC (ISO 8601, e.g. `2024-08-01T07:00:00Z`). Recommended over `start_date`.
+- `end_datetime` (optional): End datetime in UTC (ISO 8601). Defaults to `start_datetime` if omitted.
+- `start_date` (optional): Legacy date-only parameter (e.g. `2024-08-01`)
+- `end_date` (optional): Legacy date-only parameter
+- `folder` (optional): Mail folder to query (default: `Inbox`)
+- `limit` (optional): Maximum number of emails to return
+- `fields` (optional): List of fields to return per email. When omitted, all fields including `body.content` (full HTML) are returned. Use to reduce payload — e.g. `["id", "subject", "sender", "receivedDateTime", "hasAttachments", "bodyPreview"]` for a lightweight metadata scan. Allowed values: `id`, `subject`, `sender`, `receivedDateTime`, `bodyPreview`, `body`, `hasAttachments`, `isRead`, `importance`.
+
+**Outputs:**
+- `emails`: List of email objects
+- `count`: Number of emails returned
+
+> **Tip:** Using `fields` to exclude `body` reduces payload by ~65% on HTML-heavy inboxes.
+
+---
+
+### `list_emails_from_contact`
+
+Get the latest emails from a specific contact.
+
+**Inputs:**
+- `contact_email` (required): Email address of the contact
+- `limit` (optional): Maximum number of emails to return
+- `folder` (optional): Mail folder to search (default: `Inbox`)
+
+**Outputs:**
+- `emails`: List of email objects from the specified contact
+- `count`: Number of emails returned
+
+---
+
+### `read_email`
+
+Read email content and list attachment metadata.
+
+**Inputs:**
+- `email_id` (required): Unique identifier of the email
+- `include_attachments` (optional): Include attachment metadata (default: `true`)
+
+**Outputs:**
+- `email`: Complete email object with content
+- `attachments`: List of attachment metadata (when requested)
+
+---
+
+### `mark_email_read`
+
+Change the read/unread status of an email.
+
+**Inputs:**
+- `email_id` (required): Unique identifier of the email
+- `is_read` (required): `true` to mark as read, `false` to mark as unread
+
+**Outputs:**
+- `id`: Email ID
+- `isRead`: Updated read status
+
+---
+
+### `list_mail_folders`
+
+List mail folders in the user's mailbox. Returns folder IDs needed for `move_email`. Use `include_children=true` to get all folders including nested subfolders.
+
+**Inputs:**
+- `folder_id` (optional): ID of a parent folder to list children of. If not provided, lists root-level folders.
+- `include_hidden` (optional): Include hidden system folders (default: `false`)
+- `include_children` (optional): Recursively include all nested child folders. Recommended when searching for a custom folder. (default: `false`)
+
+**Outputs:**
+- `folders`: List of folder objects with `id`, `displayName`, `parentFolderId`, `childFolderCount`, `unreadItemCount`, `totalItemCount`, `isHidden`
+- `total_count`: Total number of folders returned
+
+---
+
+### `get_mail_folder`
+
+Get details of a specific mail folder by ID or well-known name.
+
+Well-known names (lowercase, no spaces): `inbox`, `drafts`, `sentitems`, `deleteditems`, `junkemail`, `archive`, `outbox`, `clutter`, `scheduled`, `searchfolders`, `conversationhistory`
+
+**Inputs:**
+- `folder_id` (required): Folder ID or well-known name
+
+**Outputs:**
+- `folder`: Folder object with `id`, `displayName`, `parentFolderId`, `childFolderCount`, `unreadItemCount`, `totalItemCount`, `isHidden`
+
+---
+
+### `move_email`
+
+Move an email to a different folder.
+
+For custom folders (e.g. "Clients", "Projects"), first call `list_mail_folders` with `include_children=true` to find the folder ID. For system folders, use the well-known name directly.
+
+**Inputs:**
+- `email_id` (required): Unique identifier of the email
+- `destination_folder_id` (required): Destination folder ID (from `list_mail_folders`) or a well-known folder name (`inbox`, `drafts`, `sentitems`, `deleteditems`, `junkemail`, `archive`, `outbox`, `clutter`, `scheduled`)
+
+**Outputs:**
+- `id`: ID of the moved email
+- `parentFolderId`: ID of the destination folder
+- `subject`: Subject of the moved email
+
+---
+
+### `create_draft_email`
+
+Create a draft email message that can be sent later.
+
+**Inputs:**
+- `subject` (required): Email subject line
+- `body` (required): Email body content
+- `to_recipients` (required): List of recipient email addresses
+- `body_type` (optional): Content type — `Text` or `HTML` (default: `Text`)
+- `cc_recipients` (optional): List of CC recipient email addresses
+- `bcc_recipients` (optional): List of BCC recipient email addresses
+- `importance` (optional): `Low`, `Normal`, or `High`
+
+**Outputs:**
+- `draft_id`: ID of the created draft
+- `subject`: Subject of the draft
+- `created_datetime`: When the draft was created
+- `is_draft`: `true`
+
+---
+
+### `send_draft_email`
+
+Send a previously created draft email.
+
+**Inputs:**
+- `draft_id` (required): ID of the draft to send
+
+**Outputs:**
+- `draft_id`: ID of the sent draft
+- `status`: Confirmation string
+
+---
+
+### `reply_to_email`
+
+Reply to an existing email message.
+
+**Inputs:**
+- `message_id` (required): ID of the message to reply to
+- `comment` (optional): Reply message text
+
+**Outputs:**
+- `message_id`: ID of the original message
+- `operation`: `reply`
+- `status`: Confirmation string
+
+---
+
+### `forward_email`
+
+Forward an existing email message to other recipients.
+
+**Inputs:**
+- `message_id` (required): ID of the message to forward
+- `to_recipients` (required): List of recipients to forward to
+- `comment` (optional): Additional message text to include
+
+**Outputs:**
+- `message_id`: ID of the original message
+- `operation`: `forward`
+- `status`: Confirmation string
+
+---
+
+### `download_email_attachment`
+
+Download the content of an email attachment. Returns the same file format as OneDrive/SharePoint reads for consistent handling.
+
+**Inputs:**
+- `message_id` (required): ID of the message containing the attachment
+- `attachment_id` (required): ID of the attachment to download
+- `include_content` (optional): Whether to include attachment content (default: `true`)
+
+**Outputs:**
+- `file`: Object with `content` (base64 encoded), `name`, `contentType`
+- `metadata`: Object with `id`, `name`, `size`, `contentType`, `message_id`, `is_inline`
+
+---
+
+### `search_emails`
+
+Search for emails using natural language queries.
+
+**Inputs:**
+- `query` (required): Search query (searches body, sender, subject, and attachments)
+- `limit` (optional): Maximum number of results (default: 25, max: 1000)
+- `enable_top_results` (optional): Enable relevance-based ranking (default: `false`)
+
+**Outputs:**
+- `query`: The search query executed
+- `total_results`: Total number of matching emails
+- `messages`: List of matching email messages
+
+---
+
+### `create_calendar_event`
+
+Create a calendar event with attendees and location.
+
+**Inputs:**
+- `subject` (required): Event title
+- `start_time` (required): Start time (ISO 8601 UTC)
+- `end_time` (required): End time (ISO 8601 UTC)
+- `location` (optional): Event location
+- `body` (optional): Event description
+- `attendees` (optional): List of attendee email addresses
+
+**Outputs:**
+- `id`: Unique identifier of the created event
+- `webLink`: Web link to the event
+
+---
+
+### `update_calendar_event`
+
+Update an existing calendar event.
+
+**Inputs:**
+- `event_id` (required): ID of the event to update
+- `subject` (optional): Updated event title
+- `start_time` (optional): Updated start time (ISO 8601 UTC)
+- `end_time` (optional): Updated end time (ISO 8601 UTC)
+- `location` (optional): Updated location
+- `attendees` (optional): Updated list of attendee email addresses
+
+**Outputs:**
+- `id`: ID of the updated event
+- `webLink`: Web link to the event
+
+---
+
+### `list_calendar_events`
+
+List calendar events for a date range using Microsoft Graph `calendarView` for accurate filtering. Properly expands recurring events. Defaults to next 30 days if no dates provided.
+
+**Inputs:**
+- `start_datetime` (optional): Start datetime in UTC (ISO 8601, e.g. `2024-08-01T00:00:00Z`). Recommended.
+- `end_datetime` (optional): End datetime in UTC (ISO 8601)
+- `start_date` (optional): Legacy date-only parameter (e.g. `2024-08-01`)
+- `end_date` (optional): Legacy date-only parameter
+- `limit` (optional): Maximum number of events (default: 100)
+- `user_timezone` (optional): User's timezone for intelligent defaults
+
+**Outputs:**
+- `events`: List of calendar event objects with `subject`, `start`, `end`, `location`, `organizer`, `attendees`
+
+---
+
+### `find_meeting_times`
+
+Find available meeting time slots based on attendee availability, working hours, and optional room requirements. Uses Microsoft Graph `findMeetingTimes`.
+
+**Inputs:**
+- `attendees` (required): List of attendee email addresses
+- `duration_minutes` (optional): Meeting duration in minutes (default: 60)
+- `start_datetime` (optional): Start of search range (ISO 8601 UTC). Defaults to now.
+- `end_datetime` (optional): End of search range (ISO 8601 UTC). Defaults to 7 days from start.
+- `max_candidates` (optional): Maximum suggestions to return (default: 10, max: 20)
+- `is_organizer_optional` (optional): Whether the organizer is optional (default: `false`)
+- `location_constraint` (optional): Room/location email address to include as a required resource
+- `minimum_attendee_percentage` (optional): Minimum % of attendees that must be available (0–100, default: 100)
+
+**Outputs:**
+- `meeting_time_suggestions`: List of suggested time slots with confidence scores, availability info, and suggested locations
+- `empty_suggestions_reason`: Reason if no suggestions were returned
+
+Requires `Calendars.ReadWrite` and `Schedule.Read.All` scopes.
+
+---
+
+### `get_schedule`
+
+Get the free/busy availability schedule for one or more users or rooms. Returns busy time slots, working hours, and an availability view string.
+
+**Inputs:**
+- `schedules` (required): List of email addresses (users or rooms)
+- `start_datetime` (required): Start of time range (ISO 8601 UTC)
+- `end_datetime` (required): End of time range (ISO 8601 UTC)
+- `availability_view_interval` (optional): Time slot duration in minutes for the view string (default: 30, range: 5–1440)
+
+**Outputs:**
+- `schedules`: List of availability objects, each with:
+  - `email`: Email address
+  - `availability_view`: String where each character = a slot (0=free, 1=tentative, 2=busy, 3=OOO, 4=working elsewhere)
+  - `schedule_items`: List of calendar items with status, start/end, subject, location
+  - `working_hours`: Working hours configuration
+
+Requires `Schedule.Read.All` scope.
+
+---
+
+### `list_rooms`
+
+List available meeting rooms and room lists in the organization.
+
+**Inputs:**
+- `list_type` (optional): `rooms` (all rooms), `room_lists` (buildings/floors), or `rooms_in_list` (rooms in a specific list) (default: `rooms`)
+- `room_list_email` (optional): Email of a room list — required when `list_type` is `rooms_in_list`
+- `limit` (optional): Maximum number of rooms (default: 100)
+
+**Outputs:**
+- `rooms`: List of room objects with `id`, `display_name`, `email_address`, `capacity`, `building`, `floor_number`, A/V equipment details
+- `total_count`: Number of rooms/lists returned
+
+Room email addresses can be used with `check_room_availability`, `get_schedule`, and `find_meeting_times`. Requires `Place.Read.All` scope.
+
+---
+
+### `check_room_availability`
+
+Check if specific meeting rooms are available during a time range.
+
+**Inputs:**
+- `room_emails` (required): List of room email addresses (from `list_rooms`)
+- `start_datetime` (required): Start of time range (ISO 8601 UTC)
+- `end_datetime` (required): End of time range (ISO 8601 UTC)
+
+**Outputs:**
+- `rooms`: List of room availability objects, each with `email`, `is_available`, `conflicts`
+- `available_rooms`: List of room emails that are fully free
+- `unavailable_rooms`: List of room emails that have conflicts
+
+Requires `Schedule.Read.All` scope.
+
+---
+
+### `upload_file`
+
+Upload a file to OneDrive.
+
+**Inputs:**
+- `filename` (required): Name of the file (e.g. `report.txt`, `notes.md`)
+- `content` (required): Text content of the file
+- `content_type` (optional): MIME type
+- `folder_path` (optional): Destination folder path in OneDrive (default: root)
+
+**Outputs:**
+- `id`: ID of the uploaded file
+- `webUrl`: Web URL to access the file
+- `size`: File size in bytes
+
+---
+
+### `list_files`
+
+List files and folders in a OneDrive folder.
+
+**Inputs:**
+- `folder_path` (optional): Folder path to list (default: root)
+- `limit` (optional): Maximum number of items
+
+**Outputs:**
+- `files`: List of file and folder objects
+- `count`: Number of items returned
+
+---
+
+### `search_onedrive_files`
+
+Search for files in OneDrive using natural language queries.
+
+**Inputs:**
+- `query` (required): Search query (e.g. `quarterly report`, `budget 2024`)
+- `limit` (optional): Maximum number of files (default: 10)
+
+**Outputs:**
+- `files`: List of matching file objects with metadata
+- `query`: The search query executed
+
+---
+
+### `read_onedrive_file_content`
+
+Read the content of a OneDrive file. Office documents (`.docx`, `.xlsx`, `.pptx`, etc.) are automatically converted to PDF. Binary content is fetched directly to preserve file integrity.
+
+**Inputs:**
+- `file_id` (required): File ID (from `search_onedrive_files` or `list_files`)
+
+**Outputs:**
+- `file`: Object with `content` (base64 encoded), `name`, `contentType` (`application/pdf` for converted Office docs)
+- `metadata`: File metadata with `id`, `size`, `webUrl`
+
+---
+
+### `read_contacts`
+
+Read and search contacts from Outlook.
+
+**Inputs:**
+- `limit` (optional): Maximum number of contacts
+- `search` (optional): Filter contacts by name or company (case-insensitive, partial match)
+
+**Outputs:**
+- `contacts`: List of contact objects with detailed information
+- `message`: Description of the search results
+- `search_term`: The search term used (when searching)
+- `total_searched`: Total contacts searched through (when searching)
+
+---
+
+### `search_sharepoint_sites`
+
+Search for SharePoint sites across your organization. Searches top-level site collections; use `list_sharepoint_subsites` to discover child sites under a known parent.
+
+**Inputs:**
+- `query` (required): Search query to find sites
+- `order_by_created` (optional): Sort by creation date, newest first
+
+**Outputs:**
+- `query`: The search query executed
+- `sites`: List of matching SharePoint sites
+- `total_sites`: Total number of sites found
+
+---
+
+### `get_sharepoint_site_details`
+
+Get detailed information about a specific SharePoint site.
+
+**Inputs:**
+- `site_id` (required): The ID of the SharePoint site
+
+**Outputs:**
+- `site`: Site details including `displayName`, `description`, `webUrl`, and metadata
+
+---
+
+### `list_sharepoint_libraries`
+
+List all document libraries (drives) in a SharePoint site.
+
+**Inputs:**
+- `site_id` (required): The ID of the SharePoint site
+- `limit` (optional): Maximum number of libraries
+- `select_fields` (optional): Comma-separated list of fields to return
+
+**Outputs:**
+- `site_id`: The SharePoint site ID
+- `libraries`: List of document libraries with metadata
+- `total_libraries`: Total number of libraries found
+
+---
+
+### `search_sharepoint_documents`
+
+Search for documents across all document libraries in a SharePoint site.
+
+**Inputs:**
+- `site_id` (required): The ID of the SharePoint site
+- `query` (required): Search query to find documents
+- `limit` (optional): Maximum number of documents (default: 10)
+
+**Outputs:**
+- `site_id`: The SharePoint site ID
+- `query`: The search query executed
+- `files`: List of matching documents with drive information
+- `total_files`: Total number of files found
+- `drives_searched`: Number of libraries searched
+- `total_drives`: Total number of libraries in the site
+- `search_errors`: Errors encountered during search (if any)
+
+---
+
+### `read_sharepoint_document`
+
+Read the content of a SharePoint document. Office documents are automatically converted to PDF. Binary content is fetched directly to preserve file integrity.
+
+**Inputs:**
+- `site_id` (required): The ID of the SharePoint site
+- `file_id` (required): The ID of the file to read
+- `drive_id` (optional): ID of the specific document library containing the file. If not provided, uses the site's default drive.
+
+**Outputs:**
+- `file`: Object with `content` (base64 encoded), `name`, `contentType`
+- `metadata`: File metadata with `id`, `size`, `webUrl`, `site_id`, `drive_id`
+
+---
+
+### `list_sharepoint_pages`
+
+List all pages in a SharePoint site.
+
+**Inputs:**
+- `site_id` (required): The ID of the SharePoint site
+- `limit` (optional): Maximum number of pages
+- `order_by` (optional): Sort order (e.g. `createdDateTime desc`)
+- `select_fields` (optional): Comma-separated list of fields to return
+
+**Outputs:**
+- `site_id`: The SharePoint site ID
+- `pages`: List of pages with metadata
+- `total_pages`: Total number of pages found
+
+---
+
+### `read_sharepoint_page_content`
+
+Read the content and metadata of a SharePoint site page.
+
+**Inputs:**
+- `site_id` (required): The ID of the SharePoint site
+- `page_id` (required): The ID of the page to read
+- `include_content` (optional): Whether to include page content and web parts (default: `true`)
+
+**Outputs:**
+- `site_id`: The SharePoint site ID
+- `page`: Page details including `title`, `layout`, and content
+
+---
+
+### `list_sharepoint_subsites`
+
+List all subsites (child sites) under a SharePoint site.
+
+**Inputs:**
+- `site_id` (required): The ID of the parent SharePoint site
+- `limit` (optional): Maximum number of subsites
+
+**Outputs:**
+- `site_id`: The parent site ID
+- `subsites`: List of subsite objects with `id`, `displayName`, `webUrl`, `description`
+- `total_subsites`: Total number of subsites found
+
+---
+
+### `list_sharepoint_folder_contents`
+
+List files and folders within a SharePoint document library or subfolder. Use without `folder_id` to list root contents, or with `folder_id` to browse into subfolders.
+
+**Inputs:**
+- `drive_id` (required): The ID of the document library (from `list_sharepoint_libraries`)
+- `folder_id` (optional): ID of a specific folder to list contents of. If not provided, lists root of the library.
+- `limit` (optional): Maximum number of items (default: 50)
+
+**Outputs:**
+- `drive_id`: The document library ID
+- `folder_id`: The folder ID browsed (if provided)
+- `items`: List of file and folder objects with `id`, `name`, `type`, `size`, `webUrl`, `lastModifiedDateTime`
+- `total_items`: Total number of items
+
+---
 
 ## Requirements
 
-*   `autohive_integrations_sdk`
-*   `aiohttp`
+- `autohive-integrations-sdk~=2.0.0`
+- `aiohttp>=3.9.0`
 
 ## Usage Examples
 
-**Example 1: Send a simple email**
+**Send a simple email**
 
 ```json
 {
   "to": "recipient@example.com",
   "subject": "Hello from Autohive",
-  "body": "This is a test email sent via Microsoft Copilot 365 integration",
+  "body": "This is a test email.",
   "body_type": "Text"
 }
 ```
 
-**Example 2: Create a calendar event with attendees**
+**List emails — metadata only (large inbox scan)**
+
+```json
+{
+  "start_datetime": "2024-08-01T00:00:00Z",
+  "end_datetime": "2024-08-01T23:59:59Z",
+  "fields": ["id", "subject", "sender", "receivedDateTime", "hasAttachments", "bodyPreview"]
+}
+```
+
+**Create a calendar event with attendees**
 
 ```json
 {
@@ -541,290 +634,91 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
   "start_time": "2024-08-01T14:00:00Z",
   "end_time": "2024-08-01T15:00:00Z",
   "location": "Conference Room A",
-  "body": "Weekly team sync meeting",
+  "body": "Weekly team sync",
   "attendees": ["team@example.com", "manager@example.com"]
 }
 ```
 
-**Example 3: List calendar events for a specific day**
+**Move email to a custom folder (2-step)**
 
+Step 1 — find the folder ID:
 ```json
-{
-  "start_datetime": "2024-08-20T00:00:00Z",
-  "end_datetime": "2024-08-20T23:59:59Z",
-  "limit": 50
-}
+// list_mail_folders
+{ "include_children": true }
+// → { "id": "AQMkADYAAAIBXQAAAA==", "displayName": "Clients", ... }
 ```
 
-**Example 4: Upload a file to OneDrive**
-
+Step 2 — move using the folder ID:
 ```json
+// move_email
 {
-  "filename": "document.pdf",
-  "content": "base64-encoded-file-content",
-  "content_type": "application/pdf",
-  "folder_path": "/Documents"
-}
-```
-
-**Example 5: List all mail folders including subfolders**
-
-```json
-{
-  "include_children": true,
-  "include_hidden": false
-}
-```
-
-**Example 6: Move email to a custom folder (2-step process)**
-
-Step 1: Find the folder ID
-```json
-// Call list_mail_folders with include_children=true
-{
-  "include_children": true
-}
-// Response includes: { "id": "AQMkADYAAAIBXQAAAA==", "displayName": "Clients", ... }
-```
-
-Step 2: Move the email using the folder ID
-```json
-// Call move_email with the folder ID
-{
-  "email_id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC...",
+  "email_id": "AAMkAGVmMDEzMTM...",
   "destination_folder_id": "AQMkADYAAAIBXQAAAA=="
 }
 ```
 
-**Example 7: Move email to a system folder using well-known name**
+**Move email to a system folder**
 
 ```json
 {
-  "email_id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC...",
+  "email_id": "AAMkAGVmMDEzMTM...",
   "destination_folder_id": "archive"
 }
 ```
 
-**Example 8: Get details of a specific folder**
+**Find available meeting times**
 
 ```json
-{
-  "folder_id": "inbox"
-}
-```
-
-**Example 9: List recent emails with timezone handling**
-
-```json
-{
-  "start_datetime": "2024-08-01T07:00:00Z",
-  "end_datetime": "2024-08-02T06:59:59Z",
-  "folder": "Inbox",
-  "limit": 20
-}
-```
-
-**Example 10: Create and send a draft email**
-
-```json
-{
-  "subject": "Meeting Follow-up",
-  "body": "Thank you for attending today's meeting. Please find the action items below.",
-  "body_type": "HTML",
-  "to_recipients": [
-    {"address": "team@example.com", "name": "Team"}
-  ],
-  "cc_recipients": ["manager@example.com"],
-  "importance": "High"
-}
-```
-
-**Example 11: Reply to an email**
-
-```json
-{
-  "message_id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEMAAAiIsqMbYjsT5e-T7KzowPTAAAYNKvwAAA=",
-  "comment": "Thanks for the information. I'll review it and get back to you."
-}
-```
-
-**Example 12: Search emails for specific content**
-
-```json
-{
-  "query": "budget meeting quarterly",
-  "limit": 10,
-  "enable_top_results": true
-}
-```
-
-**Example 13: Download an email attachment**
-
-```json
-{
-  "message_id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEMAAAiIsqMbYjsT5e-T7KzowPTAAAYNKvwAAA=",
-  "attachment_id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEMAAAiIsqMbYjsT5e-T7KzowPTAAAYNKvwAAABEgAQAMUhSlfLjElNlFm_4bZVWoc=",
-  "include_content": true
-}
-```
-
-**Example 14: Search OneDrive files**
-
-```json
-{
-  "query": "quarterly report Q4",
-  "limit": 5
-}
-```
-
-**Example 15: Read OneDrive file content**
-
-```json
-{
-  "file_id": "01BYE5RZ6QN3ZWBTUANRHZI4XJBEYH2C3X"
-}
-```
-
-**Example 16: Search SharePoint sites**
-
-```json
-{
-  "query": "Human Resources",
-  "order_by_created": true
-}
-```
-
-**Example 17: Search SharePoint documents across all libraries**
-
-```json
-{
-  "site_id": "contoso.sharepoint.com,da60e844-ba1d-49bc-b4d4-d5e36bae9019,712a596e-90a1-49e3-9b48-bfa80bee8740",
-  "query": "policy",
-  "limit": 20
-}
-```
-
-**Example 18: Read SharePoint document from specific library**
-
-```json
-{
-  "site_id": "contoso.sharepoint.com,da60e844-ba1d-49bc-b4d4-d5e36bae9019,712a596e-90a1-49e3-9b48-bfa80bee8740",
-  "file_id": "01K7A2KM7ME6QPBHWX4ZHL4VU7RAZUCQXM",
-  "drive_id": "b!ASwBPCNefEqjDPqXBmbxfSFaFNP2-I9LqYIgUgXUa_nHoxnH9B9RSYhMey8OXO_l"
-}
-```
-
-**Example 19: Find available meeting times for multiple attendees**
-
-```json
-{
-  "attendees": ["john@contoso.com", "sarah@contoso.com", "mike@contoso.com"],
-  "duration_minutes": 60,
-  "start_datetime": "2024-08-19T08:00:00Z",
-  "end_datetime": "2024-08-23T18:00:00Z",
-  "max_candidates": 5,
-  "minimum_attendee_percentage": 100
-}
-```
-
-**Example 20: Find meeting times with a specific room**
-
-```json
-{
-  "attendees": ["john@contoso.com", "sarah@contoso.com"],
-  "duration_minutes": 30,
-  "start_datetime": "2024-08-20T09:00:00Z",
-  "end_datetime": "2024-08-20T17:00:00Z",
-  "location_constraint": "conf-room-a@contoso.com"
-}
-```
-
-**Example 21: Get free/busy schedule for team members**
-
-```json
-{
-  "schedules": ["john@contoso.com", "sarah@contoso.com", "mike@contoso.com"],
-  "start_datetime": "2024-08-20T08:00:00Z",
-  "end_datetime": "2024-08-20T18:00:00Z",
-  "availability_view_interval": 30
-}
-```
-
-**Example 22: List all meeting rooms in the organization**
-
-```json
-{
-  "list_type": "rooms",
-  "limit": 50
-}
-```
-
-**Example 23: List room lists (buildings/floors)**
-
-```json
-{
-  "list_type": "room_lists"
-}
-```
-
-**Example 24: List rooms in a specific building/room list**
-
-```json
-{
-  "list_type": "rooms_in_list",
-  "room_list_email": "building-a@contoso.com",
-  "limit": 20
-}
-```
-
-**Example 25: Check room availability for a meeting**
-
-```json
-{
-  "room_emails": ["conf-room-a@contoso.com", "conf-room-b@contoso.com", "boardroom@contoso.com"],
-  "start_datetime": "2024-08-20T14:00:00Z",
-  "end_datetime": "2024-08-20T15:00:00Z"
-}
-```
-
-**Example 26: Full meeting scheduling workflow**
-
-Step 1: List available rooms
-```json
-// Call list_rooms
-{ "list_type": "rooms" }
-```
-
-Step 2: Find meeting times with a room
-```json
-// Call find_meeting_times with attendees and room
 {
   "attendees": ["john@contoso.com", "sarah@contoso.com"],
   "duration_minutes": 60,
   "start_datetime": "2024-08-19T08:00:00Z",
   "end_datetime": "2024-08-23T18:00:00Z",
-  "location_constraint": "conf-room-a@contoso.com"
+  "max_candidates": 5
 }
 ```
 
-Step 3: Create the event with the suggested time
+**Full meeting scheduling workflow**
+
+1. `list_rooms` — discover room email addresses
+2. `find_meeting_times` with `location_constraint` — find mutual availability + room
+3. `create_calendar_event` — book the chosen slot
+
+**Browse a SharePoint document library**
+
+1. `search_sharepoint_sites` — find site
+2. `list_sharepoint_libraries` — list drives in the site
+3. `list_sharepoint_folder_contents` with `drive_id` — browse root or subfolders
+4. `read_sharepoint_document` with `file_id` and `drive_id` — read the file
+
+**Discover SharePoint subsites**
+
 ```json
-// Call create_calendar_event with the chosen suggestion
-{
-  "subject": "Project Review",
-  "start_time": "2024-08-20T10:00:00Z",
-  "end_time": "2024-08-20T11:00:00Z",
-  "location": "Conference Room A",
-  "attendees": ["john@contoso.com", "sarah@contoso.com"]
-}
+// search_sharepoint_sites to find parent site
+{ "query": "HR Portal" }
+// → site_id: "contoso.sharepoint.com,abc,xyz"
+
+// list_sharepoint_subsites to find child sites
+{ "site_id": "contoso.sharepoint.com,abc,xyz" }
 ```
 
 ## Testing
 
-To run the tests:
+Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-1.  Navigate to the integration's directory: `cd microsoft365`
-2.  Install dependencies: `pip install -r requirements.txt -t dependencies`
-3.  Run the tests: `python tests/test_microsoft365_integration.py`
+Run unit tests (no credentials needed):
+```bash
+cd microsoft365
+python -m pytest tests/test_microsoft365_unit.py -v
+```
 
-Note: Testing requires proper Microsoft Copilot 365 authentication credentials and may require mock data for certain test scenarios.
+Run live integration tests (requires a valid Microsoft 365 access token):
+```bash
+export MICROSOFT365_ACCESS_TOKEN="eyJ0eXAiOiJKV1Qi..."
+python -m pytest tests/test_microsoft365_integration.py -v -m integration
+```
+
+Obtain an access token from the Microsoft Azure portal or via the Autohive platform OAuth flow. Tokens expire after approximately 80 minutes.
