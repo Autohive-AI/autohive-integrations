@@ -63,7 +63,9 @@ class TestSuccessPath:
     async def test_injects_tenant_header(self, mock_context, limiter):
         mock_context.fetch.return_value = _make_fetch_response()
 
-        await limiter.make_request(mock_context, TEST_URL, TENANT_ID, method="GET", headers={"Accept": "application/json"})
+        await limiter.make_request(
+            mock_context, TEST_URL, TENANT_ID, method="GET", headers={"Accept": "application/json"}
+        )
 
         call_kwargs = mock_context.fetch.call_args.kwargs
         assert call_kwargs["headers"]["xero-tenant-id"] == TENANT_ID
@@ -87,26 +89,15 @@ class TestSuccessPath:
         assert result == {"ok": True}
 
 
-# ---- Proactive daily limit detection ----
-
-
-class TestProactiveDailyLimit:
-    async def test_raises_when_day_remaining_is_zero(self, mock_context, limiter):
+class TestSuccessfulDayLimitResponse:
+    async def test_returns_data_even_when_day_remaining_is_zero(self, mock_context, limiter):
+        # X-DayLimit-Remaining reflects the allowance *after* this successful
+        # call, so the response is still valid and must be returned — only a
+        # subsequent call should hit a 429. Blocking here would discard data
+        # Xero already returned.
         mock_context.fetch.return_value = _make_fetch_response(
             data={"ok": True},
             headers={"X-DayLimit-Remaining": "0"},
-        )
-
-        with pytest.raises(XeroRateLimitExceededException) as exc_info:
-            await limiter.make_request(mock_context, TEST_URL, TENANT_ID)
-
-        assert exc_info.value.tenant_id == TENANT_ID
-        assert exc_info.value.requested_delay == 86400
-
-    async def test_unparseable_day_header_does_not_raise(self, mock_context, limiter):
-        mock_context.fetch.return_value = _make_fetch_response(
-            data={"ok": True},
-            headers={"X-DayLimit-Remaining": "not-a-number"},
         )
 
         result = await limiter.make_request(mock_context, TEST_URL, TENANT_ID)
@@ -181,10 +172,7 @@ class TestConcurrencyLimit:
 
         mock_context.fetch.side_effect = slow_fetch
 
-        tasks = [
-            asyncio.create_task(limiter.make_request(mock_context, TEST_URL, TENANT_ID))
-            for _ in range(7)
-        ]
+        tasks = [asyncio.create_task(limiter.make_request(mock_context, TEST_URL, TENANT_ID)) for _ in range(7)]
         await asyncio.gather(*tasks)
 
         # All 7 requests should complete despite the semaphore cap
@@ -194,30 +182,3 @@ class TestConcurrencyLimit:
         limiter = XeroRateLimiter()
         sem = limiter._get_semaphore()
         assert sem._value == 5
-
-
-# ---- Header parsing ----
-
-
-class TestParseLimitHeaders:
-    def test_parses_both_headers(self):
-        limiter = XeroRateLimiter()
-        min_r, day_r = limiter._parse_limit_headers(
-            {"X-MinLimit-Remaining": "10", "X-DayLimit-Remaining": "500"}
-        )
-        assert min_r == 10
-        assert day_r == 500
-
-    def test_returns_none_for_missing_headers(self):
-        limiter = XeroRateLimiter()
-        min_r, day_r = limiter._parse_limit_headers({})
-        assert min_r is None
-        assert day_r is None
-
-    def test_returns_none_for_invalid_values(self):
-        limiter = XeroRateLimiter()
-        min_r, day_r = limiter._parse_limit_headers(
-            {"X-MinLimit-Remaining": "abc", "X-DayLimit-Remaining": ""}
-        )
-        assert min_r is None
-        assert day_r is None

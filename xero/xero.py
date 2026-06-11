@@ -111,22 +111,15 @@ class XeroRateLimitExceededException(Exception):
     Provides structured info for LLM.
     """
 
-    def __init__(self, requested_delay: int, max_wait_time: int, tenant_id: str, daily: bool = False):
+    def __init__(self, requested_delay: int, max_wait_time: int, tenant_id: str):
         self.requested_delay = requested_delay
         self.max_wait_time = max_wait_time
         self.tenant_id = tenant_id
-        self.daily = daily
 
-        if daily:
-            super().__init__(
-                f"Xero API daily call limit has been reached for tenant {tenant_id}. "
-                "The quota resets every 24 hours — please try again tomorrow."
-            )
-        else:
-            super().__init__(
-                f"Xero API rate limit for tenant {tenant_id} requires waiting {requested_delay}s, "
-                f"exceeds maximum wait time of {max_wait_time}s. Please try again in a minute."
-            )
+        super().__init__(
+            f"Xero API rate limit for tenant {tenant_id} requires waiting {requested_delay}s, "
+            f"exceeds maximum wait time of {max_wait_time}s. Please try again in a minute."
+        )
 
 
 class XeroRateLimiter:
@@ -166,32 +159,13 @@ class XeroRateLimiter:
             self._semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
         return self._semaphore
 
-    def _parse_limit_headers(self, headers: dict) -> tuple:
-        """Return (min_remaining, day_remaining) from Xero rate limit headers, or None if absent/unparseable."""
-        min_remaining = None
-        day_remaining = None
-        try:
-            val = headers.get("X-MinLimit-Remaining")
-            if val is not None:
-                min_remaining = int(val)
-        except (ValueError, TypeError):
-            pass
-        try:
-            val = headers.get("X-DayLimit-Remaining")
-            if val is not None:
-                day_remaining = int(val)
-        except (ValueError, TypeError):
-            pass
-        return min_remaining, day_remaining
-
     async def make_request(self, context: ExecutionContext, url: str, tenant_id: str, **kwargs) -> Any:
         """Make request to Xero API with automatic retry on rate limit errors.
 
         Enforces Xero's concurrency limit (max 5 simultaneous calls) via a semaphore.
         On HTTP 429, waits the Retry-After duration and retries up to max_retries times.
-        Raises XeroRateLimitExceededException when:
-          - The Retry-After delay exceeds max_wait_time (minute-limit hit, too long to wait)
-          - The X-DayLimit-Remaining header reaches 0 (daily quota exhausted)
+        Raises XeroRateLimitExceededException when the Retry-After delay would push
+        cumulative sleeping past max_wait_time (too long to wait inside the Lambda).
         """
         headers = kwargs.get("headers", {})
         headers["xero-tenant-id"] = tenant_id
@@ -204,18 +178,7 @@ class XeroRateLimiter:
             for attempt in range(self.max_retries + 1):
                 try:
                     response = await context.fetch(url, **kwargs)
-
-                    # Check rate limit headers proactively on successful responses.
-                    # X-DayLimit-Remaining reaching 0 means the daily quota is exhausted —
-                    # the next call will receive a 429, so we stop immediately.
-                    _, day_remaining = self._parse_limit_headers(response.headers)
-                    if day_remaining == 0:
-                        raise XeroRateLimitExceededException(86400, self.max_wait_time, tenant_id, daily=True)
-
                     return response.data
-
-                except XeroRateLimitExceededException:
-                    raise
 
                 except asyncio.CancelledError:
                     # Defensive: convert Python-side task cancellation into a
