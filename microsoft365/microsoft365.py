@@ -9,6 +9,7 @@ from typing import Dict, Any, List
 from datetime import datetime, timedelta, timezone
 import base64
 import urllib.parse
+import aiohttp
 
 # Create the integration using the config.json
 microsoft365 = Integration.load()
@@ -27,6 +28,16 @@ def _check_response(response: Any, *required_keys: str) -> None:
     for key in required_keys:
         if key not in response:
             raise KeyError(f"Expected key '{key}' missing from response: {list(response.keys())}")
+
+
+async def _fetch_binary(url: str, token: str) -> bytes:
+    """Fetch a binary /content endpoint directly, bypassing SDK text decoding."""
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers={"Authorization": f"Bearer {token}"}) as resp:
+            if not resp.ok:
+                text = await resp.text()
+                raise ValueError(f"HTTP {resp.status}: {text}")
+            return await resp.read()
 
 
 # ---- Action Handlers ----
@@ -863,42 +874,25 @@ class ReadOneDriveFileContentAction(ActionHandler):
             content_info = ""
 
             try:
+                _token = context.auth.get("credentials", {}).get("access_token", "")
                 if any(ext in file_name.lower() for ext in [".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"]):
                     content_url = f"{GRAPH_API_BASE}/me/drive/items/{file_id}/content?format=pdf"
-                    resp2 = await context.fetch(content_url)
-                    raw = resp2.data
-                    content_bytes = (
-                        raw
-                        if isinstance(raw, bytes)
-                        else (raw.encode("latin-1") if isinstance(raw, str) else str(raw).encode("latin-1"))
-                    )
+                    content_bytes = await _fetch_binary(content_url, _token)
                     content = base64.b64encode(content_bytes).decode("utf-8")
                     content_type = "application/pdf"
                     content_available = True
                     content_info = "Office document converted to PDF and encoded for LLM processing"
                 elif file_name.lower().endswith(".pdf"):
                     content_url = f"{GRAPH_API_BASE}/me/drive/items/{file_id}/content"
-                    resp2 = await context.fetch(content_url)
-                    raw = resp2.data
-                    content_bytes = (
-                        raw
-                        if isinstance(raw, bytes)
-                        else (raw.encode("latin-1") if isinstance(raw, str) else str(raw).encode("latin-1"))
-                    )
+                    content_bytes = await _fetch_binary(content_url, _token)
                     content = base64.b64encode(content_bytes).decode("utf-8")
                     content_type = "application/pdf"
                     content_available = True
                     content_info = "PDF content retrieved and encoded for LLM processing"
                 else:
                     content_url = f"{GRAPH_API_BASE}/me/drive/items/{file_id}/content"
-                    resp2 = await context.fetch(content_url, method="GET")
-                    raw = resp2.data
-                    if isinstance(raw, bytes):
-                        content = base64.b64encode(raw).decode("utf-8")
-                    elif isinstance(raw, str):
-                        content = base64.b64encode(raw.encode("latin-1")).decode("utf-8")
-                    else:
-                        content = base64.b64encode(str(raw).encode("latin-1")).decode("utf-8")
+                    content_bytes = await _fetch_binary(content_url, _token)
+                    content = base64.b64encode(content_bytes).decode("utf-8")
                     content_type = mime_type or "text/plain"
                     content_available = True
                     content_info = "Text content retrieved and encoded successfully"
@@ -1169,13 +1163,8 @@ class DownloadEmailAttachmentAction(ActionHandler):
             if include_content:
                 try:
                     content_url = f"{GRAPH_API_BASE}/me/messages/{message_id}/attachments/{attachment_id}/$value"
-                    resp2 = await context.fetch(content_url)
-                    raw = resp2.data
-                    content_bytes = (
-                        raw
-                        if isinstance(raw, bytes)
-                        else (raw.encode("latin-1") if isinstance(raw, str) else str(raw).encode("latin-1"))
-                    )
+                    _token = context.auth.get("credentials", {}).get("access_token", "")
+                    content_bytes = await _fetch_binary(content_url, _token)
                     content = base64.b64encode(content_bytes).decode("utf-8")
                     content_available = True
 
@@ -1569,18 +1558,13 @@ class ReadSharePointDocumentAction(ActionHandler):
             content_info = ""
 
             try:
+                _token = context.auth.get("credentials", {}).get("access_token", "")
                 if any(ext in file_name.lower() for ext in [".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"]):
                     if drive_id:
                         content_url = f"{GRAPH_API_BASE}/drives/{drive_id}/items/{file_id}/content?format=pdf"
                     else:
                         content_url = f"{GRAPH_API_BASE}/sites/{site_id}/drive/items/{file_id}/content?format=pdf"
-                    resp2 = await context.fetch(content_url)
-                    raw = resp2.data
-                    content_bytes = (
-                        raw
-                        if isinstance(raw, bytes)
-                        else (raw.encode("latin-1") if isinstance(raw, str) else str(raw).encode("latin-1"))
-                    )
+                    content_bytes = await _fetch_binary(content_url, _token)
                     content = base64.b64encode(content_bytes).decode("utf-8")
                     content_type = "application/pdf"
                     content_available = True
@@ -1590,13 +1574,7 @@ class ReadSharePointDocumentAction(ActionHandler):
                         content_url = f"{GRAPH_API_BASE}/drives/{drive_id}/items/{file_id}/content"
                     else:
                         content_url = f"{GRAPH_API_BASE}/sites/{site_id}/drive/items/{file_id}/content"
-                    resp2 = await context.fetch(content_url)
-                    raw = resp2.data
-                    content_bytes = (
-                        raw
-                        if isinstance(raw, bytes)
-                        else (raw.encode("latin-1") if isinstance(raw, str) else str(raw).encode("latin-1"))
-                    )
+                    content_bytes = await _fetch_binary(content_url, _token)
                     content = base64.b64encode(content_bytes).decode("utf-8")
                     content_type = "application/pdf"
                     content_available = True
@@ -1606,14 +1584,8 @@ class ReadSharePointDocumentAction(ActionHandler):
                         content_url = f"{GRAPH_API_BASE}/drives/{drive_id}/items/{file_id}/content"
                     else:
                         content_url = f"{GRAPH_API_BASE}/sites/{site_id}/drive/items/{file_id}/content"
-                    resp2 = await context.fetch(content_url, method="GET")
-                    raw = resp2.data
-                    if isinstance(raw, bytes):
-                        content = base64.b64encode(raw).decode("utf-8")
-                    elif isinstance(raw, str):
-                        content = base64.b64encode(raw.encode("latin-1")).decode("utf-8")
-                    else:
-                        content = base64.b64encode(str(raw).encode("latin-1")).decode("utf-8")
+                    content_bytes = await _fetch_binary(content_url, _token)
+                    content = base64.b64encode(content_bytes).decode("utf-8")
                     content_type = mime_type or "text/plain"
                     content_available = True
                     content_info = "Text content retrieved and encoded successfully"

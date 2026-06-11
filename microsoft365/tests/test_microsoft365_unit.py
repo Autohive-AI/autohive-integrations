@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 from autohive_integrations_sdk import ResultType
 from microsoft365.microsoft365 import microsoft365
 
@@ -469,14 +469,9 @@ async def test_search_onedrive_files_error(mock_context):
 @pytest.mark.asyncio
 async def test_read_onedrive_file_content_text(mock_context):
     metadata = {"id": "f1", "name": "readme.txt", "size": 50, "mimeType": "text/plain", "webUrl": "https://od.com/f1"}
-    content_data = b"hello world"
-    mock_context.fetch = AsyncMock(
-        side_effect=[
-            MagicMock(data=metadata),
-            MagicMock(data=content_data),
-        ]
-    )
-    result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": "f1"}, mock_context)
+    mock_context.fetch = make_fetch(metadata)
+    with patch("microsoft365.microsoft365._fetch_binary", new=AsyncMock(return_value=b"hello world")):
+        result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": "f1"}, mock_context)
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["file"]["name"] == "readme.txt"
 
@@ -597,18 +592,13 @@ async def test_forward_email_error(mock_context):
 @pytest.mark.asyncio
 async def test_download_email_attachment(mock_context):
     meta = {"id": "att1", "name": "file.pdf", "contentType": "application/pdf", "size": 200, "isInline": False}
-    content_bytes = b"%PDF-1.4 stub"
-    mock_context.fetch = AsyncMock(
-        side_effect=[
-            MagicMock(data=meta),
-            MagicMock(data=content_bytes),
-        ]
-    )
-    result = await microsoft365.execute_action(
-        "download_email_attachment",
-        {"message_id": "em1", "attachment_id": "att1"},
-        mock_context,
-    )
+    mock_context.fetch = make_fetch(meta)
+    with patch("microsoft365.microsoft365._fetch_binary", new=AsyncMock(return_value=b"%PDF-1.4 stub")):
+        result = await microsoft365.execute_action(
+            "download_email_attachment",
+            {"message_id": "em1", "attachment_id": "att1"},
+            mock_context,
+        )
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["metadata"]["name"] == "file.pdf"
 
@@ -801,16 +791,14 @@ async def test_search_sharepoint_documents_error(mock_context):
 @pytest.mark.asyncio
 async def test_read_sharepoint_document(mock_context):
     metadata = {"id": "f1", "name": "readme.txt", "size": 50, "mimeType": "text/plain", "webUrl": "https://sp.com/f1"}
-    content_data = b"hello world"
-    mock_context.fetch = AsyncMock(side_effect=[MagicMock(data=metadata), MagicMock(data=content_data)])
-    result = await microsoft365.execute_action(
-        "read_sharepoint_document",
-        {"site_id": "s1", "file_id": "f1"},
-        mock_context,
-    )
+    mock_context.fetch = make_fetch(metadata)
+    with patch("microsoft365.microsoft365._fetch_binary", new=AsyncMock(return_value=b"hello world")):
+        result = await microsoft365.execute_action(
+            "read_sharepoint_document",
+            {"site_id": "s1", "file_id": "f1"},
+            mock_context,
+        )
     assert result.type != ResultType.ACTION_ERROR
-    # result.result may be an ActionResult or a dict depending on SDK path;
-    # handle both
     assert result.result.data["file"]["name"] == "readme.txt"
 
 
