@@ -1,6 +1,6 @@
 {
     "name": "Power BI",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Power BI integration for managing workspaces, datasets, reports, and dashboards",
     "entry_point": "powerbi.py",
     "auth": {
@@ -60,14 +60,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "workspaces",
-                    "result"
+                    "workspaces"
                 ]
             }
         },
@@ -92,14 +88,10 @@
                     "workspace": {
                         "type": "object",
                         "description": "Workspace details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "workspace",
-                    "result"
+                    "workspace"
                 ]
             }
         },
@@ -131,7 +123,7 @@
                                     "type": "string"
                                 },
                                 "configuredBy": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "isRefreshable": {
                                     "type": "boolean"
@@ -147,14 +139,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "datasets",
-                    "result"
+                    "datasets"
                 ]
             }
         },
@@ -183,14 +171,10 @@
                     "dataset": {
                         "type": "object",
                         "description": "Dataset details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dataset",
-                    "result"
+                    "dataset"
                 ]
             }
         },
@@ -286,18 +270,15 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     },
                     "request_id": {
-                        "type": "string"
+                        "type": ["string", "null"]
                     }
                 },
                 "required": [
-                    "result"
+                    "message"
                 ]
             }
         },
@@ -335,30 +316,26 @@
                             "type": "object",
                             "properties": {
                                 "refreshType": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "startTime": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "endTime": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "status": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "requestId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "refreshes",
-                    "result"
+                    "refreshes"
                 ]
             }
         },
@@ -390,24 +367,20 @@
                                     "type": "string"
                                 },
                                 "webUrl": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "embedUrl": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "datasetId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "reports",
-                    "result"
+                    "reports"
                 ]
             }
         },
@@ -436,14 +409,10 @@
                     "report": {
                         "type": "object",
                         "description": "Report details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "report",
-                    "result"
+                    "report"
                 ]
             }
         },
@@ -476,19 +445,19 @@
                             "type": "object",
                             "properties": {
                                 "datasourceType": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "datasourceId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "gatewayId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "name": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "connectionString": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "connectionDetails": {
                                     "type": "object",
@@ -496,14 +465,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "datasources",
-                    "result"
+                    "datasources"
                 ]
             }
         },
@@ -553,14 +518,8 @@
                     },
                     "embedUrl": {
                         "type": "string"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
-                },
-                "required": [
-                    "result"
-                ]
+                }
             }
         },
         "refresh_report": {
@@ -594,9 +553,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     },
@@ -605,7 +561,7 @@
                     }
                 },
                 "required": [
-                    "result"
+                    "message"
                 ]
             }
         },
@@ -644,15 +600,12 @@
                     "export_id": {
                         "type": "string"
                     },
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     }
                 },
                 "required": [
-                    "result"
+                    "message"
                 ]
             }
         },
@@ -688,14 +641,10 @@
                     },
                     "percentComplete": {
                         "type": "integer"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "status",
-                    "result"
+                    "status"
                 ]
             }
         },
@@ -724,24 +673,20 @@
                                     "type": "string"
                                 },
                                 "displayName": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "isReadOnly": {
                                     "type": "boolean"
                                 },
                                 "embedUrl": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dashboards",
-                    "result"
+                    "dashboards"
                 ]
             }
         },
@@ -770,14 +715,10 @@
                     "dashboard": {
                         "type": "object",
                         "description": "Dashboard details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dashboard",
-                    "result"
+                    "dashboard"
                 ]
             }
         },
@@ -813,27 +754,23 @@
                                     "type": "string"
                                 },
                                 "title": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "embedUrl": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "datasetId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "reportId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "tiles",
-                    "result"
+                    "tiles"
                 ]
             }
         },
@@ -876,14 +813,10 @@
                     "results": {
                         "type": "array",
                         "description": "Query results"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "results",
-                    "result"
+                    "results"
                 ]
             }
         }
