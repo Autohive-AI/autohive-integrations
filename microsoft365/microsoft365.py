@@ -32,7 +32,7 @@ def _check_response(response: Any, *required_keys: str) -> None:
 
 async def _fetch_binary(url: str, token: str) -> bytes:
     """Fetch a binary /content endpoint directly, bypassing SDK text decoding."""
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
         async with session.get(url, headers={"Authorization": f"Bearer {token}"}) as resp:
             if not resp.ok:
                 text = await resp.text()
@@ -422,7 +422,7 @@ class ListEmailsFromContactAction(ActionHandler):
                 "$top": limit,
                 "$orderby": "receivedDateTime desc",
                 "$select": ",".join(sorted(active_fields)),
-                "$filter": f"from/emailAddress/address eq '{contact_email}'",
+                "$filter": f"from/emailAddress/address eq '{contact_email.replace(chr(39), chr(39) * 2)}'",
             }
 
             api_url = f"{GRAPH_API_BASE}/me/mailFolders/{folder}/messages"
@@ -622,6 +622,7 @@ class GetMailFolderAction(ActionHandler):
 
             resp = await context.fetch(api_url, params=params)
             response = resp.data
+            _check_response(response, "id")
 
             folder_data = {
                 "id": response["id"],

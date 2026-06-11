@@ -434,7 +434,7 @@ async def test_search_onedrive_files_live(live_context):
 @skip_if_no_creds
 @pytest.mark.destructive
 @pytest.mark.asyncio
-async def test_09_upload_file_live(live_context):
+async def test_10_upload_file_live(live_context):
     unique_name = f"autohive_integration_test_{int(time.time())}.txt"
     result = await microsoft365.execute_action(
         "upload_file",
@@ -468,10 +468,10 @@ async def test_read_onedrive_file_content_live(live_context):
 @skip_if_no_creds
 @pytest.mark.destructive
 @pytest.mark.asyncio
-async def test_10_delete_uploaded_file_live(live_context):
+async def test_11_delete_uploaded_file_live(live_context):
     file_id = _state.get("uploaded_file_id")
     if not file_id:
-        pytest.skip("No uploaded_file_id from test_09_upload_file_live")
+        pytest.skip("No uploaded_file_id from test_10_upload_file_live")
     resp = await live_context.fetch(
         f"https://graph.microsoft.com/v1.0/me/drive/items/{file_id}",
         method="DELETE",

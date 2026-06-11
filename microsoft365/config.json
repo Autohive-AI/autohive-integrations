@@ -1345,10 +1345,6 @@
             "type": "string",
             "description": "ID of the sent draft"
           },
-          "status": {
-            "type": "string",
-            "description": "Status of the operation"
-          },
           "sent": {
             "type": "boolean",
             "description": "True when the draft was sent successfully"
@@ -1388,10 +1384,6 @@
           "operation": {
             "type": "string",
             "description": "Type of operation performed"
-          },
-          "status": {
-            "type": "string",
-            "description": "Status of the operation"
           },
           "sent": {
             "type": "boolean",
@@ -1459,10 +1451,6 @@
           "operation": {
             "type": "string",
             "description": "Type of operation performed"
-          },
-          "status": {
-            "type": "string",
-            "description": "Status of the operation"
           },
           "sent": {
             "type": "boolean",
