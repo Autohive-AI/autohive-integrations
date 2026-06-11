@@ -1054,6 +1054,12 @@ async def test_find_meeting_times(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_find_meeting_times_missing_attendees(mock_context):
+    result = await microsoft365.execute_action("find_meeting_times", {}, mock_context)
+    assert result.type == ResultType.VALIDATION_ERROR
+
+
+@pytest.mark.asyncio
 async def test_find_meeting_times_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("err"))
     result = await microsoft365.execute_action(
@@ -1079,6 +1085,25 @@ async def test_get_schedule(mock_context):
     )
     assert result.type != ResultType.ACTION_ERROR
     assert len(result.result.data["schedules"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_get_schedule_missing_required_inputs(mock_context):
+    # missing schedules
+    result = await microsoft365.execute_action(
+        "get_schedule",
+        {"start_datetime": "2026-06-15T09:00:00Z", "end_datetime": "2026-06-15T17:00:00Z"},
+        mock_context,
+    )
+    assert result.type == ResultType.VALIDATION_ERROR
+
+    # missing start_datetime
+    result = await microsoft365.execute_action(
+        "get_schedule",
+        {"schedules": ["a@b.com"], "end_datetime": "2026-06-15T17:00:00Z"},
+        mock_context,
+    )
+    assert result.type == ResultType.VALIDATION_ERROR
 
 
 @pytest.mark.asyncio
@@ -1157,6 +1182,25 @@ async def test_check_room_availability(mock_context):
     )
     assert result.type != ResultType.ACTION_ERROR
     assert "rooma@co.com" in result.result.data["available_rooms"]
+
+
+@pytest.mark.asyncio
+async def test_check_room_availability_missing_required_inputs(mock_context):
+    # missing room_emails
+    result = await microsoft365.execute_action(
+        "check_room_availability",
+        {"start_datetime": "2026-06-15T10:00:00Z", "end_datetime": "2026-06-15T11:00:00Z"},
+        mock_context,
+    )
+    assert result.type == ResultType.VALIDATION_ERROR
+
+    # missing start_datetime
+    result = await microsoft365.execute_action(
+        "check_room_availability",
+        {"room_emails": ["rooma@co.com"], "end_datetime": "2026-06-15T11:00:00Z"},
+        mock_context,
+    )
+    assert result.type == ResultType.VALIDATION_ERROR
 
 
 @pytest.mark.asyncio
