@@ -17,6 +17,18 @@ microsoft365 = Integration.load()
 GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 
 
+def _check_response(response: Any, *required_keys: str) -> None:
+    """Raise a descriptive exception if the Graph API returned an error response."""
+    if not isinstance(response, dict):
+        raise ValueError(f"Unexpected response type: {type(response)}")
+    if "error" in response:
+        err = response["error"]
+        raise ValueError(err.get("message") or str(err))
+    for key in required_keys:
+        if key not in response:
+            raise KeyError(f"Expected key '{key}' missing from response: {list(response.keys())}")
+
+
 # ---- Action Handlers ----
 
 
@@ -76,6 +88,7 @@ class CreateCalendarEventAction(ActionHandler):
 
             resp = await context.fetch(f"{GRAPH_API_BASE}/me/events", method="POST", json=event_data)
             response = resp.data
+            _check_response(response, "id", "webLink")
 
             return ActionResult(
                 data={
@@ -112,12 +125,13 @@ class UploadFileAction(ActionHandler):
                 headers={"Content-Type": content_type},
             )
             response = resp.data
+            _check_response(response, "id")
 
             return ActionResult(
                 data={
                     "id": response["id"],
-                    "webUrl": response["webUrl"],
-                    "size": response["size"],
+                    "webUrl": response.get("webUrl", ""),
+                    "size": response.get("size", 0),
                 },
                 cost_usd=0.0,
             )
@@ -206,11 +220,12 @@ class UpdateCalendarEventAction(ActionHandler):
                 json=event_data,
             )
             response = resp.data
+            _check_response(response, "id")
 
             return ActionResult(
                 data={
                     "id": response["id"],
-                    "webLink": response["webLink"],
+                    "webLink": response.get("webLink", ""),
                 },
                 cost_usd=0.0,
             )
@@ -423,12 +438,13 @@ class MarkEmailReadAction(ActionHandler):
                 json=update_data,
             )
             response = resp.data
+            _check_response(response, "id")
 
             return ActionResult(
                 data={
                     "id": response["id"],
-                    "isRead": response["isRead"],
-                    "lastModifiedDateTime": response["lastModifiedDateTime"],
+                    "isRead": response.get("isRead", is_read),
+                    "lastModifiedDateTime": response.get("lastModifiedDateTime", ""),
                 },
                 cost_usd=0.0,
             )
@@ -612,11 +628,12 @@ class MoveEmailAction(ActionHandler):
                 json=move_data,
             )
             response = resp.data
+            _check_response(response, "id")
 
             return ActionResult(
                 data={
                     "id": response["id"],
-                    "parentFolderId": response["parentFolderId"],
+                    "parentFolderId": response.get("parentFolderId", ""),
                     "subject": response.get("subject", ""),
                 },
                 cost_usd=0.0,
@@ -638,12 +655,13 @@ class ReadEmailAction(ActionHandler):
                 params={"$select": "id,subject,sender,receivedDateTime,body,hasAttachments"},
             )
             email_response = resp.data
+            _check_response(email_response, "id")
 
             email_details = {
                 "id": email_response["id"],
                 "subject": email_response.get("subject") or "",
-                "sender": email_response["sender"],
-                "receivedDateTime": email_response["receivedDateTime"],
+                "sender": email_response.get("sender", {}),
+                "receivedDateTime": email_response.get("receivedDateTime", ""),
                 "body": email_response.get("body", {}),
                 "hasAttachments": email_response.get("hasAttachments", False),
             }
@@ -832,6 +850,7 @@ class ReadOneDriveFileContentAction(ActionHandler):
             metadata_params = {"$select": "id,name,size,mimeType,file,webUrl"}
             resp = await context.fetch(f"{GRAPH_API_BASE}/me/drive/items/{file_id}", params=metadata_params)
             metadata_response = resp.data
+            _check_response(metadata_response, "id", "name")
 
             file_name = metadata_response["name"]
             file_size = metadata_response.get("size", 0)
@@ -1009,9 +1028,15 @@ class CreateDraftEmailAction(ActionHandler):
             resp = await context.fetch(f"{GRAPH_API_BASE}/me/messages", method="POST", json=message)
             response = resp.data
 
+            draft_id = response.get("id") if isinstance(response, dict) else None
+            if not draft_id:
+                error = response.get("error", {}) if isinstance(response, dict) else {}
+                msg = error.get("message") or f"Unexpected response: {response}"
+                return ActionError(message=msg)
+
             return ActionResult(
                 data={
-                    "draft_id": response["id"],
+                    "draft_id": draft_id,
                     "subject": response.get("subject") or "",
                     "created_datetime": response.get("createdDateTime") or "",
                     "is_draft": response.get("isDraft", True),
@@ -1129,6 +1154,7 @@ class DownloadEmailAttachmentAction(ActionHandler):
                 method="GET",
             )
             attachment_response = resp.data
+            _check_response(attachment_response, "id")
 
             attachment_id_val = attachment_response["id"]
             attachment_name = attachment_response.get("name") or ""
@@ -1530,6 +1556,7 @@ class ReadSharePointDocumentAction(ActionHandler):
 
             resp = await context.fetch(metadata_url, params=metadata_params)
             metadata_response = resp.data
+            _check_response(metadata_response, "id", "name")
 
             file_name = metadata_response["name"]
             file_size = metadata_response.get("size", 0)

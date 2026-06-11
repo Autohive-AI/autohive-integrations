@@ -468,7 +468,7 @@ async def test_search_onedrive_files_error(mock_context):
 
 @pytest.mark.asyncio
 async def test_read_onedrive_file_content_text(mock_context):
-    metadata = {"name": "readme.txt", "size": 50, "mimeType": "text/plain", "webUrl": "https://od.com/f1"}
+    metadata = {"id": "f1", "name": "readme.txt", "size": 50, "mimeType": "text/plain", "webUrl": "https://od.com/f1"}
     content_data = b"hello world"
     mock_context.fetch = AsyncMock(
         side_effect=[
@@ -800,7 +800,7 @@ async def test_search_sharepoint_documents_error(mock_context):
 
 @pytest.mark.asyncio
 async def test_read_sharepoint_document(mock_context):
-    metadata = {"name": "readme.txt", "size": 50, "mimeType": "text/plain", "webUrl": "https://sp.com/f1"}
+    metadata = {"id": "f1", "name": "readme.txt", "size": 50, "mimeType": "text/plain", "webUrl": "https://sp.com/f1"}
     content_data = b"hello world"
     mock_context.fetch = AsyncMock(side_effect=[MagicMock(data=metadata), MagicMock(data=content_data)])
     result = await microsoft365.execute_action(
