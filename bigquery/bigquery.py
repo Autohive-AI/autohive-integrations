@@ -582,6 +582,20 @@ class InsertRowsAction(ActionHandler):
             for error in insert_errors:
                 formatted_errors.append({"index": error.get("index"), "errors": error.get("errors", [])})
 
+            # insertAll returns HTTP 200 even when rows are rejected. If nothing
+            # was inserted (e.g. an invalid row with the default skip_invalid_rows
+            # =False rejects the whole batch), surface it as a failure rather than
+            # an empty success. A partial insert (some rows landed) is returned as
+            # a normal result carrying inserted_count + insert_errors so callers
+            # see exactly what was written.
+            if insert_errors and inserted_count == 0:
+                first_errors = formatted_errors[0].get("errors") if formatted_errors else []
+                detail = first_errors[0].get("message") if first_errors and isinstance(first_errors[0], dict) else None
+                message = f"BigQuery rejected all {len(rows)} row(s)"
+                if detail:
+                    message += f": {detail}"
+                return ActionError(message=message)
+
             return ActionResult(
                 data={
                     "inserted_count": inserted_count,
