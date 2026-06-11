@@ -7,5 +7,8 @@ from autohive_integrations_sdk import ExecutionContext
 def mock_context():
     ctx = MagicMock(spec=ExecutionContext)
     ctx.fetch = AsyncMock()
-    ctx.auth = {}
+    ctx.auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "test_token"},  # nosec B105
+    }
     return ctx
