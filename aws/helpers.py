@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import os
 from datetime import datetime, date
 from decimal import Decimal
 from typing import Any, Dict
@@ -14,11 +15,13 @@ def create_boto3_client(context: ExecutionContext, service_name: str):
     secret_key = creds.get("aws_secret_access_key")
     if not access_key or not secret_key:
         raise ValueError("AWS credentials are missing: aws_access_key_id and aws_secret_access_key are required")
+    session_token = creds.get("aws_session_token") or os.environ.get("AWS_SESSION_TOKEN")
     return boto3.client(
         service_name,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
         region_name=creds.get("aws_region", "us-east-1"),
+        aws_session_token=session_token or None,
     )
 
 

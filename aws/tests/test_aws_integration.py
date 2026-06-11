@@ -27,11 +27,11 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import pytest
 from autohive_integrations_sdk import ResultType
-from aws.aws import aws  # noqa: E402
+from aws import aws  # noqa: E402
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
@@ -42,6 +42,7 @@ AWS_LOG_GROUP = os.getenv("AWS_LOG_GROUP", "")
 AWS_LOG_STREAM = os.getenv("AWS_LOG_STREAM", "")
 AWS_ALARM_NAME = os.getenv("AWS_ALARM_NAME", "")
 AWS_FINDING_ARN = os.getenv("AWS_FINDING_ARN", "")
+AWS_SESSION_TOKEN = os.getenv("AWS_SESSION_TOKEN", "")
 
 pytestmark = [
     pytest.mark.integration,
@@ -54,14 +55,20 @@ pytestmark = [
 
 @pytest.fixture
 def live_context():
-    class _Ctx:
-        auth = {
-            "aws_access_key_id": AWS_ACCESS_KEY_ID,
-            "aws_secret_access_key": AWS_SECRET_ACCESS_KEY,
-            "aws_region": AWS_REGION,
-        }
+    auth = {
+        "aws_access_key_id": AWS_ACCESS_KEY_ID,
+        "aws_secret_access_key": AWS_SECRET_ACCESS_KEY,
+        "aws_region": AWS_REGION,
+    }
+    if AWS_SESSION_TOKEN:
+        auth["aws_session_token"] = AWS_SESSION_TOKEN
 
-    return _Ctx()
+    class _Ctx:
+        pass
+
+    ctx = _Ctx()
+    ctx.auth = auth
+    return ctx
 
 
 # ---- Security Hub ----
