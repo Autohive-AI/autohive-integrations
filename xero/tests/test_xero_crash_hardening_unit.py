@@ -10,7 +10,7 @@ sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
+from autohive_integrations_sdk import FetchResponse, RateLimitError  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("xero_mod", os.path.join(_parent, "xero.py"))
@@ -35,12 +35,9 @@ def mock_context():
     return ctx
 
 
-class FakeRateLimitError(Exception):
-    """Mimics an HTTP 429 error from context.fetch with a Retry-After header."""
-
-    def __init__(self, retry_after=None):
-        super().__init__("429 Too Many Requests")
-        self.headers = {"Retry-After": str(retry_after)} if retry_after is not None else {}
+def fake_rate_limit_error(retry_after=None):
+    """Build the SDK's structured 429 error the way context.fetch raises it."""
+    return RateLimitError(retry_after, 429, "Rate limit exceeded", "")
 
 
 SAMPLE_CONNECTIONS = [
@@ -103,7 +100,7 @@ class TestRateLimiterSleepBudget:
     async def test_delay_over_budget_fails_fast_without_sleeping(self, mock_context):
         # A Retry-After of 60s used to put the Lambda to sleep past its 30s
         # lifetime ("Unhandled" crash). It must now raise immediately.
-        mock_context.fetch.side_effect = FakeRateLimitError(retry_after=60)
+        mock_context.fetch.side_effect = fake_rate_limit_error(retry_after=60)
         limiter = XeroRateLimiter()
 
         with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
@@ -116,7 +113,7 @@ class TestRateLimiterSleepBudget:
     async def test_cumulative_budget_enforced_across_retries(self, mock_context):
         # Each individual delay fits the budget, but the running total must
         # not: 8s sleeps, then 8 + 8 > 10s budget -> fail fast.
-        mock_context.fetch.side_effect = FakeRateLimitError(retry_after=8)
+        mock_context.fetch.side_effect = fake_rate_limit_error(retry_after=8)
         limiter = XeroRateLimiter(max_wait_time=10)
 
         with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
@@ -129,7 +126,7 @@ class TestRateLimiterSleepBudget:
     async def test_short_delay_retries_and_succeeds(self, mock_context):
         # Happy path: one 429 with a small Retry-After, then success.
         mock_context.fetch.side_effect = [
-            FakeRateLimitError(retry_after=2),
+            fake_rate_limit_error(retry_after=2),
             FetchResponse(status=200, headers={}, data={"ok": True}),
         ]
         limiter = XeroRateLimiter()
@@ -145,7 +142,7 @@ class TestRateLimiterSleepBudget:
         # No Retry-After header -> the default delay must be small enough to
         # fit the budget (the old default was 60s, which killed the Lambda).
         mock_context.fetch.side_effect = [
-            FakeRateLimitError(),
+            fake_rate_limit_error(),
             FetchResponse(status=200, headers={}, data={"ok": True}),
         ]
         limiter = XeroRateLimiter()
