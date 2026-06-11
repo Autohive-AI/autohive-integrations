@@ -23,8 +23,9 @@ GRAMMARLY_SCOPES = (
 
 
 async def get_access_token(context: ExecutionContext) -> str:
-    client_id = context.auth.get("client_id", "")
-    client_secret = context.auth.get("client_secret", "")
+    credentials = context.auth.get("credentials", {}) or {}
+    client_id = credentials.get("client_id") or context.auth.get("client_id", "")
+    client_secret = credentials.get("client_secret") or context.auth.get("client_secret", "")
 
     form_body = urlencode(
         {
@@ -38,8 +39,8 @@ async def get_access_token(context: ExecutionContext) -> str:
     resp = await context.fetch(
         GRAMMARLY_TOKEN_URL,
         method="POST",
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        body=form_body,
+        data=form_body,
+        content_type="application/x-www-form-urlencoded",
     )
     token_data = resp.data
     if not isinstance(token_data, dict) or "access_token" not in token_data:
@@ -67,8 +68,8 @@ async def upload_file(context: ExecutionContext, upload_url: str, file_content: 
     await context.fetch(
         upload_url,
         method="PUT",
-        headers={"Content-Type": "text/plain"},
-        body=file_content,
+        data=file_content,
+        content_type="text/plain",
     )
     return True
 
