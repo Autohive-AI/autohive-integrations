@@ -1,12 +1,12 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from autohive_integrations_sdk import ResultType
+from unittest.mock import AsyncMock
+from autohive_integrations_sdk import FetchResponse, ResultType
 from grammarly.grammarly import grammarly
 
 pytestmark = pytest.mark.unit
 
-TOKEN_RESPONSE = MagicMock(data={"access_token": "test_token"})  # nosec B105
-UPLOAD_RESPONSE = MagicMock(data={})
+TOKEN_RESPONSE = FetchResponse(status=200, headers={}, data={"access_token": "test_token"})  # nosec B105
+UPLOAD_RESPONSE = FetchResponse(status=200, headers={}, data={})
 
 
 def _make_fetch(responses):
@@ -17,7 +17,9 @@ def _make_fetch(responses):
 
 @pytest.mark.asyncio
 async def test_analyze_writing_score(mock_context):
-    score_resp = MagicMock(data={"score_request_id": "req-123", "file_upload_url": "https://s3.example.com/upload"})
+    score_resp = FetchResponse(
+        status=200, headers={}, data={"score_request_id": "req-123", "file_upload_url": "https://s3.example.com/upload"}
+    )
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, score_resp, UPLOAD_RESPONSE])
     result = await grammarly.execute_action(
         "analyze_writing_score",
@@ -42,7 +44,7 @@ async def test_analyze_writing_score_error(mock_context):
 
 @pytest.mark.asyncio
 async def test_get_writing_score_results_pending(mock_context):
-    score_resp = MagicMock(data={"status": "PENDING"})
+    score_resp = FetchResponse(status=200, headers={}, data={"status": "PENDING"})
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, score_resp])
     result = await grammarly.execute_action(
         "get_writing_score_results",
@@ -55,7 +57,9 @@ async def test_get_writing_score_results_pending(mock_context):
 
 @pytest.mark.asyncio
 async def test_get_writing_score_results_completed(mock_context):
-    score_resp = MagicMock(
+    score_resp = FetchResponse(
+        status=200,
+        headers={},
         data={
             "status": "COMPLETED",
             "score": {
@@ -65,7 +69,7 @@ async def test_get_writing_score_results_completed(mock_context):
                 "delivery": 82,
                 "clarity": 88,
             },
-        }
+        },
     )
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, score_resp])
     result = await grammarly.execute_action(
@@ -92,11 +96,13 @@ async def test_get_writing_score_results_error(mock_context):
 
 @pytest.mark.asyncio
 async def test_get_user_analytics(mock_context):
-    analytics_resp = MagicMock(
+    analytics_resp = FetchResponse(
+        status=200,
+        headers={},
         data={
             "data": [{"id": "u1", "email": "user@example.com", "days_active": 10}],
             "paging": {"has_more": False},
-        }
+        },
     )
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, analytics_resp])
     result = await grammarly.execute_action(
@@ -123,7 +129,11 @@ async def test_get_user_analytics_error(mock_context):
 
 @pytest.mark.asyncio
 async def test_analyze_ai_detection(mock_context):
-    ai_resp = MagicMock(data={"score_request_id": "ai-req-456", "file_upload_url": "https://s3.example.com/upload"})
+    ai_resp = FetchResponse(
+        status=200,
+        headers={},
+        data={"score_request_id": "ai-req-456", "file_upload_url": "https://s3.example.com/upload"},
+    )
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, ai_resp, UPLOAD_RESPONSE])
     result = await grammarly.execute_action(
         "analyze_ai_detection",
@@ -136,12 +146,14 @@ async def test_analyze_ai_detection(mock_context):
 
 @pytest.mark.asyncio
 async def test_get_ai_detection_results_completed(mock_context):
-    ai_resp = MagicMock(
+    ai_resp = FetchResponse(
+        status=200,
+        headers={},
         data={
             "status": "COMPLETED",
             "updated_at": "2024-01-15T10:00:00Z",
             "score": {"average_confidence": 0.12, "ai_generated_percentage": 8.5},
-        }
+        },
     )
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, ai_resp])
     result = await grammarly.execute_action(
@@ -156,7 +168,7 @@ async def test_get_ai_detection_results_completed(mock_context):
 
 @pytest.mark.asyncio
 async def test_get_ai_detection_results_pending(mock_context):
-    ai_resp = MagicMock(data={"status": "PENDING"})
+    ai_resp = FetchResponse(status=200, headers={}, data={"status": "PENDING"})
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, ai_resp])
     result = await grammarly.execute_action(
         "get_ai_detection_results",
@@ -169,7 +181,11 @@ async def test_get_ai_detection_results_pending(mock_context):
 
 @pytest.mark.asyncio
 async def test_analyze_plagiarism_detection(mock_context):
-    plag_resp = MagicMock(data={"score_request_id": "plag-req-789", "file_upload_url": "https://s3.example.com/upload"})
+    plag_resp = FetchResponse(
+        status=200,
+        headers={},
+        data={"score_request_id": "plag-req-789", "file_upload_url": "https://s3.example.com/upload"},
+    )
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, plag_resp, UPLOAD_RESPONSE])
     result = await grammarly.execute_action(
         "analyze_plagiarism_detection",
@@ -182,12 +198,14 @@ async def test_analyze_plagiarism_detection(mock_context):
 
 @pytest.mark.asyncio
 async def test_get_plagiarism_detection_results_completed(mock_context):
-    plag_resp = MagicMock(
+    plag_resp = FetchResponse(
+        status=200,
+        headers={},
         data={
             "status": "COMPLETED",
             "updated_at": "2024-01-15T10:00:00Z",
             "score": {"originality_score": 95},
-        }
+        },
     )
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, plag_resp])
     result = await grammarly.execute_action(
