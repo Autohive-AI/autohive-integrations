@@ -270,7 +270,7 @@ def text_to_tiptap_body(text: str) -> Dict[str, Any]:
 
 
 def build_auth_headers(context: ExecutionContext) -> Dict[str, str]:
-    api_token = context.auth.get("api_token")
+    api_token = context.auth.get("credentials", {}).get("api_token") or context.auth.get("api_token")
     if not api_token:
         raise ValueError("Circle API token is required in auth (field 'api_token').")
     return {"Authorization": f"Token {api_token}", "Content-Type": "application/json"}
