@@ -1,7 +1,7 @@
 {
     "name": "Google BigQuery",
     "display_name": "Google BigQuery",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Google BigQuery integration for serverless data warehouse operations, SQL queries, and dataset management",
     "entry_point": "bigquery.py",
     "auth": {
@@ -47,7 +47,10 @@
                         "description": "Geographic location for the query job (e.g., 'US', 'EU', 'australia-southeast1'). Only specify if BigQuery cannot auto-detect from the dataset location."
                     }
                 },
-                "required": ["project_id", "query"]
+                "required": [
+                    "project_id",
+                    "query"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -57,7 +60,10 @@
                         "description": "Query result rows as array of objects"
                     },
                     "total_rows": {
-                        "type": ["integer", "null"],
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "description": "Total number of rows in the result"
                     },
                     "schema": {
@@ -65,7 +71,10 @@
                         "description": "Schema of the result set"
                     },
                     "job_id": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Job ID if query is still running"
                     },
                     "job_complete": {
@@ -73,23 +82,24 @@
                         "description": "Whether the query job completed"
                     },
                     "total_bytes_processed": {
-                        "type": ["integer", "null"],
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "description": "Total bytes processed by the query"
                     },
                     "cache_hit": {
-                        "type": ["boolean", "null"],
+                        "type": [
+                            "boolean",
+                            "null"
+                        ],
                         "description": "Whether the query result was served from cache"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "rows",
+                    "job_complete"
+                ]
             }
         },
         "get_query_results": {
@@ -119,7 +129,10 @@
                         "description": "Zero-based index of the starting row"
                     }
                 },
-                "required": ["project_id", "job_id"]
+                "required": [
+                    "project_id",
+                    "job_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -129,7 +142,10 @@
                         "description": "Query result rows"
                     },
                     "total_rows": {
-                        "type": ["integer", "null"],
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "description": "Total number of rows"
                     },
                     "schema": {
@@ -137,23 +153,21 @@
                         "description": "Schema of the result set"
                     },
                     "page_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Token for the next page of results"
                     },
                     "job_complete": {
                         "type": "boolean",
                         "description": "Whether the job has completed"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "rows",
+                    "job_complete"
+                ]
             }
         },
         "list_datasets": {
@@ -183,7 +197,9 @@
                         "description": "Whether to list all datasets including hidden ones"
                     }
                 },
-                "required": ["project_id"]
+                "required": [
+                    "project_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -196,19 +212,16 @@
                         }
                     },
                     "next_page_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Token for the next page"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "datasets"
+                ]
             }
         },
         "get_dataset": {
@@ -226,7 +239,10 @@
                         "description": "The dataset ID"
                     }
                 },
-                "required": ["project_id", "dataset_id"]
+                "required": [
+                    "project_id",
+                    "dataset_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -234,17 +250,11 @@
                     "dataset": {
                         "type": "object",
                         "description": "Dataset metadata including location, creation time, labels, etc."
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "dataset"
+                ]
             }
         },
         "create_dataset": {
@@ -278,7 +288,10 @@
                         "description": "Labels to apply to the dataset"
                     }
                 },
-                "required": ["project_id", "dataset_id"]
+                "required": [
+                    "project_id",
+                    "dataset_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -286,17 +299,11 @@
                     "dataset": {
                         "type": "object",
                         "description": "Created dataset metadata"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "dataset"
+                ]
             }
         },
         "delete_dataset": {
@@ -318,7 +325,10 @@
                         "description": "If true, delete all tables in the dataset (default: false)"
                     }
                 },
-                "required": ["project_id", "dataset_id"]
+                "required": [
+                    "project_id",
+                    "dataset_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -326,17 +336,11 @@
                     "deleted": {
                         "type": "boolean",
                         "description": "Whether the dataset was deleted"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "deleted"
+                ]
             }
         },
         "list_tables": {
@@ -362,7 +366,10 @@
                         "description": "Page token for pagination"
                     }
                 },
-                "required": ["project_id", "dataset_id"]
+                "required": [
+                    "project_id",
+                    "dataset_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -375,23 +382,23 @@
                         }
                     },
                     "next_page_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Token for the next page"
                     },
                     "total_items": {
-                        "type": ["integer", "null"],
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
                         "description": "Total number of tables in the dataset"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "tables"
+                ]
             }
         },
         "get_table": {
@@ -413,7 +420,11 @@
                         "description": "The table ID"
                     }
                 },
-                "required": ["project_id", "dataset_id", "table_id"]
+                "required": [
+                    "project_id",
+                    "dataset_id",
+                    "table_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -421,17 +432,11 @@
                     "table": {
                         "type": "object",
                         "description": "Table metadata including schema, row count, size, etc."
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "table"
+                ]
             }
         },
         "create_table": {
@@ -527,7 +532,12 @@
                         "description": "Labels to apply to the table"
                     }
                 },
-                "required": ["project_id", "dataset_id", "table_id", "schema"]
+                "required": [
+                    "project_id",
+                    "dataset_id",
+                    "table_id",
+                    "schema"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -535,17 +545,11 @@
                     "table": {
                         "type": "object",
                         "description": "Created table metadata"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "table"
+                ]
             }
         },
         "delete_table": {
@@ -567,7 +571,11 @@
                         "description": "The table ID to delete"
                     }
                 },
-                "required": ["project_id", "dataset_id", "table_id"]
+                "required": [
+                    "project_id",
+                    "dataset_id",
+                    "table_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -575,17 +583,11 @@
                     "deleted": {
                         "type": "boolean",
                         "description": "Whether the table was deleted"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "deleted"
+                ]
             }
         },
         "insert_rows": {
@@ -622,7 +624,12 @@
                         "description": "Accept rows with values that don't match the schema (default: false)"
                     }
                 },
-                "required": ["project_id", "dataset_id", "table_id", "rows"]
+                "required": [
+                    "project_id",
+                    "dataset_id",
+                    "table_id",
+                    "rows"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -634,17 +641,12 @@
                     "insert_errors": {
                         "type": "array",
                         "description": "Array of errors for failed rows"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "inserted_count",
+                    "insert_errors"
+                ]
             }
         },
         "list_jobs": {
@@ -672,7 +674,11 @@
                     "state_filter": {
                         "type": "string",
                         "description": "Filter by job state: done, pending, running",
-                        "enum": ["done", "pending", "running"]
+                        "enum": [
+                            "done",
+                            "pending",
+                            "running"
+                        ]
                     },
                     "min_creation_time": {
                         "type": "integer",
@@ -683,7 +689,9 @@
                         "description": "Max creation time filter in milliseconds since epoch"
                     }
                 },
-                "required": ["project_id"]
+                "required": [
+                    "project_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -696,19 +704,16 @@
                         }
                     },
                     "next_page_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Token for the next page"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "jobs"
+                ]
             }
         },
         "get_job": {
@@ -730,7 +735,10 @@
                         "description": "Job location (required for jobs in specific regions)"
                     }
                 },
-                "required": ["project_id", "job_id"]
+                "required": [
+                    "project_id",
+                    "job_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -738,17 +746,11 @@
                     "job": {
                         "type": "object",
                         "description": "Job details including status, statistics, and configuration"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "job"
+                ]
             }
         },
         "list_projects": {
@@ -779,19 +781,16 @@
                         }
                     },
                     "next_page_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Token for the next page"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": [
+                    "projects"
+                ]
             }
         }
     }
