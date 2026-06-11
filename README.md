@@ -10,6 +10,10 @@ This repository hosts Autohive integrations made and maintained by the Autohive 
 
 ## Integrations
 
+### ActiveCampaign
+
+[active-campaign](active-campaign): ActiveCampaign is an email marketing and CRM platform used by marketing teams to send and manage EDM campaigns. The integration provides 7 actions covering email campaign performance metrics, contact management, contact activity history, and list segmentation. Campaign actions return derived open rate, click rate, and bounce rate calculated from raw send data, making it easy to track and compare performance across sends. Supports custom API key authentication. Ideal for EDM performance analysis, contact engagement tracking, audience segmentation, and marketing reporting workflows.
+
 ### Uber Ride Requests
 
 [uber](uber): Comprehensive Uber Ride Requests integration for booking rides, getting fare estimates, tracking ride status, and retrieving receipts through the Uber Riders API v1.2. Supports listing available products at a location (UberX, UberXL, Black, etc.), price estimates for trips between locations, time estimates for driver arrival, detailed ride fare estimates with upfront pricing, ride requests on behalf of users, real-time ride status tracking with driver and vehicle information, tracking map URLs for active rides, ride cancellation, receipt retrieval for completed rides, user profile access, ride history with pagination, and payment method listing. Features OAuth 2.0 authorization code flow with scopes for profile, history, places, request, and request_receipt. Includes centralized API handling with error type categorization (validation_error, auth_error, rate_limited, not_found, server_error, api_error), comprehensive input validation for coordinates, seat counts, and pagination parameters, and 47 unit tests covering validation helpers, success paths, error paths, and edge cases. Comprises 12 actions covering products, estimates, ride requests, tracking, receipts, user profile, history, and payment methods. Ideal for transportation automation, corporate travel management, ride booking workflows, and expense tracking integration.
@@ -53,7 +57,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Dropbox
 
-[dropbox](dropbox): Cloud file storage integration with Dropbox API v2 for comprehensive file and folder management. Supports folder listing with recursive browsing and pagination (list_folder, list_folder_continue), file and folder metadata retrieval, temporary download link generation (valid for 4 hours), file uploads with conflict handling modes (add, overwrite, update), folder creation, and complete file operations (delete, move, copy with autorename support). Features OAuth 2.0 authentication with automatic token management, cursor-based pagination for large directories, and support for mounted folders. Includes 9 actions covering file browsing, metadata access, uploads, and file organization. Ideal for file synchronization, backup workflows, document management, and cloud storage automation.
+[dropbox](dropbox): Cloud file storage integration with Dropbox API v2 for comprehensive file and folder management. Supports folder listing with recursive browsing and cursor-based pagination, file and folder metadata retrieval, temporary download link generation (valid for 4 hours), file uploads with conflict handling modes (add, overwrite), folder creation, and complete file operations (delete, move, copy with autorename support). Features OAuth 2.0 authentication with automatic token management and support for mounted folders. Includes 8 actions covering file browsing, metadata access, uploads, and file organization. Ideal for file synchronization, backup workflows, document management, and cloud storage automation.
 
 ### Canva
 
@@ -216,6 +220,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 ### Asana
 
 [asana](asana): Project management integration with Asana API v1.0 for task and team collaboration automation. Supports complete task lifecycle management (create, get, update, list, delete tasks with assignees, due dates, and completion tracking), full project CRUD operations (list, get, create, update, delete projects with team associations and archiving), section organization (list, create, update sections, move tasks between sections for board/column workflows), team communication (create and list comments/stories on tasks), and subtask creation for breaking down complex work. Features Personal Access Token authentication with Bearer token headers, Asana data object wrapper handling, GID-based resource identification, and flexible task filtering. Includes 17 comprehensive actions covering tasks, projects, sections, comments, and subtasks. Ideal for workflow automation, task capture from external sources, project template creation, team collaboration, and productivity tracking across workspaces.
+
+### Lumin PDF
+
+[lumin-pdf](lumin-pdf): Lumin PDF is a cloud-based PDF editing and eSignature platform. The integration provides 17 actions covering workspace management, document uploading (PDF, DOCX, XLSX, PPTX and more), template-based document generation, agreement creation, and the full signature request lifecycle — sending requests directly or from templates, tracking status, generating embedded signing links, sending reminders, downloading signed documents, and cancelling requests. Uses API Key authentication. Ideal for contract automation, eSignature workflows, and end-to-end document signing processes.
 
 ### Mailchimp
 

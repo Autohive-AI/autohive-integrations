@@ -1,0 +1,369 @@
+{
+  "name": "LuminPDF",
+  "display_name": "Lumin PDF",
+  "version": "1.2.1",
+  "description": "Integration with Lumin PDF for document management, eSignature workflows, and PDF generation.",
+  "entry_point": "lumin_pdf.py",
+  "auth": {
+    "type": "custom",
+    "title": "API Key",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "format": "password",
+          "label": "API Key",
+          "description": "Your Lumin PDF API key from the Developer settings in your Lumin account."
+        }
+      }
+    }
+  },
+  "actions": {
+    "get_current_user": {
+      "display_name": "Get Current User",
+      "description": "Get information about the currently authenticated Lumin user.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "user": {"type": "object", "description": "Current user details"}
+        }
+      }
+    },
+    "get_workspace": {
+      "display_name": "Get Workspace",
+      "description": "Get information about the current workspace.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "workspace": {"type": "object", "description": "Workspace details"}
+        }
+      }
+    },
+    "list_workspace_members": {
+      "display_name": "List Workspace Members",
+      "description": "List all members in the current workspace.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer", "description": "Page number for pagination"},
+          "limit": {"type": "integer", "description": "Number of results per page. Accepted values: 10, 25, or 50. Other values are rounded to the nearest accepted value."}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "members": {"type": "array", "description": "List of workspace members"}
+        }
+      }
+    },
+    "list_templates": {
+      "display_name": "List Templates",
+      "description": "List all templates available in the workspace.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer", "description": "Page number for pagination"},
+          "limit": {"type": "integer", "description": "Number of results per page. Accepted values: 10, 25, or 50. Other values are rounded to the nearest accepted value."}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "templates": {"type": "array", "description": "List of templates"}
+        }
+      }
+    },
+    "get_template": {
+      "display_name": "Get Template",
+      "description": "Get details of a specific template by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "template_id": {"type": "string", "description": "The ID of the template"}
+        },
+        "required": ["template_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "template": {"type": "object", "description": "Template details"}
+        }
+      }
+    },
+    "send_signature_request": {
+      "display_name": "Send Signature Request",
+      "description": "Send a signature request with one or more documents to specified signers.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string", "description": "Title of the signature request"},
+          "file_urls": {"type": "array", "description": "List of PDF URLs to include in the request", "items": {"type": "string"}},
+          "file_url": {"type": "string", "description": "Single PDF URL to include in the request (use instead of file_urls for one document)"},
+          "signers": {
+            "type": "array",
+            "description": "List of signers. Each signer must have name and email_address (or email as an alias).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string", "description": "Full name of the signer (required)"},
+                "email_address": {"type": "string", "description": "Email address of the signer (required; email is accepted as an alias)"},
+                "email": {"type": "string", "description": "Alias for email_address"}
+              },
+              "required": ["name"]
+            }
+          },
+          "message": {"type": "string", "description": "Optional message to include with the request"},
+          "due_date": {"type": "string", "description": "Optional due date in ISO 8601 format"}
+        },
+        "required": ["title", "signers"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "signature_request": {"type": "object", "description": "Created signature request details including id and status"}
+        }
+      }
+    },
+    "get_signature_request": {
+      "display_name": "Get Signature Request",
+      "description": "Retrieve details of a specific signature request by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "signature_request_id": {"type": "string", "description": "The ID of the signature request"}
+        },
+        "required": ["signature_request_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "signature_request": {"type": "object", "description": "Signature request details including status and signers"}
+        }
+      }
+    },
+    "cancel_signature_request": {
+      "display_name": "Cancel Signature Request",
+      "description": "Cancel a pending signature request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "signature_request_id": {"type": "string", "description": "The ID of the signature request to cancel"}
+        },
+        "required": ["signature_request_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "canceled": {"type": "boolean", "description": "Whether the request was successfully canceled"}
+        }
+      }
+    },
+    "generate_signing_link": {
+      "display_name": "Generate Signing Link",
+      "description": "Generate an embedded signing link for a specific signer in a signature request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "signature_request_id": {"type": "string", "description": "The ID of the signature request"},
+          "signer_email": {"type": "string", "description": "Email of the signer to generate a link for"}
+        },
+        "required": ["signature_request_id", "signer_email"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "signing_link": {"type": "string", "description": "The embedded signing URL for the signer"}
+        }
+      }
+    },
+    "send_reminder": {
+      "display_name": "Send Reminder",
+      "description": "Send a reminder email to pending signers for a signature request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "signature_request_id": {"type": "string", "description": "The ID of the signature request"},
+          "emails": {"type": "array", "description": "Optional list of signer emails to remind. If omitted, all pending signers are reminded.", "items": {"type": "string"}}
+        },
+        "required": ["signature_request_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "sent": {"type": "boolean", "description": "Whether the reminder was sent successfully"}
+        }
+      }
+    },
+    "send_from_template": {
+      "display_name": "Send From Template",
+      "description": "Send a signature request using a saved lumin-type template (created in Lumin's template builder, not an uploaded PDF). The template must have signer roles defined.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "template_id": {"type": "string", "description": "The ID of the template to use"},
+          "title": {"type": "string", "description": "Title of the signature request"},
+          "signers": {"type": "array", "description": "List of signers mapped to template roles. Each signer must have name and email_address (or email as an alias), and signer_role matching a role name from the template (use get_template to discover available roles). All template roles must be covered.", "items": {"type": "object", "properties": {"email_address": {"type": "string", "description": "Email address of the signer (required; email accepted as alias)"}, "email": {"type": "string", "description": "Alias for email_address"}, "name": {"type": "string", "description": "Full name of the signer (required)"}, "signer_role": {"type": "string", "description": "The role name as defined in the template e.g. 'Employee' or 'Employer'"}, "verification": {"type": "object", "description": "Optional per-signer identity verification settings"}}, "required": ["name"]}},
+          "due_date": {"type": "string", "description": "Optional expiry date in ISO 8601 format. Defaults to 30 days from now."},
+          "message": {"type": "string", "description": "Optional message to include with the request"},
+          "tags": {"type": "object", "description": "Optional tag values to fill in the template"},
+          "fields": {"type": "object", "description": "Optional field values to pre-fill in the template"},
+          "variables": {"type": "object", "description": "Optional variable values for the template"}
+        },
+        "required": ["template_id", "title", "signers"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "signature_request": {"type": "object", "description": "Created signature request details"}
+        }
+      }
+    },
+    "update_signature_request": {
+      "display_name": "Update Signature Request",
+      "description": "Update the expiry date of a pending signature request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "signature_request_id": {"type": "string", "description": "The ID of the signature request to update"},
+          "due_date": {"type": "string", "description": "New expiry date in ISO 8601 format"}
+        },
+        "required": ["signature_request_id", "due_date"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "signature_request": {"type": "object", "description": "Updated signature request details"}
+        }
+      }
+    },
+    "download_signed_document": {
+      "display_name": "Download Signed Document",
+      "description": "Get a download URL for a completed signed document.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "signature_request_id": {"type": "string", "description": "The ID of the signature request"},
+          "type": {"type": "string", "description": "Document type to download: 'agreement' (signed PDF), 'coc' (certificate of completion), or 'merged' (all in one). Defaults to 'agreement'."}
+        },
+        "required": ["signature_request_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "file_url": {"type": "string", "description": "Download URL for the document"},
+          "file": {"type": "object", "description": "Full file response from Lumin"}
+        }
+      }
+    },
+    "upload_document": {
+      "display_name": "Upload Document",
+      "description": "Upload a document to Lumin PDF from a URL or create one from a template.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_name": {"type": "string", "description": "Name for the document"},
+          "file_url": {"type": "string", "description": "URL of the file to upload (PDF, DOCX, XLSX, PPTX, PNG, JPEG — max 200MB on paid plans)"},
+          "template_id": {"type": "string", "description": "Template ID to create the document from (use instead of file_url)"},
+          "location": {"type": "string", "description": "Where to store the document: 'personal', 'space', or 'workspace'. Defaults to 'personal'."}
+        },
+        "required": ["document_name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "document": {"type": "object", "description": "Created document details"}
+        }
+      }
+    },
+    "generate_document_from_template": {
+      "display_name": "Generate Document From Template",
+      "description": "Generate a filled document from a Lumin template with custom field values.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "template_id": {"type": "string", "description": "The ID of the template"},
+          "document_name": {"type": "string", "description": "Name for the generated document"},
+          "tags": {"type": "object", "description": "Optional tag values to fill in"},
+          "fields": {"type": "object", "description": "Optional field values to fill in"},
+          "variables": {"type": "object", "description": "Optional variable values to fill in"}
+        },
+        "required": ["template_id", "document_name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "document": {"type": "object", "description": "Generated document details"}
+        }
+      }
+    },
+    "create_agreement": {
+      "display_name": "Create Agreement",
+      "description": "Create an agreement from a lumin-type template (created in Lumin's template builder). Does not work with pdf-type templates.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "agreement_name": {"type": "string", "description": "Name for the agreement"},
+          "template_id": {"type": "string", "description": "The ID of the template to use"},
+          "variables": {"type": "object", "description": "Optional variable values for the template"},
+          "fields": {"type": "object", "description": "Optional field values for the template"},
+          "linked_objects": {"type": "array", "description": "Optional linked objects to associate with the agreement", "items": {"type": "object"}}
+        },
+        "required": ["agreement_name", "template_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "agreement": {"type": "object", "description": "Created agreement details"}
+        }
+      }
+    },
+    "download_agreement": {
+      "display_name": "Download Agreement",
+      "description": "Get a download URL for an agreement file.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "agreement_id": {"type": "string", "description": "The ID of the agreement"}
+        },
+        "required": ["agreement_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean", "description": "Operation success status"},
+          "file_url": {"type": "string", "description": "Download URL for the agreement file"},
+          "file": {"type": "object", "description": "Full file response from Lumin"}
+        }
+      }
+    }
+  }
+}

@@ -11,8 +11,17 @@ from autohive_integrations_sdk import (
 from typing import Dict, Any, Optional
 import asyncio
 import base64
+import logging
 
 import aiohttp
+
+logger = logging.getLogger(__name__)
+
+# Timeout for direct aiohttp calls (PDF/attachment/file downloads). aiohttp's
+# default total timeout is 300s, but the integration Lambda is killed after
+# 30s — a stalled download must fail cleanly before that, not crash the
+# Lambda with "Unhandled".
+HTTP_TIMEOUT = aiohttp.ClientTimeout(total=25)
 
 
 async def _resolve_file_bytes(file_obj: dict) -> bytes:
@@ -26,7 +35,7 @@ async def _resolve_file_bytes(file_obj: dict) -> bytes:
 
     url = file_obj.get("url")
     if url:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
                     raise ValueError(f"Failed to download file from url: HTTP {resp.status}")
@@ -63,12 +72,26 @@ class XeroConnectedAccountHandler(ConnectedAccountHandler):
 
         Returns:
             ConnectedAccountInfo with organization name as username.
+            Falls back to a placeholder ConnectedAccountInfo when the Xero API
+            call fails (e.g., revoked/expired token, 5xx outage). The SDK does
+            not catch exceptions raised from this handler, so letting one
+            propagate crashes the Lambda with "Unhandled". Auth failures
+            surface to the user the next time they run an action.
         """
-        response = await context.fetch(
-            "https://api.xero.com/connections",
-            method="GET",
-            headers={"Accept": "application/json"},
-        )
+        try:
+            response = await context.fetch(
+                "https://api.xero.com/connections",
+                method="GET",
+                headers={"Accept": "application/json"},
+            )
+        except asyncio.CancelledError:
+            # CancelledError is a BaseException, so a bare `except Exception`
+            # would let it slip through and crash the Lambda.
+            logger.warning("CancelledError while fetching Xero account info — returning placeholder")
+            return ConnectedAccountInfo(username="Unknown Organization")
+        except Exception as e:
+            logger.warning(f"Failed to fetch Xero account info: {e}")
+            return ConnectedAccountInfo(username="Unknown Organization")
 
         if not response or not isinstance(response.data, list) or len(response.data) == 0:
             return ConnectedAccountInfo(username="Unknown Organization")
@@ -112,19 +135,20 @@ class XeroRateLimiter:
 
     def __init__(
         self,
-        default_retry_delay: int = 60,
+        default_retry_delay: int = 5,
         max_retries: int = 3,
         max_wait_time: int = 10,
     ):
         """
         Handles Xero API rate limiting by retrying requests on 429 errors.
-        Prevents lambda from waiting too long by setting maximum wait time.
         Caps concurrency at 5 simultaneous requests as per Xero API limits.
 
-        max_wait_time is set to 10s (not 60s) because sleeping longer than ~15s
-        inside a Lambda execution risks hitting the function timeout budget.
-        If Xero's Retry-After exceeds this, we surface a clear ActionError
-        rather than blocking the Lambda.
+        The integration Lambda is killed after 30 seconds, so max_wait_time
+        caps the *cumulative* time spent sleeping across all retries. Any
+        delay that would exceed the budget raises
+        XeroRateLimitExceededException immediately so the action returns a
+        clean ActionError instead of the Lambda being killed mid-sleep
+        ("Unhandled" crash).
         """
         self.default_retry_delay = default_retry_delay
         self.max_retries = max_retries
@@ -174,6 +198,7 @@ class XeroRateLimiter:
         kwargs["headers"] = headers
 
         last_error = None
+        total_waited = 0
 
         async with self._get_semaphore():
             for attempt in range(self.max_retries + 1):
@@ -192,6 +217,15 @@ class XeroRateLimiter:
                 except XeroRateLimitExceededException:
                     raise
 
+                except asyncio.CancelledError:
+                    # Defensive: convert Python-side task cancellation into a
+                    # regular exception so action handlers return a clean
+                    # ActionError if cancellation reaches the coroutine. This does
+                    # not catch Lambda hard timeouts, which kill the OS process
+                    # with no catchable Python exception.
+                    logger.warning("CancelledError during Xero request to %s — converting to TimeoutError", url)
+                    raise TimeoutError(f"Xero request to {url} was cancelled before completing. Please try again.")
+
                 except RateLimitError as e:
                     last_error = e
 
@@ -201,10 +235,20 @@ class XeroRateLimiter:
                     # Retry-After is provided by Xero on every 429 response
                     delay = e.retry_after if e.retry_after else self.default_retry_delay
 
-                    if delay > self.max_wait_time:
+                    # Enforce the cumulative sleep budget: the Lambda only
+                    # lives for 30s, so never sleep past max_wait_time in
+                    # total — inform the LLM about the rate limit immediately
+                    if total_waited + delay > self.max_wait_time:
+                        logger.warning(
+                            "Xero rate-limit delay %ds exceeds remaining budget (%ds waited, %ds max) — failing fast",
+                            delay,
+                            total_waited,
+                            self.max_wait_time,
+                        )
                         raise XeroRateLimitExceededException(delay, self.max_wait_time, tenant_id)
 
                     await asyncio.sleep(delay)
+                    total_waited += delay
 
                 except Exception:
                     raise
@@ -836,16 +880,16 @@ class GetInvoicePdfAction(ActionHandler):
         - file: Object containing content (base64), contentType, and name
         - success: Boolean indicating if the download was successful
         """
-        # Validate required inputs
-        tenant_id = inputs["tenant_id"]
-        invoice_id = inputs["invoice_id"]
-
-        if not tenant_id:
-            raise ValueError("tenant_id is required")
-        if not invoice_id:
-            raise ValueError("invoice_id is required")
-
         try:
+            # Validate required inputs
+            tenant_id = inputs["tenant_id"]
+            invoice_id = inputs["invoice_id"]
+
+            if not tenant_id:
+                raise ValueError("tenant_id is required")
+            if not invoice_id:
+                raise ValueError("invoice_id is required")
+
             # Build URL for specific invoice
             url = f"https://api.xero.com/api.xro/2.0/Invoices/{invoice_id}"
 
@@ -865,8 +909,9 @@ class GetInvoicePdfAction(ActionHandler):
 
             headers["Authorization"] = f"Bearer {auth_token}"
 
-            # Use aiohttp to download the PDF
-            async with aiohttp.ClientSession() as session:
+            # Use aiohttp to download the PDF (time-capped so a stalled
+            # download fails cleanly instead of hitting the 30s Lambda kill)
+            async with aiohttp.ClientSession(timeout=HTTP_TIMEOUT) as session:
                 async with session.get(url, headers=headers) as response:
                     if response.status != 200:
                         error_text = await response.text()
@@ -889,6 +934,11 @@ class GetInvoicePdfAction(ActionHandler):
                         }
                     )
 
+        except asyncio.CancelledError:
+            # CancelledError is a BaseException — without this catch it would
+            # propagate out of the Lambda as "Unhandled"
+            logger.warning("CancelledError in get_invoice_pdf — returning ActionError")
+            return ActionError(message="Invoice PDF download was cancelled before completing. Please try again.")
         except XeroRateLimitExceededException as e:
             return ActionError(
                 message=(
@@ -1346,16 +1396,16 @@ class AttachFileToInvoiceAction(ActionHandler):
         Optional fields:
         - include_online: Whether to include the attachment in online invoice (default: true)
         """
-        # Validate required inputs
-        tenant_id = inputs["tenant_id"]
-        invoice_id = inputs["invoice_id"]
-
-        if not tenant_id:
-            raise ValueError("tenant_id is required")
-        if not invoice_id:
-            raise ValueError("invoice_id is required")
-
         try:
+            # Validate required inputs
+            tenant_id = inputs["tenant_id"]
+            invoice_id = inputs["invoice_id"]
+
+            if not tenant_id:
+                raise ValueError("tenant_id is required")
+            if not invoice_id:
+                raise ValueError("invoice_id is required")
+
             # Debug: Log what inputs we're receiving
             # Get file object from inputs
             file_obj = inputs.get("file")
@@ -1410,6 +1460,11 @@ class AttachFileToInvoiceAction(ActionHandler):
 
             return ActionResult(data=response)
 
+        except asyncio.CancelledError:
+            # CancelledError is a BaseException — without this catch it would
+            # propagate out of the Lambda as "Unhandled"
+            logger.warning("CancelledError in attach_file_to_invoice — returning ActionError")
+            return ActionError(message="File attachment was cancelled before completing. Please try again.")
         except XeroRateLimitExceededException as e:
             return ActionError(
                 message=(
@@ -1439,16 +1494,16 @@ class AttachFileToBillAction(ActionHandler):
         Optional fields:
         - include_online: Whether to include the attachment in online bill (default: true)
         """
-        # Validate required inputs
-        tenant_id = inputs["tenant_id"]
-        bill_id = inputs["bill_id"]
-
-        if not tenant_id:
-            raise ValueError("tenant_id is required")
-        if not bill_id:
-            raise ValueError("bill_id is required")
-
         try:
+            # Validate required inputs
+            tenant_id = inputs["tenant_id"]
+            bill_id = inputs["bill_id"]
+
+            if not tenant_id:
+                raise ValueError("tenant_id is required")
+            if not bill_id:
+                raise ValueError("bill_id is required")
+
             # Get file object from inputs
             file_obj = inputs.get("file")
             files_arr = inputs.get("files")
@@ -1498,6 +1553,11 @@ class AttachFileToBillAction(ActionHandler):
 
             return ActionResult(data=response)
 
+        except asyncio.CancelledError:
+            # CancelledError is a BaseException — without this catch it would
+            # propagate out of the Lambda as "Unhandled"
+            logger.warning("CancelledError in attach_file_to_bill — returning ActionError")
+            return ActionError(message="File attachment was cancelled before completing. Please try again.")
         except XeroRateLimitExceededException as e:
             return ActionError(
                 message=(
@@ -1589,22 +1649,22 @@ class GetAttachmentContentAction(ActionHandler):
         - file: Object containing content (base64), contentType, and name
         - success: Boolean indicating if the download was successful
         """
-        # Validate required inputs
-        tenant_id = inputs["tenant_id"]
-        endpoint = inputs["endpoint"]
-        guid = inputs["guid"]
-        file_name = inputs["file_name"]
-
-        if not tenant_id:
-            raise ValueError("tenant_id is required")
-        if not endpoint:
-            raise ValueError("endpoint is required (e.g., 'Invoices', 'Bills')")
-        if not guid:
-            raise ValueError("guid is required")
-        if not file_name:
-            raise ValueError("file_name is required")
-
         try:
+            # Validate required inputs
+            tenant_id = inputs["tenant_id"]
+            endpoint = inputs["endpoint"]
+            guid = inputs["guid"]
+            file_name = inputs["file_name"]
+
+            if not tenant_id:
+                raise ValueError("tenant_id is required")
+            if not endpoint:
+                raise ValueError("endpoint is required (e.g., 'Invoices', 'Bills')")
+            if not guid:
+                raise ValueError("guid is required")
+            if not file_name:
+                raise ValueError("file_name is required")
+
             api_endpoint = endpoint
 
             # Build URL for getting attachment content
@@ -1627,7 +1687,9 @@ class GetAttachmentContentAction(ActionHandler):
                     if "access_token" in credentials:
                         headers["Authorization"] = f"Bearer {credentials['access_token']}"
 
-                async with session.get(url, headers=headers) as response:
+                # Time-capped so a stalled download fails cleanly instead of
+                # hitting the 30s Lambda kill
+                async with session.get(url, headers=headers, timeout=HTTP_TIMEOUT) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         return ActionError(
@@ -1652,6 +1714,11 @@ class GetAttachmentContentAction(ActionHandler):
                 }
             )
 
+        except asyncio.CancelledError:
+            # CancelledError is a BaseException — without this catch it would
+            # propagate out of the Lambda as "Unhandled"
+            logger.warning("CancelledError in get_attachment_content — returning ActionError")
+            return ActionError(message="Attachment download was cancelled before completing. Please try again.")
         except XeroRateLimitExceededException as e:
             return ActionError(
                 message=(
