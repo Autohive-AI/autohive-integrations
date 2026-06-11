@@ -241,9 +241,7 @@ async def test_storage_lifecycle(live_context):
     bucket = f"integration-test-{uuid.uuid4().hex[:8]}"
     try:
         # create_bucket
-        create_result = await supabase.execute_action(
-            "create_bucket", {"name": bucket, "public": True}, live_context
-        )
+        create_result = await supabase.execute_action("create_bucket", {"name": bucket, "public": True}, live_context)
         assert create_result.type == ResultType.ACTION, create_result.result.message
 
         # get_bucket
