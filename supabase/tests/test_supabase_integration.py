@@ -93,7 +93,7 @@ async def test_01_insert_records(live_context):
         {"table": SUPABASE_TEST_TABLE, "records": records},
         live_context,
     )
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data["count"] >= 1
 
 
@@ -106,7 +106,7 @@ async def test_02_select_records(live_context):
         {"table": SUPABASE_TEST_TABLE, "limit": 10},
         live_context,
     )
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert isinstance(result.result.data["records"], list)
 
 
@@ -130,7 +130,7 @@ async def test_03_update_records(live_context):
         },
         live_context,
     )
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
 
 
 @skip_if_no_creds
@@ -152,7 +152,7 @@ async def test_04_delete_records(live_context):
         },
         live_context,
     )
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
 
 
 @skip_if_no_creds
@@ -166,7 +166,7 @@ async def test_05_call_function(live_context):
         {"function_name": func},
         live_context,
     )
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
 
 
 # ---- Storage Actions (ordered: create → get → list → public_url → delete_files → delete_bucket) ----
@@ -180,14 +180,14 @@ async def test_06_create_bucket(live_context):
         {"name": TEST_BUCKET, "public": True},
         live_context,
     )
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
 
 
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_07_list_buckets(live_context):
     result = await supabase.execute_action("list_buckets", {}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     buckets = result.result.data["buckets"]
     assert isinstance(buckets, list)
     assert any(b.get("id") == TEST_BUCKET or b.get("name") == TEST_BUCKET for b in buckets)
@@ -197,7 +197,7 @@ async def test_07_list_buckets(live_context):
 @pytest.mark.asyncio
 async def test_08_get_bucket(live_context):
     result = await supabase.execute_action("get_bucket", {"bucket_id": TEST_BUCKET}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data["bucket"] is not None
 
 
@@ -205,7 +205,7 @@ async def test_08_get_bucket(live_context):
 @pytest.mark.asyncio
 async def test_09_list_files(live_context):
     result = await supabase.execute_action("list_files", {"bucket_id": TEST_BUCKET}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert isinstance(result.result.data["files"], list)
 
 
@@ -217,7 +217,7 @@ async def test_10_get_public_url(live_context):
         {"bucket_id": TEST_BUCKET, "path": "test/file.txt"},
         live_context,
     )
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert TEST_BUCKET in result.result.data["public_url"]
 
 
@@ -237,7 +237,7 @@ async def test_11_delete_files(live_context):
 @pytest.mark.asyncio
 async def test_12_delete_bucket(live_context):
     result = await supabase.execute_action("delete_bucket", {"bucket_id": TEST_BUCKET}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data["deleted"] is True
 
 
@@ -248,7 +248,7 @@ async def test_12_delete_bucket(live_context):
 @pytest.mark.asyncio
 async def test_13_list_users(live_context):
     result = await supabase.execute_action("list_users", {}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert "users" in result.result.data
     assert "total" in result.result.data
 
@@ -263,7 +263,7 @@ async def test_14_get_user(live_context):
         pytest.skip("No users in project to fetch")
     user_id = users[0]["id"]
     result = await supabase.execute_action("get_user", {"user_id": user_id}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data["user"]["id"] == user_id
 
 
@@ -274,5 +274,5 @@ async def test_15_delete_user(live_context):
     if not test_user_id:
         pytest.skip("SUPABASE_TEST_DELETE_USER_ID not set — skipping destructive test")
     result = await supabase.execute_action("delete_user", {"user_id": test_user_id}, live_context)
-    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data["deleted"] is True
