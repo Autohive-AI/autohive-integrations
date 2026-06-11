@@ -128,7 +128,7 @@ class UpdateRecordsAction(ActionHandler):
             )
 
             result_records = resp.data if isinstance(resp.data, list) else []
-            count = None if return_minimal else len(result_records)
+            count = 0 if return_minimal else len(result_records)
             return ActionResult(data={"records": result_records, "count": count}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -161,7 +161,7 @@ class DeleteRecordsAction(ActionHandler):
             )
 
             result_records = resp.data if isinstance(resp.data, list) else []
-            count = None if return_minimal else len(result_records)
+            count = 0 if return_minimal else len(result_records)
             return ActionResult(data={"records": result_records, "count": count}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
