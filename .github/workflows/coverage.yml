@@ -1,0 +1,212 @@
+name: Unit Test Coverage
+
+on:
+  pull_request:
+    branches: [master, main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      integrations: ${{ steps.changed.outputs.integrations }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed integrations
+        id: changed
+        run: |
+          # Get all changed files vs base branch
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+
+          # Extract unique top-level integration directories that have a config.json
+          # (excludes .github, conftest.py, pyproject.toml, etc.)
+          INTEGRATIONS=$(echo "$CHANGED_FILES" \
+            | grep -oE '^[^/]+' \
+            | sort -u \
+            | while read dir; do
+                if [ -f "$dir/config.json" ] && [ -f "$dir/tests/$(ls $dir/tests/ 2>/dev/null | grep 'unit' | head -1)" ]; then
+                  echo "$dir"
+                fi
+              done \
+            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+
+          echo "integrations=$INTEGRATIONS" >> $GITHUB_OUTPUT
+          echo "Changed integrations: $INTEGRATIONS"
+
+  coverage:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.integrations != '[]' && needs.detect-changes.outputs.integrations != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        integration: ${{ fromJson(needs.detect-changes.outputs.integrations) }}
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r ${{ matrix.integration }}/requirements.txt -r requirements-test.txt
+
+      - name: Run unit tests with coverage
+        id: run_tests
+        run: |
+          python -m pytest ${{ matrix.integration }}/tests/test_*_unit.py \
+            --cov=${{ matrix.integration }} \
+            --cov-report=json:coverage.json \
+            --cov-report=term-missing \
+            -m unit \
+            --tb=short \
+            -q 2>&1 | tee test_output.txt
+
+          # Extract coverage % from json report
+          COVERAGE=$(python -c "
+          import json, sys
+          try:
+              data = json.load(open('coverage.json'))
+              pct = data['totals']['percent_covered']
+              print(f'{pct:.1f}')
+          except Exception as e:
+              print('0.0')
+          ")
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "Coverage: $COVERAGE%"
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.integration }}
+          path: coverage.json
+          retention-days: 7
+
+      - name: Fetch master baseline coverage
+        id: baseline
+        run: |
+          # Try to download master coverage artifact from the most recent successful run on master
+          BASELINE="N/A"
+
+          # Check if a baseline artifact exists from a previous cache
+          if [ -f ".coverage-baselines/${{ matrix.integration }}.json" ]; then
+            BASELINE=$(python -c "
+          import json
+          try:
+              data = json.load(open('.coverage-baselines/${{ matrix.integration }}.json'))
+              pct = data['totals']['percent_covered']
+              print(f'{pct:.1f}')
+          except:
+              print('N/A')
+          ")
+          fi
+
+          echo "baseline=$BASELINE" >> $GITHUB_OUTPUT
+
+      - name: Build coverage summary
+        id: summary
+        run: |
+          COVERAGE=${{ steps.run_tests.outputs.coverage }}
+          BASELINE=${{ steps.baseline.outputs.baseline }}
+
+          # Calculate trend
+          if [ "$BASELINE" = "N/A" ]; then
+            TREND="⚪ (no baseline)"
+          else
+            DIFF=$(python -c "
+          try:
+              diff = float('$COVERAGE') - float('$BASELINE')
+              if diff > 0:
+                  print(f'🟢 ↑ +{diff:.1f}%')
+              elif diff < 0:
+                  print(f'🔴 ↓ {diff:.1f}%')
+              else:
+                  print('➡️ no change')
+          except:
+              print('⚪')
+          ")
+            TREND="$DIFF vs master ($BASELINE%)"
+          fi
+
+          echo "trend=$TREND" >> $GITHUB_OUTPUT
+          echo "Integration: ${{ matrix.integration }} | Coverage: $COVERAGE% | $TREND"
+
+      - name: Post coverage comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const integration = '${{ matrix.integration }}';
+            const coverage = '${{ steps.run_tests.outputs.coverage }}';
+            const trend = '${{ steps.summary.outputs.trend }}';
+            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+
+            const marker = `<!-- coverage-${integration} -->`;
+            const body = `${marker}\n## Unit test coverage — \`${integration}\`\n\n**Coverage: ${coverage}%** ${trend}\n\n[Full report](${runUrl})`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c => c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+  update-baseline:
+    needs: coverage
+    if: github.ref_name == 'master' && always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: coverage-artifacts
+
+      - name: Update baselines
+        run: |
+          mkdir -p .coverage-baselines
+          for dir in coverage-artifacts/coverage-*/; do
+            integration=$(basename "$dir" | sed 's/^coverage-//')
+            if [ -f "$dir/coverage.json" ]; then
+              cp "$dir/coverage.json" ".coverage-baselines/$integration.json"
+              echo "Updated baseline for $integration"
+            fi
+          done
+
+      - name: Commit updated baselines
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .coverage-baselines/
+          git diff --staged --quiet || git commit -m "chore: update coverage baselines [skip ci]"
+          git push
