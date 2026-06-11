@@ -298,7 +298,10 @@ class SearchPostsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_auth_headers(context)
-            params = build_search_params(inputs, ["query", "space_id", "tag", "status", "per_page", "page"])
+            params: Dict[str, Any] = {}
+            for key in ("query", "space_id", "tag", "status", "per_page", "page"):
+                if inputs.get(key) is not None:
+                    params[key] = inputs.get(key)
             params.setdefault("per_page", 10)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/posts", headers=headers, params=params)
             data = resp.data
@@ -352,9 +355,14 @@ class UpdatePostAction(ActionHandler):
             headers = build_auth_headers(context)
             post_id = inputs["post_id"]
             update_data: Dict[str, Any] = {}
-            for field in ("name", "body", "status", "is_pinned"):
-                if field in inputs:
-                    update_data[field] = inputs[field]
+            if inputs.get("name") is not None:
+                update_data["name"] = inputs.get("name")
+            if inputs.get("body") is not None:
+                update_data["body"] = inputs.get("body")
+            if inputs.get("status") is not None:
+                update_data["status"] = inputs.get("status")
+            if inputs.get("is_pinned") is not None:
+                update_data["is_pinned"] = inputs.get("is_pinned")
             resp = await context.fetch(
                 f"{CIRCLE_API_BASE}/posts/{post_id}", headers=headers, method="PUT", json=update_data
             )
@@ -390,7 +398,10 @@ class ListMembersAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_auth_headers(context)
-            params = build_search_params(inputs, ["status", "per_page", "page"])
+            params: Dict[str, Any] = {}
+            for key in ("status", "per_page", "page"):
+                if inputs.get(key) is not None:
+                    params[key] = inputs.get(key)
             params.setdefault("per_page", 10)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/community_members", headers=headers, params=params)
             data = resp.data
@@ -421,7 +432,10 @@ class SearchSpacesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_auth_headers(context)
-            params = build_search_params(inputs, ["query", "space_type", "per_page", "page"])
+            params: Dict[str, Any] = {}
+            for key in ("query", "space_type", "per_page", "page"):
+                if inputs.get(key) is not None:
+                    params[key] = inputs.get(key)
             params.setdefault("per_page", 10)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/spaces", headers=headers, params=params)
             data = resp.data
@@ -452,7 +466,10 @@ class SearchEventsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_auth_headers(context)
-            params = build_search_params(inputs, ["query", "time_filter", "space_id", "per_page", "page"])
+            params: Dict[str, Any] = {}
+            for key in ("query", "time_filter", "space_id", "per_page", "page"):
+                if inputs.get(key) is not None:
+                    params[key] = inputs.get(key)
             params.setdefault("per_page", 10)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/events", headers=headers, params=params)
             data = resp.data
@@ -631,7 +648,10 @@ class ListTagsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_auth_headers(context)
-            params = build_search_params(inputs, ["per_page", "page"])
+            params: Dict[str, Any] = {}
+            for key in ("per_page", "page"):
+                if inputs.get(key) is not None:
+                    params[key] = inputs.get(key)
             params.setdefault("per_page", 100)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/member_tags", headers=headers, params=params)
             data = resp.data
@@ -646,7 +666,10 @@ class ListSpaceGroupsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_auth_headers(context)
-            params = build_search_params(inputs, ["per_page", "page"])
+            params: Dict[str, Any] = {}
+            for key in ("per_page", "page"):
+                if inputs.get(key) is not None:
+                    params[key] = inputs.get(key)
             params.setdefault("per_page", 100)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/space_groups", headers=headers, params=params)
             data = resp.data
@@ -663,7 +686,10 @@ class ListAccessGroupsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             headers = build_auth_headers(context)
-            params = build_search_params(inputs, ["per_page", "page"])
+            params: Dict[str, Any] = {}
+            for key in ("per_page", "page"):
+                if inputs.get(key) is not None:
+                    params[key] = inputs.get(key)
             params.setdefault("per_page", 100)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/access_groups", headers=headers, params=params)
             data = resp.data
