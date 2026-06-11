@@ -10,8 +10,14 @@ Optional:
     SUPABASE_TEST_FUNCTION        — RPC function name for call_function test
     SUPABASE_TEST_DELETE_USER_ID  — user UUID to target for delete_user (destructive)
 
-Run with:
-    pytest supabase/tests/test_supabase_integration.py -m integration
+Run safely (read-only):
+    pytest supabase/tests/test_supabase_integration.py -m "integration and not destructive"
+
+Run destructive (mutates real data — use deliberately on a test account):
+    pytest supabase/tests/test_supabase_integration.py -m "integration and destructive"
+
+Never runs in CI — the default pytest marker filter (-m unit) excludes these,
+and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
 import os
@@ -39,9 +45,6 @@ skip_if_no_table = pytest.mark.skipif(
     not SUPABASE_TEST_TABLE,
     reason="SUPABASE_TEST_TABLE required for database action tests",
 )
-
-# Shared bucket name for all storage tests in this run
-TEST_BUCKET = f"integration-test-{uuid.uuid4().hex[:8]}"
 
 
 @pytest.fixture
@@ -77,24 +80,7 @@ def live_context(make_context):
     return ctx
 
 
-# ---- Database Actions ----
-
-
-@skip_if_no_creds
-@skip_if_no_table
-@pytest.mark.asyncio
-async def test_01_insert_records(live_context):
-    records = [
-        {"id": str(uuid.uuid4()), "name": "integration-test-a"},
-        {"id": str(uuid.uuid4()), "name": "integration-test-b"},
-    ]
-    result = await supabase.execute_action(
-        "insert_records",
-        {"table": SUPABASE_TEST_TABLE, "records": records},
-        live_context,
-    )
-    assert result.type == ResultType.ACTION, result.result.message
-    assert result.result.data["count"] >= 1
+# ---- Read-Only Tests ----
 
 
 @skip_if_no_creds
@@ -111,51 +97,6 @@ async def test_02_select_records(live_context):
 
 
 @skip_if_no_creds
-@skip_if_no_table
-@pytest.mark.asyncio
-async def test_03_update_records(live_context):
-    unique_name = f"update-{uuid.uuid4().hex[:6]}"
-    record_id = str(uuid.uuid4())
-    await supabase.execute_action(
-        "insert_records",
-        {"table": SUPABASE_TEST_TABLE, "records": [{"id": record_id, "name": unique_name}]},
-        live_context,
-    )
-    result = await supabase.execute_action(
-        "update_records",
-        {
-            "table": SUPABASE_TEST_TABLE,
-            "data": {"name": "updated-name"},
-            "filters": {"id": f"eq.{record_id}"},
-        },
-        live_context,
-    )
-    assert result.type == ResultType.ACTION, result.result.message
-
-
-@skip_if_no_creds
-@skip_if_no_table
-@pytest.mark.asyncio
-async def test_04_delete_records(live_context):
-    unique_name = f"delete-{uuid.uuid4().hex[:6]}"
-    record_id = str(uuid.uuid4())
-    await supabase.execute_action(
-        "insert_records",
-        {"table": SUPABASE_TEST_TABLE, "records": [{"id": record_id, "name": unique_name}]},
-        live_context,
-    )
-    result = await supabase.execute_action(
-        "delete_records",
-        {
-            "table": SUPABASE_TEST_TABLE,
-            "filters": {"id": f"eq.{record_id}"},
-        },
-        live_context,
-    )
-    assert result.type == ResultType.ACTION, result.result.message
-
-
-@skip_if_no_creds
 @pytest.mark.asyncio
 async def test_05_call_function(live_context):
     func = os.getenv("SUPABASE_TEST_FUNCTION", "")
@@ -169,44 +110,12 @@ async def test_05_call_function(live_context):
     assert result.type == ResultType.ACTION, result.result.message
 
 
-# ---- Storage Actions (ordered: create → get → list → public_url → delete_files → delete_bucket) ----
-
-
-@skip_if_no_creds
-@pytest.mark.asyncio
-async def test_06_create_bucket(live_context):
-    result = await supabase.execute_action(
-        "create_bucket",
-        {"name": TEST_BUCKET, "public": True},
-        live_context,
-    )
-    assert result.type == ResultType.ACTION, result.result.message
-
-
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_07_list_buckets(live_context):
     result = await supabase.execute_action("list_buckets", {}, live_context)
     assert result.type == ResultType.ACTION, result.result.message
-    buckets = result.result.data["buckets"]
-    assert isinstance(buckets, list)
-    assert any(b.get("id") == TEST_BUCKET or b.get("name") == TEST_BUCKET for b in buckets)
-
-
-@skip_if_no_creds
-@pytest.mark.asyncio
-async def test_08_get_bucket(live_context):
-    result = await supabase.execute_action("get_bucket", {"bucket_id": TEST_BUCKET}, live_context)
-    assert result.type == ResultType.ACTION, result.result.message
-    assert result.result.data["bucket"] is not None
-
-
-@skip_if_no_creds
-@pytest.mark.asyncio
-async def test_09_list_files(live_context):
-    result = await supabase.execute_action("list_files", {"bucket_id": TEST_BUCKET}, live_context)
-    assert result.type == ResultType.ACTION, result.result.message
-    assert isinstance(result.result.data["files"], list)
+    assert isinstance(result.result.data["buckets"], list)
 
 
 @skip_if_no_creds
@@ -214,34 +123,11 @@ async def test_09_list_files(live_context):
 async def test_10_get_public_url(live_context):
     result = await supabase.execute_action(
         "get_public_url",
-        {"bucket_id": TEST_BUCKET, "path": "test/file.txt"},
+        {"bucket_id": "any-bucket", "path": "test/file.txt"},
         live_context,
     )
     assert result.type == ResultType.ACTION, result.result.message
-    assert TEST_BUCKET in result.result.data["public_url"]
-
-
-@skip_if_no_creds
-@pytest.mark.asyncio
-async def test_11_delete_files(live_context):
-    # Deleting nonexistent file — Supabase returns empty list or benign response
-    result = await supabase.execute_action(
-        "delete_files",
-        {"bucket_id": TEST_BUCKET, "paths": ["nonexistent/file.txt"]},
-        live_context,
-    )
-    assert result is not None
-
-
-@skip_if_no_creds
-@pytest.mark.asyncio
-async def test_12_delete_bucket(live_context):
-    result = await supabase.execute_action("delete_bucket", {"bucket_id": TEST_BUCKET}, live_context)
-    assert result.type == ResultType.ACTION, result.result.message
-    assert result.result.data["deleted"] is True
-
-
-# ---- Auth Actions ----
+    assert result.result.data["public_url"].startswith("http")
 
 
 @skip_if_no_creds
@@ -257,7 +143,7 @@ async def test_13_list_users(live_context):
 @pytest.mark.asyncio
 async def test_14_get_user(live_context):
     list_result = await supabase.execute_action("list_users", {}, live_context)
-    assert list_result.type != ResultType.ACTION_ERROR
+    assert list_result.type == ResultType.ACTION, list_result.result.message
     users = list_result.result.data.get("users", [])
     if not users:
         pytest.skip("No users in project to fetch")
@@ -267,6 +153,123 @@ async def test_14_get_user(live_context):
     assert result.result.data["user"]["id"] == user_id
 
 
+# ---- Destructive Tests (Write Operations) ----
+# These create, update, or delete real data.
+# Only run with: pytest -m "integration and destructive"
+
+
+@pytest.mark.destructive
+@skip_if_no_creds
+@skip_if_no_table
+@pytest.mark.asyncio
+async def test_01_insert_records(live_context):
+    records = [
+        {"id": str(uuid.uuid4()), "name": "integration-test-a"},
+        {"id": str(uuid.uuid4()), "name": "integration-test-b"},
+    ]
+    result = await supabase.execute_action(
+        "insert_records",
+        {"table": SUPABASE_TEST_TABLE, "records": records},
+        live_context,
+    )
+    assert result.type == ResultType.ACTION, result.result.message
+    assert result.result.data["count"] >= 1
+
+    # Cleanup
+    for r in records:
+        await supabase.execute_action(
+            "delete_records",
+            {"table": SUPABASE_TEST_TABLE, "filters": {"id": f"eq.{r['id']}"}},
+            live_context,
+        )
+
+
+@pytest.mark.destructive
+@skip_if_no_creds
+@skip_if_no_table
+@pytest.mark.asyncio
+async def test_03_update_records(live_context):
+    record_id = str(uuid.uuid4())
+    await supabase.execute_action(
+        "insert_records",
+        {"table": SUPABASE_TEST_TABLE, "records": [{"id": record_id, "name": f"update-{uuid.uuid4().hex[:6]}"}]},
+        live_context,
+    )
+    try:
+        result = await supabase.execute_action(
+            "update_records",
+            {
+                "table": SUPABASE_TEST_TABLE,
+                "data": {"name": "updated-name"},
+                "filters": {"id": f"eq.{record_id}"},
+            },
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result.message
+    finally:
+        await supabase.execute_action(
+            "delete_records",
+            {"table": SUPABASE_TEST_TABLE, "filters": {"id": f"eq.{record_id}"}},
+            live_context,
+        )
+
+
+@pytest.mark.destructive
+@skip_if_no_creds
+@skip_if_no_table
+@pytest.mark.asyncio
+async def test_04_delete_records(live_context):
+    record_id = str(uuid.uuid4())
+    await supabase.execute_action(
+        "insert_records",
+        {"table": SUPABASE_TEST_TABLE, "records": [{"id": record_id, "name": f"delete-{uuid.uuid4().hex[:6]}"}]},
+        live_context,
+    )
+    result = await supabase.execute_action(
+        "delete_records",
+        {"table": SUPABASE_TEST_TABLE, "filters": {"id": f"eq.{record_id}"}},
+        live_context,
+    )
+    assert result.type == ResultType.ACTION, result.result.message
+
+
+@pytest.mark.destructive
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_storage_lifecycle(live_context):
+    """create_bucket → get_bucket → list_files → delete_files → delete_bucket."""
+    bucket = f"integration-test-{uuid.uuid4().hex[:8]}"
+    try:
+        # create_bucket
+        create_result = await supabase.execute_action(
+            "create_bucket", {"name": bucket, "public": True}, live_context
+        )
+        assert create_result.type == ResultType.ACTION, create_result.result.message
+
+        # get_bucket
+        get_result = await supabase.execute_action("get_bucket", {"bucket_id": bucket}, live_context)
+        assert get_result.type == ResultType.ACTION, get_result.result.message
+        assert get_result.result.data["bucket"] is not None
+
+        # list_files
+        list_result = await supabase.execute_action("list_files", {"bucket_id": bucket}, live_context)
+        assert list_result.type == ResultType.ACTION, list_result.result.message
+        assert isinstance(list_result.result.data["files"], list)
+
+        # delete_files (nonexistent path — Supabase returns empty list)
+        delete_files_result = await supabase.execute_action(
+            "delete_files", {"bucket_id": bucket, "paths": ["nonexistent/file.txt"]}, live_context
+        )
+        assert delete_files_result.type == ResultType.ACTION, delete_files_result.result.message
+
+    finally:
+        # delete_bucket (cleanup)
+        delete_result = await supabase.execute_action("delete_bucket", {"bucket_id": bucket}, live_context)
+        assert delete_result.type == ResultType.ACTION, delete_result.result.message
+        assert delete_result.result.data["deleted"] is True
+
+
+@pytest.mark.destructive
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_15_delete_user(live_context):
