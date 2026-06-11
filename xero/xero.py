@@ -174,14 +174,22 @@ class XeroRateLimiter:
             val = headers.get("X-MinLimit-Remaining")
             if val is not None:
                 min_remaining = int(val)
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as exc:
+            logger.debug(
+                "Ignoring unparseable X-MinLimit-Remaining header value: %r (%s)",
+                headers.get("X-MinLimit-Remaining"),
+                exc,
+            )
         try:
             val = headers.get("X-DayLimit-Remaining")
             if val is not None:
                 day_remaining = int(val)
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as exc:
+            logger.debug(
+                "Ignoring unparseable X-DayLimit-Remaining header value: %r (%s)",
+                headers.get("X-DayLimit-Remaining"),
+                exc,
+            )
         return min_remaining, day_remaining
 
     async def make_request(self, context: ExecutionContext, url: str, tenant_id: str, **kwargs) -> Any:
