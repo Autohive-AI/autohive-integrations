@@ -393,16 +393,36 @@ class ListEmailsAction(ActionHandler):
 
 @microsoft365.action("list_emails_from_contact")
 class ListEmailsFromContactAction(ActionHandler):
+    _ALLOWED_FIELDS = {
+        "id",
+        "subject",
+        "sender",
+        "receivedDateTime",
+        "bodyPreview",
+        "body",
+        "hasAttachments",
+        "isRead",
+        "importance",
+    }
+
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             contact_email = inputs["contact_email"]
             limit = inputs.get("limit", 5)
             folder = inputs.get("folder", "Inbox")
 
+            requested_fields = inputs.get("fields")
+            if requested_fields:
+                active_fields = {f for f in requested_fields if f in self._ALLOWED_FIELDS}
+                active_fields.add("id")
+            else:
+                active_fields = self._ALLOWED_FIELDS
+
             params = {
                 "$top": limit,
                 "$orderby": "receivedDateTime desc",
-                "$select": "id,subject,sender,receivedDateTime,bodyPreview,body,hasAttachments,isRead,importance",
+                "$select": ",".join(sorted(active_fields)),
+                "$filter": f"from/emailAddress/address eq '{contact_email}'",
             }
 
             api_url = f"{GRAPH_API_BASE}/me/mailFolders/{folder}/messages"
@@ -411,19 +431,24 @@ class ListEmailsFromContactAction(ActionHandler):
 
             emails = []
             for email in response.get("value", []):
-                emails.append(
-                    {
-                        "id": email["id"],
-                        "subject": email.get("subject") or "",
-                        "sender": email["sender"],
-                        "receivedDateTime": email["receivedDateTime"],
-                        "bodyPreview": email.get("bodyPreview") or "",
-                        "body": email.get("body", {}),
-                        "hasAttachments": email.get("hasAttachments", False),
-                        "isRead": email.get("isRead", False),
-                        "importance": email.get("importance", "normal"),
-                    }
-                )
+                email_data: Dict[str, Any] = {"id": email["id"]}
+                if "subject" in active_fields:
+                    email_data["subject"] = email.get("subject") or ""
+                if "sender" in active_fields:
+                    email_data["sender"] = email["sender"]
+                if "receivedDateTime" in active_fields:
+                    email_data["receivedDateTime"] = email["receivedDateTime"]
+                if "bodyPreview" in active_fields:
+                    email_data["bodyPreview"] = email.get("bodyPreview") or ""
+                if "body" in active_fields:
+                    email_data["body"] = email.get("body", {})
+                if "hasAttachments" in active_fields:
+                    email_data["hasAttachments"] = email.get("hasAttachments", False)
+                if "isRead" in active_fields:
+                    email_data["isRead"] = email.get("isRead", False)
+                if "importance" in active_fields:
+                    email_data["importance"] = email.get("importance", "normal")
+                emails.append(email_data)
 
             return ActionResult(
                 data={"emails": emails, "contact_email": contact_email},

@@ -259,6 +259,29 @@ async def test_list_emails_from_contact(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_list_emails_from_contact_with_fields(mock_context):
+    email = {
+        "id": "em2",
+        "subject": "Re: test",
+        "sender": {"emailAddress": {"address": "friend@b.com"}},
+        "receivedDateTime": "2026-06-10T10:00:00Z",
+        "bodyPreview": "ok",
+        "hasAttachments": False,
+    }
+    mock_context.fetch = make_fetch({"value": [email]})
+    result = await microsoft365.execute_action(
+        "list_emails_from_contact",
+        {
+            "contact_email": "friend@b.com",
+            "fields": ["id", "subject", "sender", "receivedDateTime", "hasAttachments", "bodyPreview"],
+        },
+        mock_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR
+    assert "body" not in result.result.data["emails"][0]
+
+
+@pytest.mark.asyncio
 async def test_list_emails_from_contact_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("err"))
     result = await microsoft365.execute_action(

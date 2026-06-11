@@ -68,16 +68,17 @@ Returns full body HTML by default. Use the `fields` parameter to limit response 
 
 ### `list_emails_from_contact`
 
-Get the latest emails from a specific contact.
+Get the latest emails from a specific contact. Returns full body HTML by default — use `fields` to limit to metadata only when scanning large volumes.
 
 **Inputs:**
 - `contact_email` (required): Email address of the contact
 - `limit` (optional): Maximum number of emails to return
 - `folder` (optional): Mail folder to search (default: `Inbox`)
+- `fields` (optional): List of fields to return per email. Same allowed values as `list_emails` — omit `body` to reduce payload. E.g. `["id", "subject", "sender", "receivedDateTime", "hasAttachments", "bodyPreview"]`.
 
 **Outputs:**
 - `emails`: List of email objects from the specified contact
-- `count`: Number of emails returned
+- `contact_email`: The contact email that was searched
 
 ---
 

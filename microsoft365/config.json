@@ -521,7 +521,7 @@
     },
     "list_emails_from_contact": {
       "display_name": "List Emails from Contact",
-      "description": "List latest emails from a specific contact",
+      "description": "List latest emails from a specific contact. Returns full body HTML by default — use the fields parameter to limit response to metadata only (e.g. [\"id\", \"subject\", \"sender\", \"receivedDateTime\", \"hasAttachments\", \"bodyPreview\"]) when scanning a large inbox to avoid context window issues.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -538,6 +538,14 @@
             "type": "string",
             "description": "Mail folder to search in (default: Inbox)",
             "default": "Inbox"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["id", "subject", "sender", "receivedDateTime", "bodyPreview", "body", "hasAttachments", "isRead", "importance"]
+            },
+            "description": "Optional list of fields to return for each email. When omitted, all fields including body.content are returned. Use to reduce context consumption — e.g. [\"id\", \"subject\", \"sender\", \"receivedDateTime\", \"hasAttachments\", \"bodyPreview\"] for a lightweight metadata scan."
           }
         },
         "required": [
