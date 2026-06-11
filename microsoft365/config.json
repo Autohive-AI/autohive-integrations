@@ -1,6 +1,6 @@
 {
     "name": "Microsoft Copilot 365",
-    "version": "1.0.1",
+    "version": "2.0.0",
     "description": "Microsoft Copilot 365 integration for Outlook, OneDrive, Calendar, SharePoint, and intelligent meeting scheduling",
     "entry_point": "microsoft365.py",
     "auth": {
@@ -70,18 +70,12 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "sent": {
                         "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
+                        "description": "True when the email was sent successfully"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "create_calendar_event": {
@@ -134,18 +128,9 @@
                     "webLink": {
                         "type": "string",
                         "description": "Web link to the event"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "id",
                     "webLink"
                 ]
@@ -195,18 +180,9 @@
                     "size": {
                         "type": "integer",
                         "description": "File size in bytes"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "id",
                     "webUrl",
                     "size"
@@ -266,19 +242,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "files",
-                    "result"
+                    "files"
                 ]
             }
         },
@@ -334,18 +301,9 @@
                     "webLink": {
                         "type": "string",
                         "description": "Web link to the event"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "id",
                     "webLink"
                 ]
@@ -448,19 +406,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "events",
-                    "result"
+                    "events"
                 ]
             }
         },
@@ -495,6 +444,24 @@
                         "type": "integer",
                         "description": "Maximum number of emails to return",
                         "default": 50
+                    },
+                    "fields": {
+                        "type": "array",
+                        "description": "Optional list of fields to return for each email. When omitted, all fields including body.content are returned. Use this to reduce context consumption \u00e2\u20ac\u201d e.g. [\"id\", \"subject\", \"sender\", \"receivedDateTime\", \"hasAttachments\", \"bodyPreview\"] for a lightweight metadata scan. Allowed values: id, subject, sender, receivedDateTime, bodyPreview, body, hasAttachments, isRead, importance.",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "id",
+                                "subject",
+                                "sender",
+                                "receivedDateTime",
+                                "bodyPreview",
+                                "body",
+                                "hasAttachments",
+                                "isRead",
+                                "importance"
+                            ]
+                        }
                     }
                 }
             },
@@ -545,19 +512,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "emails",
-                    "result"
+                    "emails"
                 ]
             }
         },
@@ -637,20 +595,11 @@
                     "contact_email": {
                         "type": "string",
                         "description": "The contact email that was searched for"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
                     "emails",
-                    "contact_email",
-                    "result"
+                    "contact_email"
                 ]
             }
         },
@@ -688,18 +637,9 @@
                     "lastModifiedDateTime": {
                         "type": "string",
                         "description": "When the email was last modified"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "id",
                     "isRead",
                     "lastModifiedDateTime"
@@ -771,20 +711,11 @@
                     "total_count": {
                         "type": "integer",
                         "description": "Total number of folders returned"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
                     "folders",
-                    "total_count",
-                    "result"
+                    "total_count"
                 ]
             }
         },
@@ -839,19 +770,10 @@
                                 "description": "Whether the folder is hidden"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "folder",
-                    "result"
+                    "folder"
                 ]
             }
         },
@@ -889,19 +811,9 @@
                     "subject": {
                         "type": "string",
                         "description": "Subject of the moved email"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "read_email": {
@@ -985,20 +897,11 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
                     "email",
-                    "attachments",
-                    "result"
+                    "attachments"
                 ]
             }
         },
@@ -1090,10 +993,6 @@
                             }
                         }
                     },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
                     "message": {
                         "type": "string",
                         "description": "Descriptive message about the search results"
@@ -1109,15 +1008,10 @@
                     "total_contacts": {
                         "type": "integer",
                         "description": "Total number of contacts retrieved (only present when not searching)"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
                     "contacts",
-                    "result",
                     "message"
                 ]
             }
@@ -1185,20 +1079,11 @@
                     "query": {
                         "type": "string",
                         "description": "The search query that was executed"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
                     "files",
-                    "query",
-                    "result"
+                    "query"
                 ]
             }
         },
@@ -1270,20 +1155,11 @@
                             "id",
                             "name"
                         ]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
                     "file",
-                    "metadata",
-                    "result"
+                    "metadata"
                 ]
             }
         },
@@ -1405,10 +1281,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the draft was created successfully"
-                    },
                     "draft_id": {
                         "type": "string",
                         "description": "ID of the created draft"
@@ -1424,15 +1296,9 @@
                     "is_draft": {
                         "type": "boolean",
                         "description": "Whether this is a draft message"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "send_draft_email": {
@@ -1453,10 +1319,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the draft was sent successfully"
-                    },
                     "draft_id": {
                         "type": "string",
                         "description": "ID of the sent draft"
@@ -1465,13 +1327,12 @@
                         "type": "string",
                         "description": "Status of the operation"
                     },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
+                    "sent": {
+                        "type": "boolean",
+                        "description": "True when the draft was sent successfully"
                     }
                 },
                 "required": [
-                    "result",
                     "draft_id"
                 ]
             }
@@ -1498,10 +1359,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the reply was sent successfully"
-                    },
                     "message_id": {
                         "type": "string",
                         "description": "ID of the original message"
@@ -1514,13 +1371,12 @@
                         "type": "string",
                         "description": "Status of the operation"
                     },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
+                    "sent": {
+                        "type": "boolean",
+                        "description": "True when the message was sent successfully"
                     }
                 },
                 "required": [
-                    "result",
                     "message_id",
                     "operation"
                 ]
@@ -1574,10 +1430,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the forward was sent successfully"
-                    },
                     "message_id": {
                         "type": "string",
                         "description": "ID of the original message"
@@ -1590,13 +1442,12 @@
                         "type": "string",
                         "description": "Status of the operation"
                     },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
+                    "sent": {
+                        "type": "boolean",
+                        "description": "True when the message was sent successfully"
                     }
                 },
                 "required": [
-                    "result",
                     "message_id",
                     "operation"
                 ]
@@ -1688,20 +1539,11 @@
                             "message_id",
                             "is_inline"
                         ]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
                     "file",
-                    "metadata",
-                    "result"
+                    "metadata"
                 ]
             }
         },
@@ -1734,10 +1576,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the search was successful"
-                    },
                     "query": {
                         "type": "string",
                         "description": "The search query that was executed"
@@ -1778,14 +1616,9 @@
                                 }
                             }
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "query",
                     "total_results",
                     "messages"
@@ -1815,10 +1648,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the search was successful"
-                    },
                     "query": {
                         "type": "string",
                         "description": "The search query that was executed"
@@ -1863,14 +1692,9 @@
                     "total_sites": {
                         "type": "integer",
                         "description": "Total number of sites found"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "query",
                     "sites",
                     "total_sites"
@@ -1895,10 +1719,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
                     "site": {
                         "type": "object",
                         "properties": {
@@ -1940,14 +1760,9 @@
                             "name",
                             "web_url"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "site"
                 ]
             }
@@ -1978,10 +1793,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
                     "site_id": {
                         "type": "string",
                         "description": "The SharePoint site ID"
@@ -2026,14 +1837,9 @@
                     "total_libraries": {
                         "type": "integer",
                         "description": "Total number of libraries found"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "site_id",
                     "libraries",
                     "total_libraries"
@@ -2068,10 +1874,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the search was successful"
-                    },
                     "site_id": {
                         "type": "string",
                         "description": "The SharePoint site ID"
@@ -2139,14 +1941,9 @@
                     "message": {
                         "type": "string",
                         "description": "Additional message about the search results"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "site_id",
                     "query",
                     "files",
@@ -2240,20 +2037,11 @@
                             "name",
                             "site_id"
                         ]
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
                     "file",
-                    "metadata",
-                    "result"
+                    "metadata"
                 ]
             }
         },
@@ -2287,10 +2075,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
                     "site_id": {
                         "type": "string",
                         "description": "The SharePoint site ID"
@@ -2335,14 +2119,9 @@
                     "total_pages": {
                         "type": "integer",
                         "description": "Total number of pages found"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "site_id",
                     "pages",
                     "total_pages"
@@ -2377,10 +2156,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
                     "site_id": {
                         "type": "string",
                         "description": "The SharePoint site ID"
@@ -2427,14 +2202,9 @@
                             "title",
                             "web_url"
                         ]
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "site_id",
                     "page"
                 ]
@@ -2463,10 +2233,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
                     "site_id": {
                         "type": "string",
                         "description": "The parent SharePoint site ID"
@@ -2519,14 +2285,9 @@
                     "has_more": {
                         "type": "boolean",
                         "description": "Whether there are more subsites beyond the limit"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "site_id",
                     "subsites",
                     "total_subsites",
@@ -2561,10 +2322,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
                     "drive_id": {
                         "type": "string",
                         "description": "The document library (drive) ID"
@@ -2637,14 +2394,9 @@
                     "has_more": {
                         "type": "boolean",
                         "description": "Whether there are more items beyond the limit"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
                 "required": [
-                    "result",
                     "drive_id",
                     "folder_id",
                     "items",
@@ -2705,10 +2457,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
                     "meeting_time_suggestions": {
                         "type": "array",
                         "description": "List of suggested meeting time slots ranked by confidence",
@@ -2771,15 +2519,9 @@
                     "empty_suggestions_reason": {
                         "type": "string",
                         "description": "Reason why no suggestions were returned (if applicable)"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "get_schedule": {
@@ -2818,10 +2560,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
                     "schedules": {
                         "type": "array",
                         "description": "Availability schedules for each requested email",
@@ -2900,15 +2638,9 @@
                                 }
                             }
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "list_rooms": {
@@ -2941,10 +2673,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
                     "rooms": {
                         "type": "array",
                         "description": "List of rooms or room lists",
@@ -3005,15 +2733,9 @@
                     "total_count": {
                         "type": "integer",
                         "description": "Total number of rooms/lists returned"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "check_room_availability": {
@@ -3047,10 +2769,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
                     "rooms": {
                         "type": "array",
                         "description": "Availability status for each requested room",
@@ -3110,16 +2828,11 @@
                         "items": {
                             "type": "string"
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         }
-    }
+    },
+    "display_name": "Microsoft 365"
 }
