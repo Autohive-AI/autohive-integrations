@@ -99,9 +99,7 @@ async def test_read_email_live(live_context):
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_search_emails_live(live_context):
-    result = await microsoft365.execute_action(
-        "search_emails", {"query": "test", "limit": 5}, live_context
-    )
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 5}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert "messages" in result.result.data
 
@@ -135,9 +133,7 @@ async def test_02_mark_email_read_live(live_context):
     draft_id = _state.get("draft_id")
     if not draft_id:
         pytest.skip("No draft_id from test_01")
-    result = await microsoft365.execute_action(
-        "mark_email_read", {"email_id": draft_id, "is_read": True}, live_context
-    )
+    result = await microsoft365.execute_action("mark_email_read", {"email_id": draft_id, "is_read": True}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
 
 
@@ -147,9 +143,7 @@ async def test_03_send_draft_email_live(live_context):
     draft_id = _state.get("draft_id")
     if not draft_id:
         pytest.skip("No draft_id from test_01")
-    result = await microsoft365.execute_action(
-        "send_draft_email", {"draft_id": draft_id}, live_context
-    )
+    result = await microsoft365.execute_action("send_draft_email", {"draft_id": draft_id}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert result.result.data.get("sent") is True
 
@@ -229,9 +223,7 @@ async def test_list_mail_folders_live(live_context):
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_get_mail_folder_live(live_context):
-    result = await microsoft365.execute_action(
-        "get_mail_folder", {"folder_id": "inbox"}, live_context
-    )
+    result = await microsoft365.execute_action("get_mail_folder", {"folder_id": "inbox"}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert "folder" in result.result.data
     assert result.result.data["folder"]["id"]
@@ -273,9 +265,7 @@ async def test_download_email_attachment_live(live_context):
         "list_emails", {"limit": 20, "fields": ["id", "hasAttachments"]}, live_context
     )
     assert result.type != ResultType.ACTION_ERROR, result.result.message
-    email_with_att = next(
-        (e for e in result.result.data["emails"] if e.get("hasAttachments")), None
-    )
+    email_with_att = next((e for e in result.result.data["emails"] if e.get("hasAttachments")), None)
     if not email_with_att:
         pytest.skip("No emails with attachments found in inbox")
 
@@ -398,9 +388,7 @@ async def test_list_files_live(live_context):
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_search_onedrive_files_live(live_context):
-    result = await microsoft365.execute_action(
-        "search_onedrive_files", {"query": "test", "limit": 5}, live_context
-    )
+    result = await microsoft365.execute_action("search_onedrive_files", {"query": "test", "limit": 5}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert "files" in result.result.data
 
@@ -429,9 +417,7 @@ async def test_read_onedrive_file_content_live(live_context):
     file_id = _state.get("uploaded_file_id") or _state.get("onedrive_file_id")
     if not file_id:
         pytest.skip("No file_id available")
-    result = await microsoft365.execute_action(
-        "read_onedrive_file_content", {"file_id": file_id}, live_context
-    )
+    result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": file_id}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert "file" in result.result.data
     assert "metadata" in result.result.data
@@ -458,9 +444,7 @@ async def test_read_contacts_live(live_context):
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_search_sharepoint_sites_live(live_context):
-    result = await microsoft365.execute_action(
-        "search_sharepoint_sites", {"query": "test"}, live_context
-    )
+    result = await microsoft365.execute_action("search_sharepoint_sites", {"query": "test"}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     data = result.result.data
     assert "sites" in data
@@ -474,9 +458,7 @@ async def test_get_sharepoint_site_details_live(live_context):
     site_id = _state.get("sharepoint_site_id")
     if not site_id:
         pytest.skip("No sharepoint_site_id from test_search_sharepoint_sites_live")
-    result = await microsoft365.execute_action(
-        "get_sharepoint_site_details", {"site_id": site_id}, live_context
-    )
+    result = await microsoft365.execute_action("get_sharepoint_site_details", {"site_id": site_id}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert "site" in result.result.data
 
@@ -487,9 +469,7 @@ async def test_list_sharepoint_libraries_live(live_context):
     site_id = _state.get("sharepoint_site_id")
     if not site_id:
         pytest.skip("No sharepoint_site_id from test_search_sharepoint_sites_live")
-    result = await microsoft365.execute_action(
-        "list_sharepoint_libraries", {"site_id": site_id}, live_context
-    )
+    result = await microsoft365.execute_action("list_sharepoint_libraries", {"site_id": site_id}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     data = result.result.data
     assert "libraries" in data
@@ -543,9 +523,7 @@ async def test_list_sharepoint_pages_live(live_context):
     site_id = _state.get("sharepoint_site_id")
     if not site_id:
         pytest.skip("No sharepoint_site_id from test_search_sharepoint_sites_live")
-    result = await microsoft365.execute_action(
-        "list_sharepoint_pages", {"site_id": site_id}, live_context
-    )
+    result = await microsoft365.execute_action("list_sharepoint_pages", {"site_id": site_id}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     data = result.result.data
     assert "pages" in data
@@ -575,9 +553,7 @@ async def test_list_sharepoint_subsites_live(live_context):
     site_id = _state.get("sharepoint_site_id")
     if not site_id:
         pytest.skip("No sharepoint_site_id from test_search_sharepoint_sites_live")
-    result = await microsoft365.execute_action(
-        "list_sharepoint_subsites", {"site_id": site_id}, live_context
-    )
+    result = await microsoft365.execute_action("list_sharepoint_subsites", {"site_id": site_id}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert "subsites" in result.result.data
 
@@ -588,9 +564,7 @@ async def test_list_sharepoint_folder_contents_live(live_context):
     drive_id = _state.get("sharepoint_drive_id")
     if not drive_id:
         pytest.skip("No sharepoint_drive_id from test_list_sharepoint_libraries_live")
-    result = await microsoft365.execute_action(
-        "list_sharepoint_folder_contents", {"drive_id": drive_id}, live_context
-    )
+    result = await microsoft365.execute_action("list_sharepoint_folder_contents", {"drive_id": drive_id}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert "items" in result.result.data
 
@@ -603,9 +577,7 @@ async def test_list_sharepoint_folder_contents_live(live_context):
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_list_rooms_live(live_context):
-    result = await microsoft365.execute_action(
-        "list_rooms", {"list_type": "rooms", "limit": 10}, live_context
-    )
+    result = await microsoft365.execute_action("list_rooms", {"list_type": "rooms", "limit": 10}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     data = result.result.data
     assert "rooms" in data

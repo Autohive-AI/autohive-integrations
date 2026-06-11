@@ -238,11 +238,11 @@ class UpdateCalendarEventAction(ActionHandler):
 class ListCalendarEventsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            if "start_datetime" in inputs:
-                start_datetime = inputs["start_datetime"]
+            if inputs.get("start_datetime"):
+                start_datetime = inputs.get("start_datetime")
                 end_datetime = inputs.get("end_datetime", start_datetime)
-            elif "start_date" in inputs:
-                start_date = inputs["start_date"]
+            elif inputs.get("start_date"):
+                start_date = inputs.get("start_date")
                 end_date = inputs.get("end_date", start_date)
                 start_datetime = f"{start_date}T00:00:00Z"
                 end_datetime = f"{end_date}T23:59:59Z"
@@ -318,11 +318,11 @@ class ListEmailsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            if "start_datetime" in inputs:
-                start_datetime = inputs["start_datetime"]
+            if inputs.get("start_datetime"):
+                start_datetime = inputs.get("start_datetime")
                 end_datetime = inputs.get("end_datetime", start_datetime)
-            elif "start_date" in inputs:
-                start_date = inputs["start_date"]
+            elif inputs.get("start_date"):
+                start_date = inputs.get("start_date")
                 end_date = inputs.get("end_date", start_date)
                 start_datetime = f"{start_date}T00:00:00Z"
                 end_datetime = f"{end_date}T23:59:59Z"
