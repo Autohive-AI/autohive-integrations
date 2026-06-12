@@ -167,21 +167,21 @@ async def test_01_insert_records(live_context):
         {"id": str(uuid.uuid4()), "name": "integration-test-a"},
         {"id": str(uuid.uuid4()), "name": "integration-test-b"},
     ]
-    result = await supabase.execute_action(
-        "insert_records",
-        {"table": SUPABASE_TEST_TABLE, "records": records},
-        live_context,
-    )
-    assert result.type == ResultType.ACTION, result.result.message
-    assert result.result.data["count"] >= 1
-
-    # Cleanup
-    for r in records:
-        await supabase.execute_action(
-            "delete_records",
-            {"table": SUPABASE_TEST_TABLE, "filters": {"id": f"eq.{r['id']}"}},
+    try:
+        result = await supabase.execute_action(
+            "insert_records",
+            {"table": SUPABASE_TEST_TABLE, "records": records},
             live_context,
         )
+        assert result.type == ResultType.ACTION, result.result.message
+        assert result.result.data["count"] >= 1
+    finally:
+        for r in records:
+            await supabase.execute_action(
+                "delete_records",
+                {"table": SUPABASE_TEST_TABLE, "filters": {"id": f"eq.{r['id']}"}},
+                live_context,
+            )
 
 
 @pytest.mark.destructive
