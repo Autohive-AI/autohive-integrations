@@ -17,7 +17,6 @@
             "stories:read",
             "stories:write",
             "workspaces:read",
-            "teams:read",
             "users:read"
         ]
     },
