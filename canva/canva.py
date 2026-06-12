@@ -162,10 +162,12 @@ class UpdateAsset(ActionHandler):
 
             # Build update payload
             update_data = {}
-            if "name" in inputs:
-                update_data["name"] = inputs["name"]
-            if "tags" in inputs:
-                update_data["tags"] = inputs["tags"]
+            name = inputs.get("name")
+            if name is not None:
+                update_data["name"] = name
+            tags = inputs.get("tags")
+            if tags is not None:
+                update_data["tags"] = tags
 
             await context.fetch(f"{service_endpoint}/v1/assets/{asset_id}", method="PATCH", json=update_data)
 
@@ -198,10 +200,12 @@ class CreateDesign(ActionHandler):
             design_data = {"design_type": {"type": "preset", "name": inputs["preset_type"]}}
 
             # Add optional fields
-            if "title" in inputs:
-                design_data["title"] = inputs["title"]
-            if "asset_id" in inputs:
-                design_data["asset_id"] = inputs["asset_id"]
+            title = inputs.get("title")
+            if title is not None:
+                design_data["title"] = title
+            asset_id = inputs.get("asset_id")
+            if asset_id is not None:
+                design_data["asset_id"] = asset_id
 
             response = await context.fetch(f"{service_endpoint}/v1/designs", method="POST", json=design_data)
 
@@ -221,14 +225,18 @@ class ListDesigns(ActionHandler):
         try:
             # Build query parameters
             params = {}
-            if "query" in inputs:
-                params["query"] = inputs["query"]
-            if "continuation" in inputs:
-                params["continuation"] = inputs["continuation"]
-            if "ownership" in inputs:
-                params["ownership"] = inputs["ownership"]
-            if "sort_by" in inputs:
-                params["sort_by"] = inputs["sort_by"]
+            query = inputs.get("query")
+            if query is not None:
+                params["query"] = query
+            continuation = inputs.get("continuation")
+            if continuation is not None:
+                params["continuation"] = continuation
+            ownership = inputs.get("ownership")
+            if ownership is not None:
+                params["ownership"] = ownership
+            sort_by = inputs.get("sort_by")
+            if sort_by is not None:
+                params["sort_by"] = sort_by
 
             response = await context.fetch(f"{service_endpoint}/v1/designs", method="GET", params=params)
 
@@ -272,62 +280,74 @@ class ExportDesign(ActionHandler):
             # Build export format object
             format_obj = {"type": export_format}
 
+            # Optional format parameters (all optional in the input schema)
+            export_quality = inputs.get("export_quality")
+            paper_size = inputs.get("paper_size")
+            pages = inputs.get("pages")
+            jpg_quality = inputs.get("jpg_quality")
+            width = inputs.get("width")
+            height = inputs.get("height")
+            lossless = inputs.get("lossless")
+            transparent_background = inputs.get("transparent_background")
+            as_single_image = inputs.get("as_single_image")
+            image_quality = inputs.get("image_quality")
+
             # Add format-specific parameters
             if export_format.lower() == "pdf":
                 # PDF-specific parameters
-                if "export_quality" in inputs and inputs["export_quality"]:
-                    format_obj["export_quality"] = inputs["export_quality"]
-                if "paper_size" in inputs and inputs["paper_size"]:
-                    format_obj["size"] = inputs["paper_size"]
-                if "pages" in inputs and inputs["pages"]:
-                    format_obj["pages"] = inputs["pages"]
+                if export_quality:
+                    format_obj["export_quality"] = export_quality
+                if paper_size:
+                    format_obj["size"] = paper_size
+                if pages:
+                    format_obj["pages"] = pages
 
             elif export_format.lower() in ["jpg", "jpeg"]:
                 # JPG parameters
-                if "jpg_quality" in inputs and inputs["jpg_quality"]:
+                if jpg_quality:
                     try:
-                        quality_val = int(inputs["jpg_quality"])
+                        quality_val = int(jpg_quality)
                         format_obj["quality"] = max(1, min(100, quality_val))
                     except (ValueError, TypeError):
                         format_obj["quality"] = 85
                 else:
                     format_obj["quality"] = 85
-                if "export_quality" in inputs and inputs["export_quality"]:
-                    format_obj["export_quality"] = inputs["export_quality"]
-                if "width" in inputs and inputs["width"]:
-                    format_obj["width"] = inputs["width"]
-                if "height" in inputs and inputs["height"]:
-                    format_obj["height"] = inputs["height"]
-                if "pages" in inputs and inputs["pages"]:
-                    format_obj["pages"] = inputs["pages"]
+                if export_quality:
+                    format_obj["export_quality"] = export_quality
+                if width:
+                    format_obj["width"] = width
+                if height:
+                    format_obj["height"] = height
+                if pages:
+                    format_obj["pages"] = pages
 
             elif export_format.lower() == "png":
                 # PNG parameters
-                if "export_quality" in inputs and inputs["export_quality"]:
-                    format_obj["export_quality"] = inputs["export_quality"]
-                if "width" in inputs and inputs["width"]:
-                    format_obj["width"] = inputs["width"]
-                if "height" in inputs and inputs["height"]:
-                    format_obj["height"] = inputs["height"]
-                if "lossless" in inputs and inputs["lossless"] is not None:
-                    format_obj["lossless"] = inputs["lossless"]
-                if "transparent_background" in inputs and inputs["transparent_background"] is not None:
-                    format_obj["transparent_background"] = inputs["transparent_background"]
-                if "as_single_image" in inputs and inputs["as_single_image"] is not None:
-                    format_obj["as_single_image"] = inputs["as_single_image"]
-                if "pages" in inputs and inputs["pages"]:
-                    format_obj["pages"] = inputs["pages"]
+                if export_quality:
+                    format_obj["export_quality"] = export_quality
+                if width:
+                    format_obj["width"] = width
+                if height:
+                    format_obj["height"] = height
+                if lossless is not None:
+                    format_obj["lossless"] = lossless
+                if transparent_background is not None:
+                    format_obj["transparent_background"] = transparent_background
+                if as_single_image is not None:
+                    format_obj["as_single_image"] = as_single_image
+                if pages:
+                    format_obj["pages"] = pages
 
             elif export_format.lower() in ["mp4", "gif"]:
                 # MP4/GIF parameters - use quality with orientation_resolution
-                if "image_quality" in inputs and inputs["image_quality"]:
-                    format_obj["quality"] = inputs["image_quality"]
+                if image_quality:
+                    format_obj["quality"] = image_quality
                 else:
                     format_obj["quality"] = "horizontal_1080p"
-                if "export_quality" in inputs and inputs["export_quality"]:
-                    format_obj["export_quality"] = inputs["export_quality"]
-                if "pages" in inputs and inputs["pages"]:
-                    format_obj["pages"] = inputs["pages"]
+                if export_quality:
+                    format_obj["export_quality"] = export_quality
+                if pages:
+                    format_obj["pages"] = pages
 
             # Build export payload
             export_data = {"design_id": design_id, "format": format_obj}
@@ -447,8 +467,9 @@ class ImportDesignFromUrl(ActionHandler):
             import_data = {"url": inputs["url"], "title": inputs["title"]}
 
             # Add optional MIME type
-            if "mime_type" in inputs:
-                import_data["mime_type"] = inputs["mime_type"]
+            mime_type = inputs.get("mime_type")
+            if mime_type is not None:
+                import_data["mime_type"] = mime_type
 
             response = await context.fetch(f"{service_endpoint}/v1/url-imports", method="POST", json=import_data)
 
@@ -530,8 +551,9 @@ class ListFolderItems(ActionHandler):
 
             # Build query parameters
             params = {}
-            if "continuation" in inputs:
-                params["continuation"] = inputs["continuation"]
+            continuation = inputs.get("continuation")
+            if continuation is not None:
+                params["continuation"] = continuation
 
             response = await context.fetch(
                 f"{service_endpoint}/v1/folders/{folder_id}/items", method="GET", params=params
