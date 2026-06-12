@@ -1,4 +1,4 @@
-﻿"""
+"""
 End-to-end integration tests for the Asana integration.
 
 These tests call the real Asana API and require a valid OAuth access token
@@ -282,6 +282,28 @@ class TestProjectLifecycle:
         )
         assert update_section_result.type == ResultType.ACTION
 
-        # Delete (cleanup)
+        # Create a task in the project so we can move it into the section
+        task_result = await asana.execute_action(
+            "create_task",
+            {
+                "name": f"Integration Test Task {os.getpid()}",
+                "workspace": TEST_WORKSPACE_GID,
+                "projects": [project_gid],
+            },
+            live_context,
+        )
+        assert task_result.type == ResultType.ACTION
+        task_gid = task_result.result.data["task"]["gid"]
+
+        # Add task to section
+        add_result = await asana.execute_action(
+            "add_task_to_section",
+            {"section_gid": section_gid, "task_gid": task_gid},
+            live_context,
+        )
+        assert add_result.type == ResultType.ACTION
+        assert add_result.result.data["added"] is True
+
+        # Delete (cleanup) — deleting the project also removes its tasks
         delete_result = await asana.execute_action("delete_project", {"project_gid": project_gid}, live_context)
         assert delete_result.result.data["deleted"] is True
