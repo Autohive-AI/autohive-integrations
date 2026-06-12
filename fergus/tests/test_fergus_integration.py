@@ -83,3 +83,47 @@ async def test_get_customer_live(live_context):
     result = await fergus.execute_action("get_customer", {"customer_id": int(FERGUS_TEST_CUSTOMER_ID)}, live_context)
     assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data.get("customer") is not None
+
+
+# ---- Destructive Tests ----
+
+
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_job_lifecycle_live(live_context):
+    """create_job → update_job → finalise_job lifecycle against the real Fergus API.
+
+    Requires FERGUS_TEST_CUSTOMER_ID and FERGUS_TEST_SITE_ID — these must already
+    exist in the connected Fergus account. The job is finalised at the end (Fergus
+    does not expose a delete endpoint, so finalised is the closest cleanup state).
+    """
+    if not FERGUS_TEST_CUSTOMER_ID or not FERGUS_TEST_SITE_ID:
+        pytest.skip("FERGUS_TEST_CUSTOMER_ID and FERGUS_TEST_SITE_ID required for job lifecycle test")
+
+    # Create
+    create_result = await fergus.execute_action(
+        "create_job",
+        {
+            "job_type": "Charge Up",
+            "title": "Autohive Integration Test Job",
+            "description": "Created by integration test — safe to delete",
+            "customer_id": int(FERGUS_TEST_CUSTOMER_ID),
+            "site_id": int(FERGUS_TEST_SITE_ID),
+        },
+        live_context,
+    )
+    assert create_result.type == ResultType.ACTION, create_result.result.message
+    job_id = create_result.result.data["job"]["id"]
+    assert job_id
+
+    # Update
+    update_result = await fergus.execute_action(
+        "update_job",
+        {"job_id": job_id, "title": "Autohive Integration Test Job (updated)"},
+        live_context,
+    )
+    assert update_result.type == ResultType.ACTION, update_result.result.message
+
+    # Finalise (closest to cleanup — Fergus has no delete endpoint)
+    finalise_result = await fergus.execute_action("finalise_job", {"job_id": job_id}, live_context)
+    assert finalise_result.type == ResultType.ACTION, finalise_result.result.message
