@@ -15,8 +15,9 @@ Never runs in CI — pyproject.toml excludes test_*_integration.py files and fil
 """
 
 import os
+import aiohttp
 import pytest
-from autohive_integrations_sdk.integration import ResultType
+from autohive_integrations_sdk import FetchResponse, ResultType
 
 from asana.asana import asana
 
@@ -44,11 +45,31 @@ def require_task():
 
 
 @pytest.fixture
-def live_context(env_credentials, make_context):
-    token = env_credentials("ASANA_ACCESS_TOKEN")
+def live_context(make_context):
+    token = os.environ.get("ASANA_ACCESS_TOKEN", "")
     if not token:
         pytest.skip("ASANA_ACCESS_TOKEN not set — skipping integration tests")
-    return make_context(auth={"auth_type": "PlatformOauth2", "credentials": {"access_token": token}})
+
+    async def real_fetch(url, *, method="GET", params=None, headers=None, json=None, body=None, **kwargs):
+        payload = kwargs.get("data", body)
+        async with aiohttp.ClientSession() as session:
+            async with session.request(
+                method,
+                url,
+                params=params,
+                json=json,
+                data=payload,
+                headers={"Authorization": f"Bearer {token}", **(dict(headers or {}))},
+            ) as resp:
+                try:
+                    data = await resp.json(content_type=None)
+                except Exception:
+                    data = await resp.text()
+                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
+
+    ctx = make_context(auth={"auth_type": "PlatformOauth2", "credentials": {"access_token": token}})
+    ctx.fetch.side_effect = real_fetch
+    return ctx
 
 
 # ---- Read-Only Tests ----
