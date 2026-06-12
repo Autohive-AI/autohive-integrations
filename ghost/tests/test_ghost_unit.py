@@ -1,15 +1,13 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 import pytest
-from autohive_integrations_sdk import ResultType
+from autohive_integrations_sdk import FetchResponse, ResultType
 from ghost.ghost import ghost
 
 pytestmark = pytest.mark.unit
 
 
 def _fetch_result(data):
-    r = MagicMock()
-    r.data = data
-    return r
+    return FetchResponse(status=200, headers={}, data=data)
 
 
 # ---- Content API ----
@@ -162,8 +160,14 @@ async def test_upload_image(mock_context, tmp_path):
         return_value=_fetch_result({"images": [{"url": "https://demo.ghost.io/content/images/test.png"}]})
     )
     result = await ghost.execute_action("upload_image", {"file_path": str(img_file)}, mock_context)
+    assert result.type == ResultType.ACTION
     assert "url" in result.result.data["image"]
-    assert "admin/images/upload" in mock_context.fetch.call_args[0][0]
+    url = mock_context.fetch.call_args[0][0]
+    assert "admin/images/upload" in url
+    # multipart body passed as bytes, not files=
+    body = mock_context.fetch.call_args[1].get("body")
+    assert body is not None
+    assert b"test.png" in body
 
 
 @pytest.mark.asyncio
