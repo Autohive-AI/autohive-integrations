@@ -358,7 +358,7 @@ class UpdatePostAction(ActionHandler):
             if inputs.get("name") is not None:
                 update_data["name"] = inputs.get("name")
             if inputs.get("body") is not None:
-                update_data["body"] = inputs.get("body")
+                update_data["tiptap_body"] = {"body": text_to_tiptap_body(inputs.get("body"))}
             if inputs.get("status") is not None:
                 update_data["status"] = inputs.get("status")
             if inputs.get("is_pinned") is not None:

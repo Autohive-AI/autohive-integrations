@@ -265,7 +265,11 @@ async def test_create_update_post(live_context):
 
     update_result = await circle.execute_action(
         "update_post",
-        {"post_id": post_id, "name": "Autohive integration test post (updated)"},
+        {
+            "post_id": post_id,
+            "name": "Autohive integration test post (updated)",
+            "body": "updated body content",
+        },
         live_context,
     )
     assert update_result.type == ResultType.ACTION, update_result.result.message
