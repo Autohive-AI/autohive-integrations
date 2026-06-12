@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, ResultType
-from circle.circle import circle  # noqa: E402
+from circle.circle import CIRCLE_API_BASE, build_auth_headers, circle  # noqa: E402
 
 pytestmark = pytest.mark.integration
 
@@ -249,14 +249,24 @@ async def test_list_access_groups(live_context):
 @skip_if_no_token
 @pytest.mark.asyncio
 async def test_create_update_post(live_context):
-    """create_post -> update_post lifecycle."""
+    """create_post (draft) -> update_post lifecycle with cleanup.
+
+    Posts are created as drafts and deleted afterwards so no visible test
+    content is left in the community. Requires CIRCLE_TEST_SPACE_ID to point
+    to a dedicated test space.
+    """
     space_id = CIRCLE_TEST_SPACE_ID
     if not space_id:
         pytest.skip("CIRCLE_TEST_SPACE_ID not set — required for create_post")
 
     create_result = await circle.execute_action(
         "create_post",
-        {"space_id": space_id, "name": "Autohive integration test post", "body": "test body"},
+        {
+            "space_id": space_id,
+            "name": "Autohive integration test post",
+            "body": "test body",
+            "status": "draft",
+        },
         live_context,
     )
     assert create_result.type == ResultType.ACTION, create_result.result.message
@@ -274,24 +284,35 @@ async def test_create_update_post(live_context):
     )
     assert update_result.type == ResultType.ACTION, update_result.result.message
 
+    # Cleanup — delete draft post so no test content lingers
+    headers = build_auth_headers(live_context)
+    await live_context.fetch(f"{CIRCLE_API_BASE}/posts/{post_id}", method="DELETE", headers=headers)
+
 
 @pytest.mark.destructive
 @skip_if_no_token
 @pytest.mark.asyncio
 async def test_create_comment(live_context):
-    """create_comment on an existing or freshly created post."""
+    """create_comment on an existing post (preferred) or a freshly created draft post.
+
+    When CIRCLE_TEST_POST_ID is set, comments on that post (no cleanup needed).
+    Otherwise creates a draft post in CIRCLE_TEST_SPACE_ID, comments on it, then
+    deletes the draft so no test content lingers in the community.
+    """
     post_id = CIRCLE_TEST_POST_ID
+    created_post_id = None
     if not post_id:
         space_id = CIRCLE_TEST_SPACE_ID
         if not space_id:
             pytest.skip("CIRCLE_TEST_POST_ID or CIRCLE_TEST_SPACE_ID required for create_comment")
         create_result = await circle.execute_action(
             "create_post",
-            {"space_id": space_id, "name": "Autohive comment test post", "body": "test"},
+            {"space_id": space_id, "name": "Autohive comment test post", "body": "test", "status": "draft"},
             live_context,
         )
         assert create_result.type == ResultType.ACTION, create_result.result.message
         post_id = str(create_result.result.data["post"].get("id", ""))
+        created_post_id = post_id
 
     result = await circle.execute_action(
         "create_comment",
@@ -300,6 +321,10 @@ async def test_create_comment(live_context):
     )
     assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data.get("comment") is not None
+
+    if created_post_id:
+        headers = build_auth_headers(live_context)
+        await live_context.fetch(f"{CIRCLE_API_BASE}/posts/{created_post_id}", method="DELETE", headers=headers)
 
 
 @pytest.mark.destructive
