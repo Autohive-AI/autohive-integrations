@@ -62,9 +62,18 @@ class ListEventTypesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            for key in ["user", "organization", "active", "sort", "count", "page_token"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("user") is not None:
+                params["user"] = inputs["user"]
+            if inputs.get("organization") is not None:
+                params["organization"] = inputs["organization"]
+            if inputs.get("active") is not None:
+                params["active"] = inputs["active"]
+            if inputs.get("sort") is not None:
+                params["sort"] = inputs["sort"]
+            if inputs.get("count") is not None:
+                params["count"] = inputs["count"]
+            if inputs.get("page_token") is not None:
+                params["page_token"] = inputs["page_token"]
 
             response = await context.fetch(
                 f"{CALENDLY_API_BASE_URL}/event_types", method="GET", params=params if params else None
@@ -107,19 +116,24 @@ class ListScheduledEventsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            for key in [
-                "user",
-                "organization",
-                "invitee_email",
-                "status",
-                "min_start_time",
-                "max_start_time",
-                "sort",
-                "count",
-                "page_token",
-            ]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("user") is not None:
+                params["user"] = inputs["user"]
+            if inputs.get("organization") is not None:
+                params["organization"] = inputs["organization"]
+            if inputs.get("invitee_email") is not None:
+                params["invitee_email"] = inputs["invitee_email"]
+            if inputs.get("status") is not None:
+                params["status"] = inputs["status"]
+            if inputs.get("min_start_time") is not None:
+                params["min_start_time"] = inputs["min_start_time"]
+            if inputs.get("max_start_time") is not None:
+                params["max_start_time"] = inputs["max_start_time"]
+            if inputs.get("sort") is not None:
+                params["sort"] = inputs["sort"]
+            if inputs.get("count") is not None:
+                params["count"] = inputs["count"]
+            if inputs.get("page_token") is not None:
+                params["page_token"] = inputs["page_token"]
 
             response = await context.fetch(
                 f"{CALENDLY_API_BASE_URL}/scheduled_events", method="GET", params=params if params else None
@@ -188,9 +202,16 @@ class ListEventInviteesAction(ActionHandler):
             event_uuid = inputs["event_uuid"]
 
             params = {}
-            for key in ["status", "sort", "email", "count", "page_token"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("status") is not None:
+                params["status"] = inputs["status"]
+            if inputs.get("sort") is not None:
+                params["sort"] = inputs["sort"]
+            if inputs.get("email") is not None:
+                params["email"] = inputs["email"]
+            if inputs.get("count") is not None:
+                params["count"] = inputs["count"]
+            if inputs.get("page_token") is not None:
+                params["page_token"] = inputs["page_token"]
 
             response = await context.fetch(
                 f"{CALENDLY_API_BASE_URL}/scheduled_events/{event_uuid}/invitees",
@@ -304,9 +325,16 @@ class ListOrganizationMembershipsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            for key in ["organization", "user", "email", "count", "page_token"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("organization") is not None:
+                params["organization"] = inputs["organization"]
+            if inputs.get("user") is not None:
+                params["user"] = inputs["user"]
+            if inputs.get("email") is not None:
+                params["email"] = inputs["email"]
+            if inputs.get("count") is not None:
+                params["count"] = inputs["count"]
+            if inputs.get("page_token") is not None:
+                params["page_token"] = inputs["page_token"]
 
             response = await context.fetch(
                 f"{CALENDLY_API_BASE_URL}/organization_memberships", method="GET", params=params if params else None
@@ -330,13 +358,18 @@ class ListWebhooksAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = {}
-            for key in ["organization", "user", "scope", "count", "page_token"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            params = {"organization": inputs["organization"]}
+            if inputs.get("user") is not None:
+                params["user"] = inputs["user"]
+            if inputs.get("scope") is not None:
+                params["scope"] = inputs["scope"]
+            if inputs.get("count") is not None:
+                params["count"] = inputs["count"]
+            if inputs.get("page_token") is not None:
+                params["page_token"] = inputs["page_token"]
 
             response = await context.fetch(
-                f"{CALENDLY_API_BASE_URL}/webhook_subscriptions", method="GET", params=params if params else None
+                f"{CALENDLY_API_BASE_URL}/webhook_subscriptions", method="GET", params=params
             )
 
             webhooks = response.data.get("collection", [])
