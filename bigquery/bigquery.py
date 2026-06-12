@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any, List
 
 # Create the integration using the config.json
@@ -102,6 +102,7 @@ class RunQueryAction(ActionHandler):
                 payload["location"] = location
 
             response = await context.fetch(url, method="POST", json=payload)
+            body = response.data
 
             # Handle dry run response
             if dry_run:
@@ -109,41 +110,49 @@ class RunQueryAction(ActionHandler):
                     data={
                         "rows": [],
                         "total_rows": 0,
-                        "total_bytes_processed": int(response.get("totalBytesProcessed", 0)),
+                        "total_bytes_processed": int(body.get("totalBytesProcessed", 0)),
                         "job_complete": True,
                         "dry_run": True,
-                        "result": True,
                     },
                     cost_usd=0.0,
                 )
 
+            # Surface a query that completed but failed at runtime. BigQuery can
+            # return HTTP 200 with an `errors` list instead of an error status.
+            # That list can also carry non-fatal warnings on a successful query,
+            # so only treat it as a failure when the job completed with no result
+            # set (no schema and no rows) to return.
+            errors = body.get("errors")
+            if body.get("jobComplete") and errors and not body.get("rows") and not body.get("schema"):
+                first = errors[0] if isinstance(errors, list) and errors else {}
+                return ActionError(message=first.get("message") or str(errors))
+
             # Parse the response
-            schema = response.get("schema", {})
-            rows = parse_rows(schema, response.get("rows", []))
-            job_complete = response.get("jobComplete", False)
-            job_reference = response.get("jobReference", {})
+            schema = body.get("schema", {})
+            rows = parse_rows(schema, body.get("rows", []))
+            job_complete = body.get("jobComplete", False)
+            job_reference = body.get("jobReference", {})
 
             result_data = {
                 "rows": rows,
-                "total_rows": int(response.get("totalRows", 0)) if response.get("totalRows") else len(rows),
+                "total_rows": int(body.get("totalRows", 0)) if body.get("totalRows") else len(rows),
                 "schema": format_schema(schema),
                 "job_id": job_reference.get("jobId"),
                 "job_complete": job_complete,
                 "total_bytes_processed": (
-                    int(response.get("totalBytesProcessed", 0)) if response.get("totalBytesProcessed") else None
+                    int(body.get("totalBytesProcessed", 0)) if body.get("totalBytesProcessed") else None
                 ),
-                "cache_hit": response.get("cacheHit"),
-                "result": True,
+                "cache_hit": body.get("cacheHit"),
             }
 
             # Add page token if more results available
-            if response.get("pageToken"):
-                result_data["page_token"] = response["pageToken"]
+            if body.get("pageToken"):
+                result_data["page_token"] = body["pageToken"]
 
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"rows": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @bigquery.action("get_query_results")
@@ -169,25 +178,35 @@ class GetQueryResultsAction(ActionHandler):
                 params["startIndex"] = start_index
 
             response = await context.fetch(url, method="GET", params=params if params else None)
+            body = response.data
 
-            schema = response.get("schema", {})
-            rows = parse_rows(schema, response.get("rows", []))
+            # Surface a query that completed but failed at runtime. BigQuery can
+            # return HTTP 200 with an `errors` list instead of an error status.
+            # That list can also carry non-fatal warnings on a successful query,
+            # so only treat it as a failure when the job completed with no result
+            # set (no schema and no rows) to return.
+            errors = body.get("errors")
+            if body.get("jobComplete") and errors and not body.get("rows") and not body.get("schema"):
+                first = errors[0] if isinstance(errors, list) and errors else {}
+                return ActionError(message=first.get("message") or str(errors))
+
+            schema = body.get("schema", {})
+            rows = parse_rows(schema, body.get("rows", []))
 
             result_data = {
                 "rows": rows,
-                "total_rows": int(response.get("totalRows", 0)) if response.get("totalRows") else len(rows),
+                "total_rows": int(body.get("totalRows", 0)) if body.get("totalRows") else len(rows),
                 "schema": format_schema(schema),
-                "job_complete": response.get("jobComplete", False),
-                "result": True,
+                "job_complete": body.get("jobComplete", False),
             }
 
-            if response.get("pageToken"):
-                result_data["page_token"] = response["pageToken"]
+            if body.get("pageToken"):
+                result_data["page_token"] = body["pageToken"]
 
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"rows": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Dataset Actions ----
@@ -218,9 +237,10 @@ class ListDatasetsAction(ActionHandler):
                 params["all"] = "true"
 
             response = await context.fetch(url, method="GET", params=params if params else None)
+            body = response.data
 
             datasets = []
-            for ds in response.get("datasets", []):
+            for ds in body.get("datasets", []):
                 dataset_ref = ds.get("datasetReference", {})
                 datasets.append(
                     {
@@ -233,15 +253,15 @@ class ListDatasetsAction(ActionHandler):
                     }
                 )
 
-            result_data = {"datasets": datasets, "result": True}
+            result_data = {"datasets": datasets}
 
-            if response.get("nextPageToken"):
-                result_data["next_page_token"] = response["nextPageToken"]
+            if body.get("nextPageToken"):
+                result_data["next_page_token"] = body["nextPageToken"]
 
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"datasets": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @bigquery.action("get_dataset")
@@ -256,27 +276,28 @@ class GetDatasetAction(ActionHandler):
             url = f"{BIGQUERY_API_BASE}/projects/{project_id}/datasets/{dataset_id}"
 
             response = await context.fetch(url, method="GET")
+            body = response.data
 
-            dataset_ref = response.get("datasetReference", {})
+            dataset_ref = body.get("datasetReference", {})
             dataset = {
-                "id": response.get("id"),
+                "id": body.get("id"),
                 "dataset_id": dataset_ref.get("datasetId"),
                 "project_id": dataset_ref.get("projectId"),
-                "friendly_name": response.get("friendlyName"),
-                "description": response.get("description"),
-                "location": response.get("location"),
-                "creation_time": response.get("creationTime"),
-                "last_modified_time": response.get("lastModifiedTime"),
-                "default_table_expiration_ms": response.get("defaultTableExpirationMs"),
-                "default_partition_expiration_ms": response.get("defaultPartitionExpirationMs"),
-                "labels": response.get("labels", {}),
-                "access": response.get("access", []),
+                "friendly_name": body.get("friendlyName"),
+                "description": body.get("description"),
+                "location": body.get("location"),
+                "creation_time": body.get("creationTime"),
+                "last_modified_time": body.get("lastModifiedTime"),
+                "default_table_expiration_ms": body.get("defaultTableExpirationMs"),
+                "default_partition_expiration_ms": body.get("defaultPartitionExpirationMs"),
+                "labels": body.get("labels", {}),
+                "access": body.get("access", []),
             }
 
-            return ActionResult(data={"dataset": dataset, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"dataset": dataset}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"dataset": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @bigquery.action("create_dataset")
@@ -304,20 +325,21 @@ class CreateDatasetAction(ActionHandler):
                 payload["labels"] = labels
 
             response = await context.fetch(url, method="POST", json=payload)
+            body = response.data
 
-            dataset_ref = response.get("datasetReference", {})
+            dataset_ref = body.get("datasetReference", {})
             dataset = {
-                "id": response.get("id"),
+                "id": body.get("id"),
                 "dataset_id": dataset_ref.get("datasetId"),
                 "project_id": dataset_ref.get("projectId"),
-                "location": response.get("location"),
-                "creation_time": response.get("creationTime"),
+                "location": body.get("location"),
+                "creation_time": body.get("creationTime"),
             }
 
-            return ActionResult(data={"dataset": dataset, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"dataset": dataset}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"dataset": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @bigquery.action("delete_dataset")
@@ -338,10 +360,10 @@ class DeleteDatasetAction(ActionHandler):
 
             await context.fetch(url, method="DELETE", params=params if params else None)
 
-            return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"deleted": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Table Actions ----
@@ -367,9 +389,10 @@ class ListTablesAction(ActionHandler):
                 params["pageToken"] = page_token
 
             response = await context.fetch(url, method="GET", params=params if params else None)
+            body = response.data
 
             tables = []
-            for tbl in response.get("tables", []):
+            for tbl in body.get("tables", []):
                 table_ref = tbl.get("tableReference", {})
                 tables.append(
                     {
@@ -385,15 +408,15 @@ class ListTablesAction(ActionHandler):
                     }
                 )
 
-            result_data = {"tables": tables, "total_items": response.get("totalItems"), "result": True}
+            result_data = {"tables": tables, "total_items": body.get("totalItems")}
 
-            if response.get("nextPageToken"):
-                result_data["next_page_token"] = response["nextPageToken"]
+            if body.get("nextPageToken"):
+                result_data["next_page_token"] = body["nextPageToken"]
 
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"tables": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @bigquery.action("get_table")
@@ -409,33 +432,34 @@ class GetTableAction(ActionHandler):
             url = f"{BIGQUERY_API_BASE}/projects/{project_id}/datasets/{dataset_id}/tables/{table_id}"
 
             response = await context.fetch(url, method="GET")
+            body = response.data
 
-            table_ref = response.get("tableReference", {})
+            table_ref = body.get("tableReference", {})
             table = {
-                "id": response.get("id"),
+                "id": body.get("id"),
                 "table_id": table_ref.get("tableId"),
                 "dataset_id": table_ref.get("datasetId"),
                 "project_id": table_ref.get("projectId"),
-                "type": response.get("type"),
-                "friendly_name": response.get("friendlyName"),
-                "description": response.get("description"),
-                "schema": format_schema(response.get("schema", {})),
-                "num_rows": response.get("numRows"),
-                "num_bytes": response.get("numBytes"),
-                "creation_time": response.get("creationTime"),
-                "last_modified_time": response.get("lastModifiedTime"),
-                "expiration_time": response.get("expirationTime"),
-                "location": response.get("location"),
-                "streaming_buffer": response.get("streamingBuffer"),
-                "time_partitioning": response.get("timePartitioning"),
-                "clustering": response.get("clustering"),
-                "labels": response.get("labels", {}),
+                "type": body.get("type"),
+                "friendly_name": body.get("friendlyName"),
+                "description": body.get("description"),
+                "schema": format_schema(body.get("schema", {})),
+                "num_rows": body.get("numRows"),
+                "num_bytes": body.get("numBytes"),
+                "creation_time": body.get("creationTime"),
+                "last_modified_time": body.get("lastModifiedTime"),
+                "expiration_time": body.get("expirationTime"),
+                "location": body.get("location"),
+                "streaming_buffer": body.get("streamingBuffer"),
+                "time_partitioning": body.get("timePartitioning"),
+                "clustering": body.get("clustering"),
+                "labels": body.get("labels", {}),
             }
 
-            return ActionResult(data={"table": table, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"table": table}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"table": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @bigquery.action("create_table")
@@ -481,21 +505,22 @@ class CreateTableAction(ActionHandler):
                 payload["labels"] = labels
 
             response = await context.fetch(url, method="POST", json=payload)
+            body = response.data
 
-            table_ref = response.get("tableReference", {})
+            table_ref = body.get("tableReference", {})
             table = {
-                "id": response.get("id"),
+                "id": body.get("id"),
                 "table_id": table_ref.get("tableId"),
                 "dataset_id": table_ref.get("datasetId"),
                 "project_id": table_ref.get("projectId"),
-                "schema": format_schema(response.get("schema", {})),
-                "creation_time": response.get("creationTime"),
+                "schema": format_schema(body.get("schema", {})),
+                "creation_time": body.get("creationTime"),
             }
 
-            return ActionResult(data={"table": table, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"table": table}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"table": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @bigquery.action("delete_table")
@@ -512,10 +537,10 @@ class DeleteTableAction(ActionHandler):
 
             await context.fetch(url, method="DELETE")
 
-            return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"deleted": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @bigquery.action("insert_rows")
@@ -543,8 +568,9 @@ class InsertRowsAction(ActionHandler):
             }
 
             response = await context.fetch(url, method="POST", json=payload)
+            body = response.data
 
-            insert_errors = response.get("insertErrors", [])
+            insert_errors = body.get("insertErrors", [])
 
             # Count unique failed row indices - a single row can have multiple errors
             # but should only be counted once as a failed insert
@@ -556,19 +582,30 @@ class InsertRowsAction(ActionHandler):
             for error in insert_errors:
                 formatted_errors.append({"index": error.get("index"), "errors": error.get("errors", [])})
 
+            # insertAll returns HTTP 200 even when rows are rejected. If nothing
+            # was inserted (e.g. an invalid row with the default skip_invalid_rows
+            # =False rejects the whole batch), surface it as a failure rather than
+            # an empty success. A partial insert (some rows landed) is returned as
+            # a normal result carrying inserted_count + insert_errors so callers
+            # see exactly what was written.
+            if insert_errors and inserted_count == 0:
+                first_errors = formatted_errors[0].get("errors") if formatted_errors else []
+                detail = first_errors[0].get("message") if first_errors and isinstance(first_errors[0], dict) else None
+                message = f"BigQuery rejected all {len(rows)} row(s)"
+                if detail:
+                    message += f": {detail}"
+                return ActionError(message=message)
+
             return ActionResult(
                 data={
                     "inserted_count": inserted_count,
                     "insert_errors": formatted_errors,
-                    "result": len(insert_errors) == 0,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"inserted_count": 0, "insert_errors": [], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionError(message=str(e))
 
 
 # ---- Job Actions ----
@@ -605,9 +642,10 @@ class ListJobsAction(ActionHandler):
                 params["maxCreationTime"] = str(max_creation_time)
 
             response = await context.fetch(url, method="GET", params=params if params else None)
+            body = response.data
 
             jobs = []
-            for job in response.get("jobs", []):
+            for job in body.get("jobs", []):
                 job_ref = job.get("jobReference", {})
                 status = job.get("status", {})
                 statistics = job.get("statistics", {})
@@ -629,15 +667,15 @@ class ListJobsAction(ActionHandler):
                     }
                 )
 
-            result_data = {"jobs": jobs, "result": True}
+            result_data = {"jobs": jobs}
 
-            if response.get("nextPageToken"):
-                result_data["next_page_token"] = response["nextPageToken"]
+            if body.get("nextPageToken"):
+                result_data["next_page_token"] = body["nextPageToken"]
 
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"jobs": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @bigquery.action("get_job")
@@ -657,14 +695,15 @@ class GetJobAction(ActionHandler):
                 params["location"] = location
 
             response = await context.fetch(url, method="GET", params=params if params else None)
+            body = response.data
 
-            job_ref = response.get("jobReference", {})
-            status = response.get("status", {})
-            statistics = response.get("statistics", {})
-            configuration = response.get("configuration", {})
+            job_ref = body.get("jobReference", {})
+            status = body.get("status", {})
+            statistics = body.get("statistics", {})
+            configuration = body.get("configuration", {})
 
             job = {
-                "id": response.get("id"),
+                "id": body.get("id"),
                 "job_id": job_ref.get("jobId"),
                 "project_id": job_ref.get("projectId"),
                 "location": job_ref.get("location"),
@@ -679,13 +718,13 @@ class GetJobAction(ActionHandler):
                 "cache_hit": statistics.get("query", {}).get("cacheHit"),
                 "configuration": configuration,
                 # Note: user_email is snake_case in BigQuery API (exception to camelCase convention)
-                "user_email": response.get("user_email"),
+                "user_email": body.get("user_email"),
             }
 
-            return ActionResult(data={"job": job, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"job": job}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"job": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Project Actions ----
@@ -709,9 +748,10 @@ class ListProjectsAction(ActionHandler):
                 params["pageToken"] = page_token
 
             response = await context.fetch(url, method="GET", params=params if params else None)
+            body = response.data
 
             projects = []
-            for proj in response.get("projects", []):
+            for proj in body.get("projects", []):
                 project_ref = proj.get("projectReference", {})
                 projects.append(
                     {
@@ -722,12 +762,12 @@ class ListProjectsAction(ActionHandler):
                     }
                 )
 
-            result_data = {"projects": projects, "result": True}
+            result_data = {"projects": projects}
 
-            if response.get("nextPageToken"):
-                result_data["next_page_token"] = response["nextPageToken"]
+            if body.get("nextPageToken"):
+                result_data["next_page_token"] = body["nextPageToken"]
 
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"projects": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
