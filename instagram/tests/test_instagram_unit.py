@@ -2,6 +2,7 @@
 Unit tests for the Instagram integration using mocked fetch.
 """
 
+import json
 import os
 import sys
 
@@ -334,6 +335,35 @@ async def test_get_posts_after_cursor_forwarded():
 # =============================================================================
 # CREATE POST
 # =============================================================================
+
+
+def test_chat_file_upload_metadata_present_on_instagram_media_inputs():
+    config_path = os.path.join(_parent, "config.json")
+    with open(config_path, encoding="utf-8") as config_file:
+        config = json.load(config_file)
+
+    create_post_properties = config["actions"]["create_post"]["input_schema"]["properties"]
+    assert create_post_properties["media_url"]["x-autohive-input"] == "file-public-url"
+    assert create_post_properties["children"]["type"] == "array"
+    assert create_post_properties["children"]["items"]["type"] == "string"
+    assert create_post_properties["children"]["items"]["x-autohive-input"] == "file-public-url"
+
+    create_story_properties = config["actions"]["create_story"]["input_schema"]["properties"]
+    assert create_story_properties["media_url"]["x-autohive-input"] == "file-public-url"
+
+
+def test_chat_file_upload_descriptions_are_user_facing():
+    config_path = os.path.join(_parent, "config.json")
+    with open(config_path, encoding="utf-8") as config_file:
+        config = json.load(config_file)
+
+    create_post_properties = config["actions"]["create_post"]["input_schema"]["properties"]
+    create_story_properties = config["actions"]["create_story"]["input_schema"]["properties"]
+
+    assert "attach a file" in create_post_properties["media_url"]["description"]
+    assert "attach files" in create_post_properties["children"]["description"]
+    assert "attach a file" in create_post_properties["children"]["items"]["description"]
+    assert "attach a file" in create_story_properties["media_url"]["description"]
 
 
 @pytest.mark.asyncio
