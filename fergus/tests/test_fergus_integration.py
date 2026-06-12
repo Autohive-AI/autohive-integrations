@@ -1,6 +1,7 @@
 import os
+import aiohttp
 import pytest
-from autohive_integrations_sdk import ExecutionContext
+from autohive_integrations_sdk import FetchResponse, ResultType
 from fergus.fergus import fergus
 
 pytestmark = pytest.mark.integration
@@ -12,11 +13,29 @@ FERGUS_TEST_SITE_ID = os.getenv("FERGUS_TEST_SITE_ID", "")
 
 
 @pytest.fixture
-def live_context():
+def live_context(make_context):
     if not FERGUS_API_TOKEN:
         pytest.skip("FERGUS_API_TOKEN not set")
-    ctx = ExecutionContext.__new__(ExecutionContext)
-    ctx.auth = {"api_token": FERGUS_API_TOKEN}
+
+    async def real_fetch(url, *, method="GET", params=None, headers=None, json=None, body=None, **kwargs):
+        payload = kwargs.get("data", body)
+        async with aiohttp.ClientSession() as session:
+            async with session.request(
+                method,
+                url,
+                params=params,
+                json=json,
+                data=payload,
+                headers=dict(headers or {}),
+            ) as resp:
+                try:
+                    data = await resp.json(content_type=None)
+                except Exception:
+                    data = await resp.text()
+                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
+
+    ctx = make_context(auth={"api_token": FERGUS_API_TOKEN})
+    ctx.fetch.side_effect = real_fetch
     return ctx
 
 
