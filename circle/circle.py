@@ -299,9 +299,18 @@ class SearchPostsAction(ActionHandler):
         try:
             headers = build_auth_headers(context)
             params: Dict[str, Any] = {}
-            for key in ("query", "space_id", "tag", "status", "per_page", "page"):
-                if inputs.get(key) is not None:
-                    params[key] = inputs.get(key)
+            if inputs.get("query") is not None:
+                params["query"] = inputs.get("query")
+            if inputs.get("space_id") is not None:
+                params["space_id"] = inputs.get("space_id")
+            if inputs.get("tag") is not None:
+                params["tag"] = inputs.get("tag")
+            if inputs.get("status") is not None:
+                params["status"] = inputs.get("status")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
             params.setdefault("per_page", 10)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/posts", headers=headers, params=params)
             data = resp.data
@@ -399,9 +408,12 @@ class ListMembersAction(ActionHandler):
         try:
             headers = build_auth_headers(context)
             params: Dict[str, Any] = {}
-            for key in ("status", "per_page", "page"):
-                if inputs.get(key) is not None:
-                    params[key] = inputs.get(key)
+            if inputs.get("status") is not None:
+                params["status"] = inputs.get("status")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
             params.setdefault("per_page", 10)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/community_members", headers=headers, params=params)
             data = resp.data
@@ -433,9 +445,14 @@ class SearchSpacesAction(ActionHandler):
         try:
             headers = build_auth_headers(context)
             params: Dict[str, Any] = {}
-            for key in ("query", "space_type", "per_page", "page"):
-                if inputs.get(key) is not None:
-                    params[key] = inputs.get(key)
+            if inputs.get("query") is not None:
+                params["query"] = inputs.get("query")
+            if inputs.get("space_type") is not None:
+                params["space_type"] = inputs.get("space_type")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
             params.setdefault("per_page", 10)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/spaces", headers=headers, params=params)
             data = resp.data
@@ -467,9 +484,16 @@ class SearchEventsAction(ActionHandler):
         try:
             headers = build_auth_headers(context)
             params: Dict[str, Any] = {}
-            for key in ("query", "time_filter", "space_id", "per_page", "page"):
-                if inputs.get(key) is not None:
-                    params[key] = inputs.get(key)
+            if inputs.get("query") is not None:
+                params["query"] = inputs.get("query")
+            if inputs.get("time_filter") is not None:
+                params["time_filter"] = inputs.get("time_filter")
+            if inputs.get("space_id") is not None:
+                params["space_id"] = inputs.get("space_id")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
             params.setdefault("per_page", 10)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/events", headers=headers, params=params)
             data = resp.data
@@ -649,9 +673,10 @@ class ListTagsAction(ActionHandler):
         try:
             headers = build_auth_headers(context)
             params: Dict[str, Any] = {}
-            for key in ("per_page", "page"):
-                if inputs.get(key) is not None:
-                    params[key] = inputs.get(key)
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
             params.setdefault("per_page", 100)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/member_tags", headers=headers, params=params)
             data = resp.data
@@ -667,9 +692,10 @@ class ListSpaceGroupsAction(ActionHandler):
         try:
             headers = build_auth_headers(context)
             params: Dict[str, Any] = {}
-            for key in ("per_page", "page"):
-                if inputs.get(key) is not None:
-                    params[key] = inputs.get(key)
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
             params.setdefault("per_page", 100)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/space_groups", headers=headers, params=params)
             data = resp.data
@@ -687,9 +713,10 @@ class ListAccessGroupsAction(ActionHandler):
         try:
             headers = build_auth_headers(context)
             params: Dict[str, Any] = {}
-            for key in ("per_page", "page"):
-                if inputs.get(key) is not None:
-                    params[key] = inputs.get(key)
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
             params.setdefault("per_page", 100)
             resp = await context.fetch(f"{CIRCLE_API_BASE}/access_groups", headers=headers, params=params)
             data = resp.data
