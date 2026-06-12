@@ -3,6 +3,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
     ConnectedAccountHandler,
     ConnectedAccountInfo,
 )
@@ -27,8 +28,8 @@ class CanvaConnectedAccountHandler(ConnectedAccountHandler):
         user_response = await context.fetch(f"{service_endpoint}/v1/users/me", method="GET")
 
         # Extract information from responses
-        display_name = profile_response.get("profile", {}).get("display_name")
-        team_user = user_response.get("team_user", {})
+        display_name = profile_response.data.get("profile", {}).get("display_name")
+        team_user = user_response.data.get("team_user", {})
         user_id = team_user.get("user_id")
         team_id = team_user.get("team_id")
 
@@ -56,9 +57,9 @@ class GetUserCapabilities(ActionHandler):
         try:
             response = await context.fetch(f"{service_endpoint}/v1/users/me/capabilities", method="GET")
 
-            return ActionResult(data={"result": True, "capabilities": response.get("capabilities", [])}, cost_usd=0.0)
+            return ActionResult(data={"capabilities": response.data.get("capabilities", [])}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # Asset Actions
@@ -101,8 +102,8 @@ class UploadAsset(ActionHandler):
                 f"{service_endpoint}/v1/asset-uploads", method="POST", headers=headers, data=file_data
             )
 
-            result = {"result": True}
-            job_data = response.get("job", {})
+            result = {}
+            job_data = response.data.get("job", {})
 
             if job_data.get("id"):
                 result["job_id"] = job_data["id"]
@@ -111,7 +112,7 @@ class UploadAsset(ActionHandler):
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("get_asset_upload_status")
@@ -122,8 +123,8 @@ class GetAssetUploadStatus(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/asset-uploads/{job_id}", method="GET")
 
-            result = {"result": True}
-            job_data = response.get("job", {})
+            result = {}
+            job_data = response.data.get("job", {})
 
             if job_data.get("status"):
                 result["status"] = job_data["status"]
@@ -132,7 +133,7 @@ class GetAssetUploadStatus(ActionHandler):
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("get_asset")
@@ -143,14 +144,14 @@ class GetAsset(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/assets/{asset_id}", method="GET")
 
-            result = {"result": True}
+            result = {}
 
-            if response.get("asset"):
-                result["asset"] = response["asset"]
+            if response.data.get("asset"):
+                result["asset"] = response.data["asset"]
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("update_asset")
@@ -168,9 +169,9 @@ class UpdateAsset(ActionHandler):
 
             await context.fetch(f"{service_endpoint}/v1/assets/{asset_id}", method="PATCH", json=update_data)
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("delete_asset")
@@ -181,9 +182,9 @@ class DeleteAsset(ActionHandler):
 
             await context.fetch(f"{service_endpoint}/v1/assets/{asset_id}", method="DELETE")
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # Design Actions
@@ -204,14 +205,14 @@ class CreateDesign(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/designs", method="POST", json=design_data)
 
-            result = {"result": True}
+            result = {}
 
-            if response.get("design"):
-                result["design"] = response["design"]
+            if response.data.get("design"):
+                result["design"] = response.data["design"]
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("list_designs")
@@ -232,15 +233,15 @@ class ListDesigns(ActionHandler):
             response = await context.fetch(f"{service_endpoint}/v1/designs", method="GET", params=params)
 
             # Wrap response to match output schema
-            result = {"designs": response.get("items", []), "result": True}
+            result = {"designs": response.data.get("items", [])}
 
             # Only include continuation if it exists
-            if response.get("continuation"):
-                result["continuation"] = response["continuation"]
+            if response.data.get("continuation"):
+                result["continuation"] = response.data["continuation"]
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"designs": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("get_design")
@@ -251,14 +252,14 @@ class GetDesign(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/designs/{design_id}", method="GET")
 
-            result = {"result": True}
+            result = {}
 
-            if response.get("design"):
-                result["design"] = response["design"]
+            if response.data.get("design"):
+                result["design"] = response.data["design"]
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("export_design")
@@ -333,11 +334,11 @@ class ExportDesign(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/exports", method="POST", json=export_data)
 
-            job_id = response.get("job", {}).get("id")
+            job_id = response.data.get("job", {}).get("id")
 
-            return ActionResult(data={"result": True, "job_id": job_id} if job_id else {"result": True}, cost_usd=0.0)
+            return ActionResult(data={"job_id": job_id} if job_id else {}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("get_export_status")
@@ -348,8 +349,8 @@ class GetExportStatus(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/exports/{export_id}", method="GET")
 
-            result = {"result": True}
-            job_data = response.get("job", {})
+            result = {}
+            job_data = response.data.get("job", {})
 
             if job_data.get("status"):
                 result["status"] = job_data["status"]
@@ -358,7 +359,7 @@ class GetExportStatus(ActionHandler):
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("import_design")
@@ -404,8 +405,8 @@ class ImportDesign(ActionHandler):
                 f"{service_endpoint}/v1/imports", method="POST", headers=headers, data=file_data
             )
 
-            result = {"result": True}
-            job_data = response.get("job", {})
+            result = {}
+            job_data = response.data.get("job", {})
 
             if job_data.get("id"):
                 result["job_id"] = job_data["id"]
@@ -414,7 +415,7 @@ class ImportDesign(ActionHandler):
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("get_design_import_status")
@@ -425,8 +426,8 @@ class GetDesignImportStatus(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/imports/{job_id}", method="GET")
 
-            result = {"result": True}
-            job_data = response.get("job", {})
+            result = {}
+            job_data = response.data.get("job", {})
 
             if job_data.get("status"):
                 result["status"] = job_data["status"]
@@ -435,7 +436,7 @@ class GetDesignImportStatus(ActionHandler):
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("import_design_from_url")
@@ -451,8 +452,8 @@ class ImportDesignFromUrl(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/url-imports", method="POST", json=import_data)
 
-            result = {"result": True}
-            job_data = response.get("job", {})
+            result = {}
+            job_data = response.data.get("job", {})
 
             if job_data.get("id"):
                 result["job_id"] = job_data["id"]
@@ -461,7 +462,7 @@ class ImportDesignFromUrl(ActionHandler):
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("get_url_import_status")
@@ -472,8 +473,8 @@ class GetUrlImportStatus(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/url-imports/{job_id}", method="GET")
 
-            result = {"result": True}
-            job_data = response.get("job", {})
+            result = {}
+            job_data = response.data.get("job", {})
 
             if job_data.get("status"):
                 result["status"] = job_data["status"]
@@ -482,7 +483,7 @@ class GetUrlImportStatus(ActionHandler):
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # Folder Actions
@@ -498,9 +499,9 @@ class CreateFolder(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/folders", method="POST", json=folder_data)
 
-            return ActionResult(data={"result": True, "folder": response.get("folder")}, cost_usd=0.0)
+            return ActionResult(data={"folder": response.data.get("folder")}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("get_folder")
@@ -511,14 +512,14 @@ class GetFolder(ActionHandler):
 
             response = await context.fetch(f"{service_endpoint}/v1/folders/{folder_id}", method="GET")
 
-            result = {"result": True}
+            result = {}
 
-            if response.get("folder"):
-                result["folder"] = response["folder"]
+            if response.data.get("folder"):
+                result["folder"] = response.data["folder"]
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("list_folder_items")
@@ -536,15 +537,15 @@ class ListFolderItems(ActionHandler):
                 f"{service_endpoint}/v1/folders/{folder_id}/items", method="GET", params=params
             )
 
-            result = {"items": response.get("items", []), "result": True}
+            result = {"items": response.data.get("items", [])}
 
             # Only include continuation if it exists
-            if response.get("continuation"):
-                result["continuation"] = response["continuation"]
+            if response.data.get("continuation"):
+                result["continuation"] = response.data["continuation"]
 
             return ActionResult(data=result, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"items": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("update_folder")
@@ -558,9 +559,9 @@ class UpdateFolder(ActionHandler):
 
             await context.fetch(f"{service_endpoint}/v1/folders/{folder_id}", method="PATCH", json=update_data)
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("delete_folder")
@@ -571,9 +572,9 @@ class DeleteFolder(ActionHandler):
 
             await context.fetch(f"{service_endpoint}/v1/folders/{folder_id}", method="DELETE")
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @canva.action("move_item_to_folder")
@@ -585,6 +586,6 @@ class MoveItemToFolder(ActionHandler):
 
             await context.fetch(f"{service_endpoint}/v1/folders/move", method="POST", json=move_data)
 
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
