@@ -9,6 +9,6 @@ def mock_context():
     ctx.auth = {
         "api_url": "https://demo.ghost.io",
         "content_api_key": "test_content_key",  # nosec B105
-        "admin_api_key": "6747844835dbba000136a9b3:f9e9e900c9e04cde3cc42d387c8757490a0d81db5a44e49e46af0dbd0ef64ec1",  # nosec B105
+        "admin_api_key": "testid00000000000000000a:aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899",  # nosec B105
     }
     return ctx
