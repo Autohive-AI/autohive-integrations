@@ -312,7 +312,8 @@ async def test_get_trail_status(live_context):
         pytest.skip("AWS_TRAIL_NAME required for get_trail_status")
     result = await aws.execute_action("get_trail_status", {"trail_name": AWS_TRAIL_NAME}, live_context)
     assert result.type == ResultType.ACTION, result.result.message
-    assert "is_logging" in result.result.data
+    assert "trail_status" in result.result.data
+    assert "IsLogging" in result.result.data["trail_status"]
 
 
 @pytest.mark.asyncio
