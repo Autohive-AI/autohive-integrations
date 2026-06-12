@@ -1,15 +1,13 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 import pytest
-from autohive_integrations_sdk import ResultType
+from autohive_integrations_sdk import FetchResponse, ResultType
 from fergus.fergus import fergus
 
 pytestmark = pytest.mark.unit
 
 
 def _fetch_result(data):
-    result = MagicMock()
-    result.data = data
-    return result
+    return FetchResponse(status=200, headers={}, data=data)
 
 
 @pytest.mark.asyncio
