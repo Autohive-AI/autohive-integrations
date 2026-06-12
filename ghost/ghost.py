@@ -1,5 +1,6 @@
 import jwt
 import mimetypes
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
@@ -279,25 +280,31 @@ class UploadImageAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             base, headers = _admin_headers(context)
-            # Remove Content-Type so multipart boundary is set automatically
-            headers.pop("Content-Type", None)
             file_path = inputs["file_path"]
             purpose = inputs.get("purpose", "image")
             mime_type, _ = mimetypes.guess_type(file_path)
             if not mime_type:
                 mime_type = "application/octet-stream"
+            filename = file_path.replace("\\", "/").split("/")[-1]
             with open(file_path, "rb") as f:
                 file_data = f.read()
-            filename = file_path.replace("\\", "/").split("/")[-1]
-            files = {
-                "file": (filename, file_data, mime_type),
-                "purpose": (None, purpose),
-            }
+            boundary = uuid.uuid4().hex
+            body = (
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+                f"Content-Type: {mime_type}\r\n\r\n"
+            ).encode() + file_data + (
+                f"\r\n--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="purpose"\r\n\r\n'
+                f"{purpose}\r\n"
+                f"--{boundary}--\r\n"
+            ).encode()
+            headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
             resp = await context.fetch(
                 f"{base}/ghost/api/admin/images/upload/",
                 method="POST",
                 headers=headers,
-                files=files,
+                body=body,
             )
             images = resp.data.get("images", [])
             return ActionResult(data={"image": images[0] if images else None}, cost_usd=0.0)
