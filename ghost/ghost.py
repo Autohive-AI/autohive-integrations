@@ -290,15 +290,19 @@ class UploadImageAction(ActionHandler):
                 file_data = f.read()
             boundary = uuid.uuid4().hex
             body = (
-                f"--{boundary}\r\n"
-                f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
-                f"Content-Type: {mime_type}\r\n\r\n"
-            ).encode() + file_data + (
-                f"\r\n--{boundary}\r\n"
-                f'Content-Disposition: form-data; name="purpose"\r\n\r\n'
-                f"{purpose}\r\n"
-                f"--{boundary}--\r\n"
-            ).encode()
+                (
+                    f"--{boundary}\r\n"
+                    f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+                    f"Content-Type: {mime_type}\r\n\r\n"
+                ).encode()
+                + file_data
+                + (
+                    f"\r\n--{boundary}\r\n"
+                    f'Content-Disposition: form-data; name="purpose"\r\n\r\n'
+                    f"{purpose}\r\n"
+                    f"--{boundary}--\r\n"
+                ).encode()
+            )
             headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
             resp = await context.fetch(
                 f"{base}/ghost/api/admin/images/upload/",
