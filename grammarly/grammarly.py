@@ -1,68 +1,51 @@
+from urllib.parse import urlencode
 from autohive_integrations_sdk import (
     Integration,
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
 )
 from typing import Dict, Any, Optional
-import aiohttp
 
-
-# Create the integration using the config.json from the same directory as this file
 grammarly = Integration.load()
 
-# Base URLs for Grammarly API
 GRAMMARLY_TOKEN_URL = "https://auth.grammarly.com/v4/api/oauth2/token"  # nosec B105
 GRAMMARLY_WRITING_SCORE_URL = "https://api.grammarly.com/ecosystem/api/v2/scores"
 GRAMMARLY_ANALYTICS_URL = "https://api.grammarly.com/ecosystem/api/v2/analytics/users"
 GRAMMARLY_AI_DETECTION_URL = "https://api.grammarly.com/ecosystem/api/v1/ai-detection"
 GRAMMARLY_PLAGIARISM_URL = "https://api.grammarly.com/ecosystem/api/v1/plagiarism"
 
-
-# ---- Helper Functions ----
+GRAMMARLY_SCOPES = (
+    "scores-api:read scores-api:write analytics-api:read "
+    "ai-detection-api:read ai-detection-api:write plagiarism-api:read plagiarism-api:write"
+)
 
 
 async def get_access_token(context: ExecutionContext) -> str:
-    """
-    Get OAuth2 access token using client credentials flow.
+    credentials = context.auth.get("credentials", {}) or {}
+    client_id = credentials.get("client_id") or context.auth.get("client_id", "")
+    client_secret = credentials.get("client_secret") or context.auth.get("client_secret", "")
 
-    Note: In serverless environments (Lambda), tokens are not cached between invocations.
-    Each invocation requests a fresh token.
-
-    Args:
-        context: ExecutionContext containing auth credentials
-
-    Returns:
-        Valid access token
-    """
-    credentials = context.auth.get("credentials", {})
-    client_id = credentials.get("client_id", "")
-    client_secret = credentials.get("client_secret", "")
-
-    # Hardcoded scopes for all API access
-    scopes = (
-        "scores-api:read scores-api:write analytics-api:read "
-        "ai-detection-api:read ai-detection-api:write plagiarism-api:read plagiarism-api:write"
+    form_body = urlencode(
+        {
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "scope": GRAMMARLY_SCOPES,
+        }
     )
 
-    # Request new token using form-encoded data
-    body = {
-        "grant_type": "client_credentials",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "scope": scopes,
-    }
-
-    headers = {"Content-Type": "application/x-www-form-urlencoded"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(GRAMMARLY_TOKEN_URL, data=body, headers=headers) as resp:
-            if resp.status == 200:
-                token_data = await resp.json()
-                return token_data.get("access_token")
-            else:
-                error_text = await resp.text()
-                raise Exception(f"Failed to obtain access token: HTTP {resp.status}: {error_text}")
+    resp = await context.fetch(
+        GRAMMARLY_TOKEN_URL,
+        method="POST",
+        data=form_body,
+        content_type="application/x-www-form-urlencoded",
+    )
+    token_data = resp.data
+    if not isinstance(token_data, dict) or "access_token" not in token_data:
+        raise Exception("Failed to obtain Grammarly access token")
+    return token_data["access_token"]
 
 
 async def api_request(
@@ -71,93 +54,44 @@ async def api_request(
     url: str,
     json_data: Optional[Dict[str, Any]] = None,
     params: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """
-    Execute an API request to Grammarly API.
-
-    Args:
-        context: ExecutionContext with auth credentials
-        method: HTTP method (GET, POST, etc.)
-        url: Full API endpoint URL
-        json_data: Optional JSON body for the request
-        params: Optional query parameters
-
-    Returns:
-        API response data
-    """
+) -> Any:
     access_token = await get_access_token(context)
-
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
     }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.request(method, url, headers=headers, json=json_data, params=params) as resp:
-            if resp.status in [200, 201, 202]:
-                return await resp.json()
-            else:
-                error_text = await resp.text()
-                raise Exception(f"API request failed: HTTP {resp.status}: {error_text}")
+    resp = await context.fetch(url, method=method, headers=headers, json=json_data, params=params)
+    return resp.data
 
 
-async def upload_file(upload_url: str, file_content: str) -> bool:
-    """
-    Upload a file to a pre-signed URL.
-
-    Args:
-        upload_url: The pre-signed upload URL
-        file_content: The content to upload
-
-    Returns:
-        True if upload was successful
-    """
-    headers = {"Content-Type": "text/plain"}
-
-    # Use yarl.URL with encoded=True to prevent aiohttp from modifying the pre-signed URL
-    # This is critical for S3 pre-signed URLs which have query parameters with signatures
-    from yarl import URL
-
-    url = URL(upload_url, encoded=True)
-
-    async with aiohttp.ClientSession() as session:
-        async with session.put(url, data=file_content.encode("utf-8"), headers=headers) as resp:
-            if resp.status in [200, 201, 204]:
-                return True
-            else:
-                error_text = await resp.text()
-                raise Exception(f"File upload failed: HTTP {resp.status}: {error_text}")
-
-
-# ---- Writing Score API Actions ----
+async def upload_file(context: ExecutionContext, upload_url: str, file_content: str) -> bool:
+    await context.fetch(
+        upload_url,
+        method="PUT",
+        data=file_content,
+        content_type="text/plain",
+    )
+    return True
 
 
 @grammarly.action("analyze_writing_score")
 class AnalyzeWritingScoreAction(ActionHandler):
-    """Submit a document for writing quality analysis. Combines request creation and file upload."""
+    """Submit a document for writing quality analysis."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             filename = inputs["filename"]
             file_content = inputs["file_content"]
 
-            # Step 1: Create the score request to get upload URL
-            payload = {"filename": filename}
-            response = await api_request(context, "POST", GRAMMARLY_WRITING_SCORE_URL, json_data=payload)
-
+            response = await api_request(context, "POST", GRAMMARLY_WRITING_SCORE_URL, json_data={"filename": filename})
             score_request_id = response.get("score_request_id")
             upload_url = response.get("file_upload_url")
 
-            # Step 2: Upload the file to the pre-signed URL
-            await upload_file(upload_url, file_content)
+            await upload_file(context, upload_url, file_content)
 
-            return ActionResult(
-                data={"score_request_id": score_request_id, "result": True},
-                cost_usd=0.0,
-            )
-
+            return ActionResult(data={"score_request_id": score_request_id}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @grammarly.action("get_writing_score_results")
@@ -171,9 +105,8 @@ class GetWritingScoreResultsAction(ActionHandler):
 
             response = await api_request(context, "GET", url)
 
-            result = {"status": response.get("status"), "result": True}
+            result: Dict[str, Any] = {"status": response.get("status")}
 
-            # Add score data if available
             if response.get("status") == "COMPLETED" and "score" in response:
                 score_data = response["score"]
                 result["general_score"] = score_data.get("generalScore")
@@ -183,12 +116,8 @@ class GetWritingScoreResultsAction(ActionHandler):
                 result["clarity"] = score_data.get("clarity")
 
             return ActionResult(data=result, cost_usd=0.0)
-
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
-
-
-# ---- Analytics API Actions ----
+            return ActionError(message=str(e))
 
 
 @grammarly.action("get_user_analytics")
@@ -197,61 +126,41 @@ class GetUserAnalyticsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            params = {"date_from": inputs["date_from"], "date_to": inputs["date_to"]}
+            params: Dict[str, Any] = {"date_from": inputs["date_from"], "date_to": inputs["date_to"]}
 
-            if "cursor" in inputs and inputs["cursor"]:
+            if inputs.get("cursor"):
                 params["cursor"] = inputs["cursor"]
-
-            if "limit" in inputs and inputs["limit"]:
+            if inputs.get("limit"):
                 params["limit"] = inputs["limit"]
 
             response = await api_request(context, "GET", GRAMMARLY_ANALYTICS_URL, params=params)
 
             return ActionResult(
-                data={
-                    "data": response.get("data", []),
-                    "paging": response.get("paging", {}),
-                    "result": True,
-                },
+                data={"data": response.get("data", []), "paging": response.get("paging", {})},
                 cost_usd=0.0,
             )
-
         except Exception as e:
-            return ActionResult(
-                data={"data": [], "paging": {}, "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
-
-
-# ---- AI Detection API Actions ----
+            return ActionError(message=str(e))
 
 
 @grammarly.action("analyze_ai_detection")
 class AnalyzeAIDetectionAction(ActionHandler):
-    """Submit a document for AI content detection analysis. Combines request creation and file upload."""
+    """Submit a document for AI content detection analysis."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             filename = inputs["filename"]
             file_content = inputs["file_content"]
 
-            # Step 1: Create the detection request to get upload URL
-            payload = {"filename": filename}
-            response = await api_request(context, "POST", GRAMMARLY_AI_DETECTION_URL, json_data=payload)
-
+            response = await api_request(context, "POST", GRAMMARLY_AI_DETECTION_URL, json_data={"filename": filename})
             score_request_id = response.get("score_request_id")
             upload_url = response.get("file_upload_url")
 
-            # Step 2: Upload the file to the pre-signed URL
-            await upload_file(upload_url, file_content)
+            await upload_file(context, upload_url, file_content)
 
-            return ActionResult(
-                data={"score_request_id": score_request_id, "result": True},
-                cost_usd=0.0,
-            )
-
+            return ActionResult(data={"score_request_id": score_request_id}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @grammarly.action("get_ai_detection_results")
@@ -265,9 +174,8 @@ class GetAIDetectionResultsAction(ActionHandler):
 
             response = await api_request(context, "GET", url)
 
-            result = {"status": response.get("status"), "result": True}
+            result: Dict[str, Any] = {"status": response.get("status")}
 
-            # Add score data if available
             if response.get("status") == "COMPLETED" and "score" in response:
                 score_data = response["score"]
                 result["average_confidence"] = score_data.get("average_confidence")
@@ -275,40 +183,28 @@ class GetAIDetectionResultsAction(ActionHandler):
                 result["updated_at"] = response.get("updated_at")
 
             return ActionResult(data=result, cost_usd=0.0)
-
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
-
-
-# ---- Plagiarism Detection API Actions ----
+            return ActionError(message=str(e))
 
 
 @grammarly.action("analyze_plagiarism_detection")
 class AnalyzePlagiarismDetectionAction(ActionHandler):
-    """Submit a document for plagiarism detection analysis. Combines request creation and file upload."""
+    """Submit a document for plagiarism detection analysis."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             filename = inputs["filename"]
             file_content = inputs["file_content"]
 
-            # Step 1: Create the detection request to get upload URL
-            payload = {"filename": filename}
-            response = await api_request(context, "POST", GRAMMARLY_PLAGIARISM_URL, json_data=payload)
-
+            response = await api_request(context, "POST", GRAMMARLY_PLAGIARISM_URL, json_data={"filename": filename})
             score_request_id = response.get("score_request_id")
             upload_url = response.get("file_upload_url")
 
-            # Step 2: Upload the file to the pre-signed URL
-            await upload_file(upload_url, file_content)
+            await upload_file(context, upload_url, file_content)
 
-            return ActionResult(
-                data={"score_request_id": score_request_id, "result": True},
-                cost_usd=0.0,
-            )
-
+            return ActionResult(data={"score_request_id": score_request_id}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @grammarly.action("get_plagiarism_detection_results")
@@ -322,18 +218,15 @@ class GetPlagiarismDetectionResultsAction(ActionHandler):
 
             response = await api_request(context, "GET", url)
 
-            result = {"status": response.get("status"), "result": True}
+            result: Dict[str, Any] = {"status": response.get("status")}
 
-            # Add score data if available
             if response.get("status") == "COMPLETED" and "score" in response:
                 score_data = response["score"]
-                # Calculate plagiarism percentage from originality score
                 originality = score_data.get("originality_score", 100)
                 result["originality_score"] = originality
                 result["plagiarism_percentage"] = max(0, 100 - originality)
                 result["updated_at"] = response.get("updated_at")
 
             return ActionResult(data=result, cost_usd=0.0)
-
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
