@@ -540,6 +540,10 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
+          },
+          "tags_added": {
+            "type": "integer",
+            "description": "Number of tags added"
           }
         }
       }
@@ -570,9 +574,9 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "member": {
-            "type": "object",
-            "description": "Updated member details"
+          "tags_removed": {
+            "type": "integer",
+            "description": "Number of tags removed"
           }
         }
       }
@@ -606,6 +610,10 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
+          },
+          "groups_added": {
+            "type": "integer",
+            "description": "Number of space groups added"
           }
         }
       }
@@ -636,9 +644,9 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "member": {
-            "type": "object",
-            "description": "Updated member details"
+          "groups_removed": {
+            "type": "integer",
+            "description": "Number of space groups removed"
           }
         }
       }
@@ -771,6 +779,10 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
+          },
+          "groups_added": {
+            "type": "integer",
+            "description": "Number of access groups added"
           }
         }
       }
@@ -801,9 +813,9 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "member": {
-            "type": "object",
-            "description": "Updated member details"
+          "groups_removed": {
+            "type": "integer",
+            "description": "Number of access groups removed"
           }
         }
       }
