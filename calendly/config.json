@@ -1,7 +1,7 @@
 {
   "name": "Calendly",
   "display_name": "Calendly",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Integration with Calendly for managing scheduled events, event types, invitees, availability, and webhooks",
   "entry_point": "calendly.py",
   "auth": {
@@ -24,10 +24,6 @@
           "user": {
             "type": "object",
             "description": "User information including uri, name, email, scheduling_url, timezone, and current_organization"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -43,7 +39,9 @@
             "description": "The UUID of the user to retrieve"
           }
         },
-        "required": ["user_uuid"]
+        "required": [
+          "user_uuid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -51,10 +49,6 @@
           "user": {
             "type": "object",
             "description": "User information"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -102,10 +96,6 @@
           "pagination": {
             "type": "object",
             "description": "Pagination information"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -121,7 +111,9 @@
             "description": "The UUID of the event type"
           }
         },
-        "required": ["event_type_uuid"]
+        "required": [
+          "event_type_uuid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -129,10 +121,6 @@
           "event_type": {
             "type": "object",
             "description": "Event type details including name, duration, color, and scheduling_url"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -192,10 +180,6 @@
           "pagination": {
             "type": "object",
             "description": "Pagination information"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -211,7 +195,9 @@
             "description": "The UUID of the scheduled event"
           }
         },
-        "required": ["event_uuid"]
+        "required": [
+          "event_uuid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -219,10 +205,6 @@
           "event": {
             "type": "object",
             "description": "Scheduled event details including name, start_time, end_time, location, and invitees_counter"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -242,7 +224,9 @@
             "description": "Reason for cancellation (optional)"
           }
         },
-        "required": ["event_uuid"]
+        "required": [
+          "event_uuid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -250,10 +234,6 @@
           "canceled": {
             "type": "boolean",
             "description": "Whether the event was canceled"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -289,7 +269,9 @@
             "description": "Token for pagination"
           }
         },
-        "required": ["event_uuid"]
+        "required": [
+          "event_uuid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -301,10 +283,6 @@
           "pagination": {
             "type": "object",
             "description": "Pagination information"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -324,7 +302,10 @@
             "description": "The UUID of the invitee"
           }
         },
-        "required": ["event_uuid", "invitee_uuid"]
+        "required": [
+          "event_uuid",
+          "invitee_uuid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -332,10 +313,6 @@
           "invitee": {
             "type": "object",
             "description": "Invitee details including name, email, timezone, and questions_and_answers"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -359,7 +336,11 @@
             "description": "End of time range (ISO 8601, max 7 days from start)"
           }
         },
-        "required": ["event_type", "start_time", "end_time"]
+        "required": [
+          "event_type",
+          "start_time",
+          "end_time"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -367,10 +348,6 @@
           "available_times": {
             "type": "array",
             "description": "List of available time slots with start_time and scheduling_url"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -394,7 +371,11 @@
             "description": "End of time range (ISO 8601)"
           }
         },
-        "required": ["user", "start_time", "end_time"]
+        "required": [
+          "user",
+          "start_time",
+          "end_time"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -402,10 +383,6 @@
           "busy_times": {
             "type": "array",
             "description": "List of busy time slots with start_time and end_time"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -421,7 +398,9 @@
             "description": "User URI (e.g., https://api.calendly.com/users/{uuid})"
           }
         },
-        "required": ["user"]
+        "required": [
+          "user"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -429,10 +408,6 @@
           "availability_schedules": {
             "type": "array",
             "description": "List of availability schedules with rules and timezone"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -476,10 +451,6 @@
           "pagination": {
             "type": "object",
             "description": "Pagination information"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -511,7 +482,9 @@
             "description": "Token for pagination"
           }
         },
-        "required": ["organization"]
+        "required": [
+          "organization"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -523,10 +496,6 @@
           "pagination": {
             "type": "object",
             "description": "Pagination information"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -542,7 +511,9 @@
             "description": "The UUID of the webhook subscription"
           }
         },
-        "required": ["webhook_uuid"]
+        "required": [
+          "webhook_uuid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -550,10 +521,6 @@
           "webhook": {
             "type": "object",
             "description": "Webhook subscription details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -589,7 +556,12 @@
             "description": "Secret key for webhook signature verification"
           }
         },
-        "required": ["url", "events", "organization", "scope"]
+        "required": [
+          "url",
+          "events",
+          "organization",
+          "scope"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -597,10 +569,6 @@
           "webhook": {
             "type": "object",
             "description": "Created webhook subscription details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -616,7 +584,9 @@
             "description": "The UUID of the webhook subscription to delete"
           }
         },
-        "required": ["webhook_uuid"]
+        "required": [
+          "webhook_uuid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -624,10 +594,6 @@
           "deleted": {
             "type": "boolean",
             "description": "Whether the webhook was deleted"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -651,7 +617,9 @@
             "description": "Token for pagination"
           }
         },
-        "required": ["organization"]
+        "required": [
+          "organization"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -663,10 +631,6 @@
           "pagination": {
             "type": "object",
             "description": "Pagination information"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -682,7 +646,9 @@
             "description": "The UUID of the routing form"
           }
         },
-        "required": ["routing_form_uuid"]
+        "required": [
+          "routing_form_uuid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -690,10 +656,6 @@
           "routing_form": {
             "type": "object",
             "description": "Routing form details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -717,7 +679,9 @@
             "description": "Token for pagination"
           }
         },
-        "required": ["routing_form"]
+        "required": [
+          "routing_form"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -729,10 +693,6 @@
           "pagination": {
             "type": "object",
             "description": "Pagination information"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
