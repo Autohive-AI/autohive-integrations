@@ -229,7 +229,5 @@ class TestAssetLifecycle:
             )
             assert update_result.type == ResultType.ACTION
         finally:
-            delete_result = await canva_integration.execute_action(
-                "delete_asset", {"asset_id": asset_id}, live_context
-            )
+            delete_result = await canva_integration.execute_action("delete_asset", {"asset_id": asset_id}, live_context)
             assert delete_result.type == ResultType.ACTION
