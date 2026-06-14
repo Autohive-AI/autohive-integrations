@@ -4,8 +4,8 @@ End-to-end integration tests for the Calendly integration.
 These tests call the real Calendly API v2 and require a valid OAuth/personal
 access token in the CALENDLY_ACCESS_TOKEN environment variable.
 
-Run all read-only tests:
-    pytest calendly/tests/test_calendly_integration.py -m integration
+Run read-only tests:
+    pytest calendly/tests/test_calendly_integration.py -m "integration and not destructive"
 
 Run destructive tests (creates/deletes a real webhook subscription, requires a
 paid Calendly plan):
@@ -293,6 +293,11 @@ class TestWebhookLifecycle:
         webhook = create.result.data["webhook"]
         assert webhook.get("uri")
 
+        # Once the UUID is known, guarantee cleanup even if a later assertion or
+        # API call fails — otherwise a real webhook subscription is left behind.
         uuid = _uuid_from_uri(webhook["uri"])
-        delete = await calendly_integration.execute_action("delete_webhook", {"webhook_uuid": uuid}, live_context)
-        assert delete.result.data["deleted"] is True
+        try:
+            assert set(webhook.get("events", [])) == {"invitee.created", "invitee.canceled"}
+        finally:
+            delete = await calendly_integration.execute_action("delete_webhook", {"webhook_uuid": uuid}, live_context)
+            assert delete.result.data["deleted"] is True
