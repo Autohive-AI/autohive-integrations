@@ -6,7 +6,7 @@ token set in the CANVA_ACCESS_TOKEN environment variable (the token must carry
 the scopes declared in config.json).
 
 Run read-only tests:
-    pytest canva/tests/test_canva_integration.py -m integration
+    pytest canva/tests/test_canva_integration.py -m "integration and not destructive"
 
 Run destructive tests (creates/updates/deletes real resources in the account):
     pytest canva/tests/test_canva_integration.py -m "integration and destructive"
@@ -165,21 +165,24 @@ class TestFolderLifecycle:
         folder_id = create_result.result.data["folder"]["id"]
         assert folder_id
 
-        get_result = await canva_integration.execute_action("get_folder", {"folder_id": folder_id}, live_context)
-        assert get_result.result.data["folder"]["id"] == folder_id
+        try:
+            get_result = await canva_integration.execute_action("get_folder", {"folder_id": folder_id}, live_context)
+            assert get_result.result.data["folder"]["id"] == folder_id
 
-        list_result = await canva_integration.execute_action(
-            "list_folder_items", {"folder_id": folder_id}, live_context
-        )
-        assert isinstance(list_result.result.data["items"], list)
+            list_result = await canva_integration.execute_action(
+                "list_folder_items", {"folder_id": folder_id}, live_context
+            )
+            assert isinstance(list_result.result.data["items"], list)
 
-        update_result = await canva_integration.execute_action(
-            "update_folder", {"folder_id": folder_id, "name": "Integration Test Folder (renamed)"}, live_context
-        )
-        assert update_result.type == ResultType.ACTION
-
-        delete_result = await canva_integration.execute_action("delete_folder", {"folder_id": folder_id}, live_context)
-        assert delete_result.type == ResultType.ACTION
+            update_result = await canva_integration.execute_action(
+                "update_folder", {"folder_id": folder_id, "name": "Integration Test Folder (renamed)"}, live_context
+            )
+            assert update_result.type == ResultType.ACTION
+        finally:
+            delete_result = await canva_integration.execute_action(
+                "delete_folder", {"folder_id": folder_id}, live_context
+            )
+            assert delete_result.type == ResultType.ACTION
 
 
 # =============================================================================
@@ -217,13 +220,16 @@ class TestAssetLifecycle:
         if not asset_id:
             pytest.skip("Asset upload did not finish in time")
 
-        get_result = await canva_integration.execute_action("get_asset", {"asset_id": asset_id}, live_context)
-        assert get_result.result.data["asset"]["id"] == asset_id
+        try:
+            get_result = await canva_integration.execute_action("get_asset", {"asset_id": asset_id}, live_context)
+            assert get_result.result.data["asset"]["id"] == asset_id
 
-        update_result = await canva_integration.execute_action(
-            "update_asset", {"asset_id": asset_id, "tags": ["integration-test"]}, live_context
-        )
-        assert update_result.type == ResultType.ACTION
-
-        delete_result = await canva_integration.execute_action("delete_asset", {"asset_id": asset_id}, live_context)
-        assert delete_result.type == ResultType.ACTION
+            update_result = await canva_integration.execute_action(
+                "update_asset", {"asset_id": asset_id, "tags": ["integration-test"]}, live_context
+            )
+            assert update_result.type == ResultType.ACTION
+        finally:
+            delete_result = await canva_integration.execute_action(
+                "delete_asset", {"asset_id": asset_id}, live_context
+            )
+            assert delete_result.type == ResultType.ACTION
