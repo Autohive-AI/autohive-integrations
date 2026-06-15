@@ -1,6 +1,6 @@
 {
     "name": "Xero",
-    "version": "2.2.0",
+    "version": "2.1.0",
     "description": "Xero accounting integration for invoice and bill management, purchase orders, reporting, file attachments, and PDF invoice retrieval",
     "entry_point": "xero.py",
     "supports_connected_account": true,
