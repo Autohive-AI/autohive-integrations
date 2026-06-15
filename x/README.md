@@ -41,27 +41,22 @@ The OAuth integration automatically handles token management and refresh, so you
 
 ## Action Results
 
-All actions return a standardized response structure:
-- `result` (boolean): Indicates whether the action succeeded (true) or failed (false)
-- `error` (string, optional): Contains error message if the action failed
-- Additional action-specific data fields (e.g., `post`, `user`, `posts`)
+On success, each action returns an action result whose data contains only the
+action-specific fields documented below (e.g. `post`, `user`, `posts`). There is
+no `result` flag — success is implied by the action completing without error.
 
-Example successful response:
+Example successful result:
 ```json
 {
-  "result": true,
   "post": { "id": "1234567890", "text": "Hello World!" }
 }
 ```
 
-Example error response:
-```json
-{
-  "result": false,
-  "error": "Post not found",
-  "post": {}
-}
-```
+On failure (an X API error, a non-2xx HTTP status, rate limiting, or invalid
+input) the action raises an **action error** carrying a human-readable message,
+rather than returning a success result with an `error` field. Autohive surfaces
+this as a failed step, so callers should handle the step failing instead of
+inspecting a boolean in the output.
 
 ## Actions
 
@@ -84,9 +79,6 @@ Creates a new post on X, optionally with media (image, GIF, or video).
 **Outputs:**
 - `post`: Created post object
 - `media_id`: The media ID that was uploaded (if media was included)
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 **Example (text only):**
 ```json
 {
@@ -119,9 +111,6 @@ Retrieves details of a specific post by its ID.
 **Outputs:**
 - `post`: Post object with details
 - `includes`: Additional data like user information
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 #### `delete_tweet`
@@ -132,9 +121,6 @@ Deletes a post permanently.
 
 **Outputs:**
 - `deleted`: Whether the post was deleted (boolean)
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 #### `search_tweets`
@@ -151,9 +137,6 @@ Searches for posts matching a query.
 - `posts`: Array of matching posts
 - `includes`: Additional data like user information
 - `meta`: Metadata including pagination tokens
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 **Example Query:**
 ```
 from:elonmusk tesla
@@ -176,9 +159,6 @@ Retrieves posts from a user's timeline.
 **Outputs:**
 - `posts`: Array of posts
 - `meta`: Metadata including pagination tokens
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 ### Likes (1 action)
@@ -195,9 +175,6 @@ Retrieves posts liked by a user.
 - `posts`: Array of liked posts
 - `includes`: Additional data like user information
 - `meta`: Metadata including pagination tokens
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 ### Bookmarks (3 actions)
@@ -214,9 +191,6 @@ Retrieves the authenticated user's bookmarked posts.
 - `posts`: Array of bookmarked posts
 - `includes`: Additional data like user information
 - `meta`: Metadata including pagination tokens
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 #### `bookmark_tweet`
@@ -228,9 +202,6 @@ Bookmarks a post for the authenticated user.
 
 **Outputs:**
 - `bookmarked`: Whether the post was bookmarked (boolean)
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 #### `remove_bookmark`
@@ -242,9 +213,6 @@ Removes a bookmark for the authenticated user.
 
 **Outputs:**
 - `removed`: Whether the bookmark was removed (boolean)
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 ### Reposts (2 actions)
@@ -258,9 +226,6 @@ Reposts a post.
 
 **Outputs:**
 - `reposted`: Whether the post was reposted (boolean)
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 #### `unretweet`
@@ -272,9 +237,6 @@ Removes a repost.
 
 **Outputs:**
 - `unreposted`: Whether the repost was removed (boolean)
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 ### Users (4 actions)
@@ -288,9 +250,6 @@ Retrieves user profile information by ID or username.
 
 **Outputs:**
 - `user`: User profile details including bio, followers count, following count, etc.
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 #### `get_me`
@@ -300,9 +259,6 @@ Retrieves the authenticated user's profile information.
 
 **Outputs:**
 - `user`: Authenticated user's profile details
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 #### `follow_user`
@@ -314,9 +270,6 @@ Follows a user.
 
 **Outputs:**
 - `followed`: Whether the user was followed (boolean)
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 #### `unfollow_user`
@@ -328,9 +281,6 @@ Unfollows a user.
 
 **Outputs:**
 - `unfollowed`: Whether the user was unfollowed (boolean)
-- `result`: Success status (boolean)
-- `error`: Error message if action failed (optional)
-
 ---
 
 ## Requirements
@@ -362,12 +312,32 @@ Unfollows a user.
 
 ## Testing
 
-To test the integration:
+The integration ships with pytest suites under `x/tests/`:
 
-1. Navigate to the integration directory: `cd x-twitter`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Configure OAuth credentials through the Autohive platform
-4. Run tests: `python tests/test_x.py`
+- `test_x_unit.py` — fully mocked unit tests (no network, no credentials). These are CI-safe and run by default.
+- `test_x_integration.py` — end-to-end tests that call the real X API. They require a valid OAuth 2.0 user token and never run in CI.
+
+Install dependencies first:
+```bash
+pip install -r requirements.txt
+```
+
+Run the unit tests (the default `-m unit` marker filter excludes integration tests):
+```bash
+pytest x/tests/
+```
+
+Run the integration tests against a real account. Set `X_ACCESS_TOKEN` (and optionally `X_TEST_TARGET_USER_ID` for the follow/unfollow test) via `.env` or your environment, then opt in with the marker:
+```bash
+pytest x/tests/test_x_integration.py -m integration
+```
+
+Destructive integration tests (creating/deleting posts, bookmarks, reposts, follows) are additionally marked `destructive` and are opt-in:
+```bash
+pytest x/tests/test_x_integration.py -m "integration and destructive"
+```
+
+If `X_ACCESS_TOKEN` is not set, the integration tests skip cleanly.
 
 ## Common Use Cases
 
@@ -402,6 +372,10 @@ To test the integration:
 4. Escalate issues based on keywords
 
 ## Version History
+
+- **2.0.0** - Upgraded to Autohive Integrations SDK 2.0.0
+  - Actions now return data-only results on success and raise an action error on failure (removed the `result`/`error` output fields)
+  - Replaced the old `python tests/test_x.py` script with pytest unit (`test_x_unit.py`) and integration (`test_x_integration.py`) suites
 
 - **1.0.3** - Added bookmark actions
   - Added get_bookmarks, bookmark_tweet, and remove_bookmark actions
