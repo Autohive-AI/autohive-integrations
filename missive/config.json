@@ -640,10 +640,6 @@
             "type": "string",
             "description": "Conversation ID to post into (omit to create a new conversation)"
           },
-          "subject": {
-            "type": "string",
-            "description": "New conversation subject (for new conversations)"
-          },
           "close": {
             "type": "boolean",
             "description": "Close the conversation after posting"
@@ -669,21 +665,30 @@
           },
           "notification": {
             "type": "object",
-            "description": "Notification shown to assignees",
+            "description": "Push notification shown to conversation members",
             "properties": {
               "title": {
                 "type": "string",
-                "description": "Notification title text"
+                "description": "Notification title"
+              },
+              "body": {
+                "type": "string",
+                "description": "Notification body text"
               }
             }
           },
-          "body": {
+          "text": {
             "type": "string",
-            "description": "Post text content (sent as the body.text field to the Missive API)"
+            "description": "Post content (plain text)"
+          },
+          "username": {
+            "type": "string",
+            "description": "Name to display as the post author"
           }
         },
         "required": [
-          "body"
+          "conversation_id",
+          "text"
         ]
       },
       "output_schema": {

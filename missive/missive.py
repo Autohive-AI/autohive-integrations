@@ -334,11 +334,12 @@ class DeleteDraftAction(ActionHandler):
 class CreatePostAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            body: Dict[str, Any] = {"body": {"text": inputs["body"]}}
-            if inputs.get("conversation_id"):
-                body["conversation"] = inputs["conversation_id"]
-            if inputs.get("subject"):
-                body["subject"] = inputs["subject"]
+            body: Dict[str, Any] = {
+                "conversation": inputs["conversation_id"],
+                "text": inputs["text"],
+            }
+            if inputs.get("username"):
+                body["username"] = inputs["username"]
             if inputs.get("close") is not None:
                 body["close"] = inputs["close"]
             if inputs.get("reopen") is not None:
