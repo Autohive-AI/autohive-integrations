@@ -155,7 +155,7 @@ async def test_delete_draft():
 
 async def test_create_post():
     ctx = make_ctx({"posts": {"id": "post1"}, "conversations": {"id": "c1"}})
-    result = await missive.execute_action("create_post", {"text": "Hello team", "conversation_id": "c1"}, ctx)
+    result = await missive.execute_action("create_post", {"body": "Hello team", "conversation_id": "c1"}, ctx)
     data = result.result.data
     assert data["result"] is True
     assert "post" in data

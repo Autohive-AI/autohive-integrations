@@ -267,7 +267,7 @@ class TestPosts:
         conv_id = conversations[0]["id"]
         result = await missive.execute_action(
             "create_post",
-            {"text": "Integration test post - autohive", "conversation_id": conv_id},
+            {"body": "Integration test post - autohive", "conversation_id": conv_id},
             live_context,
         )
         assert result.type == ResultType.ACTION
