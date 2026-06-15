@@ -53,4 +53,5 @@ Missive is a collaborative team inbox app that unifies email, SMS, WhatsApp, and
 | `401 Unauthorized` | Not on Productive plan | Upgrade your Missive plan |
 | `429 Too Many Requests` | Rate limit exceeded | Wait for `Retry-After` seconds before retrying |
 | Analytics returns 403 | Analytics requires Business plan for filtering | Remove `team_ids`/`user_ids` filters or upgrade plan |
+| `update_conversation` / `update_contact` returns `Invalid resource ID(s)` | The API token owner must be an **Operator** (not just Member) of the Missive organization | Go to Settings → Organization → Members and promote the token owner to Operator |
 | `update_contact` overwrites data | `infos` array is a full replacement | Always include the complete `infos` array when updating |

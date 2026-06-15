@@ -109,12 +109,15 @@ class UpdateConversationAction(ActionHandler):
             if inputs.get("snoozed_until") is not None:
                 body["snoozed_until"] = inputs["snoozed_until"]
 
-            await context.fetch(
+            response = await context.fetch(
                 f"{BASE_URL}/conversations/{conversation_id}",
                 method="PATCH",
                 headers=_get_headers(context),
                 json={"conversation": body},
             )
+            if response.status not in (200, 201, 204):
+                err = response.data.get("error", {}).get("message", f"HTTP {response.status}")
+                return ActionResult(data={"result": False, "error": err}, cost_usd=0.0)
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
@@ -450,6 +453,9 @@ class UpdateContactAction(ActionHandler):
                 headers=_get_headers(context),
                 json={"contact": body},
             )
+            if response.status not in (200, 201, 204):
+                err = response.data.get("error", {}).get("message", f"HTTP {response.status}")
+                return ActionResult(data={"contact": {}, "result": False, "error": err}, cost_usd=0.0)
             contact = _first(response.data, "contacts")
             return ActionResult(data={"contact": contact, "result": True}, cost_usd=0.0)
         except Exception as e:
