@@ -70,9 +70,7 @@ class TestConversations:
         print(f"[OK] list_conversations inbox: {len(data['conversations'])} conversations")
 
     async def test_list_conversations_all(self, live_context):
-        result = await missive.execute_action(
-            "list_conversations", {"mailbox": "all", "limit": 5}, live_context
-        )
+        result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 5}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["result"] is True
@@ -80,9 +78,7 @@ class TestConversations:
         print(f"[OK] list_conversations all: {len(data['conversations'])} conversations")
 
     async def test_get_conversation(self, live_context):
-        list_result = await missive.execute_action(
-            "list_conversations", {"mailbox": "all", "limit": 2}, live_context
-        )
+        list_result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 2}, live_context)
         conversations = list_result.result.data["conversations"]
         if not conversations:
             pytest.skip("No conversations available to test get_conversation")
@@ -96,17 +92,13 @@ class TestConversations:
         print(f"[OK] get_conversation: {conv_id}")
 
     async def test_list_conversation_messages(self, live_context):
-        list_result = await missive.execute_action(
-            "list_conversations", {"mailbox": "all", "limit": 2}, live_context
-        )
+        list_result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 2}, live_context)
         conversations = list_result.result.data["conversations"]
         if not conversations:
             pytest.skip("No conversations available")
 
         conv_id = conversations[0]["id"]
-        result = await missive.execute_action(
-            "list_conversation_messages", {"conversation_id": conv_id}, live_context
-        )
+        result = await missive.execute_action("list_conversation_messages", {"conversation_id": conv_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["result"] is True
@@ -114,17 +106,13 @@ class TestConversations:
         print(f"[OK] list_conversation_messages: {len(data['messages'])} messages")
 
     async def test_list_conversation_comments(self, live_context):
-        list_result = await missive.execute_action(
-            "list_conversations", {"mailbox": "all", "limit": 2}, live_context
-        )
+        list_result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 2}, live_context)
         conversations = list_result.result.data["conversations"]
         if not conversations:
             pytest.skip("No conversations available")
 
         conv_id = conversations[0]["id"]
-        result = await missive.execute_action(
-            "list_conversation_comments", {"conversation_id": conv_id}, live_context
-        )
+        result = await missive.execute_action("list_conversation_comments", {"conversation_id": conv_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["result"] is True
@@ -132,17 +120,13 @@ class TestConversations:
         print(f"[OK] list_conversation_comments: {len(data['comments'])} comments")
 
     async def test_list_conversation_posts(self, live_context):
-        list_result = await missive.execute_action(
-            "list_conversations", {"mailbox": "all", "limit": 2}, live_context
-        )
+        list_result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 2}, live_context)
         conversations = list_result.result.data["conversations"]
         if not conversations:
             pytest.skip("No conversations available")
 
         conv_id = conversations[0]["id"]
-        result = await missive.execute_action(
-            "list_conversation_posts", {"conversation_id": conv_id}, live_context
-        )
+        result = await missive.execute_action("list_conversation_posts", {"conversation_id": conv_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["result"] is True
@@ -150,17 +134,13 @@ class TestConversations:
         print(f"[OK] list_conversation_posts: {len(data['posts'])} posts")
 
     async def test_list_conversation_drafts(self, live_context):
-        list_result = await missive.execute_action(
-            "list_conversations", {"mailbox": "all", "limit": 2}, live_context
-        )
+        list_result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 2}, live_context)
         conversations = list_result.result.data["conversations"]
         if not conversations:
             pytest.skip("No conversations available")
 
         conv_id = conversations[0]["id"]
-        result = await missive.execute_action(
-            "list_conversation_drafts", {"conversation_id": conv_id}, live_context
-        )
+        result = await missive.execute_action("list_conversation_drafts", {"conversation_id": conv_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["result"] is True
@@ -183,9 +163,7 @@ class TestMessages:
         print(f"[OK] list_messages: {len(data['messages'])} messages")
 
     async def test_get_message(self, live_context):
-        conv_result = await missive.execute_action(
-            "list_conversations", {"mailbox": "all", "limit": 25}, live_context
-        )
+        conv_result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 25}, live_context)
         conversations = conv_result.result.data["conversations"]
         if not conversations:
             pytest.skip("No conversations available to find a message")
@@ -237,9 +215,7 @@ class TestDrafts:
         print(f"[OK] create_draft: {draft}")
 
         if isinstance(draft, dict) and draft.get("id"):
-            delete_result = await missive.execute_action(
-                "delete_draft", {"draft_id": draft["id"]}, live_context
-            )
+            delete_result = await missive.execute_action("delete_draft", {"draft_id": draft["id"]}, live_context)
             assert delete_result.type == ResultType.ACTION
             assert delete_result.result.data["result"] is True
             print(f"[OK] delete_draft: {draft['id']}")
@@ -253,9 +229,7 @@ class TestDrafts:
 class TestPosts:
     @pytest.mark.destructive
     async def test_create_post(self, live_context):
-        list_result = await missive.execute_action(
-            "list_conversations", {"mailbox": "all", "limit": 2}, live_context
-        )
+        list_result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 2}, live_context)
         conversations = list_result.result.data["conversations"]
         if not conversations:
             pytest.skip("No conversations available for create_post test")
@@ -301,9 +275,7 @@ class TestContacts:
             pytest.skip("No contact books available")
 
         book_id = books[0]["id"]
-        result = await missive.execute_action(
-            "list_contact_groups", {"contact_book_id": book_id}, live_context
-        )
+        result = await missive.execute_action("list_contact_groups", {"contact_book_id": book_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["result"] is True
@@ -372,9 +344,7 @@ class TestAnalytics:
         assert report_id is not None
         print(f"[OK] create_analytics_report: {report_id}")
 
-        get_result = await missive.execute_action(
-            "get_analytics_report", {"report_id": report_id}, live_context
-        )
+        get_result = await missive.execute_action("get_analytics_report", {"report_id": report_id}, live_context)
         assert get_result.type == ResultType.ACTION
         report_data = get_result.result.data
         assert report_data["result"] is True
