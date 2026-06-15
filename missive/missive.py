@@ -330,6 +330,8 @@ class CreatePostAction(ActionHandler):
                 body["team_id"] = inputs["team_id"]
             if inputs.get("shared_label_ids"):
                 body["shared_label_ids"] = inputs["shared_label_ids"]
+            if inputs.get("notification") is not None:
+                body["notification"] = inputs["notification"]
 
             response = await context.fetch(
                 f"{BASE_URL}/posts",
@@ -358,7 +360,7 @@ class ListContactsAction(ActionHandler):
             if inputs.get("search"):
                 params["search"] = inputs["search"]
             if inputs.get("contact_book_id"):
-                params["contact_book_id"] = inputs["contact_book_id"]
+                params["contact_book"] = inputs["contact_book_id"]
             if inputs.get("limit"):
                 params["limit"] = inputs["limit"]
 
@@ -462,7 +464,7 @@ class ListContactBooksAction(ActionHandler):
 class ListContactGroupsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            params: Dict[str, Any] = {"contact_book_id": inputs["contact_book_id"]}
+            params: Dict[str, Any] = {"contact_book": inputs["contact_book_id"]}
             if inputs.get("kind"):
                 params["kind"] = inputs["kind"]
             if inputs.get("limit"):
