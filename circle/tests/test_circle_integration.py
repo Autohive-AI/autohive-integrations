@@ -153,6 +153,16 @@ class TestMembers:
         result = await circle_integration.execute_action("get_member", {"member_id": str(member_id)}, live_context)
         assert str(result.result.data["member"]["id"]) == str(member_id)
 
+    async def test_search_member_by_email(self, live_context):
+        members_result = await circle_integration.execute_action("list_members", {"per_page": 10}, live_context)
+        members = members_result.result.data["members"]
+        email = next((m.get("email") for m in members if m.get("email")), None)
+        if not email:
+            pytest.skip("No member with a visible email in this community")
+
+        result = await circle_integration.execute_action("search_member_by_email", {"email": email}, live_context)
+        assert isinstance(result.result.data["member"], dict)
+
 
 # =============================================================================
 # EVENTS
@@ -167,6 +177,18 @@ class TestEvents:
         data = result.result.data
         assert isinstance(data["events"], list)
         assert isinstance(data["count"], int)
+
+    async def test_get_event_by_id(self, live_context):
+        events_result = await circle_integration.execute_action(
+            "search_events", {"time_filter": "all", "per_page": 1}, live_context
+        )
+        events = events_result.result.data["events"]
+        if not events:
+            pytest.skip("No events in this community")
+
+        event_id = events[0]["id"]
+        result = await circle_integration.execute_action("get_event", {"event_id": str(event_id)}, live_context)
+        assert str(result.result.data["event"]["id"]) == str(event_id)
 
 
 # =============================================================================
