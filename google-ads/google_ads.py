@@ -7,22 +7,10 @@ from typing import Dict, Any, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Setup environment variables
-from dotenv import load_dotenv  # noqa: E402
-
-load_dotenv()
-
-try:
-    DEVELOPER_TOKEN = os.environ["ADWORDS_DEVELOPER_TOKEN"]
-    CLIENT_ID = os.environ["ADWORDS_CLIENT_ID"]
-    CLIENT_SECRET = os.environ["ADWORDS_CLIENT_SECRET"]
-except KeyError as e:
-    logger.error(f"Error loading environment variables: {str(e)}")
-    raise
-
 from enum import Enum  # noqa: E402
 import proto  # noqa: E402
 from autohive_integrations_sdk import (  # noqa: E402
+    ActionError,
     ActionHandler,
     ExecutionContext,
     Integration,
@@ -30,6 +18,7 @@ from autohive_integrations_sdk import (  # noqa: E402
 )
 from google.ads.googleads.client import GoogleAdsClient  # noqa: E402
 from google.api_core import protobuf_helpers  # noqa: E402
+from google.oauth2.credentials import Credentials  # noqa: E402
 
 # Load integration configuration
 google_ads = Integration.load()
@@ -48,37 +37,35 @@ def micros_to_currency(micros):
     return float(micros) / 1000000 if micros is not None else "N/A"
 
 
-def _get_google_ads_client(refresh_token: str, login_customer_id: Optional[str] = None) -> GoogleAdsClient:
+def _get_developer_token() -> str:
+    """Return the server-side Google Ads developer token."""
+    developer_token = os.environ.get("ADWORDS_DEVELOPER_TOKEN", "").strip()
+    if not developer_token:
+        raise ValueError("ADWORDS_DEVELOPER_TOKEN is required for Google Ads API requests")
+    return developer_token
+
+
+def _get_google_ads_client(access_token: str, login_customer_id: Optional[str] = None) -> GoogleAdsClient:
     """Initialize and return a Google Ads API client."""
-    credentials = {
-        "developer_token": DEVELOPER_TOKEN,
-        "token_uri": "https://oauth2.googleapis.com/token",  # nosec B105
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "refresh_token": refresh_token,
+    credentials = Credentials(token=access_token)
+    client_kwargs = {
+        "credentials": credentials,
+        "developer_token": _get_developer_token(),
         "use_proto_plus": True,
     }
     if login_customer_id:
-        credentials["login_customer_id"] = login_customer_id
+        client_kwargs["login_customer_id"] = login_customer_id
 
-    return GoogleAdsClient.load_from_dict(credentials)
+    return GoogleAdsClient(**client_kwargs)
 
 
-def _validate_auth_and_inputs(inputs: Dict[str, Any], context: ExecutionContext) -> tuple:
-    """Validate authentication and extract common inputs."""
-    refresh_token = context.auth.get("credentials", {}).get("refresh_token")
-    if not refresh_token:
-        raise Exception("Refresh token is required for authentication with Google Ads API")
-
-    login_customer_id = inputs.get("login_customer_id")
-    customer_id = inputs.get("customer_id")
-
-    if not login_customer_id:
-        raise Exception("Manager Account ID (login_customer_id) is required")
-    if not customer_id:
-        raise Exception("Customer ID is required")
-
-    return refresh_token, login_customer_id, customer_id
+def _validate_auth(context: ExecutionContext) -> str:
+    """Validate platform OAuth authentication and return an access token."""
+    credentials = context.auth.get("credentials", {})
+    access_token = credentials.get("access_token") or credentials.get("refresh_token")
+    if not access_token:
+        raise Exception("Access token is required for authentication with Google Ads API")
+    return access_token
 
 
 def _get_ad_text_assets(ad_data_from_row: Dict[str, Any]) -> Dict[str, list]:
@@ -366,20 +353,18 @@ class GetAccessibleAccountsAction(ActionHandler):
     """Action handler for listing accessible Google Ads accounts."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        refresh_token = context.auth.get("credentials", {}).get("refresh_token")
-        if not refresh_token:
-            raise Exception("Refresh token is required for authentication with Google Ads API")
-
         try:
+            access_token = _validate_auth(context)
+
             # 1. List accessible customers (no login_customer_id needed)
-            client = _get_google_ads_client(refresh_token, None)
+            client = _get_google_ads_client(access_token, None)
             customer_service = client.get_service("CustomerService")
 
             try:
                 response = customer_service.list_accessible_customers()
             except Exception as e:
                 logger.error(f"Failed to list accessible customers: {e}")
-                raise
+                return ActionError(message=str(e))
 
             accounts = []
             for resource_name in response.resource_names:
@@ -400,7 +385,7 @@ class GetAccessibleAccountsAction(ActionHandler):
             for account in accounts:
                 try:
                     # Re-initialize client specifically for this customer
-                    sub_client = _get_google_ads_client(refresh_token, account["customer_id"])
+                    sub_client = _get_google_ads_client(access_token, account["customer_id"])
                     google_ads_service = sub_client.get_service("GoogleAdsService")
 
                     query = """
@@ -426,7 +411,7 @@ class GetAccessibleAccountsAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to get accessible accounts: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 @google_ads.action("retrieve_campaign_metrics")
@@ -435,15 +420,17 @@ class RetrieveCampaignMetricsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
         date_ranges_input = inputs.get("date_ranges")
         if not date_ranges_input:
-            raise Exception("'date_ranges' is required.")
+            return ActionError(message="'date_ranges' is required.")
 
         campaign_type = inputs.get("campaign_type", "ALL")
 
@@ -453,7 +440,7 @@ class RetrieveCampaignMetricsAction(ActionHandler):
             return ActionResult(data={"results": results}, cost_usd=0.00)
         except Exception as e:
             logger.exception(f"Exception during campaign data retrieval: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 @google_ads.action("retrieve_keyword_metrics")
@@ -462,18 +449,20 @@ class RetrieveKeywordMetricsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
         date_ranges_input = inputs.get("date_ranges")
-        campaign_ids = inputs.get("campaign_ids", [])
-        ad_group_ids = inputs.get("ad_group_ids", [])
+        campaign_ids = inputs["campaign_ids"]
+        ad_group_ids = inputs["ad_group_ids"]
 
         if not date_ranges_input:
-            raise Exception("'date_ranges' is required.")
+            return ActionError(message="'date_ranges' is required.")
 
         try:
             results = fetch_keyword_data(client, customer_id, date_ranges_input, campaign_ids, ad_group_ids)
@@ -481,7 +470,7 @@ class RetrieveKeywordMetricsAction(ActionHandler):
             return ActionResult(data={"results": results}, cost_usd=0.00)
         except Exception as e:
             logger.exception(f"Exception during keyword data retrieval: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 # ---- Action Handlers: CAMPAIGN CRUD Operations ----
@@ -493,20 +482,22 @@ class CreateCampaignAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        campaign_name = inputs.get("campaign_name")
-        budget_amount_micros = inputs.get("budget_amount_micros")
+        campaign_name = inputs["campaign_name"]
+        budget_amount_micros = inputs["budget_amount_micros"]
 
         # Validate required inputs
         if not campaign_name:
-            raise Exception("campaign_name is required")
+            return ActionError(message="campaign_name is required")
         if not budget_amount_micros:
-            raise Exception("budget_amount_micros is required")
+            return ActionError(message="budget_amount_micros is required")
 
         budget_name = inputs.get("budget_name", f"Budget for {campaign_name}")
         bidding_strategy = inputs.get("bidding_strategy", "MANUAL_CPC")
@@ -614,7 +605,7 @@ class CreateCampaignAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to create campaign: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 @google_ads.action("update_campaign")
@@ -623,18 +614,20 @@ class UpdateCampaignAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        campaign_id = inputs.get("campaign_id")
+        campaign_id = inputs["campaign_id"]
         new_status = inputs.get("status")
         new_name = inputs.get("name")
 
         if not campaign_id:
-            raise Exception("campaign_id is required")
+            return ActionError(message="campaign_id is required")
 
         try:
             campaign_service = client.get_service("CampaignService")
@@ -673,7 +666,7 @@ class UpdateCampaignAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to update campaign: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 @google_ads.action("remove_campaign")
@@ -682,15 +675,15 @@ class RemoveCampaignAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        campaign_id = inputs.get("campaign_id")
-        if not campaign_id:
-            raise Exception("campaign_id is required")
+        campaign_id = inputs["campaign_id"]
 
         try:
             campaign_service = client.get_service("CampaignService")
@@ -714,7 +707,7 @@ class RemoveCampaignAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to remove campaign: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 # ---- Action Handlers: AD GROUP Operations ----
@@ -726,19 +719,21 @@ class CreateAdGroupAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        campaign_id = inputs.get("campaign_id")
-        ad_group_name = inputs.get("ad_group_name")
+        campaign_id = inputs["campaign_id"]
+        ad_group_name = inputs["ad_group_name"]
         cpc_bid_micros = inputs.get("cpc_bid_micros", 1000000)
         status = inputs.get("status", "PAUSED")
 
         if not campaign_id or not ad_group_name:
-            raise Exception("campaign_id and ad_group_name are required")
+            return ActionError(message="campaign_id and ad_group_name are required")
 
         try:
             ad_group_service = client.get_service("AdGroupService")
@@ -773,7 +768,7 @@ class CreateAdGroupAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to create ad group: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 # ---- Action Handlers: AD Operations ----
@@ -785,27 +780,29 @@ class CreateResponsiveSearchAdAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        ad_group_id = inputs.get("ad_group_id")
-        headlines = inputs.get("headlines", [])
-        descriptions = inputs.get("descriptions", [])
-        final_url = inputs.get("final_url")
+        ad_group_id = inputs["ad_group_id"]
+        headlines = inputs["headlines"]
+        descriptions = inputs["descriptions"]
+        final_url = inputs["final_url"]
         path1 = inputs.get("path1", "")
         path2 = inputs.get("path2", "")
         status = inputs.get("status", "PAUSED")
 
         if not ad_group_id or not headlines or not descriptions or not final_url:
-            raise Exception("ad_group_id, headlines, descriptions, and final_url are required")
+            return ActionError(message="ad_group_id, headlines, descriptions, and final_url are required")
 
         if len(headlines) < 3:
-            raise Exception("At least 3 headlines are required for RSA")
+            return ActionError(message="At least 3 headlines are required for RSA")
         if len(descriptions) < 2:
-            raise Exception("At least 2 descriptions are required for RSA")
+            return ActionError(message="At least 2 descriptions are required for RSA")
 
         try:
             ad_group_ad_service = client.get_service("AdGroupAdService")
@@ -860,7 +857,7 @@ class CreateResponsiveSearchAdAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to create RSA: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 # ---- Action Handlers: KEYWORD Operations ----
@@ -872,17 +869,16 @@ class AddKeywordsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        ad_group_id = inputs.get("ad_group_id")
-        keywords = inputs.get("keywords", [])
-
-        if not ad_group_id or not keywords:
-            raise Exception("ad_group_id and keywords are required")
+        ad_group_id = inputs["ad_group_id"]
+        keywords = inputs["keywords"]
 
         try:
             ad_group_criterion_service = client.get_service("AdGroupCriterionService")
@@ -932,7 +928,7 @@ class AddKeywordsAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to add keywords: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 # ---- Action Handlers: KEYWORD PLANNER Operations ----
@@ -944,11 +940,13 @@ class GenerateKeywordIdeasAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
         seed_keywords = inputs.get("seed_keywords", [])
         page_url = inputs.get("page_url")
@@ -957,7 +955,7 @@ class GenerateKeywordIdeasAction(ActionHandler):
         include_adult_keywords = inputs.get("include_adult_keywords", False)
 
         if not seed_keywords and not page_url:
-            raise Exception("At least one of seed_keywords or page_url is required")
+            return ActionError(message="At least one of seed_keywords or page_url is required")
 
         try:
             keyword_plan_idea_service = client.get_service("KeywordPlanIdeaService")
@@ -1015,7 +1013,7 @@ class GenerateKeywordIdeasAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to generate keyword ideas: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 @google_ads.action("generate_keyword_historical_metrics")
@@ -1024,18 +1022,20 @@ class GenerateKeywordHistoricalMetricsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        keywords = inputs.get("keywords", [])
+        keywords = inputs["keywords"]
         language_id = inputs.get("language_id", "1000")
         location_ids = inputs.get("location_ids", ["2840"])
 
         if not keywords:
-            raise Exception("keywords list is required")
+            return ActionError(message="keywords list is required")
 
         try:
             keyword_plan_idea_service = client.get_service("KeywordPlanIdeaService")
@@ -1090,7 +1090,7 @@ class GenerateKeywordHistoricalMetricsAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to get keyword historical metrics: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 # ---- NEW Action Handlers: Additional READ Operations ----
@@ -1102,17 +1102,19 @@ class RetrieveAdGroupMetricsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        date_ranges_input = inputs.get("date_ranges")
+        date_ranges_input = inputs["date_ranges"]
         campaign_ids = inputs.get("campaign_ids", [])
 
         if not date_ranges_input:
-            raise Exception("'date_ranges' is required.")
+            return ActionError(message="'date_ranges' is required.")
 
         ga_service = client.get_service("GoogleAdsService")
         all_results = []
@@ -1198,7 +1200,7 @@ class RetrieveAdGroupMetricsAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Exception during ad group metrics retrieval: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 @google_ads.action("retrieve_ad_metrics")
@@ -1207,18 +1209,20 @@ class RetrieveAdMetricsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        date_ranges_input = inputs.get("date_ranges")
+        date_ranges_input = inputs["date_ranges"]
         campaign_ids = inputs.get("campaign_ids", [])
         ad_group_ids = inputs.get("ad_group_ids", [])
 
         if not date_ranges_input:
-            raise Exception("'date_ranges' is required.")
+            return ActionError(message="'date_ranges' is required.")
 
         ga_service = client.get_service("GoogleAdsService")
         all_results = []
@@ -1315,7 +1319,7 @@ class RetrieveAdMetricsAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Exception during ad metrics retrieval: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 @google_ads.action("retrieve_search_terms")
@@ -1324,18 +1328,20 @@ class RetrieveSearchTermsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        date_ranges_input = inputs.get("date_ranges")
+        date_ranges_input = inputs["date_ranges"]
         campaign_ids = inputs.get("campaign_ids", [])
         ad_group_ids = inputs.get("ad_group_ids", [])
 
         if not date_ranges_input:
-            raise Exception("'date_ranges' is required.")
+            return ActionError(message="'date_ranges' is required.")
 
         ga_service = client.get_service("GoogleAdsService")
         all_results = []
@@ -1423,7 +1429,7 @@ class RetrieveSearchTermsAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Exception during search terms retrieval: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 @google_ads.action("get_active_ad_urls")
@@ -1432,11 +1438,13 @@ class GetActiveAdUrlsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
         url_filter = inputs.get("url_filter")  # Optional: filter by specific URL
 
@@ -1503,7 +1511,7 @@ class GetActiveAdUrlsAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Exception during active ad URLs retrieval: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 # ---- NEW Action Handlers: Negative Keywords ----
@@ -1515,17 +1523,16 @@ class AddNegativeKeywordsToCampaignAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        campaign_id = inputs.get("campaign_id")
-        keywords = inputs.get("keywords", [])
-
-        if not campaign_id or not keywords:
-            raise Exception("campaign_id and keywords are required")
+        campaign_id = inputs["campaign_id"]
+        keywords = inputs["keywords"]
 
         try:
             campaign_criterion_service = client.get_service("CampaignCriterionService")
@@ -1579,7 +1586,7 @@ class AddNegativeKeywordsToCampaignAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to add negative keywords to campaign: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 @google_ads.action("add_negative_keywords_to_ad_group")
@@ -1588,17 +1595,16 @@ class AddNegativeKeywordsToAdGroupAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        ad_group_id = inputs.get("ad_group_id")
-        keywords = inputs.get("keywords", [])
-
-        if not ad_group_id or not keywords:
-            raise Exception("ad_group_id and keywords are required")
+        ad_group_id = inputs["ad_group_id"]
+        keywords = inputs["keywords"]
 
         try:
             ad_group_criterion_service = client.get_service("AdGroupCriterionService")
@@ -1652,7 +1658,7 @@ class AddNegativeKeywordsToAdGroupAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to add negative keywords to ad group: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 # ---- NEW Action Handlers: Ad Group CRUD ----
@@ -1664,19 +1670,21 @@ class UpdateAdGroupAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        ad_group_id = inputs.get("ad_group_id")
+        ad_group_id = inputs["ad_group_id"]
         new_status = inputs.get("status")
         new_name = inputs.get("name")
         new_cpc_bid_micros = inputs.get("cpc_bid_micros")
 
         if not ad_group_id:
-            raise Exception("ad_group_id is required")
+            return ActionError(message="ad_group_id is required")
 
         try:
             ad_group_service = client.get_service("AdGroupService")
@@ -1719,7 +1727,7 @@ class UpdateAdGroupAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to update ad group: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 @google_ads.action("remove_ad_group")
@@ -1728,15 +1736,15 @@ class RemoveAdGroupAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        ad_group_id = inputs.get("ad_group_id")
-        if not ad_group_id:
-            raise Exception("ad_group_id is required")
+        ad_group_id = inputs["ad_group_id"]
 
         try:
             ad_group_service = client.get_service("AdGroupService")
@@ -1761,7 +1769,7 @@ class RemoveAdGroupAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to remove ad group: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 # ---- NEW Action Handlers: Keyword CRUD ----
@@ -1773,19 +1781,21 @@ class UpdateKeywordAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        ad_group_id = inputs.get("ad_group_id")
-        criterion_id = inputs.get("criterion_id")
+        ad_group_id = inputs["ad_group_id"]
+        criterion_id = inputs["criterion_id"]
         new_status = inputs.get("status")
         new_cpc_bid_micros = inputs.get("cpc_bid_micros")
 
         if not ad_group_id or not criterion_id:
-            raise Exception("ad_group_id and criterion_id are required")
+            return ActionError(message="ad_group_id and criterion_id are required")
 
         try:
             ad_group_criterion_service = client.get_service("AdGroupCriterionService")
@@ -1826,7 +1836,7 @@ class UpdateKeywordAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to update keyword: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 @google_ads.action("remove_keyword")
@@ -1835,17 +1845,16 @@ class RemoveKeywordAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        ad_group_id = inputs.get("ad_group_id")
-        criterion_id = inputs.get("criterion_id")
-
-        if not ad_group_id or not criterion_id:
-            raise Exception("ad_group_id and criterion_id are required")
+        ad_group_id = inputs["ad_group_id"]
+        criterion_id = inputs["criterion_id"]
 
         try:
             ad_group_criterion_service = client.get_service("AdGroupCriterionService")
@@ -1872,7 +1881,7 @@ class RemoveKeywordAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to remove keyword: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 # ---- NEW Action Handlers: Ad CRUD ----
@@ -1884,18 +1893,20 @@ class UpdateAdAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        ad_group_id = inputs.get("ad_group_id")
-        ad_id = inputs.get("ad_id")
+        ad_group_id = inputs["ad_group_id"]
+        ad_id = inputs["ad_id"]
         new_status = inputs.get("status")
 
         if not ad_group_id or not ad_id:
-            raise Exception("ad_group_id and ad_id are required")
+            return ActionError(message="ad_group_id and ad_id are required")
 
         try:
             ad_group_ad_service = client.get_service("AdGroupAdService")
@@ -1932,7 +1943,7 @@ class UpdateAdAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to update ad: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 @google_ads.action("remove_ad")
@@ -1941,17 +1952,16 @@ class RemoveAdAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        ad_group_id = inputs.get("ad_group_id")
-        ad_id = inputs.get("ad_id")
-
-        if not ad_group_id or not ad_id:
-            raise Exception("ad_group_id and ad_id are required")
+        ad_group_id = inputs["ad_group_id"]
+        ad_id = inputs["ad_id"]
 
         try:
             ad_group_ad_service = client.get_service("AdGroupAdService")
@@ -1976,7 +1986,7 @@ class RemoveAdAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to remove ad: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
 
 # ---- NEW Action Handler: Keyword Forecast ----
@@ -1988,13 +1998,15 @@ class GenerateKeywordForecastAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            refresh_token, login_customer_id, customer_id = _validate_auth_and_inputs(inputs, context)
+            login_customer_id = inputs["login_customer_id"]
+            customer_id = inputs["customer_id"]
+            refresh_token = _validate_auth(context)
             client = _get_google_ads_client(refresh_token, login_customer_id)
         except Exception as e:
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
-            raise
+            return ActionError(message=str(e))
 
-        keywords = inputs.get("keywords", [])
+        keywords = inputs["keywords"]
         daily_budget_micros = inputs.get("daily_budget_micros")
         max_cpc_bid_micros = inputs.get("max_cpc_bid_micros", 1000000)
         language_id = inputs.get("language_id", "1000")
@@ -2002,7 +2014,7 @@ class GenerateKeywordForecastAction(ActionHandler):
         forecast_days = inputs.get("forecast_days", 30)
 
         if not keywords:
-            raise Exception("keywords list is required")
+            return ActionError(message="keywords list is required")
 
         try:
             keyword_plan_idea_service = client.get_service("KeywordPlanIdeaService")
@@ -2089,4 +2101,4 @@ class GenerateKeywordForecastAction(ActionHandler):
 
         except Exception as e:
             logger.exception(f"Failed to generate keyword forecast: {str(e)}")
-            raise
+            return ActionError(message=str(e))
