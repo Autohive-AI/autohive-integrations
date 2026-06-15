@@ -93,19 +93,19 @@ class UpdateConversationAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             conversation_id = inputs["conversation_id"]
-            body: Dict[str, Any] = {}
+            body: Dict[str, Any] = {"id": conversation_id}
             if inputs.get("subject") is not None:
                 body["subject"] = inputs["subject"]
             if inputs.get("color") is not None:
                 body["color"] = inputs["color"]
             if inputs.get("assignee_id") is not None:
-                body["assignee_id"] = inputs["assignee_id"]
+                body["add_assignees"] = [inputs["assignee_id"]]
             if inputs.get("team_id") is not None:
-                body["team_id"] = inputs["team_id"]
+                body["team"] = inputs["team_id"]
             if inputs.get("shared_label_ids") is not None:
-                body["shared_label_ids"] = inputs["shared_label_ids"]
+                body["add_shared_labels"] = inputs["shared_label_ids"]
             if inputs.get("closed") is not None:
-                body["closed"] = inputs["closed"]
+                body["close"] = inputs["closed"]
             if inputs.get("snoozed_until") is not None:
                 body["snoozed_until"] = inputs["snoozed_until"]
 
@@ -113,7 +113,7 @@ class UpdateConversationAction(ActionHandler):
                 f"{BASE_URL}/conversations/{conversation_id}",
                 method="PATCH",
                 headers=_get_headers(context),
-                json={"conversation": body},
+                json={"conversations": [body]},
             )
             if response.status not in (200, 201, 204):
                 err = response.data.get("error", {}).get("message", f"HTTP {response.status}")
@@ -435,7 +435,7 @@ class UpdateContactAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             contact_id = inputs["contact_id"]
-            body: Dict[str, Any] = {}
+            body: Dict[str, Any] = {"id": contact_id}
             if inputs.get("first_name") is not None:
                 body["first_name"] = inputs["first_name"]
             if inputs.get("last_name") is not None:
@@ -451,7 +451,7 @@ class UpdateContactAction(ActionHandler):
                 f"{BASE_URL}/contacts/{contact_id}",
                 method="PATCH",
                 headers=_get_headers(context),
-                json={"contact": body},
+                json={"contacts": [body]},
             )
             if response.status not in (200, 201, 204):
                 err = response.data.get("error", {}).get("message", f"HTTP {response.status}")

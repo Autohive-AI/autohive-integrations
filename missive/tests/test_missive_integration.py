@@ -161,8 +161,7 @@ class TestConversations:
         )
         assert result.type == ResultType.ACTION
         data = result.result.data
-        if not data["result"]:
-            pytest.skip(f"update_conversation rejected by API (token may lack Operator role): {data.get('error')}")
+        assert data["result"] is True, f"update_conversation failed: {data.get('error')}"
         print(f"[OK] update_conversation: {conv_id}")
 
 
@@ -363,8 +362,7 @@ class TestContacts:
         )
         assert update_result.type == ResultType.ACTION
         udata = update_result.result.data
-        if not udata["result"]:
-            pytest.skip(f"update_contact rejected by API (token may lack Operator role): {udata.get('error')}")
+        assert udata["result"] is True, f"update_contact failed: {udata.get('error')}"
         print(f"[OK] update_contact: {contact_id}")
         print(f"[OK] update_contact: {contact_id}")
 

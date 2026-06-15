@@ -120,7 +120,7 @@
     },
     "update_conversation": {
       "display_name": "Update Conversation",
-      "description": "Update conversation state (close, assign, snooze). Requires Operator or Admin role on the Missive organization \u2014 personal account tokens return Invalid resource ID(s).",
+      "description": "Update conversation state (close, assign, label, snooze). Requires the token owner to be a member of the conversation.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -134,7 +134,7 @@
           },
           "color": {
             "type": "string",
-            "description": "Conversation color label"
+            "description": "Conversation color as a CSS hex code (e.g. #ff0000) or null to clear"
           },
           "assignee_id": {
             "type": "string",
