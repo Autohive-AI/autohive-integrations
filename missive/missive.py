@@ -22,7 +22,7 @@ def _first(data: Any, key: str) -> Any:
         return items[0] if items else {}
     if isinstance(items, dict):
         return items
-    return data
+    return {}
 
 
 _TEAM_MAILBOXES = {"team_inbox", "team_closed", "team_all"}
@@ -34,9 +34,15 @@ class ListConversationsAction(ActionHandler):
         try:
             mailbox = inputs["mailbox"]
             if mailbox in _TEAM_MAILBOXES:
-                params: Dict[str, Any] = {mailbox: inputs.get("team_id", "")}
+                team_id = inputs.get("team_id")
+                if not team_id:
+                    return ActionResult(data={"conversations": [], "result": False, "error": "team_id is required for team mailboxes"}, cost_usd=0.0)
+                params: Dict[str, Any] = {mailbox: team_id}
             elif mailbox == "shared_label":
-                params = {mailbox: inputs.get("shared_label_id", "")}
+                shared_label_id = inputs.get("shared_label_id")
+                if not shared_label_id:
+                    return ActionResult(data={"conversations": [], "result": False, "error": "shared_label_id is required for shared_label mailbox"}, cost_usd=0.0)
+                params = {mailbox: shared_label_id}
             else:
                 params = {mailbox: "true"}
             if inputs.get("limit"):
@@ -97,7 +103,7 @@ class UpdateConversationAction(ActionHandler):
                 f"{BASE_URL}/conversations/{conversation_id}",
                 method="PATCH",
                 headers=_get_headers(context),
-                json={"conversations": body},
+                json={"conversation": body},
             )
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:
@@ -249,7 +255,7 @@ class CreateMessageAction(ActionHandler):
                 headers=_get_headers(context),
                 json={"messages": body},
             )
-            message = response.data.get("messages", {})
+            message = response.data.get("message", response.data.get("messages", {}))
             return ActionResult(data={"message": message, "result": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"message": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -290,7 +296,7 @@ class CreateDraftAction(ActionHandler):
                 headers=_get_headers(context),
                 json={"drafts": body},
             )
-            draft = response.data.get("drafts", {})
+            draft = response.data.get("draft", response.data.get("drafts", {}))
             return ActionResult(data={"draft": draft, "result": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"draft": {}, "result": False, "error": str(e)}, cost_usd=0.0)
@@ -432,7 +438,7 @@ class UpdateContactAction(ActionHandler):
                 f"{BASE_URL}/contacts/{contact_id}",
                 method="PATCH",
                 headers=_get_headers(context),
-                json={"contacts": body},
+                json={"contact": body},
             )
             contact = _first(response.data, "contacts")
             return ActionResult(data={"contact": contact, "result": True}, cost_usd=0.0)
@@ -507,6 +513,8 @@ class CreateAnalyticsReportAction(ActionHandler):
                 json={"reports": body},
             )
             report_id = response.data.get("reports", {}).get("id") or response.data.get("id")
+            if not report_id:
+                return ActionResult(data={"report_id": None, "result": False, "error": "report_id not found in response"}, cost_usd=0.0)
             return ActionResult(data={"report_id": report_id, "result": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"report_id": None, "result": False, "error": str(e)}, cost_usd=0.0)
