@@ -30,7 +30,7 @@ TEST_EMAIL = "shubhanksagar3@gmail.com"
 @pytest.fixture
 def live_context():
     if not API_TOKEN:
-        pytest.skip("MISSIVE_API_TOKEN not set — skipping integration tests")
+        pytest.skip("MISSIVE_API_TOKEN not set - skipping integration tests")
 
     import aiohttp
 
@@ -147,6 +147,21 @@ class TestConversations:
         assert isinstance(data["drafts"], list)
         print(f"[OK] list_conversation_drafts: {len(data['drafts'])} drafts")
 
+    @pytest.mark.destructive
+    async def test_update_conversation(self, live_context):
+        list_result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 2}, live_context)
+        conversations = list_result.result.data["conversations"]
+        if not conversations:
+            pytest.skip("No conversations available")
+
+        conv_id = conversations[0]["id"]
+        result = await missive.execute_action(
+            "update_conversation", {"conversation_id": conv_id, "closed": False}, live_context
+        )
+        assert result.type == ResultType.ACTION
+        assert result.result.data["result"] is True
+        print(f"[OK] update_conversation: {conv_id}")
+
 
 # ─────────────────────────────────────────────
 # Messages
@@ -237,7 +252,7 @@ class TestPosts:
         conv_id = conversations[0]["id"]
         result = await missive.execute_action(
             "create_post",
-            {"text": "Integration test post — autohive", "conversation_id": conv_id},
+            {"text": "Integration test post - autohive", "conversation_id": conv_id},
             live_context,
         )
         assert result.type == ResultType.ACTION
@@ -259,6 +274,20 @@ class TestContacts:
         assert data["result"] is True
         assert isinstance(data["contacts"], list)
         print(f"[OK] list_contacts: {len(data['contacts'])} contacts")
+
+    async def test_list_contacts_with_book_filter(self, live_context):
+        books_result = await missive.execute_action("list_contact_books", {}, live_context)
+        books = books_result.result.data["contact_books"]
+        if not books:
+            pytest.skip("No contact books available")
+
+        book_id = books[0]["id"]
+        result = await missive.execute_action("list_contacts", {"contact_book_id": book_id}, live_context)
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["result"] is True
+        assert isinstance(data["contacts"], list)
+        print(f"[OK] list_contacts with book filter {book_id}: {len(data['contacts'])} contacts")
 
     async def test_list_contact_books(self, live_context):
         result = await missive.execute_action("list_contact_books", {}, live_context)
