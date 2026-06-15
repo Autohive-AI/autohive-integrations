@@ -24,8 +24,8 @@ from missive.missive import missive
 pytestmark = pytest.mark.integration
 
 API_TOKEN = os.environ.get("MISSIVE_API_TOKEN", "")
-ORG_ID = os.environ.get("MISSIVE_ORG_ID", "019ec98d-6fcf-7260-b6c1-3171a1f4b857")
-TEST_EMAIL = "shubhanksagar3@gmail.com"
+ORG_ID = os.environ.get("MISSIVE_ORG_ID", "")
+TEST_EMAIL = os.environ.get("MISSIVE_TEST_EMAIL", "test@example.com")
 
 
 @pytest.fixture
@@ -171,7 +171,21 @@ class TestConversations:
 
 class TestMessages:
     async def test_list_messages(self, live_context):
-        result = await missive.execute_action("list_messages", {"limit": 5}, live_context)
+        conv_result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 10}, live_context)
+        email_message_id = None
+        for conv in conv_result.result.data.get("conversations", []):
+            msg_result = await missive.execute_action(
+                "list_conversation_messages", {"conversation_id": conv["id"]}, live_context
+            )
+            for msg in msg_result.result.data.get("messages", []):
+                if msg.get("email_message_id"):
+                    email_message_id = msg["email_message_id"]
+                    break
+            if email_message_id:
+                break
+        if not email_message_id:
+            pytest.skip("No email_message_id found in recent messages")
+        result = await missive.execute_action("list_messages", {"email_message_id": email_message_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["result"] is True
@@ -325,7 +339,7 @@ class TestContacts:
             "create_contact",
             {
                 "contact_book_id": book_id,
-                "contacts": [{"first_name": "AutohiveTest", "last_name": f"Integration{ts}"}],
+                "contacts": [{"first_name": "AutohiveTest", "last_name": f"Integration{ts}", "kind": "person"}],
             },
             live_context,
         )

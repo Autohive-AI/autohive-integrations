@@ -108,7 +108,7 @@ async def test_list_conversation_drafts():
 
 async def test_list_messages():
     ctx = make_ctx({"messages": [{"id": "m1"}]})
-    result = await missive.execute_action("list_messages", {}, ctx)
+    result = await missive.execute_action("list_messages", {"email_message_id": "<test@example.com>"}, ctx)
     data = result.result.data
     assert data["result"] is True
     assert isinstance(data["messages"], list)
@@ -187,7 +187,7 @@ async def test_create_contact():
     ctx = make_ctx({"contacts": [{"id": "ct1"}]})
     result = await missive.execute_action(
         "create_contact",
-        {"contact_book_id": "cb1", "contacts": [{"first_name": "Alice", "last_name": "Smith"}]},
+        {"contact_book_id": "cb1", "contacts": [{"first_name": "Alice", "last_name": "Smith", "kind": "person"}]},
         ctx,
     )
     data = result.result.data
