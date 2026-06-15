@@ -445,18 +445,6 @@
                         "type": "string",
                         "description": "Message subject"
                     },
-                    "sender": {
-                        "type": "object",
-                        "description": "Sender details",
-                        "properties": {
-                            "name": {
-                                "type": "string"
-                            },
-                            "handle": {
-                                "type": "string"
-                            }
-                        }
-                    },
                     "conversation_id": {
                         "type": "string",
                         "description": "Append to existing conversation (optional)"
