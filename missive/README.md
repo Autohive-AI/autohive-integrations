@@ -35,7 +35,7 @@ Missive is a collaborative team inbox app that unifies email, SMS, WhatsApp, and
 | `update_contact` | Update a contact | `contact_id`, `first_name`, `infos` | `contact` |
 | `list_contact_books` | List contact books | `limit` | `contact_books[]` |
 | `list_contact_groups` | List groups in a contact book | `contact_book_id`, `kind` | `contact_groups[]` |
-| `create_analytics_report` | Generate an analytics report (async) | `start`, `end`, `timezone` | `report_id` |
+| `create_analytics_report` | Generate an analytics report (async) | `start`, `end`, `organization_id` | `report_id` |
 | `get_analytics_report` | Retrieve a completed analytics report | `report_id` | `report` |
 
 ## API Info
