@@ -1,3 +1,7 @@
+import base64
+import json
+import uuid
+
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
 from typing import Dict, Any
 
@@ -6,6 +10,9 @@ powerbi = Integration.load()
 
 # Power BI REST API Base URL
 POWERBI_API_BASE = "https://api.powerbi.com/v1.0/myorg"
+
+# Microsoft Fabric REST API Base URL (used for report creation)
+FABRIC_API_BASE = "https://api.fabric.microsoft.com/v1"
 
 # ---- Action Handlers ----
 
@@ -520,3 +527,226 @@ class ExecuteQueriesAction(ActionHandler):
 
         except Exception as e:
             return {"results": [], "result": False, "error": str(e)}
+
+
+# ---- Helpers for create_report ----
+
+def _to_base64(obj: dict) -> str:
+    return base64.b64encode(json.dumps(obj, separators=(",", ":")).encode("utf-8")).decode("utf-8")
+
+
+_VISUAL_TYPE_MAP = {
+    "table": "tableEx",
+    "bar": "barChart",
+    "bar_chart": "barChart",
+    "line": "lineChart",
+    "line_chart": "lineChart",
+    "card": "card",
+    "pie": "pieChart",
+    "pie_chart": "pieChart",
+    "column": "columnChart",
+    "column_chart": "columnChart",
+    "scatter": "scatterChart",
+    "area": "areaChart",
+    "donut": "donutChart",
+    "matrix": "pivotTable",
+}
+
+
+def _build_visual_json(visual_id: str, spec: dict, x: float, y: float, width: float, height: float) -> dict:
+    pbi_type = _VISUAL_TYPE_MAP.get(spec.get("type", "table").lower(), spec.get("type", "tableEx"))
+    table = spec.get("table", "")
+    columns = spec.get("columns", [])
+    title = spec.get("title", "")
+
+    # PBIR uses query.queryState with per-bucket projections (not prototypeQuery)
+    query_state = {}
+
+    if pbi_type in ("tableEx", "pivotTable"):
+        query_state["Values"] = {
+            "projections": [
+                {
+                    "field": {"Column": {"Expression": {"SourceRef": {"Entity": table}}, "Property": col}},
+                    "queryRef": f"{table}.{col}",
+                    "active": True,
+                }
+                for col in columns
+            ]
+        }
+
+    elif pbi_type == "card":
+        if columns:
+            col = columns[0]
+            query_state["Values"] = {
+                "projections": [
+                    {
+                        "field": {"Measure": {"Expression": {"SourceRef": {"Entity": table}}, "Property": col}},
+                        "queryRef": f"{table}.{col}",
+                    }
+                ]
+            }
+
+    else:
+        # Charts: first column → Category axis, remaining → Y axis (measures)
+        if columns:
+            cat = columns[0]
+            query_state["Category"] = {
+                "projections": [
+                    {
+                        "field": {"Column": {"Expression": {"SourceRef": {"Entity": table}}, "Property": cat}},
+                        "queryRef": f"{table}.{cat}",
+                        "active": True,
+                    }
+                ]
+            }
+            y_projections = [
+                {
+                    "field": {"Measure": {"Expression": {"SourceRef": {"Entity": table}}, "Property": col}},
+                    "queryRef": f"{table}.{col}",
+                }
+                for col in columns[1:]
+            ]
+            if y_projections:
+                query_state["Y"] = {"projections": y_projections}
+
+    visual_obj: dict = {
+        "visualType": pbi_type,
+        "query": {"queryState": query_state},
+    }
+    if title:
+        visual_obj["display"] = {"title": {"text": title}}
+
+    return {
+        "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+        "name": visual_id,
+        "position": {"x": x, "y": y, "z": 1000, "width": width, "height": height, "tabOrder": 1000},
+        "visual": visual_obj,
+    }
+
+
+def _build_report_parts(dataset_id: str, display_name: str, pages: list) -> list:
+    parts = []
+
+    # .platform — Fabric item metadata (required by the API)
+    parts.append({
+        "path": ".platform",
+        "payload": _to_base64({
+            "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+            "metadata": {"type": "Report", "displayName": display_name},
+            "config": {"version": "2.0", "logicalId": str(uuid.uuid4())},
+        }),
+        "payloadType": "InlineBase64",
+    })
+
+    # definition.pbir — v2.0.0 schema: just connectionString with semanticmodelid
+    parts.append({
+        "path": "definition.pbir",
+        "payload": _to_base64({
+            "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definitionProperties/2.0.0/schema.json",
+            "version": "4.0",
+            "datasetReference": {
+                "byConnection": {
+                    "connectionString": f"semanticmodelid={dataset_id}",
+                }
+            },
+        }),
+        "payloadType": "InlineBase64",
+    })
+
+    # definition/report.json — report-level settings and theme
+    parts.append({
+        "path": "definition/report.json",
+        "payload": _to_base64({
+            "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/3.1.0/schema.json",
+            "themeCollection": {
+                "baseTheme": {"name": "CY24SU10", "reportVersionAtImport": {"visual": "2.5.0", "report": "3.1.0", "page": "2.3.0"}, "type": "SharedResources"}
+            },
+        }),
+        "payloadType": "InlineBase64",
+    })
+
+    page_ids = []
+    page_parts = []
+
+    grid_cols = 2
+    visual_width = 600.0
+    visual_height = 350.0
+    padding = 20.0
+
+    for page_spec in pages:
+        page_id = uuid.uuid4().hex[:20]
+        page_ids.append(page_id)
+
+        visual_parts = []
+        for i, visual_spec in enumerate(page_spec.get("visuals", [])):
+            visual_id = uuid.uuid4().hex[:20]
+            col = i % grid_cols
+            row = i // grid_cols
+            x = float(visual_spec.get("x", col * (visual_width + padding) + padding))
+            y = float(visual_spec.get("y", row * (visual_height + padding) + padding))
+            width = float(visual_spec.get("width", visual_width))
+            height = float(visual_spec.get("height", visual_height))
+
+            visual_parts.append({
+                "path": f"definition/pages/{page_id}/visuals/{visual_id}/visual.json",
+                "payload": _to_base64(_build_visual_json(visual_id, visual_spec, x, y, width, height)),
+                "payloadType": "InlineBase64",
+            })
+
+        page_parts.append({
+            "path": f"definition/pages/{page_id}/page.json",
+            "payload": _to_base64({
+                "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/2.0.0/schema.json",
+                "name": page_id,
+                "displayName": page_spec.get("name", "Page 1"),
+                "displayOption": "FitToPage",
+                "height": 720,
+                "width": 1280,
+            }),
+            "payloadType": "InlineBase64",
+        })
+        page_parts.extend(visual_parts)
+
+    parts.append({
+        "path": "definition/pages/pages.json",
+        "payload": _to_base64({
+            "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/pagesMetadata/1.0.0/schema.json",
+            "pageOrder": page_ids,
+        }),
+        "payloadType": "InlineBase64",
+    })
+    parts.extend(page_parts)
+
+    return parts
+
+
+@powerbi.action("create_report")
+class CreateReportAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            display_name = inputs["display_name"]
+            workspace_id = inputs["workspace_id"]
+            dataset_id = inputs["dataset_id"]
+            pages = inputs.get("pages", [])
+
+            parts = _build_report_parts(dataset_id, display_name, pages)
+
+            url = f"{FABRIC_API_BASE}/workspaces/{workspace_id}/reports"
+            response = await context.fetch(url, method="POST", json={
+                "displayName": display_name,
+                "definition": {"parts": parts},
+            })
+
+            # Fabric API may return the created item directly (201) or an operation ID (202).
+            # context.fetch resolves both — if 202, the SDK follows the Location header and
+            # returns the final resource once the async operation completes.
+            return {
+                "id": response.get("id"),
+                "display_name": response.get("displayName"),
+                "workspace_id": response.get("workspaceId"),
+                "web_url": response.get("webUrl"),
+                "result": True,
+            }
+
+        except Exception as e:
+            return {"result": False, "error": str(e)}
