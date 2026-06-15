@@ -120,7 +120,7 @@
     },
     "update_conversation": {
       "display_name": "Update Conversation",
-      "description": "Update conversation state (close, assign, snooze). Only works with organization-owned conversations \u2014 personal conversations return an invalid resource ID error.",
+      "description": "Update conversation state (close, assign, snooze). Requires Operator or Admin role on the Missive organization \u2014 personal account tokens return Invalid resource ID(s).",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -632,7 +632,7 @@
     },
     "create_post": {
       "display_name": "Create Post",
-      "description": "Inject a post into a conversation. Can also manage conversation state (close, assign, label) as part of the same operation. Creates a new conversation if no ID is provided.",
+      "description": "Inject a post into a conversation to update its state or notify assignees.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -679,7 +679,7 @@
           },
           "body": {
             "type": "string",
-            "description": "Post content text"
+            "description": "Post text content (sent as the body.text field to the Missive API)"
           }
         },
         "required": [
@@ -855,7 +855,7 @@
     },
     "update_contact": {
       "display_name": "Update Contact",
-      "description": "Update a contact by ID. Only contacts in an organization contact book can be updated \u2014 contacts created outside an org context return an invalid resource ID error.",
+      "description": "Update a contact by ID. Requires write access to the contact book \u2014 the API token must belong to an Operator or Admin of the organization that owns the contact.",
       "input_schema": {
         "type": "object",
         "properties": {
