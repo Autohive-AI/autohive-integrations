@@ -331,7 +331,7 @@ class DeleteDraftAction(ActionHandler):
 class CreatePostAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            body: Dict[str, Any] = {"text": inputs["text"]}
+            body: Dict[str, Any] = {"body": inputs["body"]}
             if inputs.get("conversation_id"):
                 body["conversation"] = inputs["conversation_id"]
             if inputs.get("subject"):

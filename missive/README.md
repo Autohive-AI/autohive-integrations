@@ -28,7 +28,7 @@ Missive is a collaborative team inbox app that unifies email, SMS, WhatsApp, and
 | `create_message` | Create an incoming custom channel message | `channel_id`, `body` | `message` |
 | `create_draft` | Create or send a draft | `channel_id`, `body`, `to`, `send` | `draft` |
 | `delete_draft` | Delete a draft | `draft_id` | `result` |
-| `create_post` | Inject a post and manage conversation state | `text`, `conversation_id`, `close` | `post`, `conversation` |
+| `create_post` | Inject a post and manage conversation state | `body`, `conversation_id`, `close` | `post`, `conversation` |
 | `list_contacts` | List contacts with optional search | `search`, `contact_book_id` | `contacts[]` |
 | `get_contact` | Get a specific contact | `contact_id` | `contact` |
 | `create_contact` | Create one or more contacts | `contacts[]` | `contacts[]` |

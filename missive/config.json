@@ -120,7 +120,7 @@
     },
     "update_conversation": {
       "display_name": "Update Conversation",
-      "description": "Update conversation state \u00e2\u20ac\u201d close, reopen, assign, snooze, add/remove labels, change subject or color. Supports comma-separated IDs for bulk updates.",
+      "description": "Update conversation state (close, assign, snooze). Only works with organization-owned conversations \u2014 personal conversations return an invalid resource ID error.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -413,7 +413,7 @@
     },
     "create_message": {
       "display_name": "Create Message",
-      "description": "Create an incoming message in a custom channel, simulating a message received from an external system.",
+      "description": "Inject an incoming message into a custom channel conversation. The account field must be the custom channel account token, not a standard email account.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -423,7 +423,7 @@
           },
           "account": {
             "type": "string",
-            "description": "Account ID that owns the custom channel"
+            "description": "Custom channel account token (from the custom channel configuration, not an email account ID)"
           },
           "from_field": {
             "type": "object",
@@ -640,10 +640,6 @@
             "type": "string",
             "description": "Conversation ID to post into (omit to create a new conversation)"
           },
-          "text": {
-            "type": "string",
-            "description": "Post text content"
-          },
           "subject": {
             "type": "string",
             "description": "New conversation subject (for new conversations)"
@@ -680,10 +676,14 @@
                 "description": "Notification title text"
               }
             }
+          },
+          "body": {
+            "type": "string",
+            "description": "Post content text"
           }
         },
         "required": [
-          "text"
+          "body"
         ]
       },
       "output_schema": {
@@ -855,7 +855,7 @@
     },
     "update_contact": {
       "display_name": "Update Contact",
-      "description": "Update a contact's details. Note: infos and memberships arrays must be provided in full as they replace existing values.",
+      "description": "Update a contact by ID. Only contacts in an organization contact book can be updated \u2014 contacts created outside an org context return an invalid resource ID error.",
       "input_schema": {
         "type": "object",
         "properties": {
