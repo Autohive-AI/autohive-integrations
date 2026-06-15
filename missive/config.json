@@ -17,10 +17,7 @@
                     "label": "API Token",
                     "help_text": "Generate your token in Missive \u00e2\u2020\u2019 Preferences \u00e2\u2020\u2019 API. Requires the Productive plan."
                 }
-            },
-            "required": [
-                "api_token"
-            ]
+            }
         }
     },
     "actions": {
