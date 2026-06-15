@@ -436,7 +436,12 @@ class CreatePostAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return ActionResult(data={"post": response.data}, cost_usd=0.0)
+            # Circle wraps create/update responses as {"message", "post"}; unwrap to the
+            # post object so data["post"] holds post details (matching the output schema),
+            # not the wrapper. Falls back to the raw body if the "post" key is absent.
+            body = response.data
+            post = body.get("post", body) if isinstance(body, dict) else body
+            return ActionResult(data={"post": post}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=f"Error creating post: {str(e)}")
@@ -471,7 +476,12 @@ class UpdatePostAction(ActionHandler):
             if error_response:
                 return error_response
 
-            return ActionResult(data={"post": response.data}, cost_usd=0.0)
+            # Circle wraps create/update responses as {"message", "post"}; unwrap to the
+            # post object so data["post"] holds post details (matching the output schema),
+            # not the wrapper. Falls back to the raw body if the "post" key is absent.
+            body = response.data
+            post = body.get("post", body) if isinstance(body, dict) else body
+            return ActionResult(data={"post": post}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=f"Error updating post: {str(e)}")

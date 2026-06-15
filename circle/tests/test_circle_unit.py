@@ -202,7 +202,8 @@ async def test_get_post_api_error():
 
 
 async def test_create_post_success_and_tiptap_payload():
-    ctx = make_ctx({"id": "new1", "name": "T"})
+    # Circle's real create response wraps the post: {"message", "post": {...}}.
+    ctx = make_ctx({"message": "Post created", "post": {"id": "new1", "name": "T"}})
     result = await circle_integration.execute_action(
         "create_post",
         {"space_id": 5, "name": "T", "body": "# Heading\n\nBody"},
@@ -227,7 +228,8 @@ async def test_create_post_missing_required_validation_error():
 
 
 async def test_update_post_success_only_sends_provided_fields():
-    ctx = make_ctx({"id": "p1", "name": "Renamed"})
+    # Circle's real update response wraps the post: {"message", "post": {...}}.
+    ctx = make_ctx({"message": "Post updated", "post": {"id": "p1", "name": "Renamed"}})
     result = await circle_integration.execute_action("update_post", {"post_id": "p1", "name": "Renamed"}, ctx)
     assert result.result.data["post"]["name"] == "Renamed"
     payload = ctx.fetch.call_args.kwargs.get("json", {})

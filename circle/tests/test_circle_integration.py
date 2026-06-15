@@ -4,8 +4,9 @@ End-to-end integration tests for the Circle integration.
 These tests call the real Circle Admin API (v2) and require a valid admin API
 token set in the CIRCLE_API_TOKEN environment variable.
 
-Run all read-only tests:
-    pytest circle/tests/test_circle_integration.py -m integration
+Run read-only tests (excludes destructive — the post lifecycle carries both the
+integration and destructive markers, so a bare `-m integration` would select it):
+    pytest circle/tests/test_circle_integration.py -m "integration and not destructive"
 
 Run destructive tests (creates/updates real data on the community):
     pytest circle/tests/test_circle_integration.py -m "integration and destructive"
