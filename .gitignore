@@ -1,5 +1,9 @@
 **/dependencies/*
-*/*.zip
+# Ignore hiveup package artifacts anywhere, including the repo root (*/*.zip only
+# matched one level deep, so root-level Calendly.zip etc. were left untracked).
+*.zip
+# One-off PR body scratch files
+.pr_body_*.md
 
 .DS_Store
 **/__pycache__/*
