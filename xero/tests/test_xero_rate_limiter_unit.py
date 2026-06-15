@@ -161,14 +161,20 @@ class TestConcurrencyLimit:
     async def test_semaphore_caps_concurrent_requests(self, mock_context):
         limiter = XeroRateLimiter()
 
-        call_order = []
+        active = 0
+        max_active = 0
         completed = []
 
         async def slow_fetch(*args, **kwargs):
-            call_order.append("start")
-            await asyncio.sleep(0.05)
-            completed.append("done")
-            return _make_fetch_response(data={})
+            nonlocal active, max_active
+            active += 1
+            max_active = max(max_active, active)
+            try:
+                await asyncio.sleep(0.05)
+                completed.append("done")
+                return _make_fetch_response(data={})
+            finally:
+                active -= 1
 
         mock_context.fetch.side_effect = slow_fetch
 
@@ -177,6 +183,10 @@ class TestConcurrencyLimit:
 
         # All 7 requests should complete despite the semaphore cap
         assert len(completed) == 7
+        # ...but no more than MAX_CONCURRENT_REQUESTS were ever in flight at once,
+        # proving the semaphore actually caps concurrency rather than the requests
+        # just happening to finish.
+        assert max_active <= XeroRateLimiter.MAX_CONCURRENT_REQUESTS
 
     async def test_semaphore_max_value_is_five(self):
         limiter = XeroRateLimiter()
