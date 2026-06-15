@@ -135,7 +135,9 @@ async def test_list_event_types_forwards_params():
     ctx = make_ctx({"collection": []})
     await calendly_integration.execute_action("list_event_types", {"user": "u1", "active": True, "count": 5}, ctx)
     params = ctx.fetch.call_args.kwargs.get("params", {})
-    assert params == {"user": "u1", "active": True, "count": 5}
+    # active must be serialized to the string "true"/"false" — aiohttp cannot put a
+    # Python bool into query params, and Calendly's API expects the lowercase string.
+    assert params == {"user": "u1", "active": "true", "count": 5}
 
 
 @pytest.mark.asyncio

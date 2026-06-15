@@ -67,7 +67,9 @@ class ListEventTypesAction(ActionHandler):
             if inputs.get("organization") is not None:
                 params["organization"] = inputs["organization"]
             if inputs.get("active") is not None:
-                params["active"] = inputs["active"]
+                # Calendly's API expects the query value as the string "true"/"false";
+                # aiohttp refuses to serialize a Python bool into query params.
+                params["active"] = str(inputs["active"]).lower()
             if inputs.get("sort") is not None:
                 params["sort"] = inputs["sort"]
             if inputs.get("count") is not None:
