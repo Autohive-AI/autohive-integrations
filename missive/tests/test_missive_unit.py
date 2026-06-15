@@ -115,7 +115,7 @@ async def test_list_messages():
 
 
 async def test_get_message():
-    ctx = make_ctx({"messages": {"id": "m1", "body": "Hi"}})
+    ctx = make_ctx({"messages": [{"id": "m1", "body": "Hi"}]})
     result = await missive.execute_action("get_message", {"message_id": "m1"}, ctx)
     data = result.result.data
     assert data["result"] is True

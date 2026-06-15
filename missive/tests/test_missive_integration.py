@@ -24,6 +24,7 @@ from missive.missive import missive
 pytestmark = pytest.mark.integration
 
 API_TOKEN = os.environ.get("MISSIVE_API_TOKEN", "")
+ORG_ID = os.environ.get("MISSIVE_ORG_ID", "019ec98d-6fcf-7260-b6c1-3171a1f4b857")
 TEST_EMAIL = "shubhanksagar3@gmail.com"
 
 
@@ -357,9 +358,11 @@ class TestContacts:
 class TestAnalytics:
     @pytest.mark.destructive
     async def test_create_and_get_analytics_report(self, live_context):
+        if not ORG_ID:
+            pytest.skip("MISSIVE_ORG_ID not set - skipping analytics test")
         end = int(time.time())
-        start = end - 7 * 24 * 3600  # last 7 days
-        org_id = "019ec98d-6fcf-7260-b6c1-3171a1f4b857"  # Autohive org ID
+        start = end - 7 * 24 * 3600
+        org_id = ORG_ID
 
         create_result = await missive.execute_action(
             "create_analytics_report",
