@@ -36,12 +36,22 @@ class ListConversationsAction(ActionHandler):
             if mailbox in _TEAM_MAILBOXES:
                 team_id = inputs.get("team_id")
                 if not team_id:
-                    return ActionResult(data={"conversations": [], "result": False, "error": "team_id is required for team mailboxes"}, cost_usd=0.0)
+                    return ActionResult(
+                        data={"conversations": [], "result": False, "error": "team_id is required for team mailboxes"},
+                        cost_usd=0.0,
+                    )
                 params: Dict[str, Any] = {mailbox: team_id}
             elif mailbox == "shared_label":
                 shared_label_id = inputs.get("shared_label_id")
                 if not shared_label_id:
-                    return ActionResult(data={"conversations": [], "result": False, "error": "shared_label_id is required for shared_label mailbox"}, cost_usd=0.0)
+                    return ActionResult(
+                        data={
+                            "conversations": [],
+                            "result": False,
+                            "error": "shared_label_id is required for shared_label mailbox",
+                        },
+                        cost_usd=0.0,
+                    )
                 params = {mailbox: shared_label_id}
             else:
                 params = {mailbox: "true"}
@@ -119,7 +129,7 @@ class MergeConversationsAction(ActionHandler):
                 f"{BASE_URL}/conversations/{conversation_id}/merge",
                 method="POST",
                 headers=_get_headers(context),
-                json={"target_conversation_id": inputs["target_conversation_id"]},
+                json={"target": inputs["target_conversation_id"]},
             )
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:
@@ -199,7 +209,7 @@ class ListConversationDraftsAction(ActionHandler):
 class ListMessagesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            params: Dict[str, Any] = {}
+            params: Dict[str, Any] = {"email_message_id": inputs["email_message_id"]}
             if inputs.get("limit"):
                 params["limit"] = inputs["limit"]
 
@@ -323,7 +333,7 @@ class CreatePostAction(ActionHandler):
         try:
             body: Dict[str, Any] = {"text": inputs["text"]}
             if inputs.get("conversation_id"):
-                body["conversation_id"] = inputs["conversation_id"]
+                body["conversation"] = inputs["conversation_id"]
             if inputs.get("subject"):
                 body["subject"] = inputs["subject"]
             if inputs.get("close") is not None:
@@ -404,7 +414,7 @@ class CreateContactAction(ActionHandler):
         try:
             contact_book_id = inputs["contact_book_id"]
             raw = inputs["contacts"]
-            payload = [dict(c, contact_book_id=contact_book_id) for c in raw]
+            payload = [dict(c, contact_book=contact_book_id) for c in raw]
             response = await context.fetch(
                 f"{BASE_URL}/contacts",
                 method="POST",
@@ -514,7 +524,9 @@ class CreateAnalyticsReportAction(ActionHandler):
             )
             report_id = response.data.get("reports", {}).get("id") or response.data.get("id")
             if not report_id:
-                return ActionResult(data={"report_id": None, "result": False, "error": "report_id not found in response"}, cost_usd=0.0)
+                return ActionResult(
+                    data={"report_id": None, "result": False, "error": "report_id not found in response"}, cost_usd=0.0
+                )
             return ActionResult(data={"report_id": report_id, "result": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"report_id": None, "result": False, "error": str(e)}, cost_usd=0.0)
