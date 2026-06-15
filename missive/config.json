@@ -655,6 +655,10 @@
                             "type": "string"
                         },
                         "description": "Apply these shared label IDs"
+                    },
+                    "notification": {
+                        "type": "string",
+                        "description": "Custom notification text shown to assignees"
                     }
                 },
                 "required": [
