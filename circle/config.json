@@ -1,7 +1,7 @@
 {
   "name": "Circle",
   "display_name": "Circle",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Circle community platform integration for managing posts, members, spaces, and events",
   "entry_point": "circle.py",
   "auth": {
@@ -61,12 +61,7 @@
           "count": {
             "type": "integer",
             "description": "Total number of posts found"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "get_post": {
@@ -88,12 +83,7 @@
           "post": {
             "type": "object",
             "description": "Post details including title, body, author, and metadata"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "create_post": {
@@ -143,12 +133,7 @@
           "post": {
             "type": "object",
             "description": "Created post details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "update_post": {
@@ -187,12 +172,7 @@
           "post": {
             "type": "object",
             "description": "Updated post details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "search_member_by_email": {
@@ -214,12 +194,7 @@
           "member": {
             "type": "object",
             "description": "Member details if found"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "list_members": {
@@ -256,12 +231,7 @@
           "count": {
             "type": "integer",
             "description": "Total number of members"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "get_member": {
@@ -283,12 +253,7 @@
           "member": {
             "type": "object",
             "description": "Member details including profile, activity, and membership info"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "search_spaces": {
@@ -324,12 +289,7 @@
           "count": {
             "type": "integer",
             "description": "Total number of spaces found"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "get_space": {
@@ -351,12 +311,7 @@
           "space": {
             "type": "object",
             "description": "Space details including name, type, and settings"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "search_events": {
@@ -397,12 +352,7 @@
           "count": {
             "type": "integer",
             "description": "Total number of events found"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "get_event": {
@@ -424,12 +374,7 @@
           "event": {
             "type": "object",
             "description": "Event details including date, location, attendees, and description"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "create_comment": {
@@ -455,12 +400,7 @@
           "comment": {
             "type": "object",
             "description": "Created comment details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "get_post_comments": {
@@ -491,12 +431,7 @@
           "count": {
             "type": "integer",
             "description": "Total number of comments"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "get_community_info": {
@@ -513,12 +448,7 @@
           "community": {
             "type": "object",
             "description": "Community details including name, settings, and statistics"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "add_member_tags": {
@@ -547,12 +477,7 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "remove_member_tags": {
@@ -581,12 +506,7 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "add_member_to_space_groups": {
@@ -615,12 +535,7 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "remove_member_from_space_groups": {
@@ -649,12 +564,7 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "list_tags": {
@@ -686,12 +596,7 @@
           "count": {
             "type": "integer",
             "description": "Total number of tags"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "list_space_groups": {
@@ -723,12 +628,7 @@
           "count": {
             "type": "integer",
             "description": "Total number of space groups"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "list_access_groups": {
@@ -760,12 +660,7 @@
           "count": {
             "type": "integer",
             "description": "Total number of access groups"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "add_member_to_access_groups": {
@@ -794,12 +689,7 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     },
     "remove_member_from_access_groups": {
@@ -828,12 +718,7 @@
           "member": {
             "type": "object",
             "description": "Updated member details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          }
-        }
+          }        }
       }
     }
   }

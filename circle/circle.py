@@ -1,4 +1,11 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ActionError,
+    FetchResponse,
+)
 from typing import Dict, Any, List, Optional
 import mistune
 
@@ -314,24 +321,31 @@ def build_search_params(inputs: Dict[str, Any], allowed_params: List[str]) -> Di
     return params
 
 
-def handle_api_response(response: Dict[str, Any], default_return: Dict[str, Any]) -> Optional[ActionResult]:
+def handle_api_response(response: FetchResponse) -> Optional[ActionError]:
     """
-    Check API response for errors and handle HTML responses.
-    Returns ActionResult if there's an error, None if response is valid.
+    Check a FetchResponse for errors and handle HTML responses.
+    Returns an ActionError if the request failed (non-2xx status or an error
+    body), None if the response is valid.
     """
-    if "error" in response:
-        error_msg = response.get("error", "Unknown error")
-        # Truncate HTML error pages
-        if isinstance(error_msg, str) and len(error_msg) > 500:
-            error_msg = (
-                "API request failed. Received HTML error page instead of JSON. Check endpoint URL and authentication."
-            )
+    body = response.data
 
-        data = default_return.copy()
-        data["result"] = False
-        data["error"] = f"API request failed: {error_msg}"
-        return ActionResult(data=data, cost_usd=0.0)
-    return None
+    error_msg = None
+    if isinstance(body, dict) and "error" in body:
+        error_msg = body.get("error") or "Unknown error"
+    elif response.status >= 400:
+        # Non-2xx without a structured error body still needs to surface as a failure
+        error_msg = f"HTTP {response.status}"
+
+    if error_msg is None:
+        return None
+
+    # Truncate HTML error pages
+    if isinstance(error_msg, str) and len(error_msg) > 500:
+        error_msg = (
+            "API request failed. Received HTML error page instead of JSON. Check endpoint URL and authentication."
+        )
+
+    return ActionError(message=f"API request failed: {error_msg}")
 
 
 # ---- Post Actions ----
@@ -354,21 +368,19 @@ class SearchPostsAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/posts", headers=headers, params=params)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"posts": [], "count": 0})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
             # Parse response - Circle API returns paginated data
-            posts = response.get("records", [])
-            count = response.get("count", 0)
+            body = response.data
+            posts = body.get("records", [])
+            count = body.get("count", 0)
 
-            return ActionResult(data={"posts": posts, "count": count, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"posts": posts, "count": count}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"posts": [], "count": 0, "result": False, "error": f"Error searching posts: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Error searching posts: {str(e)}")
 
 
 @circle.action("get_post")
@@ -383,16 +395,14 @@ class GetPostAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/posts/{post_id}", headers=headers)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"post": {}})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
-            return ActionResult(data={"post": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"post": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"post": {}, "result": False, "error": f"Error getting post: {str(e)}"}, cost_usd=0.0
-            )
+            return ActionError(message=f"Error getting post: {str(e)}")
 
 
 @circle.action("create_post")
@@ -422,16 +432,14 @@ class CreatePostAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/posts", headers=headers, method="POST", json=post_data)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"post": {}})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
-            return ActionResult(data={"post": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"post": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"post": {}, "result": False, "error": f"Error creating post: {str(e)}"}, cost_usd=0.0
-            )
+            return ActionError(message=f"Error creating post: {str(e)}")
 
 
 @circle.action("update_post")
@@ -459,16 +467,14 @@ class UpdatePostAction(ActionHandler):
             )
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"post": {}})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
-            return ActionResult(data={"post": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"post": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"post": {}, "result": False, "error": f"Error updating post: {str(e)}"}, cost_usd=0.0
-            )
+            return ActionError(message=f"Error updating post: {str(e)}")
 
 
 # ---- Member Actions ----
@@ -489,17 +495,14 @@ class SearchMemberByEmailAction(ActionHandler):
             )
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"member": {}})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
-            return ActionResult(data={"member": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"member": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"member": {}, "result": False, "error": f"Error searching member by email: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Error searching member by email: {str(e)}")
 
 
 @circle.action("list_members")
@@ -519,21 +522,19 @@ class ListMembersAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/community_members", headers=headers, params=params)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"members": [], "count": 0})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
             # Parse response
-            members = response.get("records", [])
-            count = response.get("count", 0)
+            body = response.data
+            members = body.get("records", [])
+            count = body.get("count", 0)
 
-            return ActionResult(data={"members": members, "count": count, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"members": members, "count": count}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"members": [], "count": 0, "result": False, "error": f"Error listing members: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Error listing members: {str(e)}")
 
 
 @circle.action("get_member")
@@ -548,16 +549,14 @@ class GetMemberAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/community_members/{member_id}", headers=headers)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"member": {}})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
-            return ActionResult(data={"member": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"member": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"member": {}, "result": False, "error": f"Error getting member: {str(e)}"}, cost_usd=0.0
-            )
+            return ActionError(message=f"Error getting member: {str(e)}")
 
 
 # ---- Space Actions ----
@@ -580,21 +579,19 @@ class SearchSpacesAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/spaces", headers=headers, params=params)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"spaces": [], "count": 0})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
             # Parse response
-            spaces = response.get("records", [])
-            count = response.get("count", 0)
+            body = response.data
+            spaces = body.get("records", [])
+            count = body.get("count", 0)
 
-            return ActionResult(data={"spaces": spaces, "count": count, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"spaces": spaces, "count": count}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"spaces": [], "count": 0, "result": False, "error": f"Error searching spaces: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Error searching spaces: {str(e)}")
 
 
 @circle.action("get_space")
@@ -609,16 +606,14 @@ class GetSpaceAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/spaces/{space_id}", headers=headers)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"space": {}})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
-            return ActionResult(data={"space": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"space": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"space": {}, "result": False, "error": f"Error getting space: {str(e)}"}, cost_usd=0.0
-            )
+            return ActionError(message=f"Error getting space: {str(e)}")
 
 
 # ---- Event Actions ----
@@ -641,21 +636,19 @@ class SearchEventsAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/events", headers=headers, params=params)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"events": [], "count": 0})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
             # Parse response
-            events = response.get("records", [])
-            count = response.get("count", 0)
+            body = response.data
+            events = body.get("records", [])
+            count = body.get("count", 0)
 
-            return ActionResult(data={"events": events, "count": count, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"events": events, "count": count}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"events": [], "count": 0, "result": False, "error": f"Error searching events: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Error searching events: {str(e)}")
 
 
 @circle.action("get_event")
@@ -670,16 +663,14 @@ class GetEventAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/events/{event_id}", headers=headers)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"event": {}})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
-            return ActionResult(data={"event": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"event": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"event": {}, "result": False, "error": f"Error getting event: {str(e)}"}, cost_usd=0.0
-            )
+            return ActionError(message=f"Error getting event: {str(e)}")
 
 
 # ---- Comment Actions ----
@@ -702,16 +693,14 @@ class CreateCommentAction(ActionHandler):
             )
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"comment": {}})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
-            return ActionResult(data={"comment": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"comment": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"comment": {}, "result": False, "error": f"Error creating comment: {str(e)}"}, cost_usd=0.0
-            )
+            return ActionError(message=f"Error creating comment: {str(e)}")
 
 
 @circle.action("get_post_comments")
@@ -729,21 +718,19 @@ class GetPostCommentsAction(ActionHandler):
             )
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"comments": [], "count": 0})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
             # Parse response
-            comments = response.get("records", [])
-            count = response.get("count", 0)
+            body = response.data
+            comments = body.get("records", [])
+            count = body.get("count", 0)
 
-            return ActionResult(data={"comments": comments, "count": count, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"comments": comments, "count": count}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"comments": [], "count": 0, "result": False, "error": f"Error getting post comments: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Error getting post comments: {str(e)}")
 
 
 # ---- Community Actions ----
@@ -759,17 +746,14 @@ class GetCommunityInfoAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/community", headers=headers)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"community": {}})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
-            return ActionResult(data={"community": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"community": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"community": {}, "result": False, "error": f"Error getting community info: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Error getting community info: {str(e)}")
 
 
 # ---- Member Tag Actions ----
@@ -794,20 +778,18 @@ class AddMemberTagsAction(ActionHandler):
                     json={"user_email": user_email, "member_tag_id": tag_id},
                 )
 
-                error_response = handle_api_response(response, {"member": {}})
+                error_response = handle_api_response(response)
                 if error_response:
                     return error_response
 
-                results.append(response)
+                results.append(response.data)
 
             return ActionResult(
-                data={"member": results[0] if results else {}, "tags_added": len(results), "result": True}, cost_usd=0.0
+                data={"member": results[0] if results else {}, "tags_added": len(results)}, cost_usd=0.0
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"member": {}, "result": False, "error": f"Error adding member tags: {str(e)}"}, cost_usd=0.0
-            )
+            return ActionError(message=f"Error adding member tags: {str(e)}")
 
 
 @circle.action("remove_member_tags")
@@ -829,14 +811,17 @@ class RemoveMemberTagsAction(ActionHandler):
                     params={"user_email": user_email, "member_tag_id": tag_id},
                 )
 
-                # DELETE may return empty response on success
-                if response or response == {}:
-                    removed_count += 1
+                error_response = handle_api_response(response)
+                if error_response:
+                    return error_response
 
-            return ActionResult(data={"tags_removed": removed_count, "result": True}, cost_usd=0.0)
+                # DELETE returns 2xx (often with an empty body) on success
+                removed_count += 1
+
+            return ActionResult(data={"tags_removed": removed_count}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": f"Error removing member tags: {str(e)}"}, cost_usd=0.0)
+            return ActionError(message=f"Error removing member tags: {str(e)}")
 
 
 # ---- Member Space Group Actions ----
@@ -861,22 +846,19 @@ class AddMemberToSpaceGroupsAction(ActionHandler):
                     json={"email": email, "space_group_id": group_id},
                 )
 
-                error_response = handle_api_response(response, {"member": {}})
+                error_response = handle_api_response(response)
                 if error_response:
                     return error_response
 
-                results.append(response)
+                results.append(response.data)
 
             return ActionResult(
-                data={"member": results[0] if results else {}, "groups_added": len(results), "result": True},
+                data={"member": results[0] if results else {}, "groups_added": len(results)},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"member": {}, "result": False, "error": f"Error adding member to space groups: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Error adding member to space groups: {str(e)}")
 
 
 @circle.action("remove_member_from_space_groups")
@@ -898,16 +880,17 @@ class RemoveMemberFromSpaceGroupsAction(ActionHandler):
                     params={"email": email, "space_group_id": group_id},
                 )
 
-                # DELETE may return empty response on success
-                if response or response == {}:
-                    removed_count += 1
+                error_response = handle_api_response(response)
+                if error_response:
+                    return error_response
 
-            return ActionResult(data={"groups_removed": removed_count, "result": True}, cost_usd=0.0)
+                # DELETE returns 2xx (often with an empty body) on success
+                removed_count += 1
+
+            return ActionResult(data={"groups_removed": removed_count}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": f"Error removing member from space groups: {str(e)}"}, cost_usd=0.0
-            )
+            return ActionError(message=f"Error removing member from space groups: {str(e)}")
 
 
 # ---- Tag and Space Group Listing Actions ----
@@ -930,20 +913,19 @@ class ListTagsAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/member_tags", headers=headers, params=params)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"tags": [], "count": 0})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
             # Parse response
-            tags = response.get("records", [])
-            count = response.get("count", 0)
+            body = response.data
+            tags = body.get("records", [])
+            count = body.get("count", 0)
 
-            return ActionResult(data={"tags": tags, "count": count, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"tags": tags, "count": count}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"tags": [], "count": 0, "result": False, "error": f"Error listing tags: {str(e)}"}, cost_usd=0.0
-            )
+            return ActionError(message=f"Error listing tags: {str(e)}")
 
 
 @circle.action("list_space_groups")
@@ -963,26 +945,19 @@ class ListSpaceGroupsAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/space_groups", headers=headers, params=params)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"space_groups": [], "count": 0})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
             # Parse response
-            space_groups = response.get("records", [])
-            count = response.get("count", 0)
+            body = response.data
+            space_groups = body.get("records", [])
+            count = body.get("count", 0)
 
-            return ActionResult(data={"space_groups": space_groups, "count": count, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"space_groups": space_groups, "count": count}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={
-                    "space_groups": [],
-                    "count": 0,
-                    "result": False,
-                    "error": f"Error listing space groups: {str(e)}",
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Error listing space groups: {str(e)}")
 
 
 @circle.action("list_access_groups")
@@ -1002,26 +977,19 @@ class ListAccessGroupsAction(ActionHandler):
             response = await context.fetch(f"{CIRCLE_API_BASE}/access_groups", headers=headers, params=params)
 
             # Check for API errors or HTML responses
-            error_response = handle_api_response(response, {"access_groups": [], "count": 0})
+            error_response = handle_api_response(response)
             if error_response:
                 return error_response
 
             # Parse response
-            access_groups = response.get("records", [])
-            count = response.get("count", 0)
+            body = response.data
+            access_groups = body.get("records", [])
+            count = body.get("count", 0)
 
-            return ActionResult(data={"access_groups": access_groups, "count": count, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"access_groups": access_groups, "count": count}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={
-                    "access_groups": [],
-                    "count": 0,
-                    "result": False,
-                    "error": f"Error listing access groups: {str(e)}",
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Error listing access groups: {str(e)}")
 
 
 @circle.action("add_member_to_access_groups")
@@ -1043,22 +1011,19 @@ class AddMemberToAccessGroupsAction(ActionHandler):
                     json={"email": email},
                 )
 
-                error_response = handle_api_response(response, {"member": {}})
+                error_response = handle_api_response(response)
                 if error_response:
                     return error_response
 
-                results.append(response)
+                results.append(response.data)
 
             return ActionResult(
-                data={"member": results[0] if results else {}, "groups_added": len(results), "result": True},
+                data={"member": results[0] if results else {}, "groups_added": len(results)},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"member": {}, "result": False, "error": f"Error adding member to access groups: {str(e)}"},
-                cost_usd=0.0,
-            )
+            return ActionError(message=f"Error adding member to access groups: {str(e)}")
 
 
 @circle.action("remove_member_from_access_groups")
@@ -1080,13 +1045,14 @@ class RemoveMemberFromAccessGroupsAction(ActionHandler):
                     params={"email": email},
                 )
 
-                # DELETE may return empty response on success
-                if response or response == {}:
-                    removed_count += 1
+                error_response = handle_api_response(response)
+                if error_response:
+                    return error_response
 
-            return ActionResult(data={"groups_removed": removed_count, "result": True}, cost_usd=0.0)
+                # DELETE returns 2xx (often with an empty body) on success
+                removed_count += 1
+
+            return ActionResult(data={"groups_removed": removed_count}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": f"Error removing member from access groups: {str(e)}"}, cost_usd=0.0
-            )
+            return ActionError(message=f"Error removing member from access groups: {str(e)}")
