@@ -1,9 +1,8 @@
-import os
 from typing import Any, Dict
 
 from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionContext, Integration
 
-missive = Integration.load(os.path.join(os.path.dirname(__file__), "config.json"))
+missive = Integration.load()
 
 BASE_URL = "https://public.missiveapp.com/v1"
 
