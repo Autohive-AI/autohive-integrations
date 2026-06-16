@@ -396,6 +396,10 @@ Calendly uses full URIs for resource references:
 
 ## Version History
 
+- **2.0.0** - Upgraded to Autohive SDK 2.0.0
+  - `context.fetch()` now returns a `FetchResponse`; all response access uses `.data`
+  - Error paths return `ActionError` instead of `ActionResult` with `error`/`result` fields
+  - No change to action behaviour, inputs, or outputs (other than dropping the internal `result` flag)
 - **1.0.0** - Initial release with 20 actions
   - Users: get_current_user, get_user (2 actions)
   - Event Types: list_event_types, get_event_type (2 actions)
