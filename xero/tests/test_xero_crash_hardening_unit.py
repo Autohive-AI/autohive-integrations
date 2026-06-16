@@ -35,8 +35,13 @@ def mock_context():
     return ctx
 
 
-def fake_rate_limit_error(retry_after=None):
-    """Build the SDK's structured 429 error the way context.fetch raises it."""
+def fake_rate_limit_error(retry_after=60):
+    """Build the SDK's structured 429 error the way context.fetch raises it.
+
+    The default mirrors the SDK: ExecutionContext.fetch() fills a missing
+    Retry-After header with 60s (int(headers.get("Retry-After", 60))), so the
+    no-argument form represents the real missing-header production path.
+    """
     return RateLimitError(retry_after, 429, "Rate limit exceeded", "")
 
 
@@ -138,21 +143,26 @@ class TestRateLimiterSleepBudget:
         mock_sleep.assert_awaited_once_with(2)
 
     @pytest.mark.asyncio
-    async def test_missing_retry_after_uses_safe_default(self, mock_context):
-        # No Retry-After header -> the default delay must be small enough to
-        # fit the budget (the old default was 60s, which killed the Lambda).
+    async def test_missing_retry_after_header_uses_sdk_default_not_limiter_default(self, mock_context):
+        # A missing Retry-After header does NOT reach the limiter as None: the
+        # SDK's fetch() substitutes its own 60s default, so we get
+        # RateLimitError(60, ...). Prove the limiter honours that 60s rather
+        # than its own (much smaller) default_retry_delay. The budget is
+        # widened so the 60s delay fits and the difference is observable.
         mock_context.fetch.side_effect = [
-            fake_rate_limit_error(),
+            fake_rate_limit_error(),  # no header -> SDK default 60s
             FetchResponse(status=200, headers={}, data={"ok": True}),
         ]
-        limiter = XeroRateLimiter()
+        limiter = XeroRateLimiter(max_wait_time=70)
 
         with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
             result = await limiter.make_request(mock_context, "https://api.xero.com/test", "t-001")
 
         assert result == {"ok": True}
-        mock_sleep.assert_awaited_once_with(limiter.default_retry_delay)
-        assert limiter.default_retry_delay <= limiter.max_wait_time
+        # The 60s came from the SDK's missing-header default, not the limiter's
+        # default_retry_delay (which is deliberately small to fit the budget).
+        assert limiter.default_retry_delay != 60
+        mock_sleep.assert_awaited_once_with(60)
 
     @pytest.mark.asyncio
     async def test_cancelled_error_converted_to_timeout(self, mock_context):
