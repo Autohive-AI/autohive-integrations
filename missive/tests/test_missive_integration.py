@@ -1,10 +1,13 @@
 """
 Integration tests for the Missive integration.
 
-Run with:
-    pytest missive/tests/test_missive_integration.py -m integration -v
+Run read-only tests (safe):
+    pytest missive/tests/test_missive_integration.py -m "integration and not destructive" -v
 
-Requires MISSIVE_API_TOKEN env var.
+Run destructive tests (mutates the connected Missive account - use a test account):
+    pytest missive/tests/test_missive_integration.py -m "integration and destructive" -v
+
+Requires MISSIVE_API_TOKEN env var (see .env.example).
 """
 
 import os
@@ -45,9 +48,9 @@ def live_context():
                 json=json,
             ) as resp:
                 try:
-                    data = await resp.json()
+                    data = await resp.json(content_type=None)
                 except Exception:
-                    data = {}
+                    data = await resp.text()
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     ctx = MagicMock(name="ExecutionContext")
