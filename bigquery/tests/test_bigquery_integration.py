@@ -6,8 +6,8 @@ These tests call the real BigQuery REST API and require:
                              (https://www.googleapis.com/auth/bigquery)
     BIGQUERY_PROJECT_ID    — a Google Cloud project ID you can query/write to
 
-Run all read-only tests:
-    pytest bigquery/tests/test_bigquery_integration.py -m integration
+Run all read-only (safe) tests:
+    pytest bigquery/tests/test_bigquery_integration.py -m "integration and not destructive"
 
 Run destructive tests (creates/deletes real datasets + tables in your project):
     pytest bigquery/tests/test_bigquery_integration.py -m "integration and destructive"

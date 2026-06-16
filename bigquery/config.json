@@ -94,6 +94,17 @@
                             "null"
                         ],
                         "description": "Whether the query result was served from cache"
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "True when the query was only validated (dry run) and not executed"
+                    },
+                    "page_token": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Token for the next page of results when the result set is paginated"
                     }
                 },
                 "required": [
