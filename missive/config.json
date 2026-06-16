@@ -503,6 +503,14 @@
             "type": "string",
             "description": "Channel ID to send from"
           },
+          "from_field": {
+            "type": "object",
+            "description": "Sender identity for the draft (name and address)",
+            "properties": {
+              "name": {"type": "string"},
+              "address": {"type": "string"}
+            }
+          },
           "subject": {
             "type": "string",
             "description": "Email subject"
