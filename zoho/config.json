@@ -1,7 +1,7 @@
 {
     "name": "Zoho",
     "display_name": "Zoho CRM",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Zoho CRM integration with full customer lifecycle management",
     "entry_point": "zoho.py",
     "auth": {
@@ -133,17 +133,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["contact", "result"]
+                "required": ["contact"]
             }
         },
 
@@ -222,17 +214,9 @@
                                 "description": "Last modified timestamp"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["contact", "result"]
+                "required": ["contact"]
             }
         },
 
@@ -347,17 +331,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["contact", "result"]
+                "required": ["contact"]
             }
         },
 
@@ -378,10 +354,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the deletion"
-                    },
                     "details": {
                         "type": "object",
                         "description": "Deletion details",
@@ -391,13 +363,9 @@
                                 "description": "ID of the deleted contact"
                             }
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
 
@@ -531,17 +499,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["contacts", "info", "result"]
+                "required": ["contacts", "info"]
             }
         },
 
@@ -687,17 +647,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["contacts", "info", "result"]
+                "required": ["contacts", "info"]
             }
         },
 
@@ -839,17 +791,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["account", "result"]
+                "required": ["account"]
             }
         },
 
@@ -924,17 +868,9 @@
                                 "description": "Last modified timestamp"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["account", "result"]
+                "required": ["account"]
             }
         },
 
@@ -1073,17 +1009,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["account", "result"]
+                "required": ["account"]
             }
         },
 
@@ -1104,10 +1032,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the deletion"
-                    },
                     "details": {
                         "type": "object",
                         "description": "Deletion details",
@@ -1117,13 +1041,9 @@
                                 "description": "ID of the deleted account"
                             }
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
 
@@ -1261,17 +1181,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["accounts", "info", "result"]
+                "required": ["accounts", "info"]
             }
         },
 
@@ -1421,17 +1333,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["accounts", "info", "result"]
+                "required": ["accounts", "info"]
             }
         },
 
@@ -1540,17 +1444,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["deal", "result"]
+                "required": ["deal"]
             }
         },
 
@@ -1633,17 +1529,9 @@
                                 "description": "Last modified timestamp"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["deal", "result"]
+                "required": ["deal"]
             }
         },
 
@@ -1749,17 +1637,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["deal", "result"]
+                "required": ["deal"]
             }
         },
 
@@ -1780,10 +1660,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the deletion"
-                    },
                     "details": {
                         "type": "object",
                         "description": "Deletion details",
@@ -1793,13 +1669,9 @@
                                 "description": "ID of the deleted deal"
                             }
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
 
@@ -1945,17 +1817,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["deals", "info", "result"]
+                "required": ["deals", "info"]
             }
         },
 
@@ -2105,17 +1969,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["deals", "info", "result"]
+                "required": ["deals", "info"]
             }
         },
 
@@ -2258,17 +2114,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["lead", "result"]
+                "required": ["lead"]
             }
         },
 
@@ -2355,17 +2203,9 @@
                                 "description": "Last modified timestamp"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["lead", "result"]
+                "required": ["lead"]
             }
         },
 
@@ -2505,17 +2345,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["lead", "result"]
+                "required": ["lead"]
             }
         },
 
@@ -2536,10 +2368,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the deletion"
-                    },
                     "details": {
                         "type": "object",
                         "description": "Deletion details",
@@ -2549,13 +2377,9 @@
                                 "description": "ID of the deleted lead"
                             }
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
 
@@ -2697,17 +2521,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["leads", "info", "result"]
+                "required": ["leads", "info"]
             }
         },
 
@@ -2865,17 +2681,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["leads", "info", "result"]
+                "required": ["leads", "info"]
             }
         },
 
@@ -2968,17 +2776,9 @@
                                 "description": "Created deal details (if requested)"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the conversion"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["conversion", "result"]
+                "required": ["conversion"]
             }
         },
 
@@ -3065,17 +2865,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["task", "result"]
+                "required": ["task"]
             }
         },
 
@@ -3154,17 +2946,9 @@
                                 "description": "Last modified timestamp"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["task", "result"]
+                "required": ["task"]
             }
         },
 
@@ -3248,17 +3032,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["task", "result"]
+                "required": ["task"]
             }
         },
 
@@ -3279,10 +3055,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the deletion"
-                    },
                     "details": {
                         "type": "object",
                         "description": "Deletion details",
@@ -3292,13 +3064,9 @@
                                 "description": "ID of the deleted task"
                             }
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
 
@@ -3436,17 +3204,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["tasks", "info", "result"]
+                "required": ["tasks", "info"]
             }
         },
 
@@ -3596,17 +3356,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["tasks", "info", "result"]
+                "required": ["tasks", "info"]
             }
         },
 
@@ -3699,17 +3451,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["event", "result"]
+                "required": ["event"]
             }
         },
 
@@ -3792,17 +3536,9 @@
                                 "description": "Last modified timestamp"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["event", "result"]
+                "required": ["event"]
             }
         },
 
@@ -3891,17 +3627,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["event", "result"]
+                "required": ["event"]
             }
         },
 
@@ -3922,10 +3650,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the deletion"
-                    },
                     "details": {
                         "type": "object",
                         "description": "Deletion details",
@@ -3935,13 +3659,9 @@
                                 "description": "ID of the deleted event"
                             }
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
 
@@ -4069,17 +3789,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["events", "info", "result"]
+                "required": ["events", "info"]
             }
         },
 
@@ -4219,17 +3931,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["events", "info", "result"]
+                "required": ["events", "info"]
             }
         },
 
@@ -4333,17 +4037,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["call", "result"]
+                "required": ["call"]
             }
         },
 
@@ -4426,17 +4122,9 @@
                                 "description": "Last modified timestamp"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["call", "result"]
+                "required": ["call"]
             }
         },
 
@@ -4537,17 +4225,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["call", "result"]
+                "required": ["call"]
             }
         },
 
@@ -4568,10 +4248,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the deletion"
-                    },
                     "details": {
                         "type": "object",
                         "description": "Deletion details",
@@ -4581,13 +4257,9 @@
                                 "description": "ID of the deleted call"
                             }
                         }
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
 
@@ -4715,17 +4387,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["calls", "info", "result"]
+                "required": ["calls", "info"]
             }
         },
 
@@ -4865,17 +4529,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["calls", "info", "result"]
+                "required": ["calls", "info"]
             }
         },
 
@@ -4975,17 +4631,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["related_records", "info", "result"]
+                "required": ["related_records", "info"]
             }
         },
 
@@ -5039,17 +4687,9 @@
                     "calls": {
                         "type": "array",
                         "description": "Related calls"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["account", "result"]
+                "required": ["account"]
             }
         },
 
@@ -5113,17 +4753,9 @@
                                 "description": "Total number of calls"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["contact", "result"]
+                "required": ["contact"]
             }
         },
 
@@ -5191,17 +4823,9 @@
                                 "description": "Total number of activities"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["deal", "result"]
+                "required": ["deal"]
             }
         },
 
@@ -5243,17 +4867,9 @@
                                 "description": "Whether more records are available"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the query"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the query failed"
                     }
                 },
-                "required": ["data", "info", "result"]
+                "required": ["data", "info"]
             }
         },
 
@@ -5300,17 +4916,9 @@
                     "updated_record": {
                         "type": "object",
                         "description": "Updated related record details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["updated_record", "result"]
+                "required": ["updated_record"]
             }
         },
 
@@ -5360,17 +4968,9 @@
                                 "description": "Additional note details"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["note", "result"]
+                "required": ["note"]
             }
         },
 
@@ -5425,17 +5025,9 @@
                     "info": {
                         "type": "object",
                         "description": "Pagination information"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["notes", "info", "result"]
+                "required": ["notes", "info"]
             }
         },
 
@@ -5467,17 +5059,9 @@
                     "note": {
                         "type": "object",
                         "description": "Note details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["note", "result"]
+                "required": ["note"]
             }
         },
 
@@ -5521,17 +5105,9 @@
                                 "description": "Additional note details"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["note", "result"]
+                "required": ["note"]
             }
         },
 
@@ -5552,20 +5128,12 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Success status of the operation"
-                    },
                     "message": {
                         "type": "string",
                         "description": "Success message"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         }
     }
