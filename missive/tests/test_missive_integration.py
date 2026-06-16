@@ -356,21 +356,27 @@ class TestContacts:
         contact_id = contacts[0]["id"]
         print(f"[OK] create_contact: {contact_id}")
 
-        get_result = await missive.execute_action("get_contact", {"contact_id": contact_id}, live_context)
-        assert get_result.type == ResultType.ACTION
-        assert get_result.result.data["contact"]["id"] == contact_id
-        print(f"[OK] get_contact: {contact_id}")
+        try:
+            get_result = await missive.execute_action("get_contact", {"contact_id": contact_id}, live_context)
+            assert get_result.type == ResultType.ACTION
+            assert get_result.result.data["contact"]["id"] == contact_id
+            print(f"[OK] get_contact: {contact_id}")
 
-        update_result = await missive.execute_action(
-            "update_contact",
-            {"contact_id": contact_id, "first_name": "AutohiveUpdated"},
-            live_context,
-        )
-        assert update_result.type == ResultType.ACTION
-        udata = update_result.result.data
-        assert udata["result"] is True, f"update_contact failed: {udata.get('error')}"
-        print(f"[OK] update_contact: {contact_id}")
-        print(f"[OK] update_contact: {contact_id}")
+            update_result = await missive.execute_action(
+                "update_contact",
+                {"contact_id": contact_id, "first_name": "AutohiveUpdated"},
+                live_context,
+            )
+            assert update_result.type == ResultType.ACTION
+            udata = update_result.result.data
+            assert udata["result"] is True, f"update_contact failed: {udata.get('error')}"
+            print(f"[OK] update_contact: {contact_id}")
+        finally:
+            await live_context.fetch(
+                f"https://public.missiveapp.com/v1/contacts/{contact_id}",
+                method="DELETE",
+                headers={"Authorization": f"Bearer {live_context.auth.get('api_token', '')}", "Content-Type": "application/json"},
+            )
 
 
 # ─────────────────────────────────────────────
