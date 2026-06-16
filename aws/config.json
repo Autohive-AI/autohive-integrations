@@ -27,6 +27,13 @@
                     "format": "text",
                     "label": "AWS Region",
                     "help_text": "AWS region (e.g. us-east-1, eu-west-1)"
+                },
+                "aws_session_token": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "AWS Session Token",
+                    "help_text": "Optional session token for temporary AWS credentials (e.g. from STS AssumeRole)",
+                    "required": false
                 }
             }
         }
