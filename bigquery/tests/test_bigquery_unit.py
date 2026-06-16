@@ -670,37 +670,69 @@ async def test_insert_rows_all_success():
 
 
 @pytest.mark.asyncio
-async def test_insert_rows_partial_failure():
-    # Some rows landed → a real partial success, returned as an ACTION result
-    # carrying inserted_count + insert_errors (NOT an ActionError).
+async def test_insert_rows_default_any_error_is_action_error():
+    # With the default skip_invalid_rows=False, BigQuery fails the ENTIRE request
+    # if any row is invalid — even though only one row carries an insertErrors
+    # entry, zero rows are written. Must surface as ActionError, not a partial
+    # success that misreports inserted_count.
     ctx = make_ctx({"insertErrors": [{"index": 1, "errors": [{"reason": "invalid", "message": "bad row"}]}]})
     rows = [{"a": 1}, {"a": 2}, {"a": 3}]
     result = await bigquery_integration.execute_action(
         "insert_rows", {"project_id": "proj", "dataset_id": "ds", "table_id": "t", "rows": rows}, ctx
     )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "no rows were written" in result.result.message
+    assert "bad row" in result.result.message  # first row's error detail surfaced
+
+
+@pytest.mark.asyncio
+async def test_insert_rows_skip_invalid_partial_success():
+    # With skip_invalid_rows=True, valid rows are inserted and invalid ones are
+    # skipped → a real partial success, returned as an ACTION result carrying
+    # inserted_count + insert_errors (NOT an ActionError).
+    ctx = make_ctx({"insertErrors": [{"index": 1, "errors": [{"reason": "invalid", "message": "bad row"}]}]})
+    rows = [{"a": 1}, {"a": 2}, {"a": 3}]
+    result = await bigquery_integration.execute_action(
+        "insert_rows",
+        {
+            "project_id": "proj",
+            "dataset_id": "ds",
+            "table_id": "t",
+            "rows": rows,
+            "skip_invalid_rows": True,
+        },
+        ctx,
+    )
     assert result.type == ResultType.ACTION
     data = result.result.data
-    assert data["inserted_count"] == 2  # one row failed
+    assert data["inserted_count"] == 2  # one row skipped
     assert len(data["insert_errors"]) == 1
     assert data["insert_errors"][0]["index"] == 1
 
 
 @pytest.mark.asyncio
-async def test_insert_rows_all_rejected_returns_action_error():
-    # insertAll returns HTTP 200 but every row is rejected (e.g. an invalid row
-    # with the default skip_invalid_rows=False rejects the whole batch). Nothing
-    # was inserted → must surface as ActionError, not an empty success.
+async def test_insert_rows_skip_invalid_all_rejected_returns_action_error():
+    # skip_invalid_rows=True but every row is invalid → nothing was inserted, so
+    # surface as ActionError rather than an empty success.
     ctx = make_ctx(
         {
             "insertErrors": [
                 {"index": 0, "errors": [{"reason": "invalid", "message": "bad row"}]},
-                {"index": 1, "errors": [{"reason": "stopped", "message": "stopped"}]},
+                {"index": 1, "errors": [{"reason": "invalid", "message": "also bad"}]},
             ]
         }
     )
     rows = [{"a": 1}, {"a": 2}]
     result = await bigquery_integration.execute_action(
-        "insert_rows", {"project_id": "proj", "dataset_id": "ds", "table_id": "t", "rows": rows}, ctx
+        "insert_rows",
+        {
+            "project_id": "proj",
+            "dataset_id": "ds",
+            "table_id": "t",
+            "rows": rows,
+            "skip_invalid_rows": True,
+        },
+        ctx,
     )
     assert result.type == ResultType.ACTION_ERROR
     assert "rejected all 2 row(s)" in result.result.message

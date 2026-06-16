@@ -17,11 +17,12 @@ Never runs in CI — the default pytest marker filter (-m unit) excludes these.
 
 import os
 import sys
+import uuid
 
 import aiohttp
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from autohive_integrations_sdk import FetchResponse, HTTPError
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, ResultType
 
 # Make the integration importable as the ``bigquery`` package from the repo root.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -53,6 +54,12 @@ def live_context():
                 # Mirror the SDK: context.fetch() raises on non-2xx and only
                 # returns a FetchResponse for successful responses. Without this,
                 # error paths would never surface as ActionError in these tests.
+                # Match production semantics — RateLimitError for 429, HTTPError
+                # for any other non-2xx status — so live tests exercise the same
+                # SDK behavior the actions see in production.
+                if resp.status == 429:
+                    retry_after = int(resp.headers.get("Retry-After", 60))
+                    raise RateLimitError(retry_after, resp.status, str(data), data)
                 if not resp.ok:
                     raise HTTPError(resp.status, str(data), data)
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
@@ -70,6 +77,16 @@ def project_id():
     return PROJECT_ID
 
 
+def _action_data(result):
+    """Assert a successful ACTION result and return its data payload.
+
+    Makes ACTION_ERROR / VALIDATION_ERROR failures explicit and surfaces the
+    action's error message instead of an opaque AttributeError on ``.data``.
+    """
+    assert result.type == ResultType.ACTION, getattr(result.result, "message", result.result)
+    return result.result.data
+
+
 # =============================================================================
 # PROJECTS
 # =============================================================================
@@ -78,13 +95,13 @@ def project_id():
 class TestListProjects:
     async def test_returns_projects(self, live_context):
         result = await bigquery_integration.execute_action("list_projects", {"max_results": 10}, live_context)
-        data = result.result.data
+        data = _action_data(result)
         assert "projects" in data
         assert isinstance(data["projects"], list)
 
     async def test_project_item_shape(self, live_context):
         result = await bigquery_integration.execute_action("list_projects", {"max_results": 5}, live_context)
-        projects = result.result.data["projects"]
+        projects = _action_data(result)["projects"]
         if not projects:
             pytest.skip("No projects accessible with this token")
         assert "project_id" in projects[0]
@@ -98,7 +115,7 @@ class TestListProjects:
 class TestListDatasets:
     async def test_returns_datasets(self, live_context, project_id):
         result = await bigquery_integration.execute_action("list_datasets", {"project_id": project_id}, live_context)
-        data = result.result.data
+        data = _action_data(result)
         assert "datasets" in data
         assert isinstance(data["datasets"], list)
 
@@ -106,14 +123,14 @@ class TestListDatasets:
         list_result = await bigquery_integration.execute_action(
             "list_datasets", {"project_id": project_id}, live_context
         )
-        datasets = list_result.result.data["datasets"]
+        datasets = _action_data(list_result)["datasets"]
         if not datasets:
             pytest.skip("No datasets in project")
         ds_id = datasets[0]["dataset_id"]
         result = await bigquery_integration.execute_action(
             "get_dataset", {"project_id": project_id, "dataset_id": ds_id}, live_context
         )
-        assert result.result.data["dataset"]["dataset_id"] == ds_id
+        assert _action_data(result)["dataset"]["dataset_id"] == ds_id
 
 
 # =============================================================================
@@ -126,7 +143,7 @@ class TestTables:
         list_result = await bigquery_integration.execute_action(
             "list_datasets", {"project_id": project_id}, live_context
         )
-        datasets = list_result.result.data["datasets"]
+        datasets = _action_data(list_result)["datasets"]
         if not datasets:
             pytest.skip("No datasets in project")
 
@@ -135,7 +152,7 @@ class TestTables:
             tables_result = await bigquery_integration.execute_action(
                 "list_tables", {"project_id": project_id, "dataset_id": ds["dataset_id"]}, live_context
             )
-            tables = tables_result.result.data["tables"]
+            tables = _action_data(tables_result)["tables"]
             if tables:
                 table = tables[0]
                 assert "table_id" in table
@@ -144,7 +161,7 @@ class TestTables:
                     {"project_id": project_id, "dataset_id": ds["dataset_id"], "table_id": table["table_id"]},
                     live_context,
                 )
-                tbl = get_result.result.data["table"]
+                tbl = _action_data(get_result)["table"]
                 assert tbl["table_id"] == table["table_id"]
                 assert "schema" in tbl
                 return
@@ -164,7 +181,7 @@ class TestRunQuery:
             {"project_id": project_id, "query": "SELECT 1 AS n, 'hello' AS s", "max_results": 10},
             live_context,
         )
-        data = result.result.data
+        data = _action_data(result)
         assert data["job_complete"] is True
         assert len(data["rows"]) == 1
         assert data["rows"][0]["n"] == "1"
@@ -184,7 +201,7 @@ class TestRunQuery:
             },
             live_context,
         )
-        data = result.result.data
+        data = _action_data(result)
         assert data["job_complete"] is True
         assert len(data["rows"]) <= 5
 
@@ -198,7 +215,7 @@ class TestRunQuery:
             },
             live_context,
         )
-        data = result.result.data
+        data = _action_data(result)
         assert data["dry_run"] is True
         assert isinstance(data["total_bytes_processed"], int)
         assert data["total_bytes_processed"] > 0
@@ -209,17 +226,15 @@ class TestRunQuery:
             {"project_id": project_id, "query": "SELECT 1 AS n", "max_results": 10},
             live_context,
         )
-        job_id = run_result.result.data.get("job_id")
+        job_id = _action_data(run_result).get("job_id")
         if not job_id:
             pytest.skip("run_query did not return a job_id")
         result = await bigquery_integration.execute_action(
             "get_query_results", {"project_id": project_id, "job_id": job_id}, live_context
         )
-        assert result.result.data["job_complete"] is True
+        assert _action_data(result)["job_complete"] is True
 
     async def test_bad_query_returns_action_error(self, live_context, project_id):
-        from autohive_integrations_sdk import ResultType
-
         result = await bigquery_integration.execute_action(
             "run_query",
             {"project_id": project_id, "query": "SELECT FROM WHERE bad syntax"},
@@ -238,13 +253,13 @@ class TestJobs:
         result = await bigquery_integration.execute_action(
             "list_jobs", {"project_id": project_id, "max_results": 10}, live_context
         )
-        assert isinstance(result.result.data["jobs"], list)
+        assert isinstance(_action_data(result)["jobs"], list)
 
     async def test_get_job_from_list(self, live_context, project_id):
         list_result = await bigquery_integration.execute_action(
             "list_jobs", {"project_id": project_id, "max_results": 5}, live_context
         )
-        jobs = list_result.result.data["jobs"]
+        jobs = _action_data(list_result)["jobs"]
         if not jobs:
             pytest.skip("No jobs in project history")
         job_id = jobs[0]["job_id"]
@@ -253,7 +268,7 @@ class TestJobs:
         if location:
             inputs["location"] = location
         result = await bigquery_integration.execute_action("get_job", inputs, live_context)
-        assert result.result.data["job"]["job_id"] == job_id
+        assert _action_data(result)["job"]["job_id"] == job_id
 
 
 # =============================================================================
@@ -270,28 +285,34 @@ class TestDatasetTableLifecycle:
     """
 
     async def test_full_lifecycle(self, live_context, project_id):
-        dataset_id = "autohive_it_dataset"
-        table_id = "autohive_it_table"
+        # Unique per-run suffix so concurrent runs don't collide and a stale
+        # leftover from a failed run can't make the next run fail. Keep the
+        # autohive_it_ prefix for easy identification of test artifacts.
+        suffix = uuid.uuid4().hex[:8]
+        dataset_id = f"autohive_it_dataset_{suffix}"
+        table_id = f"autohive_it_table_{suffix}"
 
-        # create dataset
-        create_ds = await bigquery_integration.execute_action(
-            "create_dataset",
-            {
-                "project_id": project_id,
-                "dataset_id": dataset_id,
-                "location": "US",
-                "description": "Autohive integration test — safe to delete",
-            },
-            live_context,
-        )
-        assert create_ds.result.data["dataset"]["dataset_id"] == dataset_id
-
+        created = False
         try:
+            # create dataset
+            create_ds = await bigquery_integration.execute_action(
+                "create_dataset",
+                {
+                    "project_id": project_id,
+                    "dataset_id": dataset_id,
+                    "location": "US",
+                    "description": "Autohive integration test — safe to delete",
+                },
+                live_context,
+            )
+            created = True
+            assert _action_data(create_ds)["dataset"]["dataset_id"] == dataset_id
+
             # get dataset
             get_ds = await bigquery_integration.execute_action(
                 "get_dataset", {"project_id": project_id, "dataset_id": dataset_id}, live_context
             )
-            assert get_ds.result.data["dataset"]["dataset_id"] == dataset_id
+            assert _action_data(get_ds)["dataset"]["dataset_id"] == dataset_id
 
             # create table
             create_tbl = await bigquery_integration.execute_action(
@@ -309,7 +330,7 @@ class TestDatasetTableLifecycle:
                 },
                 live_context,
             )
-            assert create_tbl.result.data["table"]["table_id"] == table_id
+            assert _action_data(create_tbl)["table"]["table_id"] == table_id
 
             # insert rows
             insert = await bigquery_integration.execute_action(
@@ -322,8 +343,9 @@ class TestDatasetTableLifecycle:
                 },
                 live_context,
             )
-            assert insert.result.data["inserted_count"] == 2
-            assert insert.result.data["insert_errors"] == []
+            insert_data = _action_data(insert)
+            assert insert_data["inserted_count"] == 2
+            assert insert_data["insert_errors"] == []
 
             # delete table
             del_tbl = await bigquery_integration.execute_action(
@@ -331,11 +353,16 @@ class TestDatasetTableLifecycle:
                 {"project_id": project_id, "dataset_id": dataset_id, "table_id": table_id},
                 live_context,
             )
-            assert del_tbl.result.data["deleted"] is True
+            assert _action_data(del_tbl)["deleted"] is True
         finally:
-            # always tear down the dataset (delete_contents handles any leftover table)
-            await bigquery_integration.execute_action(
-                "delete_dataset",
-                {"project_id": project_id, "dataset_id": dataset_id, "delete_contents": True},
-                live_context,
-            )
+            # always tear down the dataset (delete_contents handles any leftover
+            # table). Best-effort: never let cleanup mask the real test failure.
+            if created:
+                try:
+                    await bigquery_integration.execute_action(
+                        "delete_dataset",
+                        {"project_id": project_id, "dataset_id": dataset_id, "delete_contents": True},
+                        live_context,
+                    )
+                except Exception as exc:  # pragma: no cover - cleanup best-effort
+                    print(f"WARNING: failed to clean up dataset {dataset_id}: {exc}")

@@ -572,34 +572,57 @@ class InsertRowsAction(ActionHandler):
 
             insert_errors = body.get("insertErrors", [])
 
-            # Count unique failed row indices - a single row can have multiple errors
-            # but should only be counted once as a failed insert
-            failed_row_indices = set(error.get("index") for error in insert_errors)
-            inserted_count = len(rows) - len(failed_row_indices)
-
             # Format errors for output
             formatted_errors = []
             for error in insert_errors:
                 formatted_errors.append({"index": error.get("index"), "errors": error.get("errors", [])})
 
-            # insertAll returns HTTP 200 even when rows are rejected. If nothing
-            # was inserted (e.g. an invalid row with the default skip_invalid_rows
-            # =False rejects the whole batch), surface it as a failure rather than
-            # an empty success. A partial insert (some rows landed) is returned as
-            # a normal result carrying inserted_count + insert_errors so callers
-            # see exactly what was written.
-            if insert_errors and inserted_count == 0:
-                first_errors = formatted_errors[0].get("errors") if formatted_errors else []
-                detail = first_errors[0].get("message") if first_errors and isinstance(first_errors[0], dict) else None
-                message = f"BigQuery rejected all {len(rows)} row(s)"
-                if detail:
-                    message += f": {detail}"
-                return ActionError(message=message)
+            def _first_error_detail():
+                first = formatted_errors[0].get("errors") if formatted_errors else []
+                if first and isinstance(first[0], dict):
+                    return first[0].get("message")
+                return None
+
+            # insertAll returns HTTP 200 even when rows are rejected, so any
+            # insertErrors entry must be inspected rather than treated as success.
+            if insert_errors:
+                if not skip_invalid_rows:
+                    # With skipInvalidRows=false (the default) BigQuery fails the
+                    # ENTIRE request if any row is invalid — zero rows are written,
+                    # even though only some rows carry insertErrors entries. Surface
+                    # that as a failure rather than a misleading partial success.
+                    detail = _first_error_detail()
+                    message = (
+                        f"BigQuery rejected the insert; no rows were written "
+                        f"({len(formatted_errors)} of {len(rows)} row(s) reported errors)"
+                    )
+                    if detail:
+                        message += f": {detail}"
+                    return ActionError(message=message)
+
+                # skip_invalid_rows=True: valid rows are inserted and invalid ones
+                # skipped, so a partial insert is meaningful. Count unique failed row
+                # indices (a single row can carry multiple errors).
+                failed_row_indices = set(error.get("index") for error in insert_errors)
+                inserted_count = len(rows) - len(failed_row_indices)
+                if inserted_count == 0:
+                    detail = _first_error_detail()
+                    message = f"BigQuery rejected all {len(rows)} row(s)"
+                    if detail:
+                        message += f": {detail}"
+                    return ActionError(message=message)
+                return ActionResult(
+                    data={
+                        "inserted_count": inserted_count,
+                        "insert_errors": formatted_errors,
+                    },
+                    cost_usd=0.0,
+                )
 
             return ActionResult(
                 data={
-                    "inserted_count": inserted_count,
-                    "insert_errors": formatted_errors,
+                    "inserted_count": len(rows),
+                    "insert_errors": [],
                 },
                 cost_usd=0.0,
             )
