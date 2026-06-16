@@ -3,6 +3,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
     ConnectedAccountHandler,
     ConnectedAccountInfo,
 )
@@ -62,17 +63,19 @@ class ZoomAPIClient:
         headers = get_headers()
 
         if method == "GET":
-            return await self.context.fetch(url, params=params, headers=headers)
+            response = await self.context.fetch(url, params=params, headers=headers)
         elif method == "POST":
-            return await self.context.fetch(url, method="POST", json=data, headers=headers)
+            response = await self.context.fetch(url, method="POST", json=data, headers=headers)
         elif method == "PATCH":
-            return await self.context.fetch(url, method="PATCH", json=data, headers=headers)
+            response = await self.context.fetch(url, method="PATCH", json=data, headers=headers)
         elif method == "DELETE":
             response = await self.context.fetch(url, method="DELETE", params=params, headers=headers)
             # DELETE typically returns empty response on success
-            return response if response else {"success": True}
+            return response.data if response.data else {"success": True}
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
+
+        return response.data
 
 
 # ---- Connected Account Handler ----
@@ -155,23 +158,11 @@ class ListMeetingsAction(ActionHandler):
                     "page_count": response.get("page_count", 0),
                     "page_size": response.get("page_size", 0),
                     "total_records": response.get("total_records", len(meetings)),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "meetings": [],
-                    "next_page_token": None,  # nosec B105
-                    "page_count": 0,
-                    "page_size": 0,
-                    "total_records": 0,
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("get_meeting")
@@ -203,34 +194,11 @@ class GetMeetingAction(ActionHandler):
                     "host_id": response.get("host_id", ""),
                     "host_email": response.get("host_email", ""),
                     "settings": response.get("settings", {}),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": None,
-                    "uuid": "",
-                    "topic": "",
-                    "type": None,
-                    "status": "",
-                    "start_time": "",
-                    "duration": 0,
-                    "timezone": "",
-                    "agenda": "",
-                    "created_at": "",
-                    "start_url": "",
-                    "join_url": "",
-                    "password": "",  # nosec B105
-                    "host_id": "",
-                    "host_email": "",
-                    "settings": {},
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("create_meeting")
@@ -288,26 +256,11 @@ class CreateMeetingAction(ActionHandler):
                     "start_url": response.get("start_url", ""),
                     "join_url": response.get("join_url", ""),
                     "password": response.get("password", ""),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": None,
-                    "uuid": "",
-                    "topic": "",
-                    "start_time": "",
-                    "duration": 0,
-                    "start_url": "",
-                    "join_url": "",
-                    "password": "",  # nosec B105
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("update_meeting")
@@ -351,11 +304,9 @@ class UpdateMeetingAction(ActionHandler):
 
             await client._make_request(f"meetings/{meeting_id}", method="PATCH", data=update_data)
 
-            return ActionResult(data={"meeting_id": inputs["meeting_id"], "result": True}, cost_usd=0.0)
+            return ActionResult(data={"meeting_id": inputs["meeting_id"]}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"meeting_id": inputs["meeting_id"], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("delete_meeting")
@@ -375,11 +326,9 @@ class DeleteMeetingAction(ActionHandler):
 
             await client._make_request(f"meetings/{meeting_id}", method="DELETE", params=params if params else None)
 
-            return ActionResult(data={"meeting_id": inputs["meeting_id"], "result": True}, cost_usd=0.0)
+            return ActionResult(data={"meeting_id": inputs["meeting_id"]}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"meeting_id": inputs["meeting_id"], "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("get_user")
@@ -408,31 +357,11 @@ class GetUserAction(ActionHandler):
                     "created_at": response.get("created_at", ""),
                     "last_login_time": response.get("last_login_time", ""),
                     "pic_url": response.get("pic_url", ""),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": "",
-                    "first_name": "",
-                    "last_name": "",
-                    "email": "",
-                    "type": None,
-                    "role_name": "",
-                    "pmi": None,
-                    "use_pmi": False,
-                    "timezone": "",
-                    "dept": "",
-                    "created_at": "",
-                    "last_login_time": "",
-                    "pic_url": "",
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("get_meeting_participants")
@@ -475,23 +404,11 @@ class GetMeetingParticipantsAction(ActionHandler):
                     "page_count": response.get("page_count", 0),
                     "page_size": response.get("page_size", 0),
                     "total_records": response.get("total_records", len(participants)),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "participants": [],
-                    "next_page_token": None,  # nosec B105
-                    "page_count": 0,
-                    "page_size": 0,
-                    "total_records": 0,
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("add_meeting_registrant")
@@ -519,23 +436,11 @@ class AddMeetingRegistrantAction(ActionHandler):
                     "topic": response.get("topic", ""),
                     "start_time": response.get("start_time", ""),
                     "join_url": response.get("join_url", ""),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "registrant_id": "",
-                    "id": None,
-                    "topic": "",
-                    "start_time": "",
-                    "join_url": "",
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 # ---- Calendar Action Handlers ----
@@ -574,25 +479,11 @@ class CreateCalendarEventAction(ActionHandler):
                     "location": response.get("location", ""),
                     "description": response.get("description", ""),
                     "html_link": response.get("htmlLink", ""),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": "",
-                    "summary": "",
-                    "start": {},
-                    "end": {},
-                    "location": "",
-                    "description": "",
-                    "html_link": "",
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("delete_calendar_event")
@@ -607,11 +498,9 @@ class DeleteCalendarEventAction(ActionHandler):
 
             await client._make_request(f"calendars/{calendar_id}/events/{event_id}", method="DELETE")
 
-            return ActionResult(data={"event_id": event_id, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"event_id": event_id}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"event_id": inputs.get("event_id", ""), "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("quick_create_calendar_event")
@@ -634,23 +523,11 @@ class QuickCreateCalendarEventAction(ActionHandler):
                     "start": response.get("start", {}),
                     "end": response.get("end", {}),
                     "html_link": response.get("htmlLink", ""),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": "",
-                    "summary": "",
-                    "start": {},
-                    "end": {},
-                    "html_link": "",
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("update_calendar_metadata")
@@ -678,22 +555,11 @@ class UpdateCalendarMetadataAction(ActionHandler):
                     "summary": response.get("summary", ""),
                     "description": response.get("description", ""),
                     "timezone": response.get("timezone", ""),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": inputs.get("calendar_id", ""),
-                    "summary": "",
-                    "description": "",
-                    "timezone": "",
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("update_calendar_setting")
@@ -713,14 +579,11 @@ class UpdateCalendarSettingAction(ActionHandler):
                 data={
                     "id": response.get("id", setting_id),
                     "value": response.get("value", inputs["value"]),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"id": inputs.get("setting_id", ""), "value": "", "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("get_calendar_metadata")
@@ -742,24 +605,11 @@ class GetCalendarMetadataAction(ActionHandler):
                     "timezone": response.get("timezone", ""),
                     "access_role": response.get("accessRole", ""),
                     "primary": response.get("primary", False),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": "",
-                    "summary": "",
-                    "description": "",
-                    "timezone": "",
-                    "access_role": "",
-                    "primary": False,
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("get_calendar_setting")
@@ -778,15 +628,11 @@ class GetCalendarSettingAction(ActionHandler):
                     "id": response.get("id", ""),
                     "value": response.get("value", ""),
                     "etag": response.get("etag", ""),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"id": inputs.get("setting_id", ""), "value": "", "etag": "", "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("get_calendar_event")
@@ -815,30 +661,11 @@ class GetCalendarEventAction(ActionHandler):
                     "html_link": response.get("htmlLink", ""),
                     "created": response.get("created", ""),
                     "updated": response.get("updated", ""),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": "",
-                    "summary": "",
-                    "description": "",
-                    "location": "",
-                    "start": {},
-                    "end": {},
-                    "attendees": [],
-                    "organizer": {},
-                    "status": "",
-                    "html_link": "",
-                    "created": "",
-                    "updated": "",
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("list_calendar_events")
@@ -882,15 +709,11 @@ class ListCalendarEventsAction(ActionHandler):
                     "events": events,
                     "next_page_token": response.get("nextPageToken"),
                     "time_zone": response.get("timeZone", ""),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"events": [], "next_page_token": None, "time_zone": "", "result": False, "error": str(e)},  # nosec B105
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("list_calendar_settings")
@@ -916,14 +739,11 @@ class ListCalendarSettingsAction(ActionHandler):
                 )
 
             return ActionResult(
-                data={"settings": settings, "next_page_token": response.get("nextPageToken"), "result": True},
+                data={"settings": settings, "next_page_token": response.get("nextPageToken")},
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"settings": [], "next_page_token": None, "result": False, "error": str(e)},  # nosec B105
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 # ---- Contacts Action Handler ----
@@ -970,15 +790,11 @@ class ListContactsAction(ActionHandler):
                     "contacts": contacts,
                     "next_page_token": response.get("next_page_token"),
                     "total_records": response.get("total_records", len(contacts)),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={"contacts": [], "next_page_token": None, "total_records": 0, "result": False, "error": str(e)},  # nosec B105
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 # ---- Additional Meeting Action Handlers ----
@@ -1003,11 +819,9 @@ class CreateMeetingTemplateAction(ActionHandler):
                 f"users/{user_id}/meeting_templates", method="POST", data=template_data
             )
 
-            return ActionResult(
-                data={"id": response.get("id", ""), "name": response.get("name", ""), "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"id": response.get("id", ""), "name": response.get("name", "")}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"id": "", "name": "", "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @zoom.action("create_meeting_invite_links")
@@ -1032,9 +846,9 @@ class CreateMeetingInviteLinksAction(ActionHandler):
             for attendee in response.get("attendees", []):
                 attendees.append({"name": attendee.get("name", ""), "join_url": attendee.get("join_url", "")})
 
-            return ActionResult(data={"attendees": attendees, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"attendees": attendees}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"attendees": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @zoom.action("get_meeting_participant")
@@ -1059,26 +873,11 @@ class GetMeetingParticipantAction(ActionHandler):
                     "leave_time": response.get("leave_time", ""),
                     "duration": response.get("duration", 0),
                     "status": response.get("status", ""),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": "",
-                    "user_id": "",
-                    "name": "",
-                    "user_email": "",
-                    "join_time": "",
-                    "leave_time": "",
-                    "duration": 0,
-                    "status": "",
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("get_past_meeting")
@@ -1105,29 +904,11 @@ class GetPastMeetingAction(ActionHandler):
                     "duration": response.get("duration", 0),
                     "total_minutes": response.get("total_minutes", 0),
                     "participants_count": response.get("participants_count", 0),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": None,
-                    "uuid": "",
-                    "topic": "",
-                    "type": None,
-                    "host_id": "",
-                    "host_email": "",
-                    "start_time": "",
-                    "end_time": "",
-                    "duration": 0,
-                    "total_minutes": 0,
-                    "participants_count": 0,
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 # ---- Additional User Action Handlers ----
@@ -1155,26 +936,11 @@ class GetMeetingTemplateDetailAction(ActionHandler):
                     "timezone": response.get("timezone", ""),
                     "agenda": response.get("agenda", ""),
                     "settings": response.get("settings", {}),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(
-                data={
-                    "id": "",
-                    "name": "",
-                    "type": None,
-                    "topic": "",
-                    "duration": 0,
-                    "timezone": "",
-                    "agenda": "",
-                    "settings": {},
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @zoom.action("get_user_permissions")
@@ -1190,6 +956,6 @@ class GetUserPermissionsAction(ActionHandler):
 
             permissions = response.get("permissions", [])
 
-            return ActionResult(data={"permissions": permissions, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"permissions": permissions}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"permissions": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))

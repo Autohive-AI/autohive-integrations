@@ -1,7 +1,7 @@
 {
     "name": "Zoom",
     "display_name": "Zoom",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Integration with Zoom to create, schedule, update, and manage meetings.",
     "entry_point": "zoom.py",
     "supports_billing": false,
@@ -131,17 +131,9 @@
                     "total_records": {
                         "type": "integer",
                         "description": "Total number of meetings"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["meetings", "result"]
+                "required": ["meetings"]
             }
         },
         "get_meeting": {
@@ -223,17 +215,9 @@
                     "settings": {
                         "type": "object",
                         "description": "Meeting settings"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "create_meeting": {
@@ -336,17 +320,9 @@
                     "password": {
                         "type": "string",
                         "description": "Meeting password"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "update_meeting": {
@@ -409,17 +385,9 @@
                     "meeting_id": {
                         "type": "string",
                         "description": "Updated meeting ID"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the update succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["meeting_id", "result"]
+                "required": ["meeting_id"]
             }
         },
         "delete_meeting": {
@@ -450,17 +418,9 @@
                     "meeting_id": {
                         "type": "string",
                         "description": "Deleted meeting ID"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the deletion succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["meeting_id", "result"]
+                "required": ["meeting_id"]
             }
         },
         "get_user": {
@@ -530,17 +490,9 @@
                     "pic_url": {
                         "type": "string",
                         "description": "Profile picture URL"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_meeting_participants": {
@@ -626,17 +578,9 @@
                     "total_records": {
                         "type": "integer",
                         "description": "Total participants"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["participants", "result"]
+                "required": ["participants"]
             }
         },
         "add_meeting_registrant": {
@@ -691,17 +635,9 @@
                     "join_url": {
                         "type": "string",
                         "description": "Unique join URL for registrant"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "create_calendar_event": {
@@ -804,17 +740,9 @@
                     "html_link": {
                         "type": "string",
                         "description": "URL link to the event"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "delete_calendar_event": {
@@ -841,17 +769,9 @@
                     "event_id": {
                         "type": "string",
                         "description": "Deleted event ID"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["event_id", "result"]
+                "required": ["event_id"]
             }
         },
         "quick_create_calendar_event": {
@@ -894,17 +814,9 @@
                     "html_link": {
                         "type": "string",
                         "description": "URL link to the event"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "update_calendar_metadata": {
@@ -950,17 +862,9 @@
                     "timezone": {
                         "type": "string",
                         "description": "Updated timezone"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "update_calendar_setting": {
@@ -990,17 +894,9 @@
                     "value": {
                         "type": "string",
                         "description": "Updated setting value"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_calendar_metadata": {
@@ -1042,17 +938,9 @@
                     "primary": {
                         "type": "boolean",
                         "description": "Whether this is the primary calendar"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_calendar_setting": {
@@ -1082,17 +970,9 @@
                     "etag": {
                         "type": "string",
                         "description": "ETag for the setting"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_calendar_event": {
@@ -1163,17 +1043,9 @@
                     "updated": {
                         "type": "string",
                         "description": "Last updated time"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "list_calendar_events": {
@@ -1258,17 +1130,9 @@
                     "time_zone": {
                         "type": "string",
                         "description": "Calendar timezone"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["events", "result"]
+                "required": ["events"]
             }
         },
         "list_calendar_settings": {
@@ -1314,17 +1178,9 @@
                     "next_page_token": {
                         "type": ["string", "null"],
                         "description": "Token for next page"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["settings", "result"]
+                "required": ["settings"]
             }
         },
         "list_contacts": {
@@ -1413,17 +1269,9 @@
                     "total_records": {
                         "type": "integer",
                         "description": "Total number of contacts"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["contacts", "result"]
+                "required": ["contacts"]
             }
         },
         "create_meeting_template": {
@@ -1463,17 +1311,9 @@
                     "name": {
                         "type": "string",
                         "description": "Template name"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "create_meeting_invite_links": {
@@ -1527,17 +1367,9 @@
                             }
                         },
                         "description": "Attendees with their invite links"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["attendees", "result"]
+                "required": ["attendees"]
             }
         },
         "get_meeting_participant": {
@@ -1591,17 +1423,9 @@
                     "status": {
                         "type": "string",
                         "description": "Participant status"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_past_meeting": {
@@ -1663,17 +1487,9 @@
                     "participants_count": {
                         "type": "integer",
                         "description": "Number of participants"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_meeting_template_detail": {
@@ -1728,17 +1544,9 @@
                     "settings": {
                         "type": "object",
                         "description": "Meeting settings"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_user_permissions": {
@@ -1763,17 +1571,9 @@
                             "type": "string"
                         },
                         "description": "List of user permissions"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if operation failed"
                     }
                 },
-                "required": ["permissions", "result"]
+                "required": ["permissions"]
             }
         }
     }
