@@ -25,6 +25,14 @@ def _first(data: Any, key: str) -> Any:
     return {}
 
 
+def _check_response(response: Any) -> None:
+    if response.status < 200 or response.status >= 300:
+        data = response.data if isinstance(response.data, dict) else {}
+        err = data.get("error", {})
+        msg = err.get("message", str(data)) if isinstance(err, dict) else str(data)
+        raise RuntimeError(f"Missive error {response.status}: {msg}")
+
+
 _TEAM_MAILBOXES = {"team_inbox", "team_closed", "team_all"}
 
 
@@ -66,6 +74,7 @@ class ListConversationsAction(ActionHandler):
                 headers=_get_headers(context),
                 params=params,
             )
+            _check_response(response)
             conversations = response.data.get("conversations", [])
             return ActionResult(data={"conversations": conversations, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -82,6 +91,7 @@ class GetConversationAction(ActionHandler):
                 method="GET",
                 headers=_get_headers(context),
             )
+            _check_response(response)
             conversation = _first(response.data, "conversations")
             return ActionResult(data={"conversation": conversation, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -115,9 +125,7 @@ class UpdateConversationAction(ActionHandler):
                 headers=_get_headers(context),
                 json={"conversations": [body]},
             )
-            if response.status not in (200, 201, 204):
-                err = response.data.get("error", {}).get("message", f"HTTP {response.status}")
-                return ActionResult(data={"result": False, "error": err}, cost_usd=0.0)
+            _check_response(response)
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
@@ -154,6 +162,7 @@ class ListConversationMessagesAction(ActionHandler):
                 headers=_get_headers(context),
                 params=params,
             )
+            _check_response(response)
             messages = response.data.get("messages", [])
             return ActionResult(data={"messages": messages, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -170,6 +179,7 @@ class ListConversationCommentsAction(ActionHandler):
                 method="GET",
                 headers=_get_headers(context),
             )
+            _check_response(response)
             comments = response.data.get("comments", [])
             return ActionResult(data={"comments": comments, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -186,6 +196,7 @@ class ListConversationPostsAction(ActionHandler):
                 method="GET",
                 headers=_get_headers(context),
             )
+            _check_response(response)
             posts = response.data.get("posts", [])
             return ActionResult(data={"posts": posts, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -202,6 +213,7 @@ class ListConversationDraftsAction(ActionHandler):
                 method="GET",
                 headers=_get_headers(context),
             )
+            _check_response(response)
             drafts = response.data.get("drafts", [])
             return ActionResult(data={"drafts": drafts, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -222,6 +234,7 @@ class ListMessagesAction(ActionHandler):
                 headers=_get_headers(context),
                 params=params,
             )
+            _check_response(response)
             messages = response.data.get("messages", [])
             return ActionResult(data={"messages": messages, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -238,6 +251,7 @@ class GetMessageAction(ActionHandler):
                 method="GET",
                 headers=_get_headers(context),
             )
+            _check_response(response)
             message = _first(response.data, "messages")
             return ActionResult(data={"message": message, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -268,6 +282,7 @@ class CreateMessageAction(ActionHandler):
                 headers=_get_headers(context),
                 json={"messages": body},
             )
+            _check_response(response)
             message = response.data.get("message", response.data.get("messages", {}))
             return ActionResult(data={"message": message, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -279,13 +294,15 @@ class CreateDraftAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             body: Dict[str, Any] = {
-                "channel_id": inputs["channel_id"],
+                "channel": {"id": inputs["channel_id"]},
                 "body": inputs["body"],
             }
+            if inputs.get("from_field") is not None:
+                body["from_field"] = inputs["from_field"]
             if inputs.get("subject") is not None:
                 body["subject"] = inputs["subject"]
             if inputs.get("conversation_id") is not None:
-                body["conversation_id"] = inputs["conversation_id"]
+                body["conversation"] = {"id": inputs["conversation_id"]}
             if inputs.get("send") is not None:
                 body["send"] = inputs["send"]
             if inputs.get("send_at") is not None:
@@ -293,9 +310,9 @@ class CreateDraftAction(ActionHandler):
             if inputs.get("auto_followup") is not None:
                 body["auto_followup"] = inputs["auto_followup"]
             if inputs.get("team_id") is not None:
-                body["team_id"] = inputs["team_id"]
+                body["team"] = {"id": inputs["team_id"]}
             if inputs.get("assignee_id") is not None:
-                body["assignee_id"] = inputs["assignee_id"]
+                body["add_assignees"] = [{"id": inputs["assignee_id"]}]
             if inputs.get("to"):
                 body["to_fields"] = inputs["to"]
             if inputs.get("cc"):
@@ -309,6 +326,7 @@ class CreateDraftAction(ActionHandler):
                 headers=_get_headers(context),
                 json={"drafts": body},
             )
+            _check_response(response)
             draft = response.data.get("draft", response.data.get("drafts", {}))
             return ActionResult(data={"draft": draft, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -359,6 +377,7 @@ class CreatePostAction(ActionHandler):
                 headers=_get_headers(context),
                 json={"posts": body},
             )
+            _check_response(response)
             data = response.data
             return ActionResult(
                 data={
@@ -390,6 +409,7 @@ class ListContactsAction(ActionHandler):
                 headers=_get_headers(context),
                 params=params,
             )
+            _check_response(response)
             contacts = response.data.get("contacts", [])
             return ActionResult(data={"contacts": contacts, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -406,6 +426,7 @@ class GetContactAction(ActionHandler):
                 method="GET",
                 headers=_get_headers(context),
             )
+            _check_response(response)
             contact = _first(response.data, "contacts")
             return ActionResult(data={"contact": contact, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -425,6 +446,7 @@ class CreateContactAction(ActionHandler):
                 headers=_get_headers(context),
                 json={"contacts": payload},
             )
+            _check_response(response)
             contacts = response.data.get("contacts", [])
             return ActionResult(data={"contacts": contacts, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -454,9 +476,7 @@ class UpdateContactAction(ActionHandler):
                 headers=_get_headers(context),
                 json={"contacts": [body]},
             )
-            if response.status not in (200, 201, 204):
-                err = response.data.get("error", {}).get("message", f"HTTP {response.status}")
-                return ActionResult(data={"contact": {}, "result": False, "error": err}, cost_usd=0.0)
+            _check_response(response)
             contact = _first(response.data, "contacts")
             return ActionResult(data={"contact": contact, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -477,6 +497,7 @@ class ListContactBooksAction(ActionHandler):
                 headers=_get_headers(context),
                 params=params,
             )
+            _check_response(response)
             contact_books = response.data.get("contact_books", [])
             return ActionResult(data={"contact_books": contact_books, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -499,6 +520,7 @@ class ListContactGroupsAction(ActionHandler):
                 headers=_get_headers(context),
                 params=params,
             )
+            _check_response(response)
             contact_groups = response.data.get("contact_groups", [])
             return ActionResult(data={"contact_groups": contact_groups, "result": True}, cost_usd=0.0)
         except Exception as e:
@@ -529,6 +551,7 @@ class CreateAnalyticsReportAction(ActionHandler):
                 headers=_get_headers(context),
                 json={"reports": body},
             )
+            _check_response(response)
             report_id = response.data.get("reports", {}).get("id") or response.data.get("id")
             if not report_id:
                 return ActionResult(
@@ -549,6 +572,7 @@ class GetAnalyticsReportAction(ActionHandler):
                 method="GET",
                 headers=_get_headers(context),
             )
+            _check_response(response)
             report = response.data.get("reports", response.data)
             return ActionResult(data={"report": report, "result": True}, cost_usd=0.0)
         except Exception as e:
