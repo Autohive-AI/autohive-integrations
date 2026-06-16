@@ -263,6 +263,18 @@ async def test_create_meeting_success():
 
 
 @pytest.mark.asyncio
+async def test_create_meeting_forwards_explicit_false_settings():
+    # An explicit False boolean setting must still be sent (not dropped as falsy).
+    ctx = make_ctx({"id": 1, "topic": "X"})
+    await zoom_integration.execute_action(
+        "create_meeting", {"topic": "X", "waiting_room": False, "join_before_host": False}, ctx
+    )
+    settings = called_kwargs(ctx)["json"]["settings"]
+    assert settings["waiting_room"] is False
+    assert settings["join_before_host"] is False
+
+
+@pytest.mark.asyncio
 async def test_create_meeting_missing_topic_validation_error():
     ctx = make_ctx({})
     result = await zoom_integration.execute_action("create_meeting", {}, ctx)
@@ -451,12 +463,14 @@ async def test_add_meeting_registrant_error():
 @pytest.mark.asyncio
 async def test_create_calendar_event_success():
     ctx = make_ctx({"id": "ev1", "summary": "Lunch", "htmlLink": "https://cal/ev1"})
+    reminders = {"useDefault": False, "overrides": [{"method": "email", "minutes": 30}]}
     result = await zoom_integration.execute_action(
         "create_calendar_event",
         {
             "summary": "Lunch",
             "start": {"dateTime": "2026-01-01T12:00:00Z"},
             "end": {"dateTime": "2026-01-01T13:00:00Z"},
+            "reminders": reminders,
         },
         ctx,
     )
@@ -464,6 +478,7 @@ async def test_create_calendar_event_success():
     assert data["id"] == "ev1"
     assert data["html_link"] == "https://cal/ev1"
     assert called_url(ctx).endswith("/calendars/primary/events")
+    assert called_kwargs(ctx)["json"]["reminders"] == reminders
 
 
 @pytest.mark.asyncio

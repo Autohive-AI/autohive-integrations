@@ -604,11 +604,6 @@
                     "last_name": {
                         "type": "string",
                         "description": "Registrant's last name."
-                    },
-                    "auto_approve": {
-                        "type": "boolean",
-                        "description": "Automatically approve the registrant.",
-                        "default": true
                     }
                 },
                 "required": ["meeting_id", "email", "first_name"]
@@ -703,6 +698,33 @@
                             "properties": {
                                 "email": {
                                     "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "reminders": {
+                        "type": "object",
+                        "description": "Reminder settings for the event.",
+                        "properties": {
+                            "useDefault": {
+                                "type": "boolean",
+                                "description": "Whether to use the calendar's default reminders."
+                            },
+                            "overrides": {
+                                "type": "array",
+                                "description": "Custom reminders that override the defaults.",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "method": {
+                                            "type": "string",
+                                            "description": "Reminder method (e.g. 'email' or 'popup')."
+                                        },
+                                        "minutes": {
+                                            "type": "integer",
+                                            "description": "Minutes before the event to trigger the reminder."
+                                        }
+                                    }
                                 }
                             }
                         }

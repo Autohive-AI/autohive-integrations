@@ -232,12 +232,12 @@ class CreateMeetingAction(ActionHandler):
 
             # Build settings
             settings = {}
-            if "waiting_room" in inputs:
-                settings["waiting_room"] = inputs["waiting_room"]
-            if "join_before_host" in inputs:
-                settings["join_before_host"] = inputs["join_before_host"]
-            if "mute_upon_entry" in inputs:
-                settings["mute_upon_entry"] = inputs["mute_upon_entry"]
+            if inputs.get("waiting_room") is not None:
+                settings["waiting_room"] = inputs.get("waiting_room")
+            if inputs.get("join_before_host") is not None:
+                settings["join_before_host"] = inputs.get("join_before_host")
+            if inputs.get("mute_upon_entry") is not None:
+                settings["mute_upon_entry"] = inputs.get("mute_upon_entry")
             if inputs.get("auto_recording"):
                 settings["auto_recording"] = inputs["auto_recording"]
 
@@ -290,12 +290,12 @@ class UpdateMeetingAction(ActionHandler):
 
             # Build settings updates
             settings = {}
-            if "waiting_room" in inputs:
-                settings["waiting_room"] = inputs["waiting_room"]
-            if "join_before_host" in inputs:
-                settings["join_before_host"] = inputs["join_before_host"]
-            if "mute_upon_entry" in inputs:
-                settings["mute_upon_entry"] = inputs["mute_upon_entry"]
+            if inputs.get("waiting_room") is not None:
+                settings["waiting_room"] = inputs.get("waiting_room")
+            if inputs.get("join_before_host") is not None:
+                settings["join_before_host"] = inputs.get("join_before_host")
+            if inputs.get("mute_upon_entry") is not None:
+                settings["mute_upon_entry"] = inputs.get("mute_upon_entry")
             if inputs.get("auto_recording"):
                 settings["auto_recording"] = inputs["auto_recording"]
 
@@ -321,8 +321,8 @@ class DeleteMeetingAction(ActionHandler):
             params = {}
             if inputs.get("occurrence_id"):
                 params["occurrence_id"] = inputs["occurrence_id"]
-            if "schedule_for_reminder" in inputs:
-                params["schedule_for_reminder"] = inputs["schedule_for_reminder"]
+            if inputs.get("schedule_for_reminder") is not None:
+                params["schedule_for_reminder"] = inputs.get("schedule_for_reminder")
 
             await client._make_request(f"meetings/{meeting_id}", method="DELETE", params=params if params else None)
 
