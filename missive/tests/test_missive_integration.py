@@ -284,14 +284,6 @@ class TestPosts:
 
 class TestContacts:
     async def test_list_contacts(self, live_context):
-        result = await missive.execute_action("list_contacts", {}, live_context)
-        assert result.type == ResultType.ACTION
-        data = result.result.data
-        assert data["result"] is True
-        assert isinstance(data["contacts"], list)
-        print(f"[OK] list_contacts: {len(data['contacts'])} contacts")
-
-    async def test_list_contacts_with_book_filter(self, live_context):
         books_result = await missive.execute_action("list_contact_books", {}, live_context)
         books = books_result.result.data["contact_books"]
         if not books:
@@ -303,7 +295,7 @@ class TestContacts:
         data = result.result.data
         assert data["result"] is True
         assert isinstance(data["contacts"], list)
-        print(f"[OK] list_contacts with book filter {book_id}: {len(data['contacts'])} contacts")
+        print(f"[OK] list_contacts in {book_id}: {len(data['contacts'])} contacts")
 
     async def test_list_contact_books(self, live_context):
         result = await missive.execute_action("list_contact_books", {}, live_context)

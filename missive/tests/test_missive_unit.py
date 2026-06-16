@@ -169,7 +169,7 @@ async def test_create_post():
 
 async def test_list_contacts():
     ctx = make_ctx({"contacts": [{"id": "ct1", "first_name": "Alice"}]})
-    result = await missive.execute_action("list_contacts", {}, ctx)
+    result = await missive.execute_action("list_contacts", {"contact_book_id": "cb1"}, ctx)
     data = result.result.data
     assert data["result"] is True
     assert data["contacts"][0]["id"] == "ct1"

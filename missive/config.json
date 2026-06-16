@@ -713,24 +713,27 @@
     },
     "list_contacts": {
       "display_name": "List Contacts",
-      "description": "List contacts with optional search and filtering. Returns up to 200 results per page.",
+      "description": "List contacts within a contact book with optional search filtering. Returns up to 200 results per page.",
       "input_schema": {
         "type": "object",
         "properties": {
+          "contact_book_id": {
+            "type": "string",
+            "description": "The contact book to list contacts from (required by Missive API)"
+          },
           "search": {
             "type": "string",
             "description": "Search query to filter contacts"
-          },
-          "contact_book_id": {
-            "type": "string",
-            "description": "Filter by contact book"
           },
           "limit": {
             "type": "integer",
             "description": "Number of contacts to return (max 200)",
             "default": 50
           }
-        }
+        },
+        "required": [
+          "contact_book_id"
+        ]
       },
       "output_schema": {
         "type": "object",
