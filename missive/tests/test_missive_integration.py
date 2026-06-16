@@ -269,15 +269,26 @@ class TestPosts:
             pytest.skip("No conversations available for create_post test")
 
         conv_id = conversations[0]["id"]
-        result = await missive.execute_action(
-            "create_post",
-            {"text": "Integration test post - autohive", "conversation_id": conv_id},
-            live_context,
-        )
-        assert result.type == ResultType.ACTION
-        data = result.result.data
-        assert data["result"] is True
-        print(f"[OK] create_post in {conv_id}: post={data.get('post')}")
+        post_id = None
+        try:
+            result = await missive.execute_action(
+                "create_post",
+                {"text": "Integration test post - autohive", "conversation_id": conv_id},
+                live_context,
+            )
+            assert result.type == ResultType.ACTION
+            data = result.result.data
+            assert data["result"] is True
+            post = data.get("post") or {}
+            post_id = post.get("id") if isinstance(post, dict) else None
+            print(f"[OK] create_post in {conv_id}: post={post_id}")
+        finally:
+            if post_id:
+                await live_context.fetch(
+                    f"https://public.missiveapp.com/v1/posts/{post_id}",
+                    method="DELETE",
+                    headers={"Authorization": f"Bearer {live_context.auth.get('api_token', '')}", "Content-Type": "application/json"},
+                )
 
 
 # ─────────────────────────────────────────────
