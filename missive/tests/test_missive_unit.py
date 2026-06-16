@@ -22,6 +22,10 @@ def ok(data):
     return FetchResponse(status=200, headers={}, data=data)
 
 
+def err(status=401, message="Unauthorized"):
+    return FetchResponse(status=status, headers={}, data={"error": {"message": message}})
+
+
 def make_ctx(response_data):
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(return_value=ok(response_data))
@@ -241,3 +245,137 @@ async def test_get_analytics_report():
     data = result.result.data
     assert data["result"] is True
     assert data["report"]["id"] == "ar1"
+
+
+# =============================================================================
+# REQUEST-SHAPE TESTS (write actions)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_create_draft_request_shape():
+    ctx = make_ctx({"drafts": {"id": "dr1"}})
+    await missive.execute_action(
+        "create_draft",
+        {
+            "channel_id": "ch1",
+            "body": "Hello",
+            "subject": "Test subject",
+            "conversation_id": "conv1",
+            "team_id": "team1",
+            "assignee_id": "user1",
+            "to": [{"name": "Alice", "address": "alice@example.com"}],
+        },
+        ctx,
+    )
+    _, kwargs = ctx.fetch.call_args
+    payload = kwargs["json"]["drafts"]
+    assert payload["channel"] == {"id": "ch1"}
+    assert payload["body"] == "Hello"
+    assert payload["subject"] == "Test subject"
+    assert payload["conversation"] == {"id": "conv1"}
+    assert payload["team"] == {"id": "team1"}
+    assert payload["add_assignees"] == [{"id": "user1"}]
+    assert payload["to_fields"] == [{"name": "Alice", "address": "alice@example.com"}]
+    assert "channel_id" not in payload
+    assert "conversation_id" not in payload
+    assert "team_id" not in payload
+    assert "assignee_id" not in payload
+
+
+@pytest.mark.asyncio
+async def test_create_post_request_shape():
+    ctx = make_ctx({"posts": {"id": "p1"}, "conversations": {"id": "c1"}})
+    await missive.execute_action(
+        "create_post",
+        {"text": "Hello team", "conversation_id": "c1", "close": True},
+        ctx,
+    )
+    _, kwargs = ctx.fetch.call_args
+    payload = kwargs["json"]["posts"]
+    assert payload["conversation"] == "c1"
+    assert payload["text"] == "Hello team"
+    assert payload["close"] is True
+
+
+@pytest.mark.asyncio
+async def test_update_conversation_request_shape():
+    ctx = make_ctx({})
+    await missive.execute_action(
+        "update_conversation",
+        {"conversation_id": "c1", "closed": True, "assignee_id": "u1"},
+        ctx,
+    )
+    _, kwargs = ctx.fetch.call_args
+    conversations = kwargs["json"]["conversations"]
+    assert len(conversations) == 1
+    body = conversations[0]
+    assert body["id"] == "c1"
+    assert body["close"] is True
+    assert body["add_assignees"] == ["u1"]
+
+
+@pytest.mark.asyncio
+async def test_create_contact_request_shape():
+    ctx = make_ctx({"contacts": [{"id": "ct1"}]})
+    await missive.execute_action(
+        "create_contact",
+        {
+            "contact_book_id": "cb1",
+            "contacts": [{"first_name": "Alice", "last_name": "Smith", "kind": "person"}],
+        },
+        ctx,
+    )
+    _, kwargs = ctx.fetch.call_args
+    payload = kwargs["json"]["contacts"]
+    assert payload[0]["contact_book"] == "cb1"
+    assert payload[0]["first_name"] == "Alice"
+
+
+# =============================================================================
+# ERROR-PATH TESTS
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_list_conversations_non2xx_returns_error():
+    ctx = MagicMock(name="ExecutionContext")
+    ctx.fetch = AsyncMock(return_value=err(401, "Unauthorized"))
+    ctx.auth = {"api_token": "bad_token"}  # nosec B105
+    result = await missive.execute_action("list_conversations", {"mailbox": "all"}, ctx)
+    assert result.result.data["result"] is False
+    assert "401" in result.result.data["error"] or "Unauthorized" in result.result.data["error"]
+
+
+@pytest.mark.asyncio
+async def test_create_draft_non2xx_returns_error():
+    ctx = MagicMock(name="ExecutionContext")
+    ctx.fetch = AsyncMock(return_value=err(422, "Invalid channel"))
+    ctx.auth = {"api_token": "test_token"}  # nosec B105
+    result = await missive.execute_action("create_draft", {"channel_id": "bad", "body": "Hi"}, ctx)
+    assert result.result.data["result"] is False
+    assert "Invalid channel" in result.result.data["error"]
+
+
+@pytest.mark.asyncio
+async def test_create_contact_non2xx_returns_error():
+    ctx = MagicMock(name="ExecutionContext")
+    ctx.fetch = AsyncMock(return_value=err(403, "Forbidden"))
+    ctx.auth = {"api_token": "test_token"}  # nosec B105
+    result = await missive.execute_action(
+        "create_contact",
+        {"contact_book_id": "cb1", "contacts": [{"first_name": "Alice", "kind": "person"}]},
+        ctx,
+    )
+    assert result.result.data["result"] is False
+    assert "Forbidden" in result.result.data["error"]
+
+
+@pytest.mark.asyncio
+async def test_update_conversation_non2xx_returns_error():
+    ctx = MagicMock(name="ExecutionContext")
+    ctx.fetch = AsyncMock(return_value=err(404, "Not found"))
+    ctx.auth = {"api_token": "test_token"}  # nosec B105
+    result = await missive.execute_action("update_conversation", {"conversation_id": "bad"}, ctx)
+    assert result.result.data["result"] is False
+    assert "Not found" in result.result.data["error"]
