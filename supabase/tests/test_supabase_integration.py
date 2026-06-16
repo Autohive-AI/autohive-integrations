@@ -51,7 +51,7 @@ skip_if_no_table = pytest.mark.skipif(
 def live_context(make_context):
     service_role_key = SUPABASE_SERVICE_ROLE_KEY
 
-    async def real_fetch(url, *, method="GET", params=None, headers=None, json=None, body=None, **kwargs):
+    async def real_fetch(url, *, method="GET", params=None, headers=None, json=None, **kwargs):
         merged = dict(headers or {})
         async with aiohttp.ClientSession() as session:
             async with session.request(
@@ -59,7 +59,6 @@ def live_context(make_context):
                 url,
                 params=params,
                 json=json,
-                data=body,
                 headers=merged,
             ) as resp:
                 try:
