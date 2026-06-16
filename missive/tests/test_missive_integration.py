@@ -287,7 +287,10 @@ class TestPosts:
                 await live_context.fetch(
                     f"https://public.missiveapp.com/v1/posts/{post_id}",
                     method="DELETE",
-                    headers={"Authorization": f"Bearer {live_context.auth.get('api_token', '')}", "Content-Type": "application/json"},
+                    headers={
+                        "Authorization": f"Bearer {live_context.auth.get('api_token', '')}",
+                        "Content-Type": "application/json",
+                    },
                 )
 
 
@@ -375,7 +378,10 @@ class TestContacts:
             await live_context.fetch(
                 f"https://public.missiveapp.com/v1/contacts/{contact_id}",
                 method="DELETE",
-                headers={"Authorization": f"Bearer {live_context.auth.get('api_token', '')}", "Content-Type": "application/json"},
+                headers={
+                    "Authorization": f"Bearer {live_context.auth.get('api_token', '')}",
+                    "Content-Type": "application/json",
+                },
             )
 
 
